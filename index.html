@@ -88,7 +88,7 @@
        S1 — HERO (Hook douleur + curiosité)
     ═══════════════════════════════════ */
     .hero {
-      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      min-height: auto; display: flex; align-items: center; justify-content: center;
       position: relative; overflow: hidden;
       background: linear-gradient(170deg, var(--brown) 0%, var(--night) 60%);
     }
@@ -122,13 +122,6 @@
       background-size: 80px 80px;
       mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 20%, transparent 70%);
       -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 20%, transparent 70%);
-      pointer-events: none; z-index: 0;
-    }
-    /* Hero secondary glow (bottom) */
-    .hero-glow-bottom {
-      position: absolute; bottom: -10%; left: 50%; transform: translateX(-50%);
-      width: 900px; height: 400px;
-      background: radial-gradient(ellipse, rgba(232,105,43,.08) 0%, transparent 60%);
       pointer-events: none; z-index: 0;
     }
     /* Animated gradient border on CTA */
@@ -199,7 +192,7 @@
     }
     .hero-inner {
       position: relative; z-index: 2; text-align: center;
-      max-width: 780px; padding: 60px 24px 24px;
+      max-width: 780px; padding: 80px 24px 60px;
     }
 
     .hero-eyebrow {
@@ -939,7 +932,6 @@
   <div class="hero-rays"></div>
   <div class="hero-glow"></div>
   <div class="hero-grid"></div>
-  <div class="hero-glow-bottom"></div>
   <div class="hero-particles">
     <div class="particle"></div><div class="particle"></div><div class="particle"></div>
     <div class="particle"></div><div class="particle"></div><div class="particle"></div>
@@ -956,9 +948,9 @@
     <p class="hero-eyebrow">Pour les commerces réunionnais en manque de visibilité</p>
 
     <h1>
-      Touchez 50.000 à 200.000<br>
-      Réunionnais en 7 jours grâce<br>
-      au média Bourbon Bons Plans.
+      Touchez <span class="hl">50.000</span> à <span class="hl">200.000</span><br>
+      <span class="hl">Réunionnais</span> en 7 jours grâce<br>
+      au média <span class="hl">Bourbon Bons Plans</span>.
     </h1>
 
     <p class="hero-sub">
@@ -1237,7 +1229,7 @@
 <!-- ═══════════ S9 — FONDATEUR ═══════════ -->
 <section class="founder">
   <div class="founder-inner reveal">
-    <div class="founder-photo">👤</div>
+    <div class="founder-photo"><img src="https://msgsndr-private.storage.googleapis.com/calendar-widget-logo/c63c8cf8-97c9-46d1-b476-c38392854d35.png" alt="Siméon Drogou" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>
     <div class="founder-bio">
       <h3>Siméon Drogou</h3>
       <p>Ça fait 7 ans que je parcours La Réunion pour filmer les commerces locaux. En 2 ans, Bourbon Bons Plans est devenu le plus gros compte de découverte locale de l'île — 68 000 abonnés, plus de 10 millions de vues.</p>
@@ -1316,7 +1308,6 @@
     <a href="https://www.facebook.com/bourbonbonsplans" target="_blank">Facebook</a>
   </div>
   <div class="footer-links">
-    <a href="https://bourbonmedia.fr" target="_blank">Voir le site Bourbon Média →</a>
     <a href="#">Mentions légales</a>
   </div>
   <div class="footer-copy">Bourbon Média SAS — Tous droits réservés — 2026</div>
