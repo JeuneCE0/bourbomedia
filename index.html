@@ -804,6 +804,133 @@
     }
     .final-feat .check { color: var(--orange); font-weight: 700; }
 
+    /* ═══════════ S10b — FORMULAIRE LEADS ═══════════ */
+    .lead-form-section {
+      padding: 80px 0; background: var(--cream);
+    }
+    .lead-form-section h2 {
+      text-align: center; font-size: clamp(1.6rem, 3.8vw, 2.4rem);
+      font-weight: 800; margin-bottom: 12px; color: var(--text);
+    }
+    .lead-form-section .section-sub {
+      text-align: center; font-size: 1rem; color: var(--text-mid);
+      margin-bottom: 40px; max-width: 500px; margin-left: auto; margin-right: auto;
+    }
+    .lead-form {
+      max-width: 520px; margin: 0 auto; padding: 0 24px;
+    }
+    .lead-form .form-group {
+      margin-bottom: 18px;
+    }
+    .lead-form label {
+      display: block; font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: .85rem; font-weight: 700; color: var(--text);
+      margin-bottom: 6px;
+    }
+    .lead-form input,
+    .lead-form select,
+    .lead-form textarea {
+      width: 100%; padding: 14px 18px; border: 2px solid var(--beige-mid);
+      border-radius: var(--radius-sm); font-family: 'Instrument Sans', sans-serif;
+      font-size: .95rem; color: var(--text); background: var(--white);
+      transition: border-color .3s ease, box-shadow .3s ease;
+      outline: none;
+    }
+    .lead-form input::placeholder,
+    .lead-form textarea::placeholder {
+      color: var(--text-muted);
+    }
+    .lead-form input:focus,
+    .lead-form select:focus,
+    .lead-form textarea:focus {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 4px var(--orange-glow);
+    }
+    .lead-form textarea { resize: vertical; min-height: 90px; }
+    .lead-form .form-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .lead-form .form-submit {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 16px 32px; border: none; cursor: pointer;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1rem; font-weight: 700; color: var(--white);
+      background: var(--orange); border-radius: var(--radius-sm);
+      transition: background .3s ease, transform .2s ease;
+      margin-top: 8px;
+    }
+    .lead-form .form-submit:hover {
+      background: var(--orange-dark); transform: translateY(-2px);
+    }
+    .lead-form .form-submit:disabled {
+      opacity: .6; cursor: not-allowed; transform: none;
+    }
+    .lead-form .form-submit svg { width: 17px; height: 17px; }
+    .lead-form .form-note {
+      text-align: center; font-size: .78rem; color: var(--text-muted);
+      margin-top: 14px;
+    }
+    .lead-form .form-success {
+      display: none; text-align: center; padding: 28px;
+      background: var(--green-light); border-radius: var(--radius-sm);
+      border: 2px solid var(--green);
+    }
+    .lead-form .form-success.show { display: block; }
+    .lead-form .form-success .check-icon {
+      font-size: 2rem; margin-bottom: 10px;
+    }
+    .lead-form .form-success h3 {
+      font-size: 1.15rem; font-weight: 800; color: var(--text); margin-bottom: 6px;
+    }
+    .lead-form .form-success p {
+      font-size: .9rem; color: var(--text-mid);
+    }
+    .lead-form .form-error {
+      display: none; text-align: center; padding: 12px;
+      background: rgba(214,48,48,.08); border-radius: var(--radius-xs);
+      border: 1px solid var(--red); color: var(--red);
+      font-size: .85rem; margin-top: 12px;
+    }
+    .lead-form .form-error.show { display: block; }
+    @media (max-width: 640px) {
+      .lead-form .form-row { grid-template-columns: 1fr; }
+    }
+
+    /* ═══════════ S10c — CALENDRIER GHL ═══════════ */
+    .calendar-section {
+      padding: 80px 0;
+      background: linear-gradient(170deg, var(--brown) 0%, var(--night) 70%);
+      text-align: center; position: relative; overflow: hidden;
+    }
+    .calendar-section .hero-rays { opacity: .4; }
+    .calendar-section-inner {
+      position: relative; z-index: 2; max-width: 760px; margin: 0 auto; padding: 0 24px;
+    }
+    .calendar-section h2 {
+      color: var(--white); font-size: clamp(1.6rem, 3.8vw, 2.4rem);
+      font-weight: 800; margin-bottom: 12px;
+    }
+    .calendar-section h2 .hl { color: var(--orange); }
+    .calendar-section .section-sub {
+      color: rgba(255,255,255,.55); font-size: 1rem; margin-bottom: 32px;
+    }
+    .calendar-embed {
+      background: var(--white); border-radius: var(--radius);
+      overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,.2);
+      min-height: 600px;
+    }
+    .calendar-embed iframe {
+      width: 100%; height: 700px; border: none;
+    }
+    .calendar-features {
+      display: flex; justify-content: center; gap: 28px; margin-top: 24px; flex-wrap: wrap;
+    }
+    .calendar-feat {
+      display: flex; align-items: center; gap: 7px;
+      color: rgba(255,255,255,.4); font-size: .82rem;
+    }
+    .calendar-feat .check { color: var(--orange); font-weight: 700; }
+
     /* ═══════════ S11 — FAQ ═══════════ */
     .faq { padding: 72px 0; background: var(--cream); }
     .faq h2 {
@@ -903,7 +1030,7 @@
     </p>
 
     <div class="hero-ctas">
-      <a href="#contact" class="cta">
+      <a href="#formulaire" class="cta">
         Voir si mon commerce est éligible
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
       </a>
@@ -1150,7 +1277,7 @@
     </div>
 
     <div class="offer-cta reveal">
-      <a href="#contact" class="cta">
+      <a href="#formulaire" class="cta">
         Vérifier si mon commerce est éligible
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
       </a>
@@ -1293,8 +1420,8 @@
       <p class="if-line">Obtenez <strong>50 000 à 200 000 vues locales</strong> sur votre commerce.</p>
     </div>
 
-    <a href="https://calendly.com/bourbonmedia" class="cta reveal" style="animation:none">
-      Voir si mon commerce est éligible
+    <a href="#formulaire" class="cta reveal" style="animation:none">
+      Demander un appel gratuit
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
     </a>
 
@@ -1302,6 +1429,99 @@
       <div class="final-feat"><span class="check">✓</span> Appel de 15 min, offert</div>
       <div class="final-feat"><span class="check">✓</span> 50 000 vues garanties</div>
       <div class="final-feat"><span class="check">✓</span> Droits d'auteur inclus</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ S10b — FORMULAIRE LEADS ═══════════ -->
+<section class="lead-form-section" id="formulaire">
+  <h2 class="reveal">Parlons de votre commerce</h2>
+  <p class="section-sub reveal">Remplissez ce formulaire et on vous rappelle sous 24h pour un appel de 15 min — gratuit et sans engagement.</p>
+
+  <div class="lead-form reveal">
+    <form id="leadForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="lead-firstname">Prénom</label>
+          <input type="text" id="lead-firstname" name="firstName" placeholder="Jean" required>
+        </div>
+        <div class="form-group">
+          <label for="lead-lastname">Nom</label>
+          <input type="text" id="lead-lastname" name="lastName" placeholder="Dupont" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="lead-email">Email</label>
+        <input type="email" id="lead-email" name="email" placeholder="jean@moncommerce.re" required>
+      </div>
+      <div class="form-group">
+        <label for="lead-phone">Téléphone</label>
+        <input type="tel" id="lead-phone" name="phone" placeholder="0692 XX XX XX" required>
+      </div>
+      <div class="form-group">
+        <label for="lead-business">Type de commerce</label>
+        <select id="lead-business" name="businessType" required>
+          <option value="" disabled selected>Sélectionnez votre activité</option>
+          <option value="restaurant">Restaurant</option>
+          <option value="snack">Snack / Food truck</option>
+          <option value="bar">Bar / Lounge</option>
+          <option value="boutique">Boutique / Commerce</option>
+          <option value="salon">Salon (coiffure, beauté, etc.)</option>
+          <option value="hotel">Hôtel / Hébergement</option>
+          <option value="activite">Activité / Loisirs</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="lead-city">Commune</label>
+        <input type="text" id="lead-city" name="city" placeholder="Saint-Denis, Saint-Pierre..." required>
+      </div>
+      <div class="form-group">
+        <label for="lead-message">Un mot sur votre commerce (optionnel)</label>
+        <textarea id="lead-message" name="message" placeholder="Décrivez brièvement votre activité..."></textarea>
+      </div>
+
+      <button type="submit" class="form-submit" id="leadSubmitBtn">
+        Envoyer ma demande
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+      </button>
+      <div class="form-error" id="leadError">Une erreur est survenue. Veuillez réessayer ou nous contacter directement.</div>
+    </form>
+
+    <div class="form-success" id="leadSuccess">
+      <div class="check-icon">&#10003;</div>
+      <h3>Demande envoyée !</h3>
+      <p>On vous recontacte sous 24h pour planifier votre appel de 15 min.</p>
+    </div>
+
+    <p class="form-note">Vos données restent confidentielles. Aucun spam, promis.</p>
+  </div>
+</section>
+
+<!-- ═══════════ S10c — CALENDRIER GHL ═══════════ -->
+<section class="calendar-section" id="rdv">
+  <div class="hero-rays"></div>
+  <div class="calendar-section-inner">
+    <h2 class="reveal">Ou réservez directement <span class="hl">votre créneau</span></h2>
+    <p class="section-sub reveal">Choisissez le créneau qui vous arrange pour un appel de 15 min avec Siméon.</p>
+
+    <div class="calendar-embed reveal">
+      <!-- ══════════════════════════════════════════════════════
+           REMPLACEZ L'URL CI-DESSOUS PAR VOTRE LIEN CALENDRIER GHL
+           Exemple : https://api.leadconnectorhq.com/widget/booking/VOTRE_ID
+           ══════════════════════════════════════════════════════ -->
+      <iframe
+        src="VOTRE_LIEN_CALENDRIER_GHL_ICI"
+        title="Réserver un appel — Bourbon Média"
+        scrolling="no"
+        loading="lazy"
+      ></iframe>
+    </div>
+
+    <div class="calendar-features reveal">
+      <div class="calendar-feat"><span class="check">✓</span> 15 min, sans engagement</div>
+      <div class="calendar-feat"><span class="check">✓</span> Réponse garantie sous 24h</div>
+      <div class="calendar-feat"><span class="check">✓</span> 100% gratuit</div>
     </div>
   </div>
 </section>
@@ -1436,6 +1656,57 @@
   }, { threshold: 0.5 });
   const reachEl = document.querySelector('.reach-block');
   if (reachEl) reachObs.observe(reachEl);
+
+  // ═══════════ LEAD FORM → GHL WEBHOOK ═══════════
+  // ╔════════════════════════════════════════════════════════════╗
+  // ║  REMPLACEZ L'URL CI-DESSOUS PAR VOTRE WEBHOOK GHL        ║
+  // ║  GoHighLevel > Automation > Workflows > Trigger: Webhook  ║
+  // ╚════════════════════════════════════════════════════════════╝
+  const GHL_WEBHOOK_URL = 'VOTRE_WEBHOOK_GHL_ICI';
+
+  const leadForm = document.getElementById('leadForm');
+  const leadSubmitBtn = document.getElementById('leadSubmitBtn');
+  const leadSuccess = document.getElementById('leadSuccess');
+  const leadError = document.getElementById('leadError');
+
+  if (leadForm) {
+    leadForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      leadError.classList.remove('show');
+      leadSubmitBtn.disabled = true;
+      leadSubmitBtn.textContent = 'Envoi en cours...';
+
+      const formData = new FormData(leadForm);
+      const payload = {
+        firstName: formData.get('firstName'),
+        lastName: formData.get('lastName'),
+        email: formData.get('email'),
+        phone: formData.get('phone'),
+        businessType: formData.get('businessType'),
+        city: formData.get('city'),
+        message: formData.get('message') || '',
+        source: 'Landing Page BBP',
+        tags: ['landing-page', 'video-decouverte']
+      };
+
+      try {
+        const response = await fetch(GHL_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('Erreur serveur');
+
+        leadForm.style.display = 'none';
+        leadSuccess.classList.add('show');
+      } catch (err) {
+        leadError.classList.add('show');
+        leadSubmitBtn.disabled = false;
+        leadSubmitBtn.textContent = 'Envoyer ma demande';
+      }
+    });
+  }
 </script>
 
 </body>
