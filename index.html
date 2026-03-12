@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vidéo Découverte BBP — Votre emplacement sur le 1er média local de La Réunion</title>
+  <meta name="description" content="68 000 abonnés. 180 000 vues combinées en moyenne. La Vidéo Découverte BBP donne à votre commerce un emplacement sur le plus grand média digital local de La Réunion. À partir de 500€.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      /* Warm orange / beige palette */
+      --orange: #E8692B;
+      --orange-dark: #C9541E;
+      --orange-light: #F28C55;
+      --orange-glow: rgba(232,105,43,.15);
+      --beige: #FDF6EE;
+      --beige-mid: #F5E8D8;
+      --beige-warm: #EFD9C2;
+      --beige-dark: #D4B896;
+      --brown: #3D2B1F;
+      --brown-mid: #5C4033;
+      --brown-light: #7A5C47;
+      --night: #1A1008;
+      --night-mid: #251A0F;
+      --night-card: #2F2117;
+      --night-border: rgba(255,255,255,.08);
+      --cream: #FFFBF5;
+      --cream-mid: #FFF5E8;
+      --cream-warm: #FFEDD6;
+      --text: #2A1F15;
+      --text-mid: #6B5A4A;
+      --text-muted: #A08B78;
+      --white: #FFFFFF;
+      --green: #22C55E;
+      --green-light: rgba(34,197,94,.12);
+      --red: #D63030;
+      --red-dark: #B52222;
+      --radius: 20px;
+      --radius-sm: 12px;
+      --radius-xs: 8px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Instrument Sans', -apple-system, sans-serif;
+      color: var(--text); background: var(--night);
+      line-height: 1.6; overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      line-height: 1.12; letter-spacing: -0.015em;
+    }
+
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+    /* ─── CTA Buttons ─── */
+    .cta {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: var(--orange); color: var(--brown);
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 800; font-size: 1.08rem;
+      padding: 18px 38px; border-radius: 100px;
+      text-decoration: none; border: none; cursor: pointer;
+      transition: all .3s ease;
+      box-shadow: 0 4px 24px rgba(232,105,43,.35), 0 0 60px rgba(232,105,43,.1);
+    }
+    .cta:hover {
+      background: var(--orange-light); transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(232,105,43,.45), 0 0 80px rgba(232,105,43,.15);
+    }
+    .cta svg { width: 17px; height: 17px; transition: transform .3s ease; }
+    .cta:hover svg { transform: translateX(3px); }
+
+    .cta-ghost {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: rgba(255,255,255,.5); font-weight: 500; font-size: .92rem;
+      text-decoration: none; transition: color .3s ease;
+    }
+    .cta-ghost:hover { color: var(--orange); }
+
+    /* ═══════════════════════════════════
+       S1 — HERO (Hook douleur + curiosité)
+    ═══════════════════════════════════ */
+    .hero {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+      background: linear-gradient(170deg, var(--brown) 0%, var(--night) 60%);
+    }
+    .hero-rays {
+      position: absolute; top: 50%; left: 50%; width: 200vw; height: 200vh;
+      transform: translate(-50%, -50%);
+      background: conic-gradient(
+        from 0deg at 50% 65%,
+        transparent 0deg, rgba(232,105,43,.04) 10deg, transparent 20deg,
+        transparent 50deg, rgba(232,105,43,.06) 60deg, transparent 70deg,
+        transparent 100deg, rgba(232,105,43,.04) 110deg, transparent 120deg,
+        transparent 160deg, rgba(232,105,43,.05) 170deg, transparent 180deg,
+        transparent 210deg, rgba(232,105,43,.04) 220deg, transparent 230deg,
+        transparent 270deg, rgba(232,105,43,.06) 280deg, transparent 290deg,
+        transparent 320deg, rgba(232,105,43,.04) 330deg, transparent 340deg,
+        transparent 360deg
+      );
+      opacity: .7;
+    }
+    .hero-glow {
+      position: absolute; top: -20%; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 600px;
+      background: radial-gradient(ellipse, rgba(232,105,43,.12) 0%, transparent 60%);
+    }
+    /* Floating particles */
+    .hero-particles {
+      position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+    }
+    .particle {
+      position: absolute; border-radius: 50%;
+      background: rgba(232,105,43,.6);
+      animation: floatUp linear infinite;
+      box-shadow: 0 0 6px rgba(232,105,43,.4);
+    }
+    .particle:nth-child(odd) { background: rgba(255,200,120,.5); box-shadow: 0 0 8px rgba(255,200,120,.3); }
+    .particle:nth-child(1) { left: 8%; width: 4px; height: 4px; animation-duration: 7s; animation-delay: 0s; }
+    .particle:nth-child(2) { left: 18%; width: 6px; height: 6px; animation-duration: 10s; animation-delay: 1s; }
+    .particle:nth-child(3) { left: 32%; width: 5px; height: 5px; animation-duration: 8s; animation-delay: 2.5s; }
+    .particle:nth-child(4) { left: 48%; width: 7px; height: 7px; animation-duration: 9s; animation-delay: 1.5s; }
+    .particle:nth-child(5) { left: 62%; width: 4px; height: 4px; animation-duration: 11s; animation-delay: 3s; }
+    .particle:nth-child(6) { left: 73%; width: 6px; height: 6px; animation-duration: 8s; animation-delay: 0.5s; }
+    .particle:nth-child(7) { left: 88%; width: 5px; height: 5px; animation-duration: 10s; animation-delay: 4s; }
+    .particle:nth-child(8) { left: 42%; width: 3px; height: 3px; animation-duration: 12s; animation-delay: 2s; }
+    .particle:nth-child(9) { left: 3%; width: 5px; height: 5px; animation-duration: 9s; animation-delay: 5s; }
+    .particle:nth-child(10) { left: 95%; width: 4px; height: 4px; animation-duration: 7s; animation-delay: 1.5s; }
+    .particle:nth-child(11) { left: 25%; width: 8px; height: 8px; animation-duration: 13s; animation-delay: 0s; }
+    .particle:nth-child(12) { left: 55%; width: 6px; height: 6px; animation-duration: 8s; animation-delay: 3.5s; }
+    @keyframes floatUp {
+      0% { bottom: -20px; opacity: 0; transform: translateX(0) scale(.5); }
+      15% { opacity: 1; transform: scale(1); }
+      85% { opacity: .7; }
+      100% { bottom: 105%; opacity: 0; transform: translateX(40px) scale(.3); }
+    }
+    .hero-inner {
+      position: relative; z-index: 2; text-align: center;
+      max-width: 780px; padding: 60px 24px 24px;
+    }
+
+    .hero-eyebrow {
+      color: var(--orange); font-size: .9rem; font-weight: 600;
+      letter-spacing: .02em; margin-bottom: 16px;
+      animation: fadeUp .7s ease-out both;
+    }
+
+    .hero h1 {
+      color: var(--white); font-size: clamp(1.85rem, 4.8vw, 3.1rem);
+      font-weight: 800; margin-bottom: 20px;
+      animation: fadeUp .7s ease-out .15s both;
+    }
+    .hero h1 .hl { color: var(--orange); }
+
+    .hero-sub {
+      color: rgba(255,255,255,.45); font-size: clamp(.93rem, 2vw, 1.05rem);
+      max-width: 540px; margin: 0 auto 36px; line-height: 1.65;
+      animation: fadeUp .7s ease-out .25s both;
+    }
+    .hero-sub strong { color: var(--orange-light); font-weight: 600; }
+
+    .hero-ctas {
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
+      animation: fadeUp .7s ease-out .35s both;
+    }
+
+    .hero-scarcity {
+      margin-top: 14px; font-size: .82rem; color: rgba(255,255,255,.3);
+      animation: fadeUp .7s ease-out .4s both;
+    }
+    .hero-scarcity strong { color: var(--orange); }
+
+    .hero-proof {
+      display: flex; justify-content: center; align-items: center; gap: 0;
+      margin-top: 16px; animation: fadeUp .7s ease-out .5s both;
+    }
+
+    .hero-proof-item { text-align: center; padding: 0 28px; }
+    .hp-num {
+      display: block;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 2rem; font-weight: 800; color: var(--orange);
+    }
+    .hp-lbl {
+      display: block; font-size: .8rem; color: rgba(255,255,255,.4); margin-top: 2px;
+    }
+    .hero-proof-sep {
+      width: 1px; height: 44px; background: rgba(255,255,255,.12); flex-shrink: 0;
+    }
+
+    /* VSL Placeholder */
+    .vsl-wrapper {
+      max-width: 580px; margin: 0 auto 32px; padding: 0 4px;
+    }
+    .vsl-player {
+      position: relative;
+      background: linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--radius);
+      padding: 36px 28px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .4s ease;
+      backdrop-filter: blur(8px);
+    }
+    .vsl-player:hover {
+      border-color: var(--orange);
+      background: linear-gradient(135deg, rgba(232,105,43,.06) 0%, rgba(255,255,255,.03) 100%);
+      box-shadow: 0 0 40px rgba(232,105,43,.08);
+      transform: translateY(-2px);
+    }
+    .vsl-play-btn {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: var(--orange);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+      box-shadow: 0 4px 20px rgba(232,105,43,.35);
+      transition: transform .3s ease, box-shadow .3s ease;
+    }
+    .vsl-play-btn svg { margin-left: 3px; }
+    .vsl-player:hover .vsl-play-btn {
+      transform: scale(1.08);
+      box-shadow: 0 6px 28px rgba(232,105,43,.45);
+    }
+    .vsl-text { margin-bottom: 12px; }
+    .vsl-label {
+      display: block;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: 1.05rem; color: var(--white);
+      margin-bottom: 4px;
+    }
+    .vsl-sub {
+      display: block;
+      font-size: .85rem; color: rgba(255,255,255,.4); line-height: 1.45;
+    }
+    .vsl-badge {
+      display: inline-block;
+      background: rgba(232,105,43,.1); border: 1px solid rgba(232,105,43,.2);
+      color: var(--orange); font-size: .75rem; font-weight: 600;
+      padding: 4px 12px; border-radius: 100px;
+    }
+
+    /* ═══════════ S2 — STATS BAR ═══════════ */
+    .stats-bar {
+      background: var(--brown); padding: 28px 0;
+      border-top: 2px solid rgba(232,105,43,.15);
+      border-bottom: 2px solid rgba(232,105,43,.15);
+    }
+    .stats-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 40px; }
+    .stat-item { text-align: center; }
+    .stat-item .num {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.5rem; font-weight: 800; color: var(--orange);
+    }
+    .stat-item .lbl { font-size: .78rem; color: rgba(255,255,255,.4); margin-top: 2px; }
+
+    /* ═══════════ S3 — LOGOS ═══════════ */
+    .logos-section { padding: 52px 0 44px; background: var(--night); }
+    .logos-title {
+      text-align: center; font-size: .82rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .14em;
+      color: rgba(255,255,255,.3); margin-bottom: 28px;
+    }
+    .logo-track-wrap { overflow: hidden; position: relative; }
+    .logo-track-wrap::before, .logo-track-wrap::after {
+      content: ''; position: absolute; top: 0; bottom: 0; width: 60px; z-index: 2;
+    }
+    .logo-track-wrap::before { left: 0; background: linear-gradient(90deg, var(--night), transparent); }
+    .logo-track-wrap::after { right: 0; background: linear-gradient(-90deg, var(--night), transparent); }
+    .logo-track {
+      display: flex; gap: 18px; animation: marquee 30s linear infinite; width: max-content;
+    }
+    .logo-track:hover { animation-play-state: paused; }
+    @keyframes marquee { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+    .logo-pill {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--night-card); border: 1px solid var(--night-border);
+      padding: 10px 20px; border-radius: 100px; white-space: nowrap;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 600; font-size: .88rem; color: rgba(255,255,255,.65);
+      flex-shrink: 0; transition: border-color .3s ease;
+    }
+    .logo-pill:hover { border-color: var(--orange); color: var(--orange); }
+    .logo-pill .em { font-size: 1.1rem; }
+
+    /* ═══════════ S4 — LE PROBLÈME (douleur amplifiée) ═══════════ */
+    .problem { padding: 80px 0; background: var(--cream); }
+    .problem h2 {
+      text-align: center; font-size: clamp(1.6rem, 3.8vw, 2.4rem);
+      font-weight: 800; margin-bottom: 16px; color: var(--text);
+    }
+
+    .pain-story {
+      max-width: 520px; margin: 0 auto 40px; text-align: center;
+      font-size: 1.02rem; color: var(--text-mid); line-height: 1.75;
+    }
+    .pain-story .dim { color: var(--text-muted); }
+    .pain-story .ouch { color: var(--red); font-weight: 700; }
+    .pain-story .bold { color: var(--text); font-weight: 600; }
+
+    .problem-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 40px; }
+    .problem-card {
+      background: var(--white); border-radius: var(--radius); padding: 28px 24px;
+      border: 1px solid rgba(0,0,0,.06); text-align: center;
+      transition: transform .3s ease, box-shadow .3s ease;
+    }
+    .problem-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,.06); }
+    .problem-card .icon { font-size: 2.2rem; margin-bottom: 14px; }
+    .problem-card .platform {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: 1rem; margin-bottom: 8px; color: var(--text);
+    }
+    .problem-card p { font-size: .9rem; color: var(--text-mid); line-height: 1.55; }
+    .problem-card p strong { color: var(--red); font-weight: 700; }
+
+    .problem-transition {
+      text-align: center; font-size: 1.15rem; font-weight: 600;
+      color: var(--white); max-width: 620px; margin: 0 auto;
+      padding: 28px 32px; border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--orange) 0%, var(--brown) 100%);
+      line-height: 1.5; box-shadow: 0 4px 20px rgba(232,105,43,.2);
+    }
+    .problem-transition .hl { color: var(--orange); }
+
+    /* ═══════════ S5 — REVEAL + OFFRE ═══════════ */
+    .offer {
+      padding: 80px 0;
+      background: linear-gradient(175deg, var(--night) 0%, var(--night-mid) 100%);
+    }
+    .offer h2 {
+      text-align: center; color: var(--white);
+      font-size: clamp(1.6rem, 3.8vw, 2.4rem); font-weight: 800; margin-bottom: 12px;
+    }
+    .offer h2 .hl { color: var(--orange); }
+    .offer-sub {
+      text-align: center; color: rgba(255,255,255,.42); font-size: 1rem;
+      max-width: 520px; margin: 0 auto 48px;
+    }
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 56px; }
+    .step {
+      background: var(--night-card); border: 1px solid var(--night-border);
+      border-radius: var(--radius); padding: 28px 20px; text-align: center;
+      transition: border-color .3s ease, transform .3s ease;
+    }
+    .step:hover { border-color: rgba(232,105,43,.25); transform: translateY(-3px); }
+    .step-num {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--orange) 0%, #FFC107 100%);
+      color: var(--brown); font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 800; font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 14px; box-shadow: 0 2px 12px rgba(232,105,43,.3);
+    }
+    .step h3 { color: var(--white); font-size: .98rem; font-weight: 700; margin-bottom: 8px; }
+    .step p { color: rgba(255,255,255,.38); font-size: .82rem; line-height: 1.5; }
+
+    /* ─── VIDEO SHOWCASE CAROUSEL ─── */
+    .showcase {
+      margin: 0 -24px; padding: 48px 0 40px;
+      background: var(--cream);
+      border-radius: var(--radius);
+      margin-bottom: 48px;
+    }
+    .showcase-title {
+      text-align: center; color: var(--text-mid); font-size: .82rem;
+      text-transform: uppercase; letter-spacing: .12em; font-weight: 600;
+      margin-bottom: 20px; padding: 0 24px;
+    }
+    .showcase-track-wrap {
+      position: relative; overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .showcase-track-wrap::before, .showcase-track-wrap::after {
+      content: ''; position: absolute; top: 0; bottom: 0; width: 40px; z-index: 3; pointer-events: none;
+    }
+    .showcase-track-wrap::before { left: 0; background: linear-gradient(90deg, var(--cream), transparent); }
+    .showcase-track-wrap::after { right: 0; background: linear-gradient(-90deg, var(--cream), transparent); }
+    .showcase-track {
+      display: flex; gap: 16px; padding: 8px 0;
+      overflow-x: auto; scroll-snap-type: x mandatory;
+      scrollbar-width: none; -ms-overflow-style: none;
+      scroll-behavior: smooth;
+    }
+    .showcase-track::-webkit-scrollbar { display: none; }
+
+    .video-card {
+      flex-shrink: 0; width: 220px; height: 360px;
+      border-radius: 18px; overflow: hidden;
+      position: relative; cursor: pointer;
+      scroll-snap-align: start;
+      background: var(--brown);
+      border: 1px solid rgba(0,0,0,.08);
+      transition: transform .3s ease, box-shadow .3s ease;
+      box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    }
+    .video-card:first-child { margin-left: 24px; }
+    .video-card:last-child { margin-right: 24px; }
+    .video-card:hover { transform: translateY(-4px); box-shadow: 0 8px 28px rgba(232,105,43,.15); }
+
+    .video-card .vc-thumb {
+      width: 100%; height: 100%; object-fit: cover;
+      display: block;
+    }
+    /* Placeholder gradient when no real image */
+    .video-card .vc-placeholder {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 20px;
+      background: linear-gradient(145deg,
+        var(--brown) 0%,
+        rgba(232,105,43,.12) 50%,
+        var(--brown) 100%
+      );
+    }
+    .video-card .vc-placeholder .vc-emoji { font-size: 2.4rem; margin-bottom: 12px; }
+    .video-card .vc-placeholder .vc-biz {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: .9rem; color: var(--white);
+      text-align: center; margin-bottom: 4px;
+    }
+    .video-card .vc-placeholder .vc-type {
+      font-size: .75rem; color: rgba(255,255,255,.35); text-align: center;
+    }
+
+    /* Play button overlay */
+    .video-card .vc-play {
+      position: absolute; bottom: 14px; left: 14px;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--orange); display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(232,105,43,.4);
+      transition: transform .3s ease;
+    }
+    .video-card:hover .vc-play { transform: scale(1.08); }
+    .vc-play svg { width: 16px; height: 16px; margin-left: 2px; }
+
+    /* Stats overlay */
+    .video-card .vc-stats {
+      position: absolute; top: 12px; right: 12px;
+      background: rgba(0,0,0,.55); backdrop-filter: blur(6px);
+      padding: 4px 10px; border-radius: 100px;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: .7rem; font-weight: 700; color: var(--white);
+    }
+
+    /* Name overlay */
+    .video-card .vc-name-overlay {
+      position: absolute; bottom: 14px; left: 68px; right: 14px;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: .82rem; color: var(--white);
+      text-shadow: 0 1px 8px rgba(0,0,0,.5);
+      line-height: 1.3;
+    }
+
+    .showcase-hint {
+      text-align: center; font-size: .78rem; color: var(--text-muted); padding: 0 24px;
+    }
+
+    /* ─── CALCULATOR ─── */
+    .calculator {
+      max-width: 600px; margin: 0 auto 48px;
+      background: var(--cream); border: none;
+      border-radius: var(--radius); padding: 36px 32px; text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,.15);
+    }
+    .calculator p {
+      color: var(--text-mid); font-size: .95rem; line-height: 1.7;
+    }
+    .calculator .big-num {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 2.4rem; font-weight: 800; color: var(--orange);
+      display: block; margin: 8px 0;
+    }
+    .calculator .small { font-size: .82rem; color: var(--text-muted); }
+
+    /* ─── COMPARAISON COLONNES ─── */
+    .compare-section { margin-bottom: 44px; }
+    .compare-title {
+      text-align: center; color: rgba(255,255,255,.3); font-size: .82rem;
+      text-transform: uppercase; letter-spacing: .12em; font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    .compare-others {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+      max-width: 700px; margin: 0 auto 20px;
+    }
+    .compare-card {
+      background: var(--night-card); border: 1px solid var(--night-border);
+      border-radius: var(--radius-sm); padding: 22px 20px;
+      opacity: .6; transition: opacity .3s ease;
+    }
+    .compare-card:hover { opacity: .85; }
+    .compare-card .cc-name {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: .9rem; color: rgba(255,255,255,.65);
+      margin-bottom: 6px;
+    }
+    .compare-card .cc-price {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 800; font-size: 1.15rem; color: var(--red);
+      margin-bottom: 6px;
+    }
+    .compare-card .cc-desc {
+      font-size: .82rem; color: rgba(255,255,255,.3); line-height: 1.4;
+    }
+
+    /* BBP card — standalone, full width, glowing */
+    .compare-bbp {
+      max-width: 700px; margin: 0 auto;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-dark) 100%);
+      border: 2px solid var(--orange-light);
+      border-radius: var(--radius); padding: 32px 28px;
+      position: relative; text-align: center;
+      box-shadow: 0 8px 40px rgba(232,105,43,.2);
+      transition: all .4s ease;
+      animation: bbpGlow 3s ease-in-out infinite;
+    }
+    @keyframes bbpGlow {
+      0%, 100% { box-shadow: 0 8px 40px rgba(232,105,43,.2), 0 0 0 0 rgba(232,105,43,0); }
+      50% { box-shadow: 0 8px 56px rgba(232,105,43,.35), 0 0 60px rgba(232,105,43,.1); }
+    }
+    .compare-bbp:hover {
+      box-shadow: 0 12px 56px rgba(232,105,43,.3);
+      transform: translateY(-3px);
+    }
+    .compare-bbp::before {
+      content: '✦ BOURBON BONS PLANS'; position: absolute;
+      top: -13px; left: 50%; transform: translateX(-50%);
+      background: var(--white); color: var(--orange);
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: .7rem; font-weight: 800; letter-spacing: .08em;
+      padding: 4px 16px; border-radius: 100px; white-space: nowrap;
+    }
+    .compare-bbp .cc-name {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 800; font-size: 1.2rem; color: var(--white);
+      margin-bottom: 6px;
+    }
+    .compare-bbp .cc-price {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 800; font-size: 1.3rem; color: var(--cream);
+      margin-bottom: 8px;
+    }
+    .compare-bbp .cc-features {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+    }
+    .compare-bbp .cc-feat {
+      background: rgba(255,255,255,.15); color: var(--white);
+      font-size: .78rem; font-weight: 600;
+      padding: 5px 14px; border-radius: 100px;
+    }
+
+    .offer-cta { text-align: center; }
+
+    /* ═══════════ S6 — PERFORMANCE ═══════════ */
+    .performance { padding: 80px 0; background: var(--cream); }
+    .performance h2 {
+      text-align: center; font-size: clamp(1.6rem, 3.8vw, 2.4rem);
+      font-weight: 800; margin-bottom: 48px; color: var(--text);
+    }
+    .perf-block { margin-bottom: 56px; }
+    .perf-block-title {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.15rem; font-weight: 700; margin-bottom: 16px; color: var(--text);
+    }
+    .engagement-table {
+      width: 100%; border-collapse: collapse; background: var(--white);
+      border-radius: var(--radius-sm); overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,.04);
+    }
+    .engagement-table th {
+      text-align: left; padding: 14px 18px;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: .75rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--text-muted);
+      background: var(--cream-mid); border-bottom: 1px solid rgba(0,0,0,.06);
+    }
+    .engagement-table td {
+      padding: 14px 18px; font-size: .9rem; color: var(--text-mid);
+      border-bottom: 1px solid rgba(0,0,0,.04);
+    }
+    .engagement-table td.bbp-val {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; color: var(--orange); font-size: 1rem;
+    }
+    .engagement-table td.multi {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; color: var(--green); font-size: .95rem;
+    }
+    .perf-note { font-size: .88rem; color: var(--text-mid); font-style: italic; margin-top: 10px; }
+
+    .cases-main { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
+    .case-card {
+      background: var(--white); border-radius: var(--radius); padding: 28px 22px;
+      border: 2px solid var(--orange-glow);
+      transition: transform .3s ease, border-color .3s ease;
+    }
+    .case-card:hover { transform: translateY(-4px); border-color: var(--orange); }
+    .case-card .name {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: .95rem; color: var(--text); margin-bottom: 10px;
+    }
+    .case-card .result {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.5rem; font-weight: 800; color: var(--orange); line-height: 1.15;
+      margin-bottom: 6px;
+    }
+    .case-card .detail { font-size: .82rem; color: var(--text-mid); margin-bottom: 10px; }
+    .case-card .invest {
+      font-size: .78rem; color: var(--brown);
+      background: var(--cream-warm); padding: 4px 10px; border-radius: 100px;
+      display: inline-block; font-weight: 600;
+    }
+
+    .cases-secondary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .case-sm {
+      background: var(--white); border-radius: var(--radius-sm);
+      padding: 18px 16px; border: 1px solid rgba(0,0,0,.06);
+    }
+    .case-sm .name {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: .85rem; color: var(--text); margin-bottom: 6px;
+    }
+    .case-sm .result { font-size: .82rem; color: var(--text-mid); line-height: 1.45; }
+    .cases-note { text-align: center; font-size: .8rem; color: var(--text-muted); font-style: italic; margin-bottom: 40px; }
+
+    .reach-block {
+      text-align: center; border-radius: var(--radius); padding: 52px 24px;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--brown) 100%);
+      color: var(--white); box-shadow: 0 8px 32px rgba(232,105,43,.2);
+    }
+    .reach-block .big {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: clamp(2.4rem, 6vw, 4rem); font-weight: 800; line-height: 1;
+      margin-bottom: 8px;
+    }
+    .reach-block .big .hl { color: var(--orange); }
+    .reach-block p { color: rgba(255,255,255,.5); font-size: 1rem; }
+
+    /* ═══════════ S7 — TÉMOIGNAGES ═══════════ */
+    .testimonials {
+      padding: 80px 0;
+      background: linear-gradient(175deg, var(--night) 0%, var(--night-mid) 100%);
+    }
+    .testimonials h2 {
+      text-align: center; color: var(--white);
+      font-size: clamp(1.6rem, 3.8vw, 2.2rem); font-weight: 800; margin-bottom: 40px;
+    }
+    .testi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .testi-card {
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      border-radius: var(--radius); padding: 28px 24px;
+      transition: border-color .3s ease;
+    }
+    .testi-card:hover { border-color: rgba(232,105,43,.3); }
+
+    /* Video embed slot with animated border */
+    .testi-video-slot {
+      position: relative;
+      width: 100%; height: 180px; border-radius: var(--radius-sm);
+      margin-bottom: 16px; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(255,255,255,.03);
+      overflow: hidden;
+      transition: transform .3s ease;
+    }
+    .testi-video-slot::before {
+      content: ''; position: absolute; inset: -2px;
+      border-radius: calc(var(--radius-sm) + 2px);
+      background: conic-gradient(
+        from var(--border-angle, 0deg),
+        var(--orange), transparent 40%, transparent 60%, var(--orange-light), transparent 80%, transparent, var(--orange)
+      );
+      animation: rotateBorder 4s linear infinite;
+      z-index: 0;
+    }
+    .testi-video-slot::after {
+      content: ''; position: absolute; inset: 2px;
+      border-radius: calc(var(--radius-sm) - 0px);
+      background: var(--night-card);
+      z-index: 1;
+    }
+    @property --border-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+    @keyframes rotateBorder { to { --border-angle: 360deg; } }
+
+    .testi-video-slot:hover { transform: scale(1.02); }
+    .tvs-play {
+      position: relative; z-index: 2;
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--orange); color: var(--white);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; margin-bottom: 8px;
+      box-shadow: 0 4px 16px rgba(232,105,43,.4);
+    }
+    .tvs-label {
+      position: relative; z-index: 2;
+      font-size: .78rem; color: rgba(255,255,255,.4);
+    }
+    .testi-card .context {
+      font-size: .75rem; color: var(--orange); font-weight: 600;
+      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px;
+    }
+    .testi-card blockquote {
+      font-size: .95rem; color: rgba(255,255,255,.72); line-height: 1.6;
+      font-style: italic; margin-bottom: 16px;
+    }
+    .testi-card .author {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: .9rem; color: var(--white);
+    }
+    .testi-card .biz { font-size: .82rem; color: rgba(255,255,255,.35); }
+    .testi-card .stat-line {
+      margin-top: 10px; font-size: .82rem; color: var(--green); font-weight: 600;
+    }
+
+    /* ═══════════ S8 — GARANTIE ═══════════ */
+    .guarantee { padding: 52px 0; background: var(--cream-warm); }
+    .guarantee-inner {
+      display: flex; align-items: center; gap: 20px;
+      max-width: 700px; margin: 0 auto; padding: 0 24px;
+    }
+    .guarantee-icon {
+      flex-shrink: 0; width: 60px; height: 60px;
+      background: var(--orange); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+      box-shadow: 0 4px 16px rgba(232,105,43,.3);
+    }
+    .guarantee-text h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+    .guarantee-text p { color: var(--text-mid); font-size: .9rem; }
+
+    /* ═══════════ S9 — FONDATEUR ═══════════ */
+    .founder { padding: 72px 0; background: var(--cream); }
+    .founder-inner {
+      display: flex; align-items: center; gap: 40px;
+      max-width: 760px; margin: 0 auto; padding: 0 24px;
+    }
+    .founder-photo {
+      width: 140px; height: 140px; border-radius: 50%;
+      background: var(--cream-mid); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 3rem; border: 3px solid var(--orange);
+    }
+    .founder-bio h3 { font-size: 1.2rem; font-weight: 800; margin-bottom: 10px; color: var(--text); }
+    .founder-bio p { font-size: .92rem; color: var(--text-mid); line-height: 1.65; }
+    .founder-bio .power-line {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; color: var(--orange); font-size: .95rem; margin-top: 12px;
+    }
+
+    /* ═══════════ S10 — CTA FINAL (qualification + rareté) ═══════════ */
+    .final-cta {
+      padding: 100px 0; text-align: center;
+      position: relative; overflow: hidden;
+      background: linear-gradient(170deg, var(--brown) 0%, var(--night) 70%);
+    }
+    .final-cta .hero-rays { opacity: .5; }
+    .final-cta-inner {
+      position: relative; z-index: 2; max-width: 660px; margin: 0 auto; padding: 0 24px;
+    }
+    .final-cta h2 {
+      color: var(--white); font-size: clamp(1.8rem, 4.5vw, 2.8rem);
+      font-weight: 800; margin-bottom: 16px;
+    }
+    .final-cta h2 .hl { color: var(--orange); }
+
+    /* Qualification with rotating word */
+    .qualification { margin-bottom: 28px; text-align: center; }
+    .quali-intro {
+      color: rgba(255,255,255,.7); font-size: 1.2rem; font-weight: 500;
+      margin-bottom: 14px;
+    }
+    .rotating-word-wrap {
+      display: inline-block; position: relative; min-width: 200px;
+    }
+    .rotating-word {
+      color: var(--orange); font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 800; font-size: 1.25rem;
+      display: inline-block;
+      animation: wordFadeIn .5s ease both;
+    }
+    @keyframes wordFadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .qualification .if-line {
+      color: rgba(255,255,255,.55); font-size: 1.05rem; line-height: 1.6;
+    }
+    .qualification .if-line strong { color: var(--orange-light); }
+
+    .final-features {
+      display: flex; justify-content: center; gap: 28px; margin-top: 20px; flex-wrap: wrap;
+    }
+    .final-feat {
+      display: flex; align-items: center; gap: 7px;
+      color: rgba(255,255,255,.4); font-size: .82rem;
+    }
+    .final-feat .check { color: var(--orange); font-weight: 700; }
+
+    /* ═══════════ S11 — FAQ ═══════════ */
+    .faq { padding: 72px 0; background: var(--cream); }
+    .faq h2 {
+      text-align: center; font-size: clamp(1.4rem, 3vw, 1.8rem);
+      font-weight: 800; margin-bottom: 36px; color: var(--text);
+    }
+    .faq-list { max-width: 700px; margin: 0 auto; }
+    .faq-item { border-bottom: 1px solid rgba(0,0,0,.06); }
+    .faq-q {
+      width: 100%; padding: 18px 0; background: none; border: none; cursor: pointer;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1rem; font-weight: 700; color: var(--text); text-align: left;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .faq-q::after { content: '+'; font-size: 1.3rem; color: var(--orange); transition: transform .3s ease; }
+    .faq-item.open .faq-q::after { content: '−'; }
+    .faq-a { max-height: 0; overflow: hidden; transition: max-height .4s ease, padding .3s ease; }
+    .faq-item.open .faq-a { max-height: 300px; padding-bottom: 18px; }
+    .faq-a p { font-size: .9rem; color: var(--text-mid); line-height: 1.6; }
+
+    /* ═══════════ S12 — FOOTER ═══════════ */
+    footer {
+      background: var(--night); border-top: 1px solid var(--night-border);
+      padding: 32px 0; text-align: center;
+    }
+    .footer-socials { display: flex; justify-content: center; gap: 20px; margin-bottom: 12px; }
+    .footer-socials a {
+      color: rgba(255,255,255,.35); text-decoration: none; font-size: .85rem;
+      font-weight: 500; transition: color .3s ease;
+    }
+    .footer-socials a:hover { color: var(--orange); }
+    .footer-links { display: flex; justify-content: center; gap: 20px; margin-bottom: 8px; }
+    .footer-links a {
+      color: rgba(255,255,255,.25); text-decoration: none; font-size: .78rem;
+      transition: color .3s ease;
+    }
+    .footer-links a:hover { color: rgba(255,255,255,.5); }
+    .footer-copy { color: rgba(255,255,255,.15); font-size: .75rem; }
+
+    /* ═══════════ ANIMATIONS ═══════════ */
+    @keyframes fadeUp { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeDown { from{opacity:0;transform:translateY(-14px)} to{opacity:1;transform:translateY(0)} }
+    .reveal { opacity: 0; transform: translateY(28px); transition: opacity .65s ease, transform .65s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    /* ═══════════ RESPONSIVE ═══════════ */
+    @media (max-width: 900px) {
+      .steps { grid-template-columns: repeat(2, 1fr); }
+      .compare-others { grid-template-columns: repeat(2, 1fr); }
+      .cases-main { grid-template-columns: 1fr; max-width: 400px; margin-left: auto; margin-right: auto; }
+      .cases-secondary { grid-template-columns: repeat(2, 1fr); }
+      .testi-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 1.6rem; }
+      .compare-others { grid-template-columns: 1fr; max-width: 340px; margin-left: auto; margin-right: auto; }
+      .hero-proof { gap: 0; }
+      .hero-proof-item { padding: 0 16px; }
+      .hp-num { font-size: 1.5rem; }
+      .hp-lbl { font-size: .7rem; }
+      .stats-row { gap: 20px; }
+      .stat-item .num { font-size: 1.2rem; }
+      .problem-grid { grid-template-columns: 1fr; max-width: 380px; margin-left: auto; margin-right: auto; }
+      .steps { grid-template-columns: 1fr; max-width: 380px; margin-left: auto; margin-right: auto; }
+      .cases-secondary { grid-template-columns: 1fr; }
+      .founder-inner { flex-direction: column; text-align: center; }
+      .final-features { flex-direction: column; align-items: center; gap: 12px; }
+      .guarantee-inner { flex-direction: column; text-align: center; }
+      .engagement-table { font-size: .82rem; }
+      .engagement-table th, .engagement-table td { padding: 10px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════ S1 — HERO ═══════════ -->
+<section class="hero">
+  <div class="hero-rays"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-particles">
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  </div>
+  <div class="hero-inner">
+
+    <p class="hero-eyebrow">Pour les commerces réunionnais en manque de visibilité</p>
+
+    <h1>
+      Touchez <span class="hl">50 000 à 200 000 Réunionnais</span> en 7 jours<br>
+      grâce au média Bourbon Bons Plans.
+    </h1>
+
+    <p class="hero-sub">
+      Sans publicité. Sans agence. Sans payer d'influenceurs à 2 000€.
+    </p>
+
+    <div class="hero-ctas">
+      <a href="#contact" class="cta">
+        Voir si mon commerce est éligible
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+      </a>
+      <a href="#resultats" class="cta-ghost">Voir les résultats ↓</a>
+    </div>
+
+    <p class="hero-scarcity">Appel de 15 min · Offert · Aucun engagement</p>
+
+    <div class="hero-proof">
+      <div class="hero-proof-item"><span class="hp-num" data-target="68000" data-suffix="" data-format="space">0</span><span class="hp-lbl">abonnés à La Réunion</span></div>
+      <div class="hero-proof-sep"></div>
+      <div class="hero-proof-item"><span class="hp-num" data-target="10.2" data-suffix="M" data-decimals="1">0</span><span class="hp-lbl">de vues en 2025</span></div>
+      <div class="hero-proof-sep"></div>
+      <div class="hero-proof-item"><span class="hp-num" data-target="180" data-suffix="K">0</span><span class="hp-lbl">vues par vidéo en moyenne</span></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════ S3 — LOGOS ═══════════ -->
+<section class="logos-section">
+  <div class="logos-title reveal">+60 commerces sont déjà passés chez nous</div>
+  <div class="logo-track-wrap">
+    <div class="logo-track">
+      <div class="logo-pill"><span class="em">🍔</span> Memphis Burger</div>
+      <div class="logo-pill"><span class="em">💎</span> Sousou Access</div>
+      <div class="logo-pill"><span class="em">🌴</span> Jungle à Pat'</div>
+      <div class="logo-pill"><span class="em">🧗</span> Crazy Adventures</div>
+      <div class="logo-pill"><span class="em">🍕</span> Nonna</div>
+      <div class="logo-pill"><span class="em">👗</span> Popeline Vintage</div>
+      <div class="logo-pill"><span class="em">🍓</span> Fraises & Compagnie</div>
+      <div class="logo-pill"><span class="em">🏠</span> Maison GA</div>
+      <div class="logo-pill"><span class="em">🥞</span> La Crème de la Crêpe</div>
+      <div class="logo-pill"><span class="em">🏨</span> Tropic Appart'Hôtel</div>
+      <div class="logo-pill"><span class="em">🍽️</span> Le Mazéniène</div>
+      <div class="logo-pill"><span class="em">🍔</span> Memphis Burger</div>
+      <div class="logo-pill"><span class="em">💎</span> Sousou Access</div>
+      <div class="logo-pill"><span class="em">🌴</span> Jungle à Pat'</div>
+      <div class="logo-pill"><span class="em">🧗</span> Crazy Adventures</div>
+      <div class="logo-pill"><span class="em">🍕</span> Nonna</div>
+      <div class="logo-pill"><span class="em">👗</span> Popeline Vintage</div>
+      <div class="logo-pill"><span class="em">🍓</span> Fraises & Compagnie</div>
+      <div class="logo-pill"><span class="em">🏠</span> Maison GA</div>
+      <div class="logo-pill"><span class="em">🥞</span> La Crème de la Crêpe</div>
+      <div class="logo-pill"><span class="em">🏨</span> Tropic Appart'Hôtel</div>
+      <div class="logo-pill"><span class="em">🍽️</span> Le Mazéniène</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ S4 — LE PROBLÈME ═══════════ -->
+<section class="problem">
+  <div class="container">
+    <h2 class="reveal">Vous postez sur vos réseaux…<br>mais personne ne vient.</h2>
+
+    <div class="problem-grid reveal">
+      <div class="problem-card">
+        <div class="icon">📱</div>
+        <div class="platform">Vous postez une photo</div>
+        <p>Vous passez du temps à prendre la photo, écrire le texte, trouver les hashtags… et au final ? <strong>4 likes et 1 commentaire de votre cousin.</strong></p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">😶</div>
+        <div class="platform">Personne ne sait que vous existez</div>
+        <p>Vos voisins, les gens qui passent devant votre commerce… <strong>ils ne vous ont jamais vu sur les réseaux.</strong> Comme si vous n'existiez pas.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">💸</div>
+        <div class="platform">Les autres solutions coûtent cher</div>
+        <p>Un influenceur ? <strong>+1 000€ pour une seule vidéo.</strong> Un panneau ? De la radio ? Cher, et impossible de savoir si ça marche.</p>
+      </div>
+    </div>
+
+    <div class="problem-transition reveal">
+      Et si des <span class="hl">dizaines de milliers de Réunionnais</span> pouvaient découvrir votre commerce cette semaine ?<br>
+      C'est exactement ce que font les <span class="hl">60+ commerces</span> déjà passés sur Bourbon Bons Plans.
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ S5 — L'OFFRE ═══════════ -->
+<section class="offer">
+  <div class="container">
+    <h2 class="reveal">Comment ça marche ?<br><span class="hl">C'est simple.</span></h2>
+    <p class="offer-sub reveal">On vient, on filme, on poste. Vous, vous gérez vos clients.</p>
+
+    <div class="steps reveal">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>On vient chez vous</h3>
+        <p>Siméon passe dans votre commerce et filme une courte vidéo. Naturelle, authentique — le genre qui donne envie de venir.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>On poste sur nos 3 comptes</h3>
+        <p>La vidéo sort sur Instagram (23K), TikTok (20K) et Facebook (25K). Et elle apparaît aussi sur votre compte.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Des milliers de gens vous découvrent</h3>
+        <p>En moyenne, nos vidéos font 180 000 vues sur les 3 réseaux. Ce sont des vrais Réunionnais, près de chez vous.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <h3>Vous voyez les résultats</h3>
+        <p>On vous envoie un rapport complet sous 7 jours : vues, partages, tout ce qui s'est passé.</p>
+      </div>
+    </div>
+
+    <!-- Video Showcase -->
+    <div class="showcase reveal">
+      <div class="showcase-title">Nos dernières vidéos — imaginez la vôtre</div>
+      <div class="showcase-track-wrap">
+        <div class="showcase-track" id="showcaseTrack">
+
+          <div class="video-card">
+            <div class="vc-placeholder">
+              <span class="vc-emoji">🍔</span>
+              <span class="vc-biz">Memphis Burger</span>
+              <span class="vc-type">Restaurant · Saint-Pierre</span>
+            </div>
+            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
+            <div class="vc-stats">🔥 850K vues</div>
+            <div class="vc-name-overlay">Memphis Burger</div>
+          </div>
+
+          <div class="video-card">
+            <div class="vc-placeholder">
+              <span class="vc-emoji">💎</span>
+              <span class="vc-biz">Sousou Access</span>
+              <span class="vc-type">Bijoux · Saint-Denis</span>
+            </div>
+            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
+            <div class="vc-stats">🔥 620K vues</div>
+            <div class="vc-name-overlay">Sousou Access</div>
+          </div>
+
+          <div class="video-card">
+            <div class="vc-placeholder">
+              <span class="vc-emoji">🧗</span>
+              <span class="vc-biz">Crazy Adventures</span>
+              <span class="vc-type">Buggy · Sud</span>
+            </div>
+            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
+            <div class="vc-stats">🔥 2,1M vues</div>
+            <div class="vc-name-overlay">Crazy Adventures</div>
+          </div>
+
+          <div class="video-card">
+            <div class="vc-placeholder">
+              <span class="vc-emoji">🌴</span>
+              <span class="vc-biz">Jungle à Pat'</span>
+              <span class="vc-type">Activité · Est</span>
+            </div>
+            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
+            <div class="vc-stats">🔥 900K vues</div>
+            <div class="vc-name-overlay">Jungle à Pat'</div>
+          </div>
+
+          <div class="video-card">
+            <div class="vc-placeholder">
+              <span class="vc-emoji">👗</span>
+              <span class="vc-biz">Popeline Vintage</span>
+              <span class="vc-type">Boutique</span>
+            </div>
+            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
+            <div class="vc-stats">🔥 340K vues</div>
+            <div class="vc-name-overlay">Popeline Vintage</div>
+          </div>
+
+          <div class="video-card">
+            <div class="vc-placeholder">
+              <span class="vc-emoji">🥞</span>
+              <span class="vc-biz">La Crème de la Crêpe</span>
+              <span class="vc-type">Restaurant</span>
+            </div>
+            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
+            <div class="vc-stats">🔥 280K vues</div>
+            <div class="vc-name-overlay">La Crème de la Crêpe</div>
+          </div>
+
+          <div class="video-card" style="border:2px dashed var(--orange);background:var(--cream-warm);">
+            <div class="vc-placeholder" style="background:var(--cream-warm);">
+              <span class="vc-emoji">🏪</span>
+              <span class="vc-biz" style="color:var(--orange);">Votre commerce ?</span>
+              <span class="vc-type" style="color:var(--text-mid);">La prochaine vidéo pourrait être la vôtre</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <p class="showcase-hint">← Glissez pour voir les vidéos · Placeholders — remplacez par les vraies miniatures →</p>
+    </div>
+
+    <!-- Calculateur mental -->
+    <div class="calculator reveal">
+      <p>
+        Une vidéo BBP fait en moyenne <strong style="color:var(--orange);font-weight:800">180 000 vues locales</strong>.
+      </p>
+      <p>
+        Si seulement 0,5% des gens viennent chez vous…
+      </p>
+      <span class="big-num">= 900 clients potentiels</span>
+      <p class="small">Et ça coûte bien moins cher que ce que vous pensez.</p>
+    </div>
+
+    <div class="compare-section reveal">
+      <div class="compare-title">Ce que font les autres</div>
+
+      <div class="compare-others">
+        <div class="compare-card">
+          <div class="cc-name">Un influenceur local</div>
+          <div class="cc-price">+1 000€</div>
+          <div class="cc-desc">1 seule vidéo, 1 seul réseau, et la vidéo disparaît en 24h</div>
+        </div>
+        <div class="compare-card">
+          <div class="cc-name">Un spot radio Freedom</div>
+          <div class="cc-price">~200€ ×plusieurs</div>
+          <div class="cc-desc">Juste du son, les gens oublient vite</div>
+        </div>
+        <div class="compare-card">
+          <div class="cc-name">Une page dans le JIR</div>
+          <div class="cc-price">~2 700€</div>
+          <div class="cc-desc">Du papier. Pas de partage, pas de viralité</div>
+        </div>
+        <div class="compare-card">
+          <div class="cc-name">Un panneau 4×3</div>
+          <div class="cc-price">150–450€/mois</div>
+          <div class="cc-desc">Image fixe, création en plus</div>
+        </div>
+      </div>
+
+      <div class="compare-bbp">
+        <div class="cc-name">🎬 Vidéo Découverte BBP</div>
+        <div class="cc-price">Bien moins cher que tout ça.</div>
+        <div class="cc-features">
+          <span class="cc-feat">Vidéo pro</span>
+          <span class="cc-feat">3 réseaux</span>
+          <span class="cc-feat">68K abonnés</span>
+          <span class="cc-feat">Sur votre compte aussi</span>
+          <span class="cc-feat">Rapport inclus</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="offer-cta reveal">
+      <a href="#contact" class="cta">
+        Vérifier si mon commerce est éligible
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+      </a>
+      <p style="margin-top:12px;font-size:.82rem;color:rgba(255,255,255,.3);">Appel de 15 min · Offert · Aucun engagement</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ S6 — PERFORMANCE ═══════════ -->
+<section class="performance" id="resultats">
+  <div class="container">
+    <h2 class="reveal">Des vrais résultats.<br>Pas des promesses.</h2>
+
+    <div class="perf-block reveal">
+      <div class="perf-block-title">Ce que ça a donné concrètement</div>
+      <div class="cases-main">
+        <div class="case-card">
+          <div class="name">💎 Sousou Access</div>
+          <div class="result">+40 000€ de CA</div>
+          <div class="detail">en 30 jours — plus de 1 000 ventes</div>
+          <span class="invest">Elle a payé 500€</span>
+        </div>
+        <div class="case-card">
+          <div class="name">🧗 Crazy Adventures</div>
+          <div class="result">+10 000€ de CA</div>
+          <div class="detail">en 14 jours — +1M de vues en 45 jours</div>
+          <span class="invest">Il a payé 900€</span>
+        </div>
+        <div class="case-card">
+          <div class="name">🍔 Memphis Burger</div>
+          <div class="result">80% des commandes</div>
+          <div class="detail">du lendemain venaient de la vidéo — obligé de fermer</div>
+          <span class="invest">Il a payé 500€</span>
+        </div>
+      </div>
+      <div class="cases-secondary">
+        <div class="case-sm"><div class="name">Jungle à Pat'</div><div class="result">+900 000 vues en 15 jours. Rentabilisé en moins de 24h.</div></div>
+        <div class="case-sm"><div class="name">La Crème de la Crêpe</div><div class="result">+5 000 abonnés en 30 jours. « On est complètement débordées. »</div></div>
+        <div class="case-sm"><div class="name">Le Mazéniène</div><div class="result">+500 000 vues sur IG. « Dès la première semaine, j'ai vu le changement. »</div></div>
+        <div class="case-sm"><div class="name">Tropic Appart'Hôtel</div><div class="result">+100 000 vues. « Période de vacances bien chargée. »</div></div>
+      </div>
+      <p class="cases-note">Tous les témoignages sont authentiques. Les résultats varient selon le commerce.</p>
+    </div>
+
+    <div class="reach-block reveal">
+      <div class="big"><span class="hl reach-counter" data-target="10.2" data-suffix=" MILLIONS" data-decimals="1">0 MILLIONS</span> DE VUES</div>
+      <p>générées pour nos commerces en 2025</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ S7 — TÉMOIGNAGES ═══════════ -->
+<section class="testimonials">
+  <div class="container">
+    <h2 class="reveal">Ils l'ont fait. Voilà ce qu'ils en disent.</h2>
+    <div class="testi-grid reveal">
+
+      <div class="testi-card">
+        <div class="testi-video-slot">
+          <div class="tvs-play">▶</div>
+          <div class="tvs-label">Voir le témoignage d'Isabelle</div>
+        </div>
+        <div class="context">Après sa vidéo sur Bourbon Bons Plans…</div>
+        <blockquote>« J'ai généré plus de 40k€ de C.A le premier mois JUSTE grâce aux clients venus par la vidéo. »</blockquote>
+        <div class="author">Isabelle</div><div class="biz">Sousou Access — Bijoux, Saint-Denis</div>
+        <div class="stat-line">+1 000 ventes en 30 jours</div>
+      </div>
+
+      <div class="testi-card">
+        <div class="testi-video-slot">
+          <div class="tvs-play">▶</div>
+          <div class="tvs-label">Voir le témoignage de Sébastien</div>
+        </div>
+        <div class="context">Après sa vidéo sur Bourbon Bons Plans…</div>
+        <blockquote>« 80% de mes commandes sont venues grâce à la vidéo d'hier. Obligé de fermer ce soir parce que je n'ai plus rien à servir. »</blockquote>
+        <div class="author">Sébastien</div><div class="biz">Memphis Burger — Restaurant, Saint-Pierre</div>
+      </div>
+
+      <div class="testi-card">
+        <div class="testi-video-slot">
+          <div class="tvs-play">▶</div>
+          <div class="tvs-label">Voir le témoignage de Teddy</div>
+        </div>
+        <div class="context">Après sa vidéo sur Bourbon Bons Plans…</div>
+        <blockquote>« On a fait rentrer plus de 10.000€ de C.A en moins de 14 jours. Depuis on a un flux de clients régulier. »</blockquote>
+        <div class="author">Teddy</div><div class="biz">Crazy Adventures — Buggy, Sud</div>
+        <div class="stat-line">+10 000€ de CA en 14 jours</div>
+      </div>
+
+      <div class="testi-card">
+        <div class="testi-video-slot">
+          <div class="tvs-play">▶</div>
+          <div class="tvs-label">Voir le témoignage de Delphine</div>
+        </div>
+        <div class="context">Après sa vidéo sur Bourbon Bons Plans…</div>
+        <blockquote>« Les retours sont dinguo !! On a gagné + de 700 abonnés et tous les jours des nouveaux clients en masse !! »</blockquote>
+        <div class="author">Delphine</div><div class="biz">Popeline Vintage</div>
+        <div class="stat-line">+700 abonnés</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ S8 — GARANTIE ═══════════ -->
+<section class="guarantee">
+  <div class="guarantee-inner reveal">
+    <div class="guarantee-icon">🛡️</div>
+    <div class="guarantee-text">
+      <h3>Minimum 50 000 vues garanties. Sinon, on vous rembourse.</h3>
+      <p>Aucun influenceur, aucune radio, aucun journal ne vous offre cette garantie.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ S9 — FONDATEUR ═══════════ -->
+<section class="founder">
+  <div class="founder-inner reveal">
+    <div class="founder-photo">👤</div>
+    <div class="founder-bio">
+      <h3>Siméon Drogou</h3>
+      <p>Ça fait 7 ans que je parcours La Réunion pour filmer les commerces locaux. En 2 ans, Bourbon Bons Plans est devenu le plus gros compte de découverte locale de l'île — 68 000 abonnés, plus de 10 millions de vues.</p>
+      <p class="power-line">Quand je poste votre commerce, les gens viennent. C'est aussi simple que ça.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ S10 — CTA FINAL ═══════════ -->
+<section class="final-cta" id="contact">
+  <div class="hero-rays"></div>
+  <div class="final-cta-inner">
+    <h2 class="reveal">
+      Votre commerce pourrait être vu par<br>
+      <span class="hl">180 000 Réunionnais</span> cette semaine.
+    </h2>
+
+    <!-- Qualification with rotating word -->
+    <div class="qualification reveal">
+      <p class="quali-intro">Que vous ayez <span class="rotating-word-wrap"><span class="rotating-word" id="rotatingWord">un restaurant</span></span></p>
+      <p class="if-line">Obtenez <strong>50 000 à 200 000 vues locales</strong> sur votre commerce.</p>
+    </div>
+
+    <a href="https://calendly.com/bourbonmedia" class="cta reveal" style="animation:none">
+      Voir si mon commerce est éligible
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+    </a>
+
+    <div class="final-features reveal">
+      <div class="final-feat"><span class="check">✓</span> Appel de 15 min, offert</div>
+      <div class="final-feat"><span class="check">✓</span> 50 000 vues garanties</div>
+      <div class="final-feat"><span class="check">✓</span> Droits d'auteur inclus</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ S11 — FAQ ═══════════ -->
+<section class="faq">
+  <div class="container">
+    <h2 class="reveal">Vos questions</h2>
+    <div class="faq-list reveal">
+      <div class="faq-item">
+        <button class="faq-q">Concrètement, comment ça se passe ?</button>
+        <div class="faq-a"><p>On prend rendez-vous, Siméon passe chez vous et filme une courte vidéo. On s'occupe du montage et on la publie sur nos 3 comptes (Instagram, TikTok, Facebook). La vidéo apparaît aussi sur votre compte. Vous recevez un rapport avec tous les chiffres sous 7 jours.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">C'est combien ?</button>
+        <div class="faq-a"><p>On en parle pendant l'appel de 15 min. Ce qu'on peut vous dire : c'est bien moins cher qu'un influenceur local (+1 000€ pour un seul Reel) et vous êtes diffusé sur 3 réseaux, pas un seul. Le prix dépend de votre type de commerce.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">C'est qui votre audience ?</button>
+        <div class="faq-a"><p>68 000 Réunionnais — sur Instagram (23K), Facebook (25K) et TikTok (20K). Des gens de tous les âges qui suivent le compte pour découvrir les bonnes adresses. Nos vidéos font en moyenne 180 000 vues sur les 3 réseaux.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">La vidéo apparaît sur mon compte aussi ?</button>
+        <div class="faq-a"><p>Oui, sur les 3 réseaux. La vidéo est visible sur notre page ET sur la vôtre en même temps. Tous les likes, commentaires et partages sont partagés entre les deux comptes.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Et si ça marche pas ?</button>
+        <div class="faq-a"><p>On garantit un minimum de 50 000 vues. Si on n'y arrive pas, on vous rembourse. Mais nos vidéos font en moyenne 180 000 vues — on est largement au-dessus à chaque fois.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Et après, c'est quoi la suite ?</button>
+        <div class="faq-a"><p>Si les résultats vous plaisent, on peut faire une vidéo par mois. Un créateur de notre réseau passe chez vous tous les mois. Sans engagement, vous arrêtez quand vous voulez.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ S12 — FOOTER ═══════════ -->
+<footer>
+  <div class="footer-socials">
+    <a href="https://www.instagram.com/bourbonbonsplans" target="_blank">Instagram</a>
+    <a href="https://www.tiktok.com/@bourbonbonsplans" target="_blank">TikTok</a>
+    <a href="https://www.facebook.com/bourbonbonsplans" target="_blank">Facebook</a>
+  </div>
+  <div class="footer-links">
+    <a href="https://bourbonmedia.fr" target="_blank">Voir le site Bourbon Média →</a>
+    <a href="#">Mentions légales</a>
+  </div>
+  <div class="footer-copy">Bourbon Média SAS — Tous droits réservés — 2026</div>
+</footer>
+
+<script>
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target)} });
+  }, { threshold: .12 });
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+  document.querySelectorAll('.faq-q').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = btn.parentElement;
+      const wasOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+      if(!wasOpen) item.classList.add('open');
+    });
+  });
+
+  // Count-up animation
+  function animateCount(el) {
+    const target = parseFloat(el.dataset.target);
+    const suffix = el.dataset.suffix || '';
+    const decimals = parseInt(el.dataset.decimals) || 0;
+    const useSpace = el.dataset.format === 'space';
+    const duration = 2000;
+    const start = performance.now();
+
+    function easeOutExpo(t) { return t === 1 ? 1 : 1 - Math.pow(2, -10 * t); }
+
+    function formatNum(n) {
+      if (decimals > 0) return n.toFixed(decimals).replace('.', ',');
+      const rounded = Math.round(n);
+      if (useSpace) return rounded.toLocaleString('fr-FR').replace(/\u202F/g, ' ');
+      return rounded.toString();
+    }
+
+    function tick(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const value = target * easeOutExpo(progress);
+      el.textContent = formatNum(value) + suffix;
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  // Trigger when hero-proof enters viewport
+  const proofObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.hp-num[data-target]').forEach(animateCount);
+        proofObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.5 });
+
+  const proofEl = document.querySelector('.hero-proof');
+  if (proofEl) proofObs.observe(proofEl);
+
+  // Rotating words in final CTA
+  const words = ['un restaurant', 'un snack', 'un bar', 'une boutique', 'un salon', 'une activité', 'un hôtel', 'un food truck'];
+  let wordIndex = 0;
+  const rotatingEl = document.getElementById('rotatingWord');
+  if (rotatingEl) {
+    setInterval(() => {
+      wordIndex = (wordIndex + 1) % words.length;
+      rotatingEl.style.animation = 'none';
+      rotatingEl.offsetHeight; // reflow
+      rotatingEl.textContent = words[wordIndex];
+      rotatingEl.style.animation = 'wordFadeIn .5s ease both';
+    }, 1500);
+  }
+
+  // Reach block counter (10.2M)
+  const reachObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const el = e.target.querySelector('.reach-counter');
+        if (el) animateCount(el);
+        reachObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.5 });
+  const reachEl = document.querySelector('.reach-block');
+  if (reachEl) reachObs.observe(reachEl);
+</script>
+
+</body>
+</html>
