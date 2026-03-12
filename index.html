@@ -192,7 +192,7 @@
     }
     .hero-inner {
       position: relative; z-index: 2; text-align: center;
-      max-width: 780px; padding: 80px 24px 60px;
+      max-width: 780px; padding: 80px 24px 80px;
     }
 
     .hero-eyebrow {
@@ -543,9 +543,9 @@
     .compare-card {
       background: var(--night-card); border: 1px solid var(--night-border);
       border-radius: var(--radius-sm); padding: 22px 20px;
-      opacity: .6; transition: opacity .3s ease;
+      transition: transform .3s ease, border-color .3s ease;
     }
-    .compare-card:hover { opacity: .85; }
+    .compare-card:hover { transform: translateY(-2px); border-color: rgba(214,48,48,.3); }
     .compare-card .cc-name {
       font-family: 'Bricolage Grotesque', sans-serif;
       font-weight: 700; font-size: .9rem; color: var(--white);
@@ -554,10 +554,11 @@
     .compare-card .cc-price {
       font-family: 'Bricolage Grotesque', sans-serif;
       font-weight: 800; font-size: 1.15rem; color: var(--red);
-      margin-bottom: 6px;
+      margin-bottom: 6px; text-decoration: line-through;
+      text-decoration-thickness: 2px;
     }
     .compare-card .cc-desc {
-      font-size: .82rem; color: var(--white); line-height: 1.4;
+      font-size: .82rem; color: rgba(255,255,255,.6); line-height: 1.4;
     }
 
     /* BBP card — standalone, full width, glowing */
@@ -704,11 +705,19 @@
     }
     .testi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
     .testi-card {
-      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-left: 3px solid var(--orange);
       border-radius: var(--radius); padding: 28px 24px;
-      transition: border-color .3s ease;
+      transition: border-color .3s ease, transform .3s ease;
+      position: relative;
     }
-    .testi-card:hover { border-color: rgba(232,105,43,.3); }
+    .testi-card:hover { border-color: rgba(232,105,43,.3); border-left-color: var(--orange-light); transform: translateY(-3px); }
+    .testi-card::before {
+      content: '\201C'; position: absolute; top: 16px; right: 20px;
+      font-family: Georgia, serif; font-size: 4rem; line-height: 1;
+      color: rgba(232,105,43,.15); pointer-events: none;
+    }
 
     .testi-card .context {
       font-size: .75rem; color: var(--orange); font-weight: 600;
@@ -728,19 +737,27 @@
     }
 
     /* ═══════════ S8 — GARANTIE ═══════════ */
-    .guarantee { padding: 52px 0; background: var(--cream-warm); }
+    .guarantee {
+      padding: 60px 0;
+      background: linear-gradient(135deg, var(--night) 0%, var(--brown) 100%);
+    }
     .guarantee-inner {
-      display: flex; align-items: center; gap: 20px;
-      max-width: 700px; margin: 0 auto; padding: 0 24px;
+      display: flex; align-items: center; gap: 28px;
+      max-width: 740px; margin: 0 auto; padding: 36px 40px;
+      background: rgba(255,255,255,.04);
+      border: 2px solid var(--orange);
+      border-radius: var(--radius);
+      box-shadow: 0 0 40px rgba(232,105,43,.12), 0 8px 32px rgba(0,0,0,.2);
     }
     .guarantee-icon {
-      flex-shrink: 0; width: 60px; height: 60px;
-      background: var(--orange); border-radius: 50%;
-      display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
-      box-shadow: 0 4px 16px rgba(232,105,43,.3);
+      flex-shrink: 0; width: 80px; height: 80px;
+      background: linear-gradient(135deg, var(--orange) 0%, #FFC107 100%);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 2.2rem;
+      box-shadow: 0 4px 24px rgba(232,105,43,.4);
     }
-    .guarantee-text h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; color: var(--text); }
-    .guarantee-text p { color: var(--text-mid); font-size: .9rem; }
+    .guarantee-text h3 { font-size: 1.25rem; font-weight: 800; margin-bottom: 8px; color: var(--white); }
+    .guarantee-text p { color: rgba(255,255,255,.7); font-size: .95rem; }
 
     /* ═══════════ S9 — FONDATEUR ═══════════ */
     .founder { padding: 72px 0; background: var(--cream); }
@@ -748,11 +765,21 @@
       display: flex; align-items: center; gap: 40px;
       max-width: 760px; margin: 0 auto; padding: 0 24px;
     }
+    .founder-left { flex-shrink: 0; text-align: center; }
     .founder-photo {
       width: 140px; height: 140px; border-radius: 50%;
-      background: var(--cream-mid); flex-shrink: 0;
+      background: var(--cream-mid);
       display: flex; align-items: center; justify-content: center;
       font-size: 3rem; border: 3px solid var(--orange);
+      box-shadow: 0 4px 20px rgba(232,105,43,.15);
+      overflow: hidden; margin-bottom: 10px;
+    }
+    .founder-badge {
+      display: inline-block;
+      background: var(--orange); color: var(--white);
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: .68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; padding: 4px 12px; border-radius: 100px;
     }
     .founder-bio h3 { font-size: 1.2rem; font-weight: 800; margin-bottom: 10px; color: var(--text); }
     .founder-bio p { font-size: .92rem; color: var(--text-mid); line-height: 1.65; }
@@ -760,6 +787,15 @@
       font-family: 'Bricolage Grotesque', sans-serif;
       font-weight: 700; color: var(--orange); font-size: .95rem; margin-top: 12px;
     }
+    .founder-stats {
+      display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;
+    }
+    .founder-stat {
+      background: var(--cream-mid); border: 1px solid var(--beige-mid);
+      padding: 6px 14px; border-radius: 100px;
+      font-size: .78rem; color: var(--text-mid); font-weight: 600;
+    }
+    .founder-stat strong { color: var(--orange); }
 
     /* ═══════════ S10 — CTA FINAL (qualification + rareté) ═══════════ */
     .final-cta {
@@ -897,6 +933,60 @@
     .reveal { opacity: 0; transform: translateY(28px); transition: opacity .65s ease, transform .65s ease; }
     .reveal.visible { opacity: 1; transform: translateY(0); }
 
+    /* ═══════════ STICKY HEADER ═══════════ */
+    .site-header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 28px;
+      background: rgba(26,16,8,.85);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      transform: translateY(-100%);
+      transition: transform .35s ease;
+    }
+    .site-header.visible { transform: translateY(0); }
+    .site-header .logo {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.15rem; font-weight: 800; color: var(--white);
+      text-decoration: none; letter-spacing: -.02em;
+    }
+    .site-header .logo span { color: var(--orange); }
+    .site-header .header-cta {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--orange); color: var(--white);
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: .82rem;
+      padding: 10px 22px; border-radius: 100px;
+      text-decoration: none; border: none; cursor: pointer;
+      transition: all .3s ease;
+      box-shadow: 0 2px 12px rgba(232,105,43,.3);
+    }
+    .site-header .header-cta:hover {
+      background: var(--orange-light); transform: translateY(-1px);
+    }
+
+    /* ═══════════ SCROLL INDICATOR ═══════════ */
+    .scroll-indicator {
+      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 6px;
+      animation: fadeUp .7s ease-out .8s both;
+    }
+    .scroll-indicator span {
+      font-size: .7rem; color: rgba(255,255,255,.4); text-transform: uppercase;
+      letter-spacing: .1em; font-weight: 500;
+    }
+    .scroll-arrow {
+      width: 24px; height: 24px;
+      border-right: 2px solid rgba(255,255,255,.4);
+      border-bottom: 2px solid rgba(255,255,255,.4);
+      transform: rotate(45deg);
+      animation: bounceDown 2s ease-in-out infinite;
+    }
+    @keyframes bounceDown {
+      0%, 100% { transform: rotate(45deg) translateY(0); opacity: .4; }
+      50% { transform: rotate(45deg) translateY(6px); opacity: 1; }
+    }
+
     /* ═══════════ RESPONSIVE ═══════════ */
     @media (max-width: 900px) {
       .steps { grid-template-columns: repeat(2, 1fr); }
@@ -918,14 +1008,23 @@
       .steps { grid-template-columns: 1fr; max-width: 380px; margin-left: auto; margin-right: auto; }
       .cases-secondary { grid-template-columns: 1fr; }
       .founder-inner { flex-direction: column; text-align: center; }
+      .founder-stats { justify-content: center; }
       .final-features { flex-direction: column; align-items: center; gap: 12px; }
-      .guarantee-inner { flex-direction: column; text-align: center; }
+      .guarantee-inner { flex-direction: column; text-align: center; padding: 28px 24px; }
+      .site-header { padding: 12px 16px; }
+      .site-header .header-cta { font-size: .75rem; padding: 8px 16px; }
       .engagement-table { font-size: .82rem; }
       .engagement-table th, .engagement-table td { padding: 10px 12px; }
     }
   </style>
 </head>
 <body>
+
+<!-- ═══════════ STICKY HEADER ═══════════ -->
+<header class="site-header" id="siteHeader">
+  <a href="/" class="logo">Bourbon<span>Média</span></a>
+  <a href="#" data-open-modal class="header-cta">Vérifier mon éligibilité</a>
+</header>
 
 <!-- ═══════════ S1 — HERO ═══════════ -->
 <section class="hero">
@@ -975,6 +1074,11 @@
       <div class="hero-proof-item"><span class="hp-num" data-target="180" data-suffix="K">0</span><span class="hp-lbl">vues par vidéo en moyenne</span></div>
     </div>
 
+  </div>
+
+  <div class="scroll-indicator">
+    <span>Découvrir</span>
+    <div class="scroll-arrow"></div>
   </div>
 </section>
 
@@ -1229,11 +1333,19 @@
 <!-- ═══════════ S9 — FONDATEUR ═══════════ -->
 <section class="founder">
   <div class="founder-inner reveal">
-    <div class="founder-photo"><img src="https://msgsndr-private.storage.googleapis.com/calendar-widget-logo/c63c8cf8-97c9-46d1-b476-c38392854d35.png" alt="Siméon Drogou" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>
+    <div class="founder-left">
+      <div class="founder-photo"><img src="https://msgsndr-private.storage.googleapis.com/calendar-widget-logo/c63c8cf8-97c9-46d1-b476-c38392854d35.png" alt="Siméon Drogou" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>
+      <span class="founder-badge">Fondateur BBP</span>
+    </div>
     <div class="founder-bio">
       <h3>Siméon Drogou</h3>
       <p>Ça fait 7 ans que je parcours La Réunion pour filmer les commerces locaux. En 2 ans, Bourbon Bons Plans est devenu le plus gros compte de découverte locale de l'île — 68 000 abonnés, plus de 10 millions de vues.</p>
       <p class="power-line">Quand je poste votre commerce, les gens viennent. C'est aussi simple que ça.</p>
+      <div class="founder-stats">
+        <span class="founder-stat"><strong>7 ans</strong> d'expérience</span>
+        <span class="founder-stat"><strong>10M+</strong> de vues</span>
+        <span class="founder-stat"><strong>60+</strong> commerces</span>
+      </div>
     </div>
   </div>
 </section>
@@ -1346,6 +1458,20 @@
     entries.forEach(e => { if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target)} });
   }, { threshold: .12 });
   document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+  // Sticky header — show after scrolling past hero
+  (function() {
+    var header = document.getElementById('siteHeader');
+    var hero = document.querySelector('.hero');
+    if (!header || !hero) return;
+    var heroObs = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) {
+        if (e.isIntersecting) { header.classList.remove('visible'); }
+        else { header.classList.add('visible'); }
+      });
+    }, { threshold: 0 });
+    heroObs.observe(hero);
+  })();
 
   document.querySelectorAll('.faq-q').forEach(btn => {
     btn.addEventListener('click', () => {
