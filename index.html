@@ -827,26 +827,20 @@
       font-size: .85rem; font-weight: 700; color: var(--text);
       margin-bottom: 6px;
     }
-    .lead-form input,
-    .lead-form select,
-    .lead-form textarea {
+    .lead-form input {
       width: 100%; padding: 14px 18px; border: 2px solid var(--beige-mid);
       border-radius: var(--radius-sm); font-family: 'Instrument Sans', sans-serif;
       font-size: .95rem; color: var(--text); background: var(--white);
       transition: border-color .3s ease, box-shadow .3s ease;
       outline: none;
     }
-    .lead-form input::placeholder,
-    .lead-form textarea::placeholder {
+    .lead-form input::placeholder {
       color: var(--text-muted);
     }
-    .lead-form input:focus,
-    .lead-form select:focus,
-    .lead-form textarea:focus {
+    .lead-form input:focus {
       border-color: var(--orange);
       box-shadow: 0 0 0 4px var(--orange-glow);
     }
-    .lead-form textarea { resize: vertical; min-height: 90px; }
     .lead-form .form-row {
       display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
     }
@@ -1451,34 +1445,16 @@
         </div>
       </div>
       <div class="form-group">
-        <label for="lead-email">Email</label>
-        <input type="email" id="lead-email" name="email" placeholder="jean@moncommerce.re" required>
+        <label for="lead-company">Nom d'entreprise</label>
+        <input type="text" id="lead-company" name="companyName" placeholder="Mon Commerce" required>
       </div>
       <div class="form-group">
         <label for="lead-phone">Téléphone</label>
         <input type="tel" id="lead-phone" name="phone" placeholder="0692 XX XX XX" required>
       </div>
       <div class="form-group">
-        <label for="lead-business">Type de commerce</label>
-        <select id="lead-business" name="businessType" required>
-          <option value="" disabled selected>Sélectionnez votre activité</option>
-          <option value="restaurant">Restaurant</option>
-          <option value="snack">Snack / Food truck</option>
-          <option value="bar">Bar / Lounge</option>
-          <option value="boutique">Boutique / Commerce</option>
-          <option value="salon">Salon (coiffure, beauté, etc.)</option>
-          <option value="hotel">Hôtel / Hébergement</option>
-          <option value="activite">Activité / Loisirs</option>
-          <option value="autre">Autre</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="lead-city">Commune</label>
-        <input type="text" id="lead-city" name="city" placeholder="Saint-Denis, Saint-Pierre..." required>
-      </div>
-      <div class="form-group">
-        <label for="lead-message">Un mot sur votre commerce (optionnel)</label>
-        <textarea id="lead-message" name="message" placeholder="Décrivez brièvement votre activité..."></textarea>
+        <label for="lead-email">Email</label>
+        <input type="email" id="lead-email" name="email" placeholder="jean@moncommerce.re" required>
       </div>
 
       <button type="submit" class="form-submit" id="leadSubmitBtn">
@@ -1680,11 +1656,9 @@
       const payload = {
         firstName: formData.get('firstName'),
         lastName: formData.get('lastName'),
-        email: formData.get('email'),
+        companyName: formData.get('companyName'),
         phone: formData.get('phone'),
-        businessType: formData.get('businessType'),
-        city: formData.get('city'),
-        message: formData.get('message') || '',
+        email: formData.get('email'),
         source: 'Landing Page BBP',
         tags: ['landing-page', 'video-decouverte']
       };
