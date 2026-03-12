@@ -113,6 +113,21 @@
       width: 800px; height: 600px;
       background: radial-gradient(ellipse, rgba(232,105,43,.12) 0%, transparent 60%);
     }
+    /* Silhouette de La Réunion */
+    .hero-island {
+      position: absolute; bottom: -5%; right: -3%;
+      width: 55vw; max-width: 700px; min-width: 350px;
+      opacity: .045;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .hero-island svg { width: 100%; height: auto; }
+    .hero-island-glow {
+      position: absolute; bottom: 5%; right: 8%;
+      width: 400px; height: 400px;
+      background: radial-gradient(ellipse, rgba(232,105,43,.08) 0%, transparent 65%);
+      pointer-events: none; z-index: 0;
+    }
     /* Floating particles */
     .hero-particles {
       position: absolute; inset: 0; overflow: hidden; pointer-events: none;
@@ -925,6 +940,12 @@
 <section class="hero">
   <div class="hero-rays"></div>
   <div class="hero-glow"></div>
+  <div class="hero-island-glow"></div>
+  <div class="hero-island">
+    <svg viewBox="0 0 800 600" fill="rgba(232,105,43,1)" xmlns="http://www.w3.org/2000/svg">
+      <path d="M410 95c25-5 55 2 80 15 30 16 55 38 78 62 18 19 35 40 48 63 15 27 25 56 30 87 4 25 3 50-3 74-8 30-22 57-42 80-15 17-33 31-53 42-25 14-52 22-80 25-20 2-40 1-60-3-28-6-54-18-78-35-20-14-38-31-53-51-18-24-31-51-38-80-6-25-8-51-5-77 4-30 13-58 28-83 16-27 36-50 60-68 22-17 47-29 73-37 5-1 10-2 15-2zm-95 55c-20 14-37 32-50 53-14 22-23 46-27 72-3 22-2 44 3 65 6 26 17 49 33 70 13 17 29 32 47 44 22 15 46 25 72 30 18 4 36 4 54 2 25-3 49-10 71-22 18-10 34-23 48-38 18-20 31-44 38-70 5-20 6-41 3-62-4-27-13-52-26-75-12-21-27-40-44-57-21-22-44-40-70-54-22-12-45-18-68-13-14 3-27 8-39 15l-4 3c-14 10-27 22-38 37z"/>
+    </svg>
+  </div>
   <div class="hero-particles">
     <div class="particle"></div><div class="particle"></div><div class="particle"></div>
     <div class="particle"></div><div class="particle"></div><div class="particle"></div>
@@ -1055,89 +1076,10 @@
       </div>
     </div>
 
-    <!-- Video Showcase -->
+    <!-- Video Showcase — Senja Widget -->
     <div class="showcase reveal">
       <div class="showcase-title">Nos dernières vidéos — imaginez la vôtre</div>
-      <div class="showcase-track-wrap">
-        <div class="showcase-track" id="showcaseTrack">
-
-          <div class="video-card">
-            <div class="vc-placeholder">
-              <span class="vc-emoji">🍔</span>
-              <span class="vc-biz">Memphis Burger</span>
-              <span class="vc-type">Restaurant · Saint-Pierre</span>
-            </div>
-            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
-            <div class="vc-stats">🔥 850K vues</div>
-            <div class="vc-name-overlay">Memphis Burger</div>
-          </div>
-
-          <div class="video-card">
-            <div class="vc-placeholder">
-              <span class="vc-emoji">💎</span>
-              <span class="vc-biz">Sousou Access</span>
-              <span class="vc-type">Bijoux · Saint-Denis</span>
-            </div>
-            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
-            <div class="vc-stats">🔥 620K vues</div>
-            <div class="vc-name-overlay">Sousou Access</div>
-          </div>
-
-          <div class="video-card">
-            <div class="vc-placeholder">
-              <span class="vc-emoji">🧗</span>
-              <span class="vc-biz">Crazy Adventures</span>
-              <span class="vc-type">Buggy · Sud</span>
-            </div>
-            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
-            <div class="vc-stats">🔥 2,1M vues</div>
-            <div class="vc-name-overlay">Crazy Adventures</div>
-          </div>
-
-          <div class="video-card">
-            <div class="vc-placeholder">
-              <span class="vc-emoji">🌴</span>
-              <span class="vc-biz">Jungle à Pat'</span>
-              <span class="vc-type">Activité · Est</span>
-            </div>
-            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
-            <div class="vc-stats">🔥 900K vues</div>
-            <div class="vc-name-overlay">Jungle à Pat'</div>
-          </div>
-
-          <div class="video-card">
-            <div class="vc-placeholder">
-              <span class="vc-emoji">👗</span>
-              <span class="vc-biz">Popeline Vintage</span>
-              <span class="vc-type">Boutique</span>
-            </div>
-            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
-            <div class="vc-stats">🔥 340K vues</div>
-            <div class="vc-name-overlay">Popeline Vintage</div>
-          </div>
-
-          <div class="video-card">
-            <div class="vc-placeholder">
-              <span class="vc-emoji">🥞</span>
-              <span class="vc-biz">La Crème de la Crêpe</span>
-              <span class="vc-type">Restaurant</span>
-            </div>
-            <div class="vc-play"><svg viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
-            <div class="vc-stats">🔥 280K vues</div>
-            <div class="vc-name-overlay">La Crème de la Crêpe</div>
-          </div>
-
-          <div class="video-card" style="border:2px dashed var(--orange);background:var(--cream-warm);">
-            <div class="vc-placeholder" style="background:var(--cream-warm);">
-              <span class="vc-emoji">🏪</span>
-              <span class="vc-biz" style="color:var(--orange);">Votre commerce ?</span>
-              <span class="vc-type" style="color:var(--text-mid);">La prochaine vidéo pourrait être la vôtre</span>
-            </div>
-          </div>
-
-        </div>
-      </div>
-      <p class="showcase-hint">← Glissez pour voir les vidéos · Placeholders — remplacez par les vraies miniatures →</p>
+      <div class="senja-embed" data-id="bbf8f06d-7db5-4fab-8397-064cca552dda" data-mode="shadow" data-lazyload="false" style="display: block; width: 100%;"></div>
     </div>
 
     <!-- Calculateur mental -->
@@ -1541,6 +1483,7 @@
 </script>
 
 <script src="https://link.msgsndr.com/js/form_embed.js" type="text/javascript"></script>
+<script src="https://widget.senja.io/widget/bbf8f06d-7db5-4fab-8397-064cca552dda/platform.js" type="text/javascript" async></script>
 
 </body>
 </html>
