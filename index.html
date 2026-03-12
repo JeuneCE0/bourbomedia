@@ -814,7 +814,7 @@
     .modal-overlay.open { display: flex; opacity: 1; }
     .modal-box {
       background: var(--white); border-radius: var(--radius);
-      max-width: 520px; width: 100%; padding: 40px 32px;
+      max-width: 520px; width: 100%; padding: 40px 32px 24px;
       position: relative; max-height: 90vh; overflow-y: auto;
       box-shadow: 0 24px 64px rgba(0,0,0,.2);
       transform: translateY(20px); transition: transform .3s ease;
@@ -826,7 +826,7 @@
       border: none; background: var(--beige-mid); cursor: pointer;
       font-size: 1.2rem; color: var(--text-mid);
       display: flex; align-items: center; justify-content: center;
-      transition: background .2s ease;
+      transition: background .2s ease; z-index: 1;
     }
     .modal-close:hover { background: var(--beige-warm); }
     .modal-box h2 {
@@ -834,78 +834,16 @@
       margin-bottom: 6px;
     }
     .modal-box .modal-sub {
-      font-size: .9rem; color: var(--text-mid); margin-bottom: 28px;
+      font-size: .9rem; color: var(--text-mid); margin-bottom: 20px;
     }
-    .lead-form .form-group {
-      margin-bottom: 18px;
+    .ghl-form-embed {
+      width: 100%; min-height: 566px;
     }
-    .lead-form label {
-      display: block; font-family: 'Bricolage Grotesque', sans-serif;
-      font-size: .85rem; font-weight: 700; color: var(--text);
-      margin-bottom: 6px;
+    .ghl-form-embed iframe {
+      width: 100%; min-height: 566px; border: none; border-radius: var(--radius-xs);
     }
-    .lead-form input {
-      width: 100%; padding: 14px 18px; border: 2px solid var(--beige-mid);
-      border-radius: var(--radius-sm); font-family: 'Instrument Sans', sans-serif;
-      font-size: .95rem; color: var(--text); background: var(--white);
-      transition: border-color .3s ease, box-shadow .3s ease;
-      outline: none;
-    }
-    .lead-form input::placeholder {
-      color: var(--text-muted);
-    }
-    .lead-form input:focus {
-      border-color: var(--orange);
-      box-shadow: 0 0 0 4px var(--orange-glow);
-    }
-    .lead-form .form-row {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
-    }
-    .lead-form .form-submit {
-      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-      width: 100%; padding: 16px 32px; border: none; cursor: pointer;
-      font-family: 'Bricolage Grotesque', sans-serif;
-      font-size: 1rem; font-weight: 700; color: var(--white);
-      background: var(--orange); border-radius: var(--radius-sm);
-      transition: background .3s ease, transform .2s ease;
-      margin-top: 8px;
-    }
-    .lead-form .form-submit:hover {
-      background: var(--orange-dark); transform: translateY(-2px);
-    }
-    .lead-form .form-submit:disabled {
-      opacity: .6; cursor: not-allowed; transform: none;
-    }
-    .lead-form .form-submit svg { width: 17px; height: 17px; }
-    .lead-form .form-note {
-      text-align: center; font-size: .78rem; color: var(--text-muted);
-      margin-top: 14px;
-    }
-    .lead-form .form-success {
-      display: none; text-align: center; padding: 28px;
-      background: var(--green-light); border-radius: var(--radius-sm);
-      border: 2px solid var(--green);
-    }
-    .lead-form .form-success.show { display: block; }
-    .lead-form .form-success .check-icon {
-      font-size: 2rem; margin-bottom: 10px;
-    }
-    .lead-form .form-success h3 {
-      font-size: 1.15rem; font-weight: 800; color: var(--text); margin-bottom: 6px;
-    }
-    .lead-form .form-success p {
-      font-size: .9rem; color: var(--text-mid);
-    }
-    .lead-form .form-error {
-      display: none; text-align: center; padding: 12px;
-      background: rgba(214,48,48,.08); border-radius: var(--radius-xs);
-      border: 1px solid var(--red); color: var(--red);
-      font-size: .85rem; margin-top: 12px;
-    }
-    .lead-form .form-error.show { display: block; }
     @media (max-width: 640px) {
-      .lead-form .form-row { grid-template-columns: 1fr; }
-      .modal-box { padding: 32px 20px; }
+      .modal-box { padding: 32px 16px 16px; }
     }
 
     /* ═══════════ S11 — FAQ ═══════════ */
@@ -1463,47 +1401,25 @@
   <div class="modal-box">
     <button class="modal-close" id="modalClose" aria-label="Fermer">&times;</button>
     <h2>Parlons de votre commerce</h2>
-    <p class="modal-sub">On vous rappelle sous 24h pour un appel de 15 min — gratuit et sans engagement.</p>
+    <p class="modal-sub">Remplissez le formulaire — gratuit et sans engagement.</p>
 
-    <div class="lead-form">
-      <form id="leadForm">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="lead-firstname">Prénom</label>
-            <input type="text" id="lead-firstname" name="firstName" placeholder="Jean" required>
-          </div>
-          <div class="form-group">
-            <label for="lead-lastname">Nom</label>
-            <input type="text" id="lead-lastname" name="lastName" placeholder="Dupont" required>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="lead-company">Nom d'entreprise</label>
-          <input type="text" id="lead-company" name="companyName" placeholder="Mon Commerce" required>
-        </div>
-        <div class="form-group">
-          <label for="lead-phone">Téléphone</label>
-          <input type="tel" id="lead-phone" name="phone" placeholder="0692 XX XX XX" required>
-        </div>
-        <div class="form-group">
-          <label for="lead-email">Email</label>
-          <input type="email" id="lead-email" name="email" placeholder="jean@moncommerce.re" required>
-        </div>
-
-        <button type="submit" class="form-submit" id="leadSubmitBtn">
-          Envoyer ma demande
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-        </button>
-        <div class="form-error" id="leadError">Une erreur est survenue. Veuillez réessayer ou nous contacter directement.</div>
-      </form>
-
-      <div class="form-success" id="leadSuccess">
-        <div class="check-icon">&#10003;</div>
-        <h3>Demande envoyée !</h3>
-        <p>On vous recontacte sous 24h pour planifier votre appel de 15 min.</p>
-      </div>
-
-      <p class="form-note">Vos données restent confidentielles. Aucun spam, promis.</p>
+    <div class="ghl-form-embed">
+      <iframe
+        src="https://api.leadconnectorhq.com/widget/form/uiaRQacRypGFaEjrlI4D"
+        id="inline-uiaRQacRypGFaEjrlI4D"
+        data-layout="{'id':'INLINE'}"
+        data-trigger-type="alwaysShow"
+        data-trigger-value=""
+        data-activation-type="alwaysActivated"
+        data-activation-value=""
+        data-deactivation-type="neverDeactivate"
+        data-deactivation-value=""
+        data-form-name="Opt-In Funnel"
+        data-height="566"
+        data-layout-iframe-id="inline-uiaRQacRypGFaEjrlI4D"
+        data-form-id="uiaRQacRypGFaEjrlI4D"
+        title="Opt-In Funnel"
+      ></iframe>
     </div>
   </div>
 </div>
@@ -1622,54 +1538,9 @@
     if (e.key === 'Escape' && modalOverlay.classList.contains('open')) closeModal();
   });
 
-  // ═══════════ LEAD FORM → GHL WEBHOOK ═══════════
-  // ╔════════════════════════════════════════════════════════════╗
-  // ║  REMPLACEZ L'URL CI-DESSOUS PAR VOTRE WEBHOOK GHL        ║
-  // ║  GoHighLevel > Automation > Workflows > Trigger: Webhook  ║
-  // ╚════════════════════════════════════════════════════════════╝
-  const GHL_WEBHOOK_URL = 'VOTRE_WEBHOOK_GHL_ICI';
-
-  const leadForm = document.getElementById('leadForm');
-  const leadSubmitBtn = document.getElementById('leadSubmitBtn');
-  const leadSuccess = document.getElementById('leadSuccess');
-  const leadError = document.getElementById('leadError');
-
-  if (leadForm) {
-    leadForm.addEventListener('submit', async function(e) {
-      e.preventDefault();
-      leadError.classList.remove('show');
-      leadSubmitBtn.disabled = true;
-      leadSubmitBtn.textContent = 'Envoi en cours...';
-
-      const formData = new FormData(leadForm);
-      const payload = {
-        firstName: formData.get('firstName'),
-        lastName: formData.get('lastName'),
-        companyName: formData.get('companyName'),
-        phone: formData.get('phone'),
-        email: formData.get('email'),
-        source: 'Landing Page BBP',
-        tags: ['landing-page', 'video-decouverte']
-      };
-
-      try {
-        const response = await fetch(GHL_WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) throw new Error('Erreur serveur');
-
-        window.location.href = '/reservation-appel';
-      } catch (err) {
-        leadError.classList.add('show');
-        leadSubmitBtn.disabled = false;
-        leadSubmitBtn.textContent = 'Envoyer ma demande';
-      }
-    });
-  }
 </script>
+
+<script src="https://link.msgsndr.com/js/form_embed.js" type="text/javascript"></script>
 
 </body>
 </html>
