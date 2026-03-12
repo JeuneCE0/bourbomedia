@@ -1458,6 +1458,56 @@
   <div class="footer-copy">Bourbon Média SAS — Tous droits réservés — 2026</div>
 </footer>
 
+<!-- ═══════════ MODAL FORMULAIRE LEADS ═══════════ -->
+<div class="modal-overlay" id="leadModal">
+  <div class="modal-box">
+    <button class="modal-close" id="modalClose" aria-label="Fermer">&times;</button>
+    <h2>Parlons de votre commerce</h2>
+    <p class="modal-sub">On vous rappelle sous 24h pour un appel de 15 min — gratuit et sans engagement.</p>
+
+    <div class="lead-form">
+      <form id="leadForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="lead-firstname">Prénom</label>
+            <input type="text" id="lead-firstname" name="firstName" placeholder="Jean" required>
+          </div>
+          <div class="form-group">
+            <label for="lead-lastname">Nom</label>
+            <input type="text" id="lead-lastname" name="lastName" placeholder="Dupont" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="lead-company">Nom d'entreprise</label>
+          <input type="text" id="lead-company" name="companyName" placeholder="Mon Commerce" required>
+        </div>
+        <div class="form-group">
+          <label for="lead-phone">Téléphone</label>
+          <input type="tel" id="lead-phone" name="phone" placeholder="0692 XX XX XX" required>
+        </div>
+        <div class="form-group">
+          <label for="lead-email">Email</label>
+          <input type="email" id="lead-email" name="email" placeholder="jean@moncommerce.re" required>
+        </div>
+
+        <button type="submit" class="form-submit" id="leadSubmitBtn">
+          Envoyer ma demande
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+        </button>
+        <div class="form-error" id="leadError">Une erreur est survenue. Veuillez réessayer ou nous contacter directement.</div>
+      </form>
+
+      <div class="form-success" id="leadSuccess">
+        <div class="check-icon">&#10003;</div>
+        <h3>Demande envoyée !</h3>
+        <p>On vous recontacte sous 24h pour planifier votre appel de 15 min.</p>
+      </div>
+
+      <p class="form-note">Vos données restent confidentielles. Aucun spam, promis.</p>
+    </div>
+  </div>
+</div>
+
 <script>
   const obs = new IntersectionObserver((entries) => {
     entries.forEach(e => { if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target)} });
@@ -1621,56 +1671,6 @@
     });
   }
 </script>
-
-<!-- ═══════════ MODAL FORMULAIRE LEADS ═══════════ -->
-<div class="modal-overlay" id="leadModal">
-  <div class="modal-box">
-    <button class="modal-close" id="modalClose" aria-label="Fermer">&times;</button>
-    <h2>Parlons de votre commerce</h2>
-    <p class="modal-sub">On vous rappelle sous 24h pour un appel de 15 min — gratuit et sans engagement.</p>
-
-    <div class="lead-form">
-      <form id="leadForm">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="lead-firstname">Prénom</label>
-            <input type="text" id="lead-firstname" name="firstName" placeholder="Jean" required>
-          </div>
-          <div class="form-group">
-            <label for="lead-lastname">Nom</label>
-            <input type="text" id="lead-lastname" name="lastName" placeholder="Dupont" required>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="lead-company">Nom d'entreprise</label>
-          <input type="text" id="lead-company" name="companyName" placeholder="Mon Commerce" required>
-        </div>
-        <div class="form-group">
-          <label for="lead-phone">Téléphone</label>
-          <input type="tel" id="lead-phone" name="phone" placeholder="0692 XX XX XX" required>
-        </div>
-        <div class="form-group">
-          <label for="lead-email">Email</label>
-          <input type="email" id="lead-email" name="email" placeholder="jean@moncommerce.re" required>
-        </div>
-
-        <button type="submit" class="form-submit" id="leadSubmitBtn">
-          Envoyer ma demande
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-        </button>
-        <div class="form-error" id="leadError">Une erreur est survenue. Veuillez réessayer ou nous contacter directement.</div>
-      </form>
-
-      <div class="form-success" id="leadSuccess">
-        <div class="check-icon">&#10003;</div>
-        <h3>Demande envoyée !</h3>
-        <p>On vous recontacte sous 24h pour planifier votre appel de 15 min.</p>
-      </div>
-
-      <p class="form-note">Vos données restent confidentielles. Aucun spam, promis.</p>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>
