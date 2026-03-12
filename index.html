@@ -113,21 +113,61 @@
       width: 800px; height: 600px;
       background: radial-gradient(ellipse, rgba(232,105,43,.12) 0%, transparent 60%);
     }
-    /* Silhouette de La Réunion */
-    .hero-island {
-      position: absolute; bottom: -5%; right: -3%;
-      width: 55vw; max-width: 700px; min-width: 350px;
-      opacity: .045;
-      pointer-events: none;
-      z-index: 1;
-    }
-    .hero-island svg { width: 100%; height: auto; }
-    .hero-island-glow {
-      position: absolute; bottom: 5%; right: 8%;
-      width: 400px; height: 400px;
-      background: radial-gradient(ellipse, rgba(232,105,43,.08) 0%, transparent 65%);
+    /* Hero grid overlay */
+    .hero-grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(232,105,43,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232,105,43,.04) 1px, transparent 1px);
+      background-size: 80px 80px;
+      mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 20%, transparent 70%);
+      -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 20%, transparent 70%);
       pointer-events: none; z-index: 0;
     }
+    /* Hero secondary glow (bottom) */
+    .hero-glow-bottom {
+      position: absolute; bottom: -10%; left: 50%; transform: translateX(-50%);
+      width: 900px; height: 400px;
+      background: radial-gradient(ellipse, rgba(232,105,43,.08) 0%, transparent 60%);
+      pointer-events: none; z-index: 0;
+    }
+    /* Animated gradient border on CTA */
+    .cta { position: relative; }
+    .cta::before {
+      content: ''; position: absolute; inset: -2px; border-radius: inherit;
+      background: linear-gradient(135deg, var(--orange), var(--orange-light), var(--orange));
+      background-size: 200% 200%;
+      animation: shimmer 3s ease-in-out infinite;
+      z-index: -1; opacity: .6;
+      filter: blur(6px);
+    }
+    @keyframes shimmer {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    /* Trusted by badge */
+    .hero-trust {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 100px; padding: 6px 16px;
+      margin-bottom: 20px;
+      animation: fadeUp .7s ease-out both;
+    }
+    .hero-trust-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #22C55E;
+      box-shadow: 0 0 8px rgba(34,197,94,.5);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .6; transform: scale(.8); }
+    }
+    .hero-trust span {
+      font-size: .78rem; color: rgba(255,255,255,.5); font-weight: 500;
+    }
+    .hero-trust strong { color: rgba(255,255,255,.7); }
     /* Floating particles */
     .hero-particles {
       position: absolute; inset: 0; overflow: hidden; pointer-events: none;
@@ -940,12 +980,8 @@
 <section class="hero">
   <div class="hero-rays"></div>
   <div class="hero-glow"></div>
-  <div class="hero-island-glow"></div>
-  <div class="hero-island">
-    <svg viewBox="0 0 800 600" fill="rgba(232,105,43,1)" xmlns="http://www.w3.org/2000/svg">
-      <path d="M410 95c25-5 55 2 80 15 30 16 55 38 78 62 18 19 35 40 48 63 15 27 25 56 30 87 4 25 3 50-3 74-8 30-22 57-42 80-15 17-33 31-53 42-25 14-52 22-80 25-20 2-40 1-60-3-28-6-54-18-78-35-20-14-38-31-53-51-18-24-31-51-38-80-6-25-8-51-5-77 4-30 13-58 28-83 16-27 36-50 60-68 22-17 47-29 73-37 5-1 10-2 15-2zm-95 55c-20 14-37 32-50 53-14 22-23 46-27 72-3 22-2 44 3 65 6 26 17 49 33 70 13 17 29 32 47 44 22 15 46 25 72 30 18 4 36 4 54 2 25-3 49-10 71-22 18-10 34-23 48-38 18-20 31-44 38-70 5-20 6-41 3-62-4-27-13-52-26-75-12-21-27-40-44-57-21-22-44-40-70-54-22-12-45-18-68-13-14 3-27 8-39 15l-4 3c-14 10-27 22-38 37z"/>
-    </svg>
-  </div>
+  <div class="hero-grid"></div>
+  <div class="hero-glow-bottom"></div>
   <div class="hero-particles">
     <div class="particle"></div><div class="particle"></div><div class="particle"></div>
     <div class="particle"></div><div class="particle"></div><div class="particle"></div>
@@ -953,6 +989,11 @@
     <div class="particle"></div><div class="particle"></div><div class="particle"></div>
   </div>
   <div class="hero-inner">
+
+    <div class="hero-trust">
+      <span class="hero-trust-dot"></span>
+      <span><strong>+60 commerces</strong> accompagnés à La Réunion</span>
+    </div>
 
     <p class="hero-eyebrow">Pour les commerces réunionnais en manque de visibilité</p>
 
