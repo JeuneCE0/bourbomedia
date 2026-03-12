@@ -1661,8 +1661,7 @@
 
         if (!response.ok) throw new Error('Erreur serveur');
 
-        leadForm.style.display = 'none';
-        leadSuccess.classList.add('show');
+        window.location.href = '/reservation-appel';
       } catch (err) {
         leadError.classList.add('show');
         leadSubmitBtn.disabled = false;
