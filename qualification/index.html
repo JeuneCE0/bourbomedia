@@ -726,15 +726,6 @@
     </div>
   </div>
 
-  <!-- ══ ÉCRAN REFUSÉ ══ -->
-  <div class="screen-rejected" id="screenRejected">
-    <div class="rejected-icon">✕</div>
-    <h2 class="rejected-title">Merci pour votre intérêt</h2>
-    <p class="rejected-desc">Malheureusement, votre profil ne correspond pas à ce que nous recherchons pour le moment. Suivez-nous sur les réseaux pour rester informé de nos prochaines offres.</p>
-    <a href="https://www.instagram.com/bourbonbonsplans" target="_blank" class="btn-follow">
-      Suivre Bourbon Bons Plans sur Instagram
-    </a>
-  </div>
 
 </div>
 
@@ -941,8 +932,7 @@
       if (qualified) {
         window.location.href = '/reservation-appel/';
       } else {
-        screen.classList.remove('active');
-        document.getElementById('screenRejected').classList.add('active');
+        window.location.href = '/non-eligible/';
       }
     }, 6200);
   }
