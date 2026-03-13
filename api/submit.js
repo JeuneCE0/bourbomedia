@@ -73,8 +73,12 @@ module.exports = async function handler(req, res) {
       lastName: lastName,
       phone: data.phone,
       email: data.email,
+      companyName: data.companyName || '',
       source: 'Landing Page BBP',
-      tags: isQualified ? ['Qualifié', 'Formulaire BBP'] : ['Non-Qualifié', 'Formulaire BBP']
+      tags: isQualified ? ['Qualifié', 'Formulaire BBP'] : ['Non-Qualifié', 'Formulaire BBP'],
+      customFields: [
+        { id: 'C6xpqArLhsVZ0qT4q5bJ', field_value: data.companyName || '' }
+      ]
     });
 
     console.log('Contact result:', JSON.stringify(contactResult));

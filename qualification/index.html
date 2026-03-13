@@ -510,6 +510,11 @@
         <div class="error-msg" id="errName"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Veuillez entrer votre prénom et nom</div>
       </div>
       <div class="field">
+        <label for="companyName">Nom de l'entreprise</label>
+        <input type="text" class="form-input" id="companyName" placeholder="Ex : Ti Case Créole" autocomplete="organization">
+        <div class="error-msg" id="errCompany"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Veuillez entrer le nom de votre entreprise</div>
+      </div>
+      <div class="field">
         <label for="phone">Numéro de téléphone</label>
         <input type="tel" class="form-input" id="phone" placeholder="0692 XX XX XX" autocomplete="tel">
         <div class="error-msg" id="errPhone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Numéro invalide (8 à 15 chiffres)</div>
@@ -797,19 +802,23 @@
 
     if (step === 1) {
       var name = document.getElementById('fullName').value.trim();
+      var companyName = document.getElementById('companyName').value.trim();
       var phone = document.getElementById('phone').value.trim();
       var email = document.getElementById('email').value.trim();
 
       clearError('errName', 'fullName');
+      clearError('errCompany', 'companyName');
       clearError('errPhone', 'phone');
       clearError('errEmail', 'email');
 
       if (!name) { showError('errName', 'fullName'); valid = false; }
+      if (!companyName) { showError('errCompany', 'companyName'); valid = false; }
       if (!/^[\d\s\+\-\.]{8,15}$/.test(phone.replace(/\s/g, ''))) { showError('errPhone', 'phone'); valid = false; }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('errEmail', 'email'); valid = false; }
 
       if (valid) {
         formData.name = name;
+        formData.companyName = companyName;
         formData.phone = phone;
         formData.email = email;
       }
@@ -953,7 +962,7 @@
   updateProgress(1);
 
   // Clear errors on input
-  ['fullName', 'phone', 'email', 'ville'].forEach(function(id) {
+  ['fullName', 'companyName', 'phone', 'email', 'ville'].forEach(function(id) {
     document.getElementById(id).addEventListener('input', function() {
       this.classList.remove('error');
       var errEl = this.parentElement.querySelector('.error-msg');
