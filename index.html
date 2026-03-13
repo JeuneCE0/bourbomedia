@@ -1001,7 +1001,7 @@
 <!-- ═══════════ STICKY HEADER ═══════════ -->
 <header class="site-header" id="siteHeader">
   <a href="/" class="logo">Bourbon<span>Média</span></a>
-  <a href="#" data-open-modal class="header-cta">Vérifier mon éligibilité</a>
+  <a href="/qualification/" class="header-cta">Vérifier mon éligibilité</a>
 </header>
 
 <!-- ═══════════ S1 — HERO ═══════════ -->
@@ -1035,7 +1035,7 @@
     </p>
 
     <div class="hero-ctas">
-      <a href="#" data-open-modal class="cta">
+      <a href="/qualification/" class="cta">
         Voir si mon commerce est éligible
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
       </a>
@@ -1204,7 +1204,7 @@
     </div>
 
     <div class="offer-cta reveal">
-      <a href="#" data-open-modal class="cta">
+      <a href="/qualification/" class="cta">
         Vérifier si mon commerce est éligible
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
       </a>
@@ -1339,7 +1339,7 @@
       <p class="if-line">Obtenez <strong>50 000 à 200 000 vues locales</strong> sur votre commerce.</p>
     </div>
 
-    <a href="#" data-open-modal class="cta reveal" style="animation:none">
+    <a href="/qualification/" class="cta reveal" style="animation:none">
       Demander un appel gratuit
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
     </a>
@@ -1399,33 +1399,6 @@
   <div class="footer-copy">Bourbon Média SAS — Tous droits réservés — 2026</div>
 </footer>
 
-<!-- ═══════════ MODAL FORMULAIRE LEADS ═══════════ -->
-<div class="modal-overlay" id="leadModal">
-  <div class="modal-box">
-    <button class="modal-close" id="modalClose" aria-label="Fermer">&times;</button>
-    <h2>Parlons de votre commerce</h2>
-    <p class="modal-sub">Remplissez le formulaire — gratuit et sans engagement.</p>
-
-    <div class="ghl-form-embed">
-      <iframe
-        src="https://api.leadconnectorhq.com/widget/form/uiaRQacRypGFaEjrlI4D"
-        id="inline-uiaRQacRypGFaEjrlI4D"
-        data-layout="{'id':'INLINE'}"
-        data-trigger-type="alwaysShow"
-        data-trigger-value=""
-        data-activation-type="alwaysActivated"
-        data-activation-value=""
-        data-deactivation-type="neverDeactivate"
-        data-deactivation-value=""
-        data-form-name="Opt-In Funnel"
-        data-height="566"
-        data-layout-iframe-id="inline-uiaRQacRypGFaEjrlI4D"
-        data-form-id="uiaRQacRypGFaEjrlI4D"
-        title="Opt-In Funnel"
-      ></iframe>
-    </div>
-  </div>
-</div>
 
 <script>
   const obs = new IntersectionObserver((entries) => {
@@ -1525,35 +1498,6 @@
   const reachEl = document.querySelector('.reach-block');
   if (reachEl) reachObs.observe(reachEl);
 
-  // ═══════════ MODAL OPEN / CLOSE ═══════════
-  const modalOverlay = document.getElementById('leadModal');
-  const modalClose = document.getElementById('modalClose');
-
-  function openModal() {
-    modalOverlay.classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
-  function closeModal() {
-    modalOverlay.classList.remove('open');
-    document.body.style.overflow = '';
-  }
-
-  document.querySelectorAll('[data-open-modal]').forEach(function(btn) {
-    btn.addEventListener('click', function(e) {
-      e.preventDefault();
-      openModal();
-    });
-  });
-
-  if (modalClose) modalClose.addEventListener('click', closeModal);
-  if (modalOverlay) {
-    modalOverlay.addEventListener('click', function(e) {
-      if (e.target === modalOverlay) closeModal();
-    });
-  }
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && modalOverlay.classList.contains('open')) closeModal();
-  });
 
 </script>
 
