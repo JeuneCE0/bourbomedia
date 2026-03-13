@@ -1,9 +1,8 @@
-// Serverless function — works on Netlify Functions, Vercel, Cloudflare Workers
-// Deploy as: /api/submit (e.g., Netlify: netlify/functions/submit.js)
+// Vercel Serverless Function — /api/submit
 
-const GHL_API_KEY = 'pit-94070501-5ed0-4171-a8e9-28d51d143478';
+const GHL_API_KEY = process.env.GHL_API_KEY;
 const GHL_BASE = 'https://services.leadconnectorhq.com';
-const LOCATION_ID = 'giq0vlSEOxHfJ0lmbR8u';
+const LOCATION_ID = process.env.GHL_LOCATION_ID;
 const PIPELINE_ID = 'pWEcPHjdG7FSXIKbGsKc';
 const STAGE_LEADS = '66875cc0-0b57-47bf-b027-ef0187d77db9';
 const STAGE_NON_QUALIFIE = 'b7acf2e0-7d3b-4eae-9af5-9fcee9a845ec';
@@ -19,13 +18,6 @@ const CUSTOM_FIELD_IDS = {
   qualifi: 'IUgqqqYSk8gVOyk9MaEl'
 };
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Content-Type': 'application/json'
-};
-
 async function ghlFetch(endpoint, body) {
   const res = await fetch(GHL_BASE + endpoint, {
     method: 'POST',
@@ -39,22 +31,25 @@ async function ghlFetch(endpoint, body) {
   return res.json();
 }
 
-// ─── Netlify Functions format ───
-exports.handler = async function(event) {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: CORS_HEADERS, body: '' };
+export default async function handler(req, res) {
+  // CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
 
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: CORS_HEADERS, body: JSON.stringify({ error: 'Method not allowed' }) };
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const data = JSON.parse(event.body);
+    const data = req.body;
 
-    // Validate required fields
     if (!data.name || !data.email || !data.phone) {
-      return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: 'Missing required fields' }) };
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
     const nameParts = data.name.trim().split(' ');
@@ -75,11 +70,7 @@ exports.handler = async function(event) {
 
     const contactId = contactResult.contact ? contactResult.contact.id : null;
     if (!contactId) {
-      return {
-        statusCode: 500,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({ error: 'Contact creation failed', details: contactResult })
-      };
+      return res.status(500).json({ error: 'Contact creation failed', details: contactResult });
     }
 
     // 2. Create opportunity with custom fields
@@ -102,22 +93,14 @@ exports.handler = async function(event) {
       ]
     });
 
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        success: true,
-        qualified: isQualified,
-        contactId: contactId,
-        opportunityId: oppResult.opportunity ? oppResult.opportunity.id : null
-      })
-    };
+    return res.status(200).json({
+      success: true,
+      qualified: isQualified,
+      contactId: contactId,
+      opportunityId: oppResult.opportunity ? oppResult.opportunity.id : null
+    });
 
   } catch (err) {
-    return {
-      statusCode: 500,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: err.message })
-    };
+    return res.status(500).json({ error: err.message });
   }
-};
+}
