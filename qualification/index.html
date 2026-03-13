@@ -894,18 +894,30 @@
     var isQualified = formData.engagement !== 'Non';
 
     // Send to proxy (avoids CORS issues with GHL API)
+    var payload = JSON.stringify(formData);
+    console.log('Sending to /api/submit:', payload);
+
     fetch(CONFIG.proxyUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
+      body: payload
     })
-    .then(function(res) { return res.json(); })
-    .then(function(result) {
-      console.log('GHL result:', result);
-      showTransition(result.qualified !== undefined ? result.qualified : isQualified);
+    .then(function(res) {
+      console.log('Response status:', res.status);
+      return res.text();
+    })
+    .then(function(text) {
+      console.log('Response body:', text);
+      try {
+        var result = JSON.parse(text);
+        showTransition(result.qualified !== undefined ? result.qualified : isQualified);
+      } catch(e) {
+        console.error('Parse error:', e, 'Raw:', text);
+        showTransition(isQualified);
+      }
     })
     .catch(function(err) {
-      console.error('Submit error:', err);
+      console.error('Fetch error:', err);
       showTransition(isQualified);
     });
   };

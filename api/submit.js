@@ -31,7 +31,7 @@ async function ghlFetch(endpoint, body) {
   return res.json();
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -48,8 +48,17 @@ export default async function handler(req, res) {
   try {
     const data = req.body;
 
-    if (!data.name || !data.email || !data.phone) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // Debug: log incoming data and env check
+    console.log('Received data:', JSON.stringify(data));
+    console.log('GHL_API_KEY set:', !!GHL_API_KEY);
+    console.log('LOCATION_ID set:', !!LOCATION_ID);
+
+    if (!GHL_API_KEY || !LOCATION_ID) {
+      return res.status(500).json({ error: 'Missing environment variables' });
+    }
+
+    if (!data || !data.name || !data.email || !data.phone) {
+      return res.status(400).json({ error: 'Missing required fields', received: data });
     }
 
     const nameParts = data.name.trim().split(' ');
@@ -67,6 +76,8 @@ export default async function handler(req, res) {
       source: 'Landing Page BBP',
       tags: isQualified ? ['Qualifié', 'Formulaire BBP'] : ['Non-Qualifié', 'Formulaire BBP']
     });
+
+    console.log('Contact result:', JSON.stringify(contactResult));
 
     const contactId = contactResult.contact ? contactResult.contact.id : null;
     if (!contactId) {
@@ -93,6 +104,8 @@ export default async function handler(req, res) {
       ]
     });
 
+    console.log('Opportunity result:', JSON.stringify(oppResult));
+
     return res.status(200).json({
       success: true,
       qualified: isQualified,
@@ -101,6 +114,7 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    console.error('Handler error:', err);
+    return res.status(500).json({ error: err.message, stack: err.stack });
   }
-}
+};
