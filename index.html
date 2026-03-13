@@ -663,6 +663,14 @@
       transition: transform .3s ease, border-color .3s ease;
     }
     .case-card:hover { transform: translateY(-4px); border-color: var(--orange); }
+    .case-card.clickable { cursor: pointer; }
+    .case-card.clickable .watch-label {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 10px; font-size: .78rem; color: var(--orange);
+      font-weight: 600; transition: color .3s ease;
+    }
+    .case-card.clickable:hover .watch-label { color: var(--orange-dark); }
+    .case-card.clickable .watch-label svg { width: 14px; height: 14px; }
     .case-card .name {
       font-family: 'Bricolage Grotesque', sans-serif;
       font-weight: 700; font-size: .95rem; color: var(--text); margin-bottom: 10px;
@@ -897,6 +905,33 @@
     @media (max-width: 640px) {
       .modal-box { padding: 32px 16px 16px; }
     }
+
+    /* ═══════════ VIDEO POPUP ═══════════ */
+    .video-popup-overlay {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,.7); backdrop-filter: blur(8px);
+      align-items: center; justify-content: center;
+      padding: 24px; opacity: 0; transition: opacity .3s ease;
+    }
+    .video-popup-overlay.open { display: flex; opacity: 1; }
+    .video-popup-box {
+      background: var(--white); border-radius: var(--radius);
+      max-width: 600px; width: 100%; padding: 0;
+      position: relative; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 24px 64px rgba(0,0,0,.3);
+      transform: translateY(20px); transition: transform .3s ease;
+    }
+    .video-popup-overlay.open .video-popup-box { transform: translateY(0); }
+    .video-popup-close {
+      position: absolute; top: 12px; right: 12px; z-index: 2;
+      width: 36px; height: 36px; border-radius: 50%;
+      border: none; background: rgba(0,0,0,.06); cursor: pointer;
+      font-size: 1.2rem; color: var(--text-mid);
+      display: flex; align-items: center; justify-content: center;
+      transition: background .2s ease;
+    }
+    .video-popup-close:hover { background: rgba(0,0,0,.12); }
+    .video-popup-content { padding: 16px; }
 
     /* ═══════════ S11 — FAQ ═══════════ */
     .faq { padding: 72px 0; background: var(--cream); }
@@ -1231,23 +1266,26 @@
     <div class="perf-block reveal">
       <div class="perf-block-title">Ce que ça a donné concrètement</div>
       <div class="cases-main">
-        <div class="case-card">
+        <div class="case-card clickable" data-video-id="f967860e-1fb4-4fe2-aa67-9fc1b2e9dbf7">
           <div class="name">💎 Sousou Access</div>
           <div class="result">+40 000€ de CA</div>
           <div class="detail">en 30 jours — plus de 1 000 ventes</div>
           <span class="invest">Elle a payé 500€</span>
+          <div class="watch-label"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Voir la vidéo</div>
         </div>
-        <div class="case-card">
+        <div class="case-card clickable" data-video-id="f967860e-1fb4-4fe2-aa67-9fc1b2e9dbf7">
           <div class="name">🧗 Crazy Adventures</div>
           <div class="result">+10 000€ de CA</div>
           <div class="detail">en 14 jours — +1M de vues en 45 jours</div>
           <span class="invest">Il a payé 900€</span>
+          <div class="watch-label"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Voir la vidéo</div>
         </div>
-        <div class="case-card">
+        <div class="case-card clickable" data-video-id="f967860e-1fb4-4fe2-aa67-9fc1b2e9dbf7">
           <div class="name">🍔 Memphis Burger</div>
           <div class="result">80% des commandes</div>
           <div class="detail">du lendemain venaient de la vidéo — obligé de fermer</div>
           <span class="invest">Il a payé 500€</span>
+          <div class="watch-label"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Voir la vidéo</div>
         </div>
       </div>
       <div class="cases-secondary">
@@ -1398,6 +1436,14 @@
   </div>
 </section>
 
+<!-- ═══════════ VIDEO POPUP ═══════════ -->
+<div class="video-popup-overlay" id="videoPopup">
+  <div class="video-popup-box">
+    <button class="video-popup-close" id="videoPopupClose">✕</button>
+    <div class="video-popup-content" id="videoPopupContent"></div>
+  </div>
+</div>
+
 <!-- ═══════════ S12 — FOOTER ═══════════ -->
 <footer>
   <div class="footer-socials">
@@ -1497,6 +1543,41 @@
     }, 1500);
   }
 
+  // Video popup for case cards
+  (function() {
+    const popup = document.getElementById('videoPopup');
+    const content = document.getElementById('videoPopupContent');
+    const closeBtn = document.getElementById('videoPopupClose');
+    if (!popup || !content) return;
+
+    document.querySelectorAll('.case-card.clickable[data-video-id]').forEach(card => {
+      card.addEventListener('click', () => {
+        const id = card.dataset.videoId;
+        content.innerHTML = '<div class="senja-embed" data-id="' + id + '" data-mode="shadow" data-lazyload="false" style="display:block;width:100%;"></div>';
+        popup.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        // Load Senja widget for this embed
+        if (window.Senja) {
+          window.Senja.init();
+        }
+      });
+    });
+
+    function closePopup() {
+      popup.classList.remove('open');
+      document.body.style.overflow = '';
+      content.innerHTML = '';
+    }
+
+    closeBtn.addEventListener('click', closePopup);
+    popup.addEventListener('click', (e) => {
+      if (e.target === popup) closePopup();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && popup.classList.contains('open')) closePopup();
+    });
+  })();
+
   // Reach block counter (10.2M)
   const reachObs = new IntersectionObserver((entries) => {
     entries.forEach(e => {
@@ -1515,6 +1596,7 @@
 
 <script src="https://link.msgsndr.com/js/form_embed.js" type="text/javascript"></script>
 <script src="https://widget.senja.io/widget/bbf8f06d-7db5-4fab-8397-064cca552dda/platform.js" type="text/javascript" async></script>
+<script src="https://widget.senja.io/widget/f967860e-1fb4-4fe2-aa67-9fc1b2e9dbf7/platform.js" type="text/javascript" async></script>
 
 </body>
 </html>
