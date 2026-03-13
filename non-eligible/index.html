@@ -131,25 +131,18 @@
       border-color: var(--orange);
       color: var(--orange);
     }
-    .socials {
-      display: flex; justify-content: center; gap: 16px;
-      margin-top: 24px;
-    }
-    .socials a {
-      color: rgba(255,255,255,.4);
-      text-decoration: none;
-      font-size: .85rem;
-      font-weight: 500;
-      transition: color .3s ease;
-    }
-    .socials a:hover { color: var(--orange); }
-
     /* ═══════════ FOOTER ═══════════ */
     footer {
       background: var(--night);
       border-top: 1px solid var(--night-border);
       padding: 32px 0; text-align: center;
     }
+    .footer-links { display: flex; justify-content: center; gap: 20px; margin-bottom: 8px; }
+    .footer-links a {
+      color: var(--white); text-decoration: none; font-size: .78rem;
+      font-weight: 500; transition: color .3s ease;
+    }
+    .footer-links a:hover { color: var(--orange); }
     .footer-copy { color: var(--white); font-size: .75rem; }
 
     @media (max-width: 640px) {
@@ -170,19 +163,15 @@
     <h1>Merci pour votre <span class="hl">intérêt</span></h1>
     <p>Votre demande a bien été enregistrée. Nous recevons actuellement <strong>beaucoup de demandes</strong> et nos créneaux sont limités.</p>
     <p>Nous reviendrons vers vous dès qu'une place se libère pour votre commerce.</p>
-    <div class="note">
-      <strong>En attendant</strong>, suivez-nous sur les réseaux pour voir nos dernières vidéos et les résultats de nos clients.
-    </div>
-    <div class="socials">
-      <a href="https://www.instagram.com/bourbonbonsplans" target="_blank">Instagram</a>
-      <a href="https://www.tiktok.com/@bourbonbonsplans" target="_blank">TikTok</a>
-      <a href="https://www.facebook.com/bourbonbonsplans" target="_blank">Facebook</a>
-    </div>
     <a href="/" class="btn-home">Retour à l'accueil</a>
   </div>
 </section>
 
 <footer>
+  <div class="footer-links">
+    <a href="/mentions-legales/">Mentions légales</a>
+    <a href="/politique-de-confidentialite/">Politique de confidentialité</a>
+  </div>
   <div class="footer-copy">Bourbon Média SAS &mdash; Tous droits réservés &mdash; 2026</div>
 </footer>
 
