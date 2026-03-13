@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mentions légales — BourbonMédia</title>
+  <meta name="description" content="Mentions légales du site BourbonMédia — Bourbon Média SAS.">
+  <link rel="icon" type="image/jpeg" href="/favicon.jpg">
+  <link rel="apple-touch-icon" href="/favicon.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --orange: #E8692B;
+      --orange-light: #F28C55;
+      --brown: #3D2B1F;
+      --night: #1A1008;
+      --night-mid: #251A0F;
+      --night-border: rgba(255,255,255,.08);
+      --white: #FFFFFF;
+      --radius: 20px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Instrument Sans', -apple-system, sans-serif;
+      color: var(--white);
+      background: var(--night);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3 {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      line-height: 1.2;
+      letter-spacing: -0.015em;
+    }
+
+    /* ═══════════ HEADER ═══════════ */
+    .header {
+      padding: 20px 24px;
+      text-align: center;
+      background: rgba(26,16,8,.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--night-border);
+    }
+    .header-logo {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.3rem; font-weight: 800;
+      color: var(--white); text-decoration: none;
+      letter-spacing: -.02em;
+    }
+    .header-logo span { color: var(--orange); }
+
+    /* ═══════════ MAIN ═══════════ */
+    .main {
+      flex: 1;
+      padding: 60px 24px 80px;
+      background: linear-gradient(170deg, var(--brown) 0%, var(--night) 40%);
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .page-title {
+      font-size: clamp(1.5rem, 4vw, 2.2rem);
+      font-weight: 800;
+      color: var(--white);
+      margin-bottom: 8px;
+    }
+    .page-title .hl { color: var(--orange); }
+    .page-sub {
+      font-size: .9rem;
+      color: rgba(255,255,255,.5);
+      margin-bottom: 48px;
+    }
+
+    .section {
+      margin-bottom: 40px;
+    }
+    .section h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--orange);
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(232,105,43,.15);
+    }
+    .section p, .section li {
+      font-size: .92rem;
+      color: rgba(255,255,255,.7);
+      line-height: 1.7;
+      margin-bottom: 8px;
+    }
+    .section ul {
+      list-style: none;
+      padding: 0;
+    }
+    .section li::before {
+      content: '—';
+      color: var(--orange);
+      margin-right: 8px;
+      font-weight: 700;
+    }
+    .section strong {
+      color: var(--white);
+      font-weight: 600;
+    }
+    .section a {
+      color: var(--orange);
+      text-decoration: none;
+      transition: color .3s ease;
+    }
+    .section a:hover {
+      color: var(--orange-light);
+    }
+
+    .btn-home {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-top: 32px;
+      padding: 14px 28px;
+      background: transparent;
+      border: 1.5px solid rgba(255,255,255,.2);
+      border-radius: 100px;
+      color: var(--white);
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: .9rem;
+      text-decoration: none;
+      transition: all .3s ease;
+    }
+    .btn-home:hover {
+      border-color: var(--orange);
+      color: var(--orange);
+    }
+
+    /* ═══════════ FOOTER ═══════════ */
+    footer {
+      background: var(--night);
+      border-top: 1px solid var(--night-border);
+      padding: 32px 0; text-align: center;
+    }
+    .footer-socials { display: flex; justify-content: center; gap: 20px; margin-bottom: 12px; }
+    .footer-socials a {
+      color: var(--white); text-decoration: none; font-size: .85rem;
+      font-weight: 500; transition: color .3s ease;
+    }
+    .footer-socials a:hover { color: var(--orange); }
+    .footer-copy { color: var(--white); font-size: .75rem; }
+
+    @media (max-width: 640px) {
+      .main { padding: 48px 20px 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <a href="/" class="header-logo">Bourbon<span>Média</span></a>
+</header>
+
+<section class="main">
+  <div class="container">
+    <h1 class="page-title">Mentions <span class="hl">légales</span></h1>
+    <p class="page-sub">Dernière mise à jour : 13 mars 2026</p>
+
+    <div class="section">
+      <h2>1. Éditeur du site</h2>
+      <p>Le site <strong>bourbonmedia.fr</strong> est édité par :</p>
+      <ul>
+        <li><strong>Raison sociale :</strong> Bourbon Média SAS</li>
+        <li><strong>Forme juridique :</strong> Société par Actions Simplifiée (SAS)</li>
+        <li><strong>Capital social :</strong> 100 €</li>
+        <li><strong>Siège social :</strong> 50 Avenue des Champs-Élysées, 75008 Paris, France</li>
+        <li><strong>Directeur de la publication :</strong> Siméon Drogou, en qualité de Président</li>
+        <li><strong>Contact :</strong> contact@bourbonmedia.fr</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>2. Hébergement</h2>
+      <p>Le site est hébergé par :</p>
+      <ul>
+        <li><strong>Vercel Inc.</strong></li>
+        <li>440 N Barranca Avenue #4133, Covina, CA 91723, États-Unis</li>
+        <li>Site : <a href="https://vercel.com" target="_blank">vercel.com</a></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>3. Propriété intellectuelle</h2>
+      <p>L'ensemble du contenu de ce site (textes, images, vidéos, logos, mise en page, code source) est la propriété exclusive de <strong>Bourbon Média SAS</strong> ou de ses partenaires et est protégé par les lois françaises et internationales relatives à la propriété intellectuelle.</p>
+      <p>Toute reproduction, représentation, modification, publication ou adaptation de tout ou partie du contenu du site, par quelque moyen que ce soit, est interdite sans l'autorisation écrite préalable de Bourbon Média SAS.</p>
+    </div>
+
+    <div class="section">
+      <h2>4. Collecte de données personnelles</h2>
+      <p>Dans le cadre de l'utilisation du site, <strong>Bourbon Média SAS</strong> peut être amenée à collecter les données personnelles suivantes :</p>
+      <ul>
+        <li>Nom et prénom</li>
+        <li>Nom de l'entreprise</li>
+        <li>Adresse e-mail</li>
+        <li>Numéro de téléphone</li>
+        <li>Informations relatives à votre commerce (type, ville, ancienneté, objectifs)</li>
+      </ul>
+      <p>Ces données sont collectées via le formulaire de qualification et sont utilisées exclusivement pour :</p>
+      <ul>
+        <li>Évaluer l'éligibilité de votre commerce à nos services</li>
+        <li>Vous recontacter dans le cadre d'un appel de découverte</li>
+        <li>Gérer la relation commerciale</li>
+      </ul>
+      <p>Les données sont transmises et stockées dans notre outil de gestion de la relation client (CRM). Elles ne sont en aucun cas vendues, cédées ou communiquées à des tiers à des fins commerciales.</p>
+    </div>
+
+    <div class="section">
+      <h2>5. Durée de conservation</h2>
+      <p>Les données personnelles collectées sont conservées pour une durée maximale de <strong>3 ans</strong> à compter du dernier contact avec le prospect, conformément aux recommandations de la CNIL.</p>
+    </div>
+
+    <div class="section">
+      <h2>6. Droits des utilisateurs (RGPD)</h2>
+      <p>Conformément au Règlement Général sur la Protection des Données (RGPD) et à la loi Informatique et Libertés du 6 janvier 1978 modifiée, vous disposez des droits suivants :</p>
+      <ul>
+        <li><strong>Droit d'accès :</strong> obtenir la confirmation que vos données sont traitées et en obtenir une copie</li>
+        <li><strong>Droit de rectification :</strong> demander la correction de données inexactes ou incomplètes</li>
+        <li><strong>Droit de suppression :</strong> demander l'effacement de vos données personnelles</li>
+        <li><strong>Droit d'opposition :</strong> vous opposer au traitement de vos données pour des motifs légitimes</li>
+        <li><strong>Droit à la portabilité :</strong> recevoir vos données dans un format structuré et couramment utilisé</li>
+        <li><strong>Droit de retrait du consentement :</strong> retirer votre consentement à tout moment</li>
+      </ul>
+      <p>Pour exercer ces droits, contactez-nous à : <strong>contact@bourbonmedia.fr</strong></p>
+      <p>En cas de litige, vous pouvez adresser une réclamation à la <strong>CNIL</strong> (Commission Nationale de l'Informatique et des Libertés) : <a href="https://www.cnil.fr" target="_blank">www.cnil.fr</a></p>
+    </div>
+
+    <div class="section">
+      <h2>7. Cookies</h2>
+      <p>Le site <strong>bourbonmedia.fr</strong> peut utiliser des cookies techniques nécessaires au bon fonctionnement du site. Aucun cookie publicitaire ou de suivi n'est déposé sans votre consentement.</p>
+      <p>Les cookies de services tiers (formulaires, widgets de témoignages, calendrier de réservation) sont soumis aux politiques de confidentialité de leurs éditeurs respectifs.</p>
+    </div>
+
+    <div class="section">
+      <h2>8. Responsabilité</h2>
+      <p><strong>Bourbon Média SAS</strong> s'efforce d'assurer l'exactitude des informations diffusées sur ce site, mais ne saurait être tenue responsable des erreurs, omissions ou des résultats qui pourraient être obtenus par un mauvais usage de ces informations.</p>
+      <p>Les témoignages et résultats présentés sur le site sont authentiques mais ne constituent pas une garantie de résultats identiques. Les performances varient selon le type de commerce, la localisation et d'autres facteurs.</p>
+    </div>
+
+    <div class="section">
+      <h2>9. Liens hypertextes</h2>
+      <p>Le site peut contenir des liens vers des sites tiers (réseaux sociaux, outils de réservation). <strong>Bourbon Média SAS</strong> n'exerce aucun contrôle sur ces sites et décline toute responsabilité quant à leur contenu.</p>
+    </div>
+
+    <div class="section">
+      <h2>10. Droit applicable</h2>
+      <p>Les présentes mentions légales sont soumises au droit français. Tout litige relatif à l'utilisation du site sera soumis à la compétence exclusive des tribunaux de Paris.</p>
+    </div>
+
+    <a href="/" class="btn-home">Retour à l'accueil</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-socials">
+    <a href="https://www.instagram.com/bourbonbonsplans" target="_blank">Instagram</a>
+    <a href="https://www.tiktok.com/@bourbonbonsplans" target="_blank">TikTok</a>
+    <a href="https://www.facebook.com/bourbonbonsplans" target="_blank">Facebook</a>
+  </div>
+  <div class="footer-copy">Bourbon Média SAS &mdash; Tous droits réservés &mdash; 2026</div>
+</footer>
+
+</body>
+</html>
