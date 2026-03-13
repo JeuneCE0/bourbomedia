@@ -726,17 +726,6 @@
     </div>
   </div>
 
-  <!-- ══ ÉCRAN SUCCÈS ══ -->
-  <div class="screen-success" id="screenSuccess">
-    <div class="success-icon">✓</div>
-    <h2 class="success-title">Vous êtes éligible !</h2>
-    <p class="success-desc">Votre commerce correspond parfaitement à ce qu'on recherche. Réservez maintenant votre appel gratuit de 20 min avec Siméon pour en discuter.</p>
-    <a href="/reservation-appel/" class="btn-calendar">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-      Réserver mon appel gratuit
-    </a>
-  </div>
-
   <!-- ══ ÉCRAN REFUSÉ ══ -->
   <div class="screen-rejected" id="screenRejected">
     <div class="rejected-icon">✕</div>
@@ -1014,10 +1003,10 @@
     });
 
     setTimeout(function() {
-      screen.classList.remove('active');
       if (qualified) {
-        document.getElementById('screenSuccess').classList.add('active');
+        window.location.href = '/reservation-appel/';
       } else {
+        screen.classList.remove('active');
         document.getElementById('screenRejected').classList.add('active');
       }
     }, 6200);
