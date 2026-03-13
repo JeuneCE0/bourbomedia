@@ -548,7 +548,7 @@
           <span class="radio-label">Hôtel / Hébergement</span>
         </label>
         <label class="radio-opt" onclick="selectRadio(this)">
-          <input type="radio" name="commerceType" value="Activité / Loisirs">
+          <input type="radio" name="commerceType" value="Activité / Loirsirs">
           <div class="radio-dot"></div>
           <span class="radio-label">Activité / Loisirs</span>
         </label>
@@ -558,7 +558,7 @@
           <span class="radio-label">Salon / Beauté</span>
         </label>
         <label class="radio-opt" onclick="selectRadio(this)">
-          <input type="radio" name="commerceType" value="Autre">
+          <input type="radio" name="commerceType" value="Autres">
           <div class="radio-dot"></div>
           <span class="radio-label">Autre</span>
         </label>
@@ -611,12 +611,12 @@
       <label style="display:block;font-size:.82rem;font-weight:600;color:rgba(255,255,255,.7);margin-bottom:8px;margin-top:10px;">Avez-vous déjà fait de la publicité en ligne ?</label>
       <div class="radio-group" id="expPub">
         <label class="radio-opt" onclick="selectRadio(this)">
-          <input type="radio" name="expPub" value="Oui, déjà testé">
+          <input type="radio" name="expPub" value="Oui déjà testé">
           <div class="radio-dot"></div>
           <span class="radio-label">Oui, déjà testé</span>
         </label>
         <label class="radio-opt" onclick="selectRadio(this)">
-          <input type="radio" name="expPub" value="Non, jamais">
+          <input type="radio" name="expPub" value="Non jamais">
           <div class="radio-dot"></div>
           <span class="radio-label">Non, jamais</span>
         </label>
@@ -658,7 +658,7 @@
           <span class="radio-label">Lancer un nouveau commerce</span>
         </label>
         <label class="radio-opt" onclick="selectRadio(this)">
-          <input type="radio" name="objectif" value="Autre">
+          <input type="radio" name="objectif" value="Autres">
           <div class="radio-dot"></div>
           <span class="radio-label">Autre</span>
         </label>
@@ -684,12 +684,12 @@
 
       <div class="radio-group" id="engagement">
         <label class="radio-opt" onclick="selectRadio(this)">
-          <input type="radio" name="engagement" value="Oui, si c'est adapté à ma situation">
+          <input type="radio" name="engagement" value="Oui si c'est adapté">
           <div class="radio-dot"></div>
           <span class="radio-label">Oui, si c'est adapté à ma situation</span>
         </label>
         <label class="radio-opt" onclick="selectRadio(this)">
-          <input type="radio" name="engagement" value="Oui, j'aimerais en savoir plus">
+          <input type="radio" name="engagement" value="Oui je veux en savoir plus">
           <div class="radio-dot"></div>
           <span class="radio-label">Oui, j'aimerais en savoir plus</span>
         </label>
@@ -699,7 +699,7 @@
           <span class="radio-label">Pas encore sûr</span>
         </label>
         <label class="radio-opt" onclick="selectRadio(this)">
-          <input type="radio" name="engagement" value="Non, pas pour le moment">
+          <input type="radio" name="engagement" value="Non">
           <div class="radio-dot"></div>
           <span class="radio-label">Non, pas pour le moment</span>
         </label>
@@ -757,22 +757,7 @@
 
   var CONFIG = {
     totalSteps: 5,
-    apiKey: 'pit-94070501-5ed0-4171-a8e9-28d51d143478',
-    apiBase: 'https://services.leadconnectorhq.com',
-    locationId: 'giq0vlSEOxHfJ0lmbR8u',
-    pipelineId: 'pWEcPHjdG7FSXIKbGsKc',
-    stageId: '66875cc0-0b57-47bf-b027-ef0187d77db9',
-    customFields: {
-      type_de_commerce: 'opportunity.type_de_commerce',
-      ville_du_commerce: 'opportunity.ville_du_commerce',
-      anciennet_du_commerce: 'opportunity.anciennet_du_commerce',
-      exprience_publicit_en_ligne: 'opportunity.exprience_publicit_en_ligne',
-      objectif_principal: 'opportunity.objectif_principal',
-      dtail_objectif: 'opportunity.dtail_objectif',
-      prt__investir: 'opportunity.prt__investir',
-      source: 'opportunity.source',
-      qualifi: 'opportunity.qualifi'
-    }
+    proxyUrl: '/api/submit'
   };
 
   var currentStep = 1;
@@ -915,71 +900,21 @@
     btn.classList.add('loading');
     btn.disabled = true;
 
-    var isQualified = formData.engagement !== 'Non, pas pour le moment';
+    var isQualified = formData.engagement !== 'Non';
 
-    // Build name parts
-    var nameParts = formData.name.split(' ');
-    var firstName = nameParts[0];
-    var lastName = nameParts.slice(1).join(' ') || '';
-
-    // 1. Create contact
-    fetch(CONFIG.apiBase + '/contacts/', {
+    // Send to proxy (avoids CORS issues with GHL API)
+    fetch(CONFIG.proxyUrl, {
       method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + CONFIG.apiKey,
-        'Content-Type': 'application/json',
-        'Version': '2021-07-28'
-      },
-      body: JSON.stringify({
-        locationId: CONFIG.locationId,
-        firstName: firstName,
-        lastName: lastName,
-        phone: formData.phone,
-        email: formData.email,
-        source: 'Landing Page BBP',
-        tags: isQualified ? ['Qualifié', 'Formulaire BBP'] : ['Non-Qualifié', 'Formulaire BBP']
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
     })
     .then(function(res) { return res.json(); })
-    .then(function(contactData) {
-      var contactId = contactData.contact ? contactData.contact.id : null;
-      if (!contactId) throw new Error('Contact creation failed');
-
-      // 2. Create opportunity with custom fields
-      return fetch(CONFIG.apiBase + '/opportunities/', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + CONFIG.apiKey,
-          'Content-Type': 'application/json',
-          'Version': '2021-07-28'
-        },
-        body: JSON.stringify({
-          pipelineId: CONFIG.pipelineId,
-          locationId: CONFIG.locationId,
-          name: formData.name + ' — ' + formData.commerceType,
-          stageId: isQualified ? CONFIG.stageId : 'b7acf2e0-7d3b-4eae-9af5-9fcee9a845ec',
-          contactId: contactId,
-          status: 'open',
-          customFields: [
-            { key: CONFIG.customFields.type_de_commerce, field_value: formData.commerceType },
-            { key: CONFIG.customFields.ville_du_commerce, field_value: formData.ville },
-            { key: CONFIG.customFields.anciennet_du_commerce, field_value: formData.anciennete },
-            { key: CONFIG.customFields.exprience_publicit_en_ligne, field_value: formData.expPub },
-            { key: CONFIG.customFields.objectif_principal, field_value: formData.objectif },
-            { key: CONFIG.customFields.dtail_objectif, field_value: formData.detailObjectif || '' },
-            { key: CONFIG.customFields.prt__investir, field_value: formData.engagement },
-            { key: CONFIG.customFields.source, field_value: 'Landing Page BBP' },
-            { key: CONFIG.customFields.qualifi, field_value: isQualified ? 'Oui' : 'Non' }
-          ]
-        })
-      });
-    })
-    .then(function() {
-      showTransition(isQualified);
+    .then(function(result) {
+      console.log('GHL result:', result);
+      showTransition(result.qualified !== undefined ? result.qualified : isQualified);
     })
     .catch(function(err) {
-      console.error('GHL Error:', err);
-      // Show result anyway so user isn't stuck
+      console.error('Submit error:', err);
       showTransition(isQualified);
     });
   };
