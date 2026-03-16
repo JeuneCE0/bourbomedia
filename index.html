@@ -1761,7 +1761,7 @@
     timer = setTimeout(function() {
       toast.classList.remove('show');
       toast.classList.add('hide');
-      timer = setTimeout(showToast, 26000);
+      timer = setTimeout(showToast, 11000 + Math.random() * 5000);
     }, 4000);
   }
 
@@ -1772,7 +1772,7 @@
     toast.classList.add('hide');
   });
 
-  setTimeout(showToast, 8000);
+  setTimeout(showToast, 3000 + Math.random() * 2000);
 })();
 </script>
 
