@@ -204,6 +204,80 @@
       max-width: 780px; padding: 80px 24px 80px;
     }
 
+    /* ─── Hero floating bubbles ─── */
+    .hero-bubbles {
+      position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden;
+    }
+    .hero-bubble {
+      position: absolute;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      backdrop-filter: blur(4px);
+      animation: bubbleFloat 8s ease-in-out infinite alternate;
+      font-size: 1.4rem;
+    }
+    .hero-bubble::after {
+      content: '';
+      position: absolute; top: 15%; left: 20%; width: 30%; height: 20%;
+      background: rgba(255,255,255,.08); border-radius: 50%;
+      filter: blur(2px);
+    }
+    /* Sizes & positions */
+    .hero-bubble--1 {
+      width: 72px; height: 72px; top: 12%; left: 5%;
+      font-size: 1.8rem;
+      animation-duration: 7s; animation-delay: 0s;
+    }
+    .hero-bubble--2 {
+      width: 56px; height: 56px; top: 55%; left: 3%;
+      font-size: 1.4rem;
+      animation-duration: 9s; animation-delay: 1.5s;
+      background: rgba(232,105,43,.06);
+      border-color: rgba(232,105,43,.12);
+    }
+    .hero-bubble--3 {
+      width: 48px; height: 48px; top: 78%; left: 10%;
+      font-size: 1.2rem;
+      animation-duration: 6s; animation-delay: 0.8s;
+    }
+    .hero-bubble--4 {
+      width: 80px; height: 80px; top: 8%; right: 4%; left: auto;
+      font-size: 2rem;
+      animation-duration: 10s; animation-delay: 2s;
+      background: rgba(232,105,43,.05);
+      border-color: rgba(232,105,43,.1);
+    }
+    .hero-bubble--5 {
+      width: 52px; height: 52px; top: 50%; right: 5%; left: auto;
+      font-size: 1.3rem;
+      animation-duration: 8s; animation-delay: 0.5s;
+    }
+    .hero-bubble--6 {
+      width: 60px; height: 60px; top: 80%; right: 8%; left: auto;
+      font-size: 1.5rem;
+      animation-duration: 7s; animation-delay: 3s;
+      background: rgba(232,105,43,.06);
+      border-color: rgba(232,105,43,.12);
+    }
+    .hero-bubble--7 {
+      width: 40px; height: 40px; top: 30%; left: 12%;
+      font-size: 1rem;
+      animation-duration: 11s; animation-delay: 4s;
+    }
+    .hero-bubble--8 {
+      width: 44px; height: 44px; top: 35%; right: 12%; left: auto;
+      font-size: 1.1rem;
+      animation-duration: 9s; animation-delay: 1s;
+    }
+    @keyframes bubbleFloat {
+      0% { transform: translateY(0) rotate(0deg) scale(1); }
+      33% { transform: translateY(-12px) rotate(5deg) scale(1.04); }
+      66% { transform: translateY(8px) rotate(-3deg) scale(.97); }
+      100% { transform: translateY(-18px) rotate(4deg) scale(1.02); }
+    }
+
     .hero-eyebrow {
       color: var(--orange); font-size: .9rem; font-weight: 600;
       letter-spacing: .02em; margin-bottom: 16px;
@@ -1065,10 +1139,10 @@
     .spt-icon {
       flex-shrink: 0; width: 42px; height: 42px;
       border-radius: 50%;
-      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-light) 100%);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.1rem; color: var(--white);
-      box-shadow: 0 3px 12px rgba(232,105,43,.3);
+      overflow: hidden;
+    }
+    .spt-icon img {
+      width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
     }
     .spt-body { flex: 1; min-width: 0; }
     .spt-text {
@@ -1122,6 +1196,8 @@
     }
     @media (max-width: 640px) {
       .hero h1 { font-size: 1.6rem; }
+      .hero-bubble { transform: scale(.6); opacity: .5; }
+      .hero-bubble--3, .hero-bubble--7, .hero-bubble--8 { display: none; }
       .compare-others { grid-template-columns: 1fr; max-width: 340px; margin-left: auto; margin-right: auto; }
       .hero-proof { gap: 0; }
       .hero-proof-item { padding: 0 16px; }
@@ -1164,6 +1240,16 @@
     <div class="particle"></div><div class="particle"></div><div class="particle"></div>
     <div class="particle"></div><div class="particle"></div><div class="particle"></div>
     <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  </div>
+  <div class="hero-bubbles">
+    <div class="hero-bubble hero-bubble--1">🇷🇪</div>
+    <div class="hero-bubble hero-bubble--2">🏝️</div>
+    <div class="hero-bubble hero-bubble--3">🌋</div>
+    <div class="hero-bubble hero-bubble--4">🎬</div>
+    <div class="hero-bubble hero-bubble--5">🇷🇪</div>
+    <div class="hero-bubble hero-bubble--6">📈</div>
+    <div class="hero-bubble hero-bubble--7">🏝️</div>
+    <div class="hero-bubble hero-bubble--8">🔥</div>
   </div>
   <div class="hero-inner">
 
@@ -1704,7 +1790,7 @@
 <!-- ═══════════ SOCIAL PROOF TOAST ═══════════ -->
 <div class="social-proof-toast" id="socialProofToast">
   <button class="spt-close" id="sptClose">✕</button>
-  <div class="spt-icon" id="sptIcon">👤</div>
+  <div class="spt-icon"><img src="/favicon.jpg" alt="BBP"></div>
   <div class="spt-body">
     <div class="spt-text" id="sptText"></div>
     <div class="spt-time"><span class="spt-dot"></span> <span id="sptTime"></span></div>
@@ -1725,19 +1811,18 @@
     'Saint-Joseph', 'Saint-Leu', 'La Possession', 'L\'Étang-Salé', 'Petite-Île'
   ];
   var messages = [
-    { text: '<strong>{prenom}</strong> de {ville} est actuellement sur le site', icon: '👀', type: 'visit' },
-    { text: '<strong>{prenom}</strong> de {ville} consulte les résultats', icon: '📊', type: 'visit' },
-    { text: '<strong>{prenom}</strong> à {ville} vient de réserver son appel', icon: '📞', type: 'booking' },
-    { text: '<strong>{prenom}</strong> de {ville} vient de vérifier son éligibilité', icon: '✅', type: 'action' },
-    { text: '<strong>{prenom}</strong> à {ville} regarde les témoignages', icon: '⭐', type: 'visit' },
-    { text: '<strong>{prenom}</strong> de {ville} vient de demander un appel', icon: '🔥', type: 'booking' }
+    '<strong>{prenom}</strong> de {ville} est actuellement sur le site',
+    '<strong>{prenom}</strong> de {ville} consulte les résultats',
+    '<strong>{prenom}</strong> à {ville} vient de réserver son appel',
+    '<strong>{prenom}</strong> de {ville} vient de vérifier son éligibilité',
+    '<strong>{prenom}</strong> à {ville} regarde les témoignages',
+    '<strong>{prenom}</strong> de {ville} vient de demander un appel'
   ];
   var temps = ['À l\'instant', 'Il y a 1 min', 'Il y a 2 min', 'Il y a 3 min', 'Il y a 5 min'];
 
   var toast = document.getElementById('socialProofToast');
   var textEl = document.getElementById('sptText');
   var timeEl = document.getElementById('sptTime');
-  var iconEl = document.getElementById('sptIcon');
   var closeBtn = document.getElementById('sptClose');
   var dismissed = false;
   var timer;
@@ -1751,9 +1836,8 @@
     var ville = pick(villes);
     var t = pick(temps);
 
-    textEl.innerHTML = msg.text.replace('{prenom}', prenom).replace('{ville}', ville);
+    textEl.innerHTML = msg.replace('{prenom}', prenom).replace('{ville}', ville);
     timeEl.textContent = t;
-    iconEl.textContent = msg.icon;
 
     toast.classList.remove('hide');
     toast.classList.add('show');
