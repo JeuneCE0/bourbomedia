@@ -414,12 +414,12 @@
     .logo-track-wrap::before { left: 0; background: linear-gradient(90deg, var(--night), transparent); }
     .logo-track-wrap::after { right: 0; background: linear-gradient(-90deg, var(--night), transparent); }
     .logo-track {
-      display: flex; gap: 18px; animation: marquee 30s linear infinite; width: max-content;
+      display: flex; gap: 18px; animation: marquee 60s linear infinite; width: max-content;
     }
     .logo-track:hover { animation-play-state: paused; }
     @keyframes marquee { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
     .logo-pill {
-      display: flex; align-items: center; gap: 8px;
+      display: flex; align-items: center; gap: 0;
       background: var(--night-card); border: 1px solid var(--night-border);
       padding: 10px 20px; border-radius: 100px; white-space: nowrap;
       font-family: 'Bricolage Grotesque', sans-serif;
@@ -427,7 +427,6 @@
       flex-shrink: 0; transition: border-color .3s ease;
     }
     .logo-pill:hover { border-color: var(--orange); color: var(--orange); }
-    .logo-pill .em { font-size: 1.1rem; }
 
     /* ═══════════ S4 — LE PROBLÈME (douleur amplifiée) ═══════════ */
     .problem { padding: 80px 0; background: var(--cream); }
@@ -1317,28 +1316,55 @@
   <div class="logos-title reveal">+60 commerces sont déjà passés chez nous</div>
   <div class="logo-track-wrap">
     <div class="logo-track">
-      <div class="logo-pill"><span class="em">🍔</span> Memphis Burger</div>
-      <div class="logo-pill"><span class="em">💎</span> Sousou Access</div>
-      <div class="logo-pill"><span class="em">🌴</span> Jungle à Pat'</div>
-      <div class="logo-pill"><span class="em">🧗</span> Crazy Adventures</div>
-      <div class="logo-pill"><span class="em">🍕</span> Nonna</div>
-      <div class="logo-pill"><span class="em">👗</span> Popeline Vintage</div>
-      <div class="logo-pill"><span class="em">🍓</span> Fraises & Compagnie</div>
-      <div class="logo-pill"><span class="em">🏠</span> Maison GA</div>
-      <div class="logo-pill"><span class="em">🥞</span> La Crème de la Crêpe</div>
-      <div class="logo-pill"><span class="em">🏨</span> Tropic Appart'Hôtel</div>
-      <div class="logo-pill"><span class="em">🍽️</span> Le Mazéniène</div>
-      <div class="logo-pill"><span class="em">🍔</span> Memphis Burger</div>
-      <div class="logo-pill"><span class="em">💎</span> Sousou Access</div>
-      <div class="logo-pill"><span class="em">🌴</span> Jungle à Pat'</div>
-      <div class="logo-pill"><span class="em">🧗</span> Crazy Adventures</div>
-      <div class="logo-pill"><span class="em">🍕</span> Nonna</div>
-      <div class="logo-pill"><span class="em">👗</span> Popeline Vintage</div>
-      <div class="logo-pill"><span class="em">🍓</span> Fraises & Compagnie</div>
-      <div class="logo-pill"><span class="em">🏠</span> Maison GA</div>
-      <div class="logo-pill"><span class="em">🥞</span> La Crème de la Crêpe</div>
-      <div class="logo-pill"><span class="em">🏨</span> Tropic Appart'Hôtel</div>
-      <div class="logo-pill"><span class="em">🍽️</span> Le Mazéniène</div>
+      <div class="logo-pill">Sousou Access</div>
+      <div class="logo-pill">Jungle à Pat'</div>
+      <div class="logo-pill">Fraises &amp; Compagnie</div>
+      <div class="logo-pill">La Crème de la Crêpe</div>
+      <div class="logo-pill">Trapèze Studio</div>
+      <div class="logo-pill">Le Madison</div>
+      <div class="logo-pill">Popeline Vintage</div>
+      <div class="logo-pill">Poké Run</div>
+      <div class="logo-pill">Les Dalons</div>
+      <div class="logo-pill">La Saint-Georges</div>
+      <div class="logo-pill">Pizza Cosy</div>
+      <div class="logo-pill">Kazaoké</div>
+      <div class="logo-pill">Maison GAC</div>
+      <div class="logo-pill">La Bonne Maison</div>
+      <div class="logo-pill">Coliver</div>
+      <div class="logo-pill">Alidou</div>
+      <div class="logo-pill">La Baie des Anges</div>
+      <div class="logo-pill">Le Gourmand</div>
+      <div class="logo-pill">Le Paradoxe</div>
+      <div class="logo-pill">Chez Kisbee</div>
+      <div class="logo-pill">The Donuts Island</div>
+      <div class="logo-pill">Kaloubadia</div>
+      <div class="logo-pill">Terre de Running</div>
+      <div class="logo-pill">Le Mazéniène</div>
+      <!-- Duplicate for seamless loop -->
+      <div class="logo-pill">Sousou Access</div>
+      <div class="logo-pill">Jungle à Pat'</div>
+      <div class="logo-pill">Fraises &amp; Compagnie</div>
+      <div class="logo-pill">La Crème de la Crêpe</div>
+      <div class="logo-pill">Trapèze Studio</div>
+      <div class="logo-pill">Le Madison</div>
+      <div class="logo-pill">Popeline Vintage</div>
+      <div class="logo-pill">Poké Run</div>
+      <div class="logo-pill">Les Dalons</div>
+      <div class="logo-pill">La Saint-Georges</div>
+      <div class="logo-pill">Pizza Cosy</div>
+      <div class="logo-pill">Kazaoké</div>
+      <div class="logo-pill">Maison GAC</div>
+      <div class="logo-pill">La Bonne Maison</div>
+      <div class="logo-pill">Coliver</div>
+      <div class="logo-pill">Alidou</div>
+      <div class="logo-pill">La Baie des Anges</div>
+      <div class="logo-pill">Le Gourmand</div>
+      <div class="logo-pill">Le Paradoxe</div>
+      <div class="logo-pill">Chez Kisbee</div>
+      <div class="logo-pill">The Donuts Island</div>
+      <div class="logo-pill">Kaloubadia</div>
+      <div class="logo-pill">Terre de Running</div>
+      <div class="logo-pill">Le Mazéniène</div>
     </div>
   </div>
 </section>
