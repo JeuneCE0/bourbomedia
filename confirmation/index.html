@@ -118,6 +118,27 @@
       margin: 0 auto;
     }
 
+    /* ═══════════ RESULTS BANNER ═══════════ */
+    .results-banner {
+      padding: 48px 24px;
+      text-align: center;
+      background: linear-gradient(175deg, var(--night-mid) 0%, var(--night) 100%);
+      border-bottom: 1px solid var(--night-border);
+    }
+    .results-banner h2 {
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      font-weight: 800; color: var(--white);
+      margin-bottom: 0; line-height: 1.2;
+    }
+    .results-banner h2 span { color: var(--orange); }
+
+    /* ═══════════ SENJA TESTIMONIALS ═══════════ */
+    .senja-section {
+      padding: 48px 24px;
+      background: var(--night);
+    }
+    .senja-section .container { max-width: 760px; margin: 0 auto; }
+
     /* ═══════════ SOCIAL PROOF ═══════════ */
     .proof {
       padding: 64px 0;
@@ -259,6 +280,18 @@
   <p>Votre appel gratuit de 20 minutes avec Siméon est confirmé. Vous allez découvrir comment la Vidéo Découverte BBP peut donner de la visibilité et des clients à votre commerce.</p>
 </section>
 
+<!-- ═══════════ RESULTS BANNER ═══════════ -->
+<section class="results-banner">
+  <h2>Des vrais <span>résultats</span>.<br>Pas des promesses.</h2>
+</section>
+
+<!-- ═══════════ SENJA TESTIMONIALS ═══════════ -->
+<section class="senja-section">
+  <div class="container">
+    <div class="senja-embed" data-id="bbf8f06d-7db5-4fab-8397-064cca552dda" data-mode="shadow" data-lazyload="false" style="display: block; width: 100%;"></div>
+  </div>
+</section>
+
 <!-- ═══════════ SOCIAL PROOF ═══════════ -->
 <section class="proof">
   <div class="container">
@@ -365,5 +398,6 @@
   });
 </script>
 
+<script src="https://widget.senja.io/widget/bbf8f06d-7db5-4fab-8397-064cca552dda/platform.js" type="text/javascript" async></script>
 </body>
 </html>
