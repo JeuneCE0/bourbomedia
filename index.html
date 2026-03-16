@@ -1048,7 +1048,7 @@
       box-shadow: 0 8px 40px rgba(0,0,0,.15), 0 2px 8px rgba(0,0,0,.08);
       transform: translateX(-120%);
       opacity: 0;
-      transition: transform .6s cubic-bezier(.22,1,.36,1), opacity .4s ease;
+      transition: transform 3s cubic-bezier(.22,1,.36,1), opacity 3s ease;
       max-width: 340px;
       border: 1px solid rgba(0,0,0,.06);
       pointer-events: auto;
@@ -1761,8 +1761,8 @@
     timer = setTimeout(function() {
       toast.classList.remove('show');
       toast.classList.add('hide');
-      timer = setTimeout(showToast, 11000 + Math.random() * 5000);
-    }, 4000);
+      timer = setTimeout(showToast, 3000);
+    }, 20000);
   }
 
   closeBtn.addEventListener('click', function() {
