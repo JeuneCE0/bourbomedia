@@ -1039,6 +1039,65 @@
       background: var(--orange-light); transform: translateY(-1px);
     }
 
+    /* ═══════════ SOCIAL PROOF SNIPPET ═══════════ */
+    .social-proof-toast {
+      position: fixed; bottom: 24px; left: 24px; z-index: 9999;
+      display: flex; align-items: center; gap: 14px;
+      background: var(--white);
+      border-radius: 16px; padding: 14px 20px 14px 16px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.15), 0 2px 8px rgba(0,0,0,.08);
+      transform: translateX(-120%);
+      opacity: 0;
+      transition: transform .6s cubic-bezier(.22,1,.36,1), opacity .4s ease;
+      max-width: 340px;
+      border: 1px solid rgba(0,0,0,.06);
+    }
+    .social-proof-toast.show {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    .social-proof-toast.hide {
+      transform: translateX(-120%);
+      opacity: 0;
+    }
+    .spt-icon {
+      flex-shrink: 0; width: 42px; height: 42px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-light) 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; color: var(--white);
+      box-shadow: 0 3px 12px rgba(232,105,43,.3);
+    }
+    .spt-body { flex: 1; min-width: 0; }
+    .spt-text {
+      font-size: .85rem; font-weight: 600; color: var(--text);
+      line-height: 1.35; margin-bottom: 2px;
+    }
+    .spt-text strong { color: var(--orange); font-weight: 700; }
+    .spt-time {
+      font-size: .72rem; color: var(--text-muted); font-weight: 500;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .spt-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green);
+      animation: spt-pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes spt-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .5; transform: scale(.8); }
+    }
+    .spt-close {
+      position: absolute; top: 6px; right: 8px;
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); font-size: .8rem; padding: 2px;
+      line-height: 1; opacity: .5; transition: opacity .2s ease;
+    }
+    .spt-close:hover { opacity: 1; }
+    @media (max-width: 640px) {
+      .social-proof-toast { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+    }
+
     /* ═══════════ RESPONSIVE ═══════════ */
     @media (max-width: 900px) {
       .steps { grid-template-columns: repeat(2, 1fr); }
@@ -1627,6 +1686,81 @@
 <script src="https://widget.senja.io/widget/bbf8f06d-7db5-4fab-8397-064cca552dda/platform.js" type="text/javascript" async></script>
 <script src="https://widget.senja.io/widget/f967860e-1fb4-4fe2-aa67-9fc1b2e9dbf7/platform.js" type="text/javascript" async></script>
 <script src="https://widget.senja.io/widget/357ba5b3-be03-4a11-804e-a46c16490b1e/platform.js" type="text/javascript" async></script>
+
+<!-- ═══════════ SOCIAL PROOF TOAST ═══════════ -->
+<div class="social-proof-toast" id="socialProofToast">
+  <button class="spt-close" id="sptClose">✕</button>
+  <div class="spt-icon" id="sptIcon">👤</div>
+  <div class="spt-body">
+    <div class="spt-text" id="sptText"></div>
+    <div class="spt-time"><span class="spt-dot"></span> <span id="sptTime"></span></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var prenoms = [
+    'Mathéo', 'Jade', 'Lucas', 'Emma', 'Nathan', 'Léa', 'Enzo', 'Manon',
+    'Louis', 'Chloé', 'Hugo', 'Sarah', 'Raphaël', 'Inès', 'Jules', 'Camille',
+    'Théo', 'Lola', 'Noah', 'Marie', 'Tom', 'Anaïs', 'Maxime', 'Laura',
+    'Kylian', 'Océane', 'Dylan', 'Mélanie', 'Bryan', 'Élodie'
+  ];
+  var villes = [
+    'Saint-Denis', 'Saint-Paul', 'Saint-Pierre', 'Le Tampon', 'Saint-André',
+    'Saint-Louis', 'Le Port', 'Saint-Benoît', 'Sainte-Marie', 'Sainte-Suzanne',
+    'Saint-Joseph', 'Saint-Leu', 'La Possession', 'L\'Étang-Salé', 'Petite-Île'
+  ];
+  var messages = [
+    { text: '<strong>{prenom}</strong> de {ville} est actuellement sur le site', icon: '👀', type: 'visit' },
+    { text: '<strong>{prenom}</strong> de {ville} consulte les résultats', icon: '📊', type: 'visit' },
+    { text: '<strong>{prenom}</strong> à {ville} vient de réserver son appel', icon: '📞', type: 'booking' },
+    { text: '<strong>{prenom}</strong> de {ville} vient de vérifier son éligibilité', icon: '✅', type: 'action' },
+    { text: '<strong>{prenom}</strong> à {ville} regarde les témoignages', icon: '⭐', type: 'visit' },
+    { text: '<strong>{prenom}</strong> de {ville} vient de demander un appel', icon: '🔥', type: 'booking' }
+  ];
+  var temps = ['À l\'instant', 'Il y a 1 min', 'Il y a 2 min', 'Il y a 3 min', 'Il y a 5 min'];
+
+  var toast = document.getElementById('socialProofToast');
+  var textEl = document.getElementById('sptText');
+  var timeEl = document.getElementById('sptTime');
+  var iconEl = document.getElementById('sptIcon');
+  var closeBtn = document.getElementById('sptClose');
+  var dismissed = false;
+  var timer;
+
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function showToast() {
+    if (dismissed) return;
+    var msg = pick(messages);
+    var prenom = pick(prenoms);
+    var ville = pick(villes);
+    var t = pick(temps);
+
+    textEl.innerHTML = msg.text.replace('{prenom}', prenom).replace('{ville}', ville);
+    timeEl.textContent = t;
+    iconEl.textContent = msg.icon;
+
+    toast.classList.remove('hide');
+    toast.classList.add('show');
+
+    timer = setTimeout(function() {
+      toast.classList.remove('show');
+      toast.classList.add('hide');
+      timer = setTimeout(showToast, Math.random() * 15000 + 10000);
+    }, 5000);
+  }
+
+  closeBtn.addEventListener('click', function() {
+    dismissed = true;
+    clearTimeout(timer);
+    toast.classList.remove('show');
+    toast.classList.add('hide');
+  });
+
+  setTimeout(showToast, 6000);
+})();
+</script>
 
 </body>
 </html>
