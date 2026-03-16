@@ -278,6 +278,13 @@
       100% { transform: translateY(-18px) rotate(4deg) scale(1.02); }
     }
 
+    .hero-logo {
+      display: block; width: 72px; height: 72px; border-radius: 50%;
+      object-fit: cover; margin: 0 auto 20px;
+      box-shadow: 0 0 0 3px rgba(232,105,43,.25), 0 4px 20px rgba(0,0,0,.4);
+      animation: fadeUp .7s ease-out both;
+    }
+
     .hero-eyebrow {
       color: var(--orange); font-size: .9rem; font-weight: 600;
       letter-spacing: .02em; margin-bottom: 16px;
@@ -1263,6 +1270,8 @@
     <div class="hero-bubble hero-bubble--8">🔥</div>
   </div>
   <div class="hero-inner">
+
+    <img src="/favicon.jpg" alt="Bourbon Bons Plans" class="hero-logo">
 
     <div class="hero-trust">
       <span class="hero-trust-dot"></span>
