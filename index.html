@@ -1051,6 +1051,7 @@
       transition: transform .6s cubic-bezier(.22,1,.36,1), opacity .4s ease;
       max-width: 340px;
       border: 1px solid rgba(0,0,0,.06);
+      pointer-events: auto;
     }
     .social-proof-toast.show {
       transform: translateX(0);
@@ -1059,6 +1060,7 @@
     .social-proof-toast.hide {
       transform: translateX(-120%);
       opacity: 0;
+      pointer-events: none;
     }
     .spt-icon {
       flex-shrink: 0; width: 42px; height: 42px;
@@ -1090,12 +1092,24 @@
     .spt-close {
       position: absolute; top: 6px; right: 8px;
       background: none; border: none; cursor: pointer;
-      color: var(--text-muted); font-size: .8rem; padding: 2px;
+      color: var(--text-muted); font-size: .8rem; padding: 4px 6px;
       line-height: 1; opacity: .5; transition: opacity .2s ease;
     }
     .spt-close:hover { opacity: 1; }
     @media (max-width: 640px) {
-      .social-proof-toast { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+      .social-proof-toast {
+        left: 10px; right: 10px; bottom: auto; top: 10px;
+        max-width: none;
+        border-radius: 12px; padding: 10px 14px 10px 12px;
+        gap: 10px;
+        transform: translateY(-120%);
+      }
+      .social-proof-toast.show { transform: translateY(0); }
+      .social-proof-toast.hide { transform: translateY(-120%); }
+      .spt-icon { width: 34px; height: 34px; font-size: .95rem; }
+      .spt-text { font-size: .78rem; }
+      .spt-time { font-size: .68rem; }
+      .spt-close { top: 4px; right: 6px; font-size: .75rem; }
     }
 
     /* ═══════════ RESPONSIVE ═══════════ */
@@ -1747,8 +1761,8 @@
     timer = setTimeout(function() {
       toast.classList.remove('show');
       toast.classList.add('hide');
-      timer = setTimeout(showToast, Math.random() * 15000 + 10000);
-    }, 5000);
+      timer = setTimeout(showToast, 26000);
+    }, 4000);
   }
 
   closeBtn.addEventListener('click', function() {
@@ -1758,7 +1772,7 @@
     toast.classList.add('hide');
   });
 
-  setTimeout(showToast, 6000);
+  setTimeout(showToast, 8000);
 })();
 </script>
 
