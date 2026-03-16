@@ -1099,9 +1099,15 @@
     }
     .site-header.visible { transform: translateY(0); }
     .site-header .logo {
+      display: flex; align-items: center; gap: 10px;
       font-family: 'Bricolage Grotesque', sans-serif;
       font-size: 1.15rem; font-weight: 800; color: var(--white);
       text-decoration: none; letter-spacing: -.02em;
+    }
+    .site-header .logo img {
+      width: 34px; height: 34px; border-radius: 50%;
+      object-fit: cover;
+      box-shadow: 0 0 0 2px rgba(232,105,43,.3), 0 2px 8px rgba(0,0,0,.3);
     }
     .site-header .logo span { color: var(--orange); }
     .site-header .header-cta {
@@ -1231,7 +1237,7 @@
 
 <!-- ═══════════ STICKY HEADER ═══════════ -->
 <header class="site-header" id="siteHeader">
-  <a href="/" class="logo">Bourbon<span>Média</span></a>
+  <a href="/" class="logo"><img src="/favicon.jpg" alt="Bourbon Bons Plans">Bourbon<span>Média</span></a>
   <a href="/qualification/" class="header-cta">Vérifier mon éligibilité</a>
 </header>
 
