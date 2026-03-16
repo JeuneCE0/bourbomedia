@@ -1124,7 +1124,7 @@
     <div class="hero-proof">
       <div class="hero-proof-item"><span class="hp-num" data-target="70" data-suffix="K+" data-format="">0</span><span class="hp-lbl">abonnés à La Réunion</span></div>
       <div class="hero-proof-sep"></div>
-      <div class="hero-proof-item"><span class="hp-num" data-target="10.2" data-suffix="M+" data-decimals="1">0</span><span class="hp-lbl">de vues en 2025</span></div>
+      <div class="hero-proof-item"><span class="hp-num" data-target="10.2" data-prefix="+" data-suffix="M" data-decimals="1">0</span><span class="hp-lbl">de vues en 2025</span></div>
       <div class="hero-proof-sep"></div>
       <div class="hero-proof-item"><span class="hp-num" data-target="180" data-suffix="K+">0</span><span class="hp-lbl">vues par vidéo en moyenne</span></div>
     </div>
@@ -1330,7 +1330,7 @@
     </div>
 
     <div class="reach-block reveal">
-      <div class="big"><span class="hl reach-counter" data-target="10.2" data-suffix=" MILLIONS+" data-decimals="1">0 MILLIONS+</span><br>DE VUES</div>
+      <div class="big"><span class="hl reach-counter" data-target="10.2" data-prefix="+" data-suffix=" MILLIONS" data-decimals="1">+0 MILLIONS</span><br>DE VUES</div>
       <p>générées pour nos commerces en 2025</p>
     </div>
   </div>
@@ -1518,6 +1518,7 @@
   // Count-up animation
   function animateCount(el) {
     const target = parseFloat(el.dataset.target);
+    const prefix = el.dataset.prefix || '';
     const suffix = el.dataset.suffix || '';
     const decimals = parseInt(el.dataset.decimals) || 0;
     const useSpace = el.dataset.format === 'space';
@@ -1537,7 +1538,7 @@
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
       const value = target * easeOutExpo(progress);
-      el.textContent = formatNum(value) + suffix;
+      el.textContent = prefix + formatNum(value) + suffix;
       if (progress < 1) requestAnimationFrame(tick);
     }
 
