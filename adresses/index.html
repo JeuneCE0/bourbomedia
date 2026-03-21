@@ -1007,12 +1007,13 @@
       /* ── SIDEBAR — masquée sur mobile ── */
       .sidebar { display: none; }
 
-      /* ── FLOATING CTA — icon-only on mobile ── */
+      /* ── FLOATING CTA — icon-only centered on mobile ── */
       .floating-cta {
         position: fixed !important;
         bottom: 20px !important;
-        right: 16px !important;
-        left: auto !important;
+        left: 50% !important;
+        right: auto !important;
+        transform: translateX(-50%) !important;
         width: 52px !important; height: 52px !important;
         max-width: none !important;
         border-radius: 50% !important;
@@ -1551,7 +1552,7 @@
   });
 
   var initialCenter = [-21.115, 55.535];
-  var initialZoom = isMobile ? 9.8 : 10.5;
+  var initialZoom = isMobile ? 9.3 : 10.5;
 
   var map = L.map('leafletMap', {
     center: initialCenter,
