@@ -1591,9 +1591,27 @@
       card.style.animationDelay = Math.min(i * 35, 300) + 'ms';
 
       var catObj = catInfo[b.cat] || { icon: '•', label: b.cat };
+
+      /* Badges row */
+      var badgesHtml = '';
+      if (b.views || b.isNew) {
+        badgesHtml = '<div class="biz-card-socials" style="margin-top:2px;margin-bottom:2px;">';
+        if (b.views) {
+          badgesHtml += '<span class="biz-card-views"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' + formatViews(b.views) + ' vues</span>';
+        }
+        if (b.isNew) {
+          badgesHtml += '<span class="biz-card-new">Nouveau</span>';
+        }
+        badgesHtml += '</div>';
+      }
+
+      /* Social links row */
       var socialsHtml = '';
-      if (b.instagram || b.tiktok || b.reels) {
+      if (b.instagram || b.tiktok || b.reels || b.bbpLink) {
         socialsHtml = '<div class="biz-card-socials">';
+        if (b.bbpLink) {
+          socialsHtml += '<a href="' + b.bbpLink + '" target="_blank" rel="noopener" class="biz-card-bbp" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>Vidéo BBP</a>';
+        }
         if (b.instagram) {
           socialsHtml += '<a href="https://www.instagram.com/' + b.instagram + '/" target="_blank" rel="noopener" class="biz-card-social ig" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/></svg>Insta</a>';
         }
@@ -1615,6 +1633,7 @@
           '</span>' +
         '</div>' +
         '<div class="biz-card-name">' + b.name + '</div>' +
+        badgesHtml +
         '<div class="biz-card-result">' + b.result + '</div>' +
         socialsHtml;
 
@@ -1648,6 +1667,19 @@
     }
 
     openBizModal(b, idx);
+  });
+
+  /* ════════════════════════════════════════════════════
+     SORT TOGGLE
+  ════════════════════════════════════════════════════ */
+  document.getElementById('sidebarSort').addEventListener('click', function (e) {
+    var btn = e.target.closest('.sidebar-sort-btn');
+    if (!btn) return;
+    state.sortBy = btn.dataset.sort;
+    document.querySelectorAll('.sidebar-sort-btn').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.sort === state.sortBy);
+    });
+    renderAll();
   });
 
   /* ════════════════════════════════════════════════════
@@ -1687,9 +1719,11 @@
   function openBizModal(b, idx) {
     var catObj = catInfo[b.cat] || { icon: '', label: b.cat };
 
-    document.getElementById('modalCat').textContent = catObj.icon + ' ' + catObj.label;
+    var catLabel = catObj.icon + ' ' + catObj.label;
+    if (b.views) catLabel += '  ·  ' + formatViews(b.views) + ' vues BBP';
+    document.getElementById('modalCat').textContent = catLabel;
     document.getElementById('modalName').textContent = b.name;
-    document.getElementById('modalCity').innerHTML = PIN_SVG + ' ' + b.city;
+    document.getElementById('modalCity').innerHTML = PIN_SVG + ' ' + b.city + (b.isNew ? ' <span style="color:#22C55E;font-weight:700;font-size:.72rem;margin-left:4px;">NOUVEAU</span>' : '');
     document.getElementById('modalResult').textContent = b.result;
 
     /* Address */
@@ -1703,6 +1737,9 @@
 
     /* Links */
     var linksHtml = '';
+    if (b.bbpLink) {
+      linksHtml += '<a href="' + b.bbpLink + '" target="_blank" rel="noopener" class="biz-modal-link" style="color:var(--orange);border-color:var(--border-orange);background:var(--orange-glow);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Voir la vidéo BBP</a>';
+    }
     if (b.instagram) {
       linksHtml += '<a href="https://www.instagram.com/' + b.instagram + '/" target="_blank" rel="noopener" class="biz-modal-link instagram">' + IG_SVG + ' Instagram</a>';
     }
