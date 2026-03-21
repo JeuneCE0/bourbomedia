@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '857016059886285');
+  fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=857016059886285&ev=PageView&noscript=1"
+  /></noscript>
+  <!-- End Meta Pixel Code -->
+  <title>Nos Bons Plans — BourbonMédia</title>
+  <meta name="description" content="Découvrez tous les bons plans de La Réunion mis en avant par Bourbon Bons Plans. Restaurants, boutiques, activités, hébergements et plus encore.">
+  <!-- Open Graph -->
+  <meta property="og:title" content="Nos Bons Plans — BourbonMédia">
+  <meta property="og:description" content="Découvrez tous les bons plans de La Réunion : restaurants, boutiques, activités, hébergements et plus encore.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://bourbonmedia.fr/adresses">
+  <meta property="og:image" content="https://bourbonmedia.fr/og-adresses.jpg">
+  <meta property="og:locale" content="fr_FR">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" type="image/jpeg" href="/favicon.jpg">
+  <link rel="apple-touch-icon" href="/favicon.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="preconnect" href="https://basemaps.cartocdn.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --orange: #E8692B;
+      --orange-dark: #C9541E;
+      --orange-light: #F28C55;
+      --orange-glow: rgba(232,105,43,.15);
+      --brown: #3D2B1F;
+      --brown-mid: #5C4033;
+      --night: #1A1008;
+      --night-mid: #251A0F;
+      --night-card: #2F2117;
+      --night-border: rgba(255,255,255,.08);
+      --text-muted: #A08B78;
+      --white: #FFFFFF;
+      --green: #22C55E;
+      --radius: 20px;
+      --radius-sm: 12px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Instrument Sans', sans-serif;
+      background: var(--night);
+      color: var(--white);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(26,16,8,.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--night-border);
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-logo {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 800; font-size: 1.15rem; color: var(--white);
+      text-decoration: none;
+    }
+    .header-logo span { color: var(--orange); }
+    .header-back {
+      color: var(--text-muted); text-decoration: none;
+      font-size: .88rem; font-weight: 500;
+      display: flex; align-items: center; gap: 6px;
+      transition: color .3s ease;
+    }
+    .header-back:hover { color: var(--orange); }
+
+    /* ── HERO ── */
+    .hero {
+      padding: 120px 24px 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(232,105,43,.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--night-card); border: 1px solid var(--night-border);
+      border-radius: 100px; padding: 8px 18px;
+      font-size: .82rem; font-weight: 600; color: var(--orange);
+      margin-bottom: 20px;
+    }
+    .hero-badge .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    .hero h1 {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800; line-height: 1.15;
+      margin-bottom: 14px;
+    }
+    .hero h1 .highlight {
+      background: linear-gradient(135deg, var(--orange), #FFC107);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── INTERACTIVE MAP (LEAFLET) — CONTAINED ── */
+    .map-section {
+      max-width: 1300px; margin: 0 auto 40px;
+      padding: 0 24px;
+      position: relative;
+    }
+    .map-wrap {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius);
+      border: 1px solid var(--night-border);
+    }
+    #leafletMap {
+      width: 100%; height: 720px;
+      background: var(--night-card);
+    }
+    /* Category filters on map */
+    .map-filters {
+      position: absolute; top: 12px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      display: flex; gap: 5px;
+      padding: 5px;
+      background: rgba(26,16,8,.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 100px;
+      border: 1px solid rgba(255,255,255,.1);
+      max-width: calc(100% - 32px);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .map-filters::-webkit-scrollbar { display: none; }
+    .map-filter-btn {
+      background: none; border: none;
+      color: rgba(255,255,255,.6);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: .78rem; font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 100px;
+      cursor: pointer;
+      transition: all .3s ease;
+      white-space: nowrap;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .map-filter-btn:hover { color: var(--white); }
+    .map-filter-btn.active {
+      background: var(--orange);
+      color: var(--white);
+      box-shadow: 0 2px 12px rgba(232,105,43,.4);
+    }
+    /* Recenter button */
+    .map-recenter {
+      position: absolute; bottom: 12px; left: 12px;
+      z-index: 1000;
+      background: rgba(26,16,8,.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--night-border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      color: var(--text-muted);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: .75rem; font-weight: 600;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+      transition: all .3s ease;
+      opacity: 0; pointer-events: none;
+    }
+    .map-recenter.visible {
+      opacity: 1; pointer-events: auto;
+    }
+    .map-recenter:hover {
+      color: var(--white);
+      border-color: var(--orange);
+    }
+    .map-recenter svg { width: 14px; height: 14px; }
+
+    /* Pin bounce animation */
+    .custom-pin { animation: pinBounce .5s ease; }
+    @keyframes pinBounce {
+      0% { transform: translateY(-30px); opacity: 0; }
+      60% { transform: translateY(4px); opacity: 1; }
+      80% { transform: translateY(-2px); }
+      100% { transform: translateY(0); }
+    }
+
+    /* Toggle satellite / carte */
+    .map-toggle {
+      position: absolute; bottom: 12px; right: 12px;
+      z-index: 1000;
+      display: flex; gap: 4px;
+      background: rgba(26,16,8,.85);
+      backdrop-filter: blur(8px);
+      border-radius: 10px; padding: 4px;
+      border: 1px solid var(--night-border);
+    }
+    .map-toggle button {
+      background: none; border: none;
+      color: var(--text-muted);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: .75rem; font-weight: 600;
+      padding: 6px 12px; border-radius: 8px;
+      cursor: pointer; transition: all .3s ease;
+    }
+    .map-toggle button.active {
+      background: var(--orange); color: var(--white);
+    }
+    .map-toggle button:hover:not(.active) { color: var(--white); }
+
+    /* Custom pin marker */
+    .custom-pin {
+      position: relative;
+      width: 36px; height: 46px;
+    }
+    .custom-pin .pin-head {
+      width: 36px; height: 36px;
+      background: var(--orange);
+      border: 3px solid var(--white);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .8rem; font-weight: 800; color: var(--white);
+      font-family: 'Instrument Sans', sans-serif;
+      box-shadow: 0 4px 15px rgba(232,105,43,.5), 0 2px 6px rgba(0,0,0,.3);
+      position: relative; z-index: 2;
+      transition: all .3s ease;
+    }
+    .custom-pin:hover .pin-head {
+      transform: scale(1.15);
+      box-shadow: 0 6px 25px rgba(232,105,43,.6);
+    }
+    .custom-pin .pin-tail {
+      width: 0; height: 0;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-top: 10px solid var(--white);
+      position: absolute; bottom: 0; left: 50%;
+      transform: translateX(-50%);
+      z-index: 1;
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,.3));
+    }
+    .custom-pin .pin-pulse {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--orange);
+      opacity: 0;
+      animation: pinPulse 2.5s ease-out infinite;
+      z-index: 0;
+    }
+    @keyframes pinPulse {
+      0% { width: 36px; height: 36px; opacity: .4; }
+      100% { width: 70px; height: 70px; opacity: 0; }
+    }
+
+    /* ── BUSINESS MODAL ── */
+    .biz-modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 2000;
+      background: rgba(10,6,2,.75);
+      backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      opacity: 0; pointer-events: none;
+      transition: opacity .3s ease;
+    }
+    .biz-modal-overlay.open {
+      opacity: 1; pointer-events: auto;
+    }
+    .biz-modal {
+      background: var(--night-card);
+      border: 1px solid var(--night-border);
+      border-radius: var(--radius);
+      padding: 0;
+      max-width: 440px; width: 100%;
+      transform: translateY(30px) scale(.96);
+      transition: transform .35s ease;
+      overflow: hidden;
+      max-height: 90vh; overflow-y: auto;
+    }
+    .biz-modal-overlay.open .biz-modal {
+      transform: translateY(0) scale(1);
+    }
+    .biz-modal-header {
+      background: linear-gradient(135deg, var(--orange), #D4551A);
+      padding: 24px 24px 20px;
+      position: relative;
+    }
+    .biz-modal-close {
+      position: absolute; top: 14px; right: 14px;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.15);
+      border: none; color: var(--white);
+      font-size: 1.1rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .3s ease;
+    }
+    .biz-modal-close:hover { background: rgba(255,255,255,.3); }
+    .biz-modal-cat {
+      font-size: .7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .8px;
+      color: rgba(255,255,255,.7);
+      margin-bottom: 6px;
+    }
+    .biz-modal-name {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.5rem; font-weight: 800; color: var(--white);
+      line-height: 1.2;
+    }
+    .biz-modal-city {
+      margin-top: 8px;
+      font-size: .85rem; color: rgba(255,255,255,.7);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .biz-modal-city svg { width: 14px; height: 14px; }
+    .biz-modal-body { padding: 20px 24px 24px; }
+    .biz-modal-result {
+      background: rgba(34,197,94,.08);
+      border: 1px solid rgba(34,197,94,.15);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      font-size: .88rem; color: #6ee7a0;
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+    .biz-modal-address {
+      display: flex; align-items: flex-start; gap: 8px;
+      font-size: .85rem; color: var(--text-muted);
+      margin-bottom: 18px; line-height: 1.5;
+    }
+    .biz-modal-address svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+    .biz-modal-links {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 18px;
+    }
+    .biz-modal-link {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--night-border);
+      background: rgba(255,255,255,.03);
+      color: var(--white);
+      text-decoration: none;
+      font-size: .82rem; font-weight: 600;
+      font-family: 'Instrument Sans', sans-serif;
+      transition: all .3s ease;
+    }
+    .biz-modal-link:hover {
+      border-color: var(--orange);
+      background: rgba(232,105,43,.08);
+      transform: translateY(-2px);
+    }
+    .biz-modal-link svg { width: 16px; height: 16px; }
+    .biz-modal-link.instagram { color: #E1306C; }
+    .biz-modal-link.instagram:hover { border-color: #E1306C; background: rgba(225,48,108,.08); }
+    .biz-modal-link.tiktok { color: #fff; }
+    .biz-modal-link.tiktok:hover { border-color: #69C9D0; background: rgba(105,201,208,.08); }
+    .biz-modal-link.maps { color: #4285F4; }
+    .biz-modal-link.maps:hover { border-color: #4285F4; background: rgba(66,133,244,.08); }
+    .biz-modal-section-title {
+      font-size: .72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .8px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .biz-modal-embed {
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--night-border);
+      background: var(--night);
+      margin-bottom: 18px;
+    }
+    .biz-modal-embed iframe {
+      width: 100%; min-height: 400px;
+      border: none; display: block;
+    }
+
+    /* ── MAP STATS ── */
+    .map-stats {
+      display: flex; justify-content: center; gap: 32px;
+      margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .map-stat {
+      text-align: center;
+    }
+    .map-stat-value {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.8rem; font-weight: 800;
+      color: var(--orange);
+      line-height: 1;
+    }
+    .map-stat-label {
+      font-size: .75rem; color: var(--text-muted);
+      font-weight: 600; margin-top: 4px;
+    }
+
+    /* ── CITY LABEL ON MAP PIN ── */
+    .pin-city-label {
+      position: absolute; top: -22px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(26,16,8,.85);
+      backdrop-filter: blur(6px);
+      color: var(--white);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: .65rem; font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      border: 1px solid rgba(255,255,255,.1);
+    }
+
+
+    /* ── SEARCH BAR ── */
+    .search-section {
+      max-width: 1300px; margin: 0 auto 24px;
+      padding: 0 24px;
+    }
+    .search-wrap {
+      position: relative;
+    }
+    .search-input {
+      width: 100%;
+      padding: 14px 18px 14px 46px;
+      border-radius: var(--radius);
+      border: 1px solid var(--night-border);
+      background: var(--night-card);
+      color: var(--white);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: .92rem;
+      outline: none;
+      transition: border-color .3s ease, box-shadow .3s ease;
+    }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-input:focus {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 3px rgba(232,105,43,.15);
+    }
+    .search-icon {
+      position: absolute; left: 16px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .search-icon svg { width: 18px; height: 18px; }
+    .search-clear {
+      position: absolute; right: 14px; top: 50%;
+      transform: translateY(-50%);
+      background: none; border: none;
+      color: var(--text-muted);
+      cursor: pointer; font-size: 1.1rem;
+      display: none;
+      transition: color .3s ease;
+    }
+    .search-clear:hover { color: var(--orange); }
+
+    /* ── BUSINESS GRID ── */
+    .biz-grid-section {
+      max-width: 1300px; margin: 0 auto 40px;
+      padding: 0 24px;
+    }
+    .biz-grid-title {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.1rem; font-weight: 700;
+      color: var(--white); margin-bottom: 16px;
+    }
+    .biz-grid-title span { color: var(--text-muted); font-weight: 500; }
+    .biz-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .biz-card {
+      background: var(--night-card);
+      border: 1px solid var(--night-border);
+      border-radius: var(--radius-sm);
+      padding: 16px 18px;
+      cursor: pointer;
+      transition: all .3s ease;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .biz-card:hover {
+      border-color: var(--orange);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(232,105,43,.1);
+    }
+    .biz-card-top {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .biz-card-name {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: .95rem;
+      color: var(--white);
+    }
+    .biz-card-cat {
+      font-size: .68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .5px;
+      color: var(--orange);
+      background: rgba(232,105,43,.1);
+      padding: 3px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    .biz-card-city {
+      font-size: .8rem; color: var(--text-muted);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .biz-card-city svg { width: 12px; height: 12px; }
+    .biz-card-result {
+      font-size: .78rem; color: #6ee7a0;
+      line-height: 1.4;
+    }
+    .biz-grid-empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+      font-size: .9rem;
+    }
+
+    /* ── FOOTER ── */
+    .footer {
+      text-align: center;
+      padding: 32px 24px;
+      border-top: 1px solid var(--night-border);
+      font-size: .78rem; color: var(--text-muted);
+    }
+    .footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color .3s ease;
+    }
+    .footer a:hover { color: var(--orange); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .6; transform: scale(.8); }
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 600px) {
+      .hero { padding: 100px 20px 30px; }
+      .map-section { padding: 0 12px; }
+      #leafletMap { height: 520px; }
+      .map-filters { top: 8px; gap: 3px; padding: 4px; }
+      .map-filter-btn { font-size: .7rem; padding: 6px 10px; }
+      .map-stats { gap: 20px; }
+      .map-stat-value { font-size: 1.4rem; }
+      .search-section { padding: 0 12px; }
+      .biz-grid-section { padding: 0 12px; }
+      .biz-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <a href="/" class="header-logo">Bourbon<span>Média</span></a>
+    <a href="/" class="header-back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Retour
+    </a>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-badge"><span class="dot"></span> Mis à jour régulièrement</div>
+    <h1>Les <span class="highlight">Bourbon Bons Plans</span></h1>
+  </section>
+
+  <!-- INTERACTIVE MAP -->
+  <section class="map-section">
+    <div class="map-stats" id="mapStats"></div>
+    <div class="map-wrap">
+      <div class="map-filters" id="mapFilters">
+        <!-- Generated by JS -->
+      </div>
+      <button class="map-recenter" id="mapRecenter">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+        Recentrer
+      </button>
+      <div class="map-toggle">
+        <button id="btnMapStreet" class="active">Carte</button>
+        <button id="btnMapSat">Satellite</button>
+      </div>
+      <div id="leafletMap"></div>
+    </div>
+  </section>
+
+  <!-- SEARCH -->
+  <section class="search-section">
+    <div class="search-wrap">
+      <span class="search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
+      <input type="text" class="search-input" id="searchInput" placeholder="Rechercher un commerce, une ville…" autocomplete="off">
+      <button class="search-clear" id="searchClear">&times;</button>
+    </div>
+  </section>
+
+  <!-- BUSINESS GRID -->
+  <section class="biz-grid-section">
+    <div class="biz-grid-title" id="bizGridTitle"></div>
+    <div class="biz-grid" id="bizGrid"></div>
+  </section>
+
+  <!-- BUSINESS MODAL -->
+  <div class="biz-modal-overlay" id="bizModalOverlay">
+    <div class="biz-modal" id="bizModal">
+      <div class="biz-modal-header">
+        <button class="biz-modal-close" id="bizModalClose">&times;</button>
+        <div class="biz-modal-cat" id="modalCat"></div>
+        <div class="biz-modal-name" id="modalName"></div>
+        <div class="biz-modal-city" id="modalCity"></div>
+      </div>
+      <div class="biz-modal-body">
+        <div class="biz-modal-result" id="modalResult"></div>
+        <div class="biz-modal-address" id="modalAddress"></div>
+        <div class="biz-modal-links" id="modalLinks"></div>
+        <div id="modalEmbed"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <p>Bourbon Média SAS — <a href="/mentions-legales">Mentions légales</a> · <a href="/politique-de-confidentialite">Confidentialité</a></p>
+  </footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+  /* ── UTILS ── */
+  function esc(str) {
+    var d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function slugify(str) {
+    return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  }
+
+  function normalize(str) {
+    return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  /* ── DATA ── */
+  var businesses = [
+    { name: "Sousou Access", cat: "boutique", city: "Saint-Denis", address: "30 Rue Maréchal Leclerc, 97400 Saint-Denis", instagram: "sousou_access", tiktok: null, senja: null, result: "+40 000€ de CA en 30 jours — +1 000 ventes" },
+    { name: "Crazy Adventures", cat: "activite", city: "Saint-Leu", address: "Saint-Leu, La Réunion", instagram: "crazy_adventures_reunion", tiktok: null, senja: null, result: "+10 000€ de CA en 14 jours — +1M de vues en 45 jours" },
+    { name: "Memphis Burger", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, senja: null, result: "80% des commandes du lendemain venaient de la vidéo" },
+    { name: "Jungle à Pat'", cat: "activite", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: "jungle_a_pat", tiktok: null, senja: null, result: "+900 000 vues en 15 jours — rentabilisé en moins de 24h" },
+    { name: "La Crème de la Crêpe", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: "lacremedelacrepe974", tiktok: null, senja: null, result: "+5 000 abonnés en 30 jours — complètement débordés" },
+    { name: "Le Mazéniène", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: "lemazeniene", tiktok: null, senja: null, result: "+500 000 vues sur Instagram — impact visible dès la 1ère semaine" },
+    { name: "Tropic Appart'Hôtel", cat: "hebergement", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: "tropicapparthotel", tiktok: null, senja: null, result: "+100 000 vues — période de vacances remplie" },
+    { name: "Fraises & Compagnie", cat: "gourmandise", city: "Plaine des Cafres", address: "Plaine des Cafres, La Réunion", instagram: "fraises_et_compagnie974", tiktok: null, senja: null, result: "Afflux de visiteurs après la vidéo" },
+    { name: "Maison GAC", cat: "gourmandise", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: "maison_gac", tiktok: null, senja: null, result: "Glacier artisan découvert par des milliers de Réunionnais" },
+    { name: "Popeline Vintage", cat: "boutique", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: "popeline.vintage", tiktok: null, senja: null, result: "Boutique prise d'assaut après la vidéo BBP" },
+    { name: "Pizza Cosy", cat: "restaurant", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: null, tiktok: null, senja: null, result: "Commandes explosées après la mise en avant" },
+    { name: "Trapèze Studio", cat: "activite", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Inscriptions en forte hausse" },
+    { name: "Le Madison", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Restaurant complet les jours suivant la vidéo" },
+    { name: "Poké Run", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, senja: null, result: "File d'attente dès le lendemain de la vidéo" },
+    { name: "Les Dalons", cat: "restaurant", city: "Saint-Gilles", address: "Saint-Gilles-les-Bains, La Réunion", instagram: null, tiktok: null, senja: null, result: "Visibilité locale décuplée" },
+    { name: "La Saint-Georges", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Découvert par une nouvelle clientèle" },
+    { name: "Kazaoké", cat: "activite", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, senja: null, result: "Réservations en hausse immédiate" },
+    { name: "La Bonne Maison", cat: "gourmandise", city: "Le Tampon", address: "Le Tampon, La Réunion", instagram: null, tiktok: null, senja: null, result: "Afflux de curieux après la vidéo" },
+    { name: "Coliver", cat: "hebergement", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: null, tiktok: null, senja: null, result: "Taux d'occupation en hausse" },
+    { name: "Alidou", cat: "boutique", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Visibilité boostée sur les réseaux" },
+    { name: "La Baie des Anges", cat: "hebergement", city: "Saint-Gilles", address: "Saint-Gilles-les-Bains, La Réunion", instagram: null, tiktok: null, senja: null, result: "Réservations boostées en saison" },
+    { name: "Le Gourmand", cat: "restaurant", city: "Saint-André", address: "Saint-André, La Réunion", instagram: null, tiktok: null, senja: null, result: "Notoriété locale renforcée" },
+    { name: "Le Paradoxe", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, senja: null, result: "Clientèle élargie grâce à BBP" },
+    { name: "Chez Kisbee", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Découvert par des milliers de personnes" },
+    { name: "The Donuts Island", cat: "gourmandise", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, senja: null, result: "Ventes doublées la semaine suivante" },
+    { name: "Kaloubadia", cat: "boutique", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: null, tiktok: null, senja: null, result: "Boutique mise en lumière" },
+    { name: "Terre de Running", cat: "boutique", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Communauté engagée après la vidéo" },
+    { name: "Nonna Luisa", cat: "restaurant", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: "nonnaluisa.re", tiktok: null, senja: null, result: "Pizzeria prise d'assaut après la vidéo BBP" }
+  ];
+
+  /* Add slug to each business */
+  businesses.forEach(function(b) { b.slug = slugify(b.name); });
+
+  var categories = [
+    { id: "all", label: "Tous", icon: "⬡" },
+    { id: "restaurant", label: "Restaurants", icon: "🍴" },
+    { id: "boutique", label: "Boutiques", icon: "🛍" },
+    { id: "activite", label: "Activités", icon: "🎯" },
+    { id: "gourmandise", label: "Gourmandises", icon: "🍦" },
+    { id: "hebergement", label: "Hébergements", icon: "🏠" }
+  ];
+
+  var catLabels = { restaurant: "Restaurant", boutique: "Boutique", activite: "Activité", gourmandise: "Gourmandise", hebergement: "Hébergement" };
+
+
+  /* ── LEAFLET MAP ── */
+  var cityCoords = {
+    "Saint-Denis":       [-20.8823, 55.4504],
+    "Saint-André":       [-20.9630, 55.6550],
+    "Saint-Leu":         [-21.1738, 55.2820],
+    "Saint-Paul":        [-21.0097, 55.2708],
+    "Saint-Pierre":      [-21.3393, 55.4781],
+    "Saint-Gilles":      [-21.0728, 55.2233],
+    "Le Tampon":         [-21.2781, 55.5178],
+    "Plaine des Cafres": [-21.2167, 55.5667]
+  };
+
+  var streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    maxZoom: 18
+  });
+  var satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri',
+    maxZoom: 18
+  });
+
+  var map = L.map('leafletMap', {
+    center: [-21.115, 55.535],
+    zoom: 10.5,
+    layers: [streetLayer],
+    zoomControl: false,
+    scrollWheelZoom: false
+  });
+
+  L.control.zoom({ position: 'topright' }).addTo(map);
+
+  /* Lock view to Reunion Island */
+  var initialCenter = [-21.115, 55.535];
+  var initialZoom = 10.5;
+  map.setMaxBounds([[-21.55, 54.95], [-20.65, 55.95]]);
+  map.setMinZoom(10);
+
+  /* Recenter button — appears when user moves away from default view */
+  var recenterBtn = document.getElementById('mapRecenter');
+  map.on('moveend zoomend', function() {
+    var c = map.getCenter();
+    var z = map.getZoom();
+    var moved = Math.abs(c.lat - initialCenter[0]) > 0.02 || Math.abs(c.lng - initialCenter[1]) > 0.02 || Math.abs(z - initialZoom) > 0.5;
+    recenterBtn.classList.toggle('visible', moved);
+  });
+  recenterBtn.addEventListener('click', function() {
+    map.flyTo(initialCenter, initialZoom, { duration: .8 });
+  });
+
+  /* Toggle satellite / street */
+  var btnStreet = document.getElementById('btnMapStreet');
+  var btnSat = document.getElementById('btnMapSat');
+  btnStreet.addEventListener('click', function() {
+    map.removeLayer(satLayer); map.addLayer(streetLayer);
+    btnStreet.classList.add('active'); btnSat.classList.remove('active');
+  });
+  btnSat.addEventListener('click', function() {
+    map.removeLayer(streetLayer); map.addLayer(satLayer);
+    btnSat.classList.add('active'); btnStreet.classList.remove('active');
+  });
+
+  /* Stats counters */
+  var statsEl = document.getElementById('mapStats');
+  var uniqueCities = Object.keys(cityCoords);
+  statsEl.innerHTML =
+    '<div class="map-stat"><div class="map-stat-value">' + businesses.length + '</div><div class="map-stat-label">Clients</div></div>' +
+    '<div class="map-stat"><div class="map-stat-value">' + uniqueCities.length + '</div><div class="map-stat-label">Villes</div></div>' +
+    '<div class="map-stat"><div class="map-stat-value">' + (categories.length - 1) + '</div><div class="map-stat-label">Catégories</div></div>' +
+    '<div class="map-stat"><div class="map-stat-value">' + businesses.filter(function(b) { return b.instagram; }).length + '</div><div class="map-stat-label">Profils Insta</div></div>';
+
+  /* Custom pin icon factory */
+  function makePin(count, cityName) {
+    return L.divIcon({
+      className: '',
+      iconSize: [36, 70],
+      iconAnchor: [18, 46],
+      popupAnchor: [0, -46],
+      html: '<div class="custom-pin">' +
+            '<div class="pin-city-label">' + esc(cityName) + '</div>' +
+            '<div class="pin-pulse"></div>' +
+            '<div class="pin-head">' + count + '</div>' +
+            '<div class="pin-tail"></div>' +
+            '</div>'
+    });
+  }
+
+  /* ── MAP CATEGORY FILTERS ── */
+  var mapFiltersEl = document.getElementById('mapFilters');
+  var activeMapCat = 'all';
+  var searchQuery = '';
+  var allMapMarkers = [];
+
+  categories.forEach(function(cat) {
+    var btn = document.createElement('button');
+    btn.className = 'map-filter-btn' + (cat.id === 'all' ? ' active' : '');
+    btn.dataset.cat = cat.id;
+    var catCount = cat.id === 'all' ? businesses.length : businesses.filter(function(b) { return b.cat === cat.id; }).length;
+    btn.innerHTML = cat.icon + ' ' + cat.label + ' <span style="opacity:.5;font-size:.7rem;margin-left:1px;">' + catCount + '</span>';
+    btn.addEventListener('click', function() {
+      activeMapCat = cat.id;
+      document.querySelectorAll('.map-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      renderAll();
+    });
+    mapFiltersEl.appendChild(btn);
+  });
+
+  /* ── SCROLL INDICATOR for mobile filters ── */
+  var filtersWrap = document.getElementById('mapFilters');
+  function checkFiltersScroll() {
+    if (filtersWrap.scrollWidth > filtersWrap.clientWidth + 8) {
+      filtersWrap.style.maskImage = filtersWrap.scrollLeft < filtersWrap.scrollWidth - filtersWrap.clientWidth - 8
+        ? 'linear-gradient(to right, black 85%, transparent)'
+        : 'none';
+    } else {
+      filtersWrap.style.maskImage = 'none';
+    }
+  }
+  filtersWrap.addEventListener('scroll', checkFiltersScroll);
+  window.addEventListener('resize', checkFiltersScroll);
+  checkFiltersScroll();
+
+  /* ── FILTERED BUSINESSES (shared between map + grid) ── */
+  function getFilteredBusinesses() {
+    var filtered = businesses;
+    if (activeMapCat !== 'all') {
+      filtered = filtered.filter(function(b) { return b.cat === activeMapCat; });
+    }
+    if (searchQuery) {
+      var q = normalize(searchQuery);
+      filtered = filtered.filter(function(b) {
+        return normalize(b.name).indexOf(q) !== -1 || normalize(b.city).indexOf(q) !== -1;
+      });
+    }
+    return filtered;
+  }
+
+  function renderAll() {
+    renderMapMarkers();
+    renderBizGrid();
+  }
+
+  function renderMapMarkers() {
+    /* Remove existing markers */
+    allMapMarkers.forEach(function(m) { map.removeLayer(m); });
+    allMapMarkers = [];
+
+    var filtered = getFilteredBusinesses();
+
+    /* Group by city */
+    var bizByCity = {};
+    filtered.forEach(function(b) {
+      if (!bizByCity[b.city]) bizByCity[b.city] = [];
+      bizByCity[b.city].push(b);
+    });
+
+    /* Place markers */
+    Object.keys(bizByCity).forEach(function(city) {
+      var coords = cityCoords[city];
+      if (!coords) return;
+      var cityBiz = bizByCity[city];
+      var marker = L.marker(coords, { icon: makePin(cityBiz.length, city) }).addTo(map);
+      allMapMarkers.push(marker);
+
+      if (cityBiz.length === 1) {
+        marker.on('click', function() {
+          map.flyTo(coords, 14, { duration: .8 });
+          openBizModal(cityBiz[0]);
+        });
+      } else {
+        marker.on('click', function() {
+          map.flyTo(coords, 13, { duration: .8 });
+          var html = '<div style="font-family:Instrument Sans,sans-serif;min-width:180px;">';
+          html += '<div style="font-weight:700;font-size:.85rem;margin-bottom:8px;color:#1A1008;">' + esc(city) + ' <span style="color:#A08B78;font-weight:500;">(' + cityBiz.length + ')</span></div>';
+          cityBiz.forEach(function(b, i) {
+            html += '<div class="popup-biz-item" data-idx="' + i + '" style="padding:6px 8px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:500;color:#3D2B1F;transition:background .2s;margin-bottom:2px;"';
+            html += ' onmouseover="this.style.background=\'rgba(232,105,43,.1)\'" onmouseout="this.style.background=\'none\'">';
+            html += '<span style="color:#E8692B;font-weight:700;margin-right:4px;">' + categories.find(function(c) { return c.id === b.cat; }).icon + '</span> ' + esc(b.name);
+            html += '</div>';
+          });
+          html += '</div>';
+
+          var popup = L.popup({ className: 'leaflet-dark-popup', maxWidth: 250 })
+            .setLatLng(coords).setContent(html).openOn(map);
+
+          setTimeout(function() {
+            document.querySelectorAll('.popup-biz-item').forEach(function(el) {
+              el.addEventListener('click', function() {
+                var idx = parseInt(el.dataset.idx);
+                map.closePopup();
+                openBizModal(cityBiz[idx]);
+              });
+            });
+          }, 50);
+        });
+      }
+    });
+  }
+
+  /* ── SEARCH ── */
+  var searchInput = document.getElementById('searchInput');
+  var searchClear = document.getElementById('searchClear');
+
+  searchInput.addEventListener('input', function() {
+    searchQuery = searchInput.value.trim();
+    searchClear.style.display = searchQuery ? 'block' : 'none';
+    renderAll();
+  });
+  searchClear.addEventListener('click', function() {
+    searchInput.value = '';
+    searchQuery = '';
+    searchClear.style.display = 'none';
+    renderAll();
+    searchInput.focus();
+  });
+
+  /* ── BUSINESS GRID ── */
+  var bizGridEl = document.getElementById('bizGrid');
+  var bizGridTitle = document.getElementById('bizGridTitle');
+
+  function renderBizGrid() {
+    var filtered = getFilteredBusinesses();
+    var catLabel = activeMapCat === 'all' ? 'Tous les commerces' : categories.find(function(c) { return c.id === activeMapCat; }).label;
+    bizGridTitle.innerHTML = catLabel + ' <span>(' + filtered.length + ')</span>';
+
+    if (filtered.length === 0) {
+      bizGridEl.innerHTML = '<div class="biz-grid-empty">Aucun commerce trouvé</div>';
+      return;
+    }
+
+    var html = '';
+    filtered.forEach(function(b) {
+      html += '<div class="biz-card" data-slug="' + b.slug + '">';
+      html += '<div class="biz-card-top">';
+      html += '<div class="biz-card-name">' + esc(b.name) + '</div>';
+      html += '<div class="biz-card-cat">' + esc(catLabels[b.cat]) + '</div>';
+      html += '</div>';
+      html += '<div class="biz-card-city"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ' + esc(b.city) + '</div>';
+      html += '<div class="biz-card-result">' + esc(b.result) + '</div>';
+      html += '</div>';
+    });
+    bizGridEl.innerHTML = html;
+
+    /* Attach click handlers */
+    bizGridEl.querySelectorAll('.biz-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        var slug = card.dataset.slug;
+        var biz = businesses.find(function(b) { return b.slug === slug; });
+        if (biz) openBizModal(biz);
+      });
+    });
+  }
+
+  /* Initial render */
+  renderAll();
+
+  /* ── BUSINESS MODAL ── */
+  var modalOverlay = document.getElementById('bizModalOverlay');
+  var modalClose = document.getElementById('bizModalClose');
+
+  function openBizModal(b) {
+    /* Update URL with biz slug */
+    history.replaceState(null, '', '?biz=' + b.slug);
+
+    document.getElementById('modalCat').textContent = catLabels[b.cat];
+    document.getElementById('modalName').textContent = b.name;
+    document.getElementById('modalCity').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ' + esc(b.city);
+    document.getElementById('modalResult').textContent = b.result;
+
+    /* Address */
+    var addrEl = document.getElementById('modalAddress');
+    if (b.address) {
+      addrEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ' + esc(b.address);
+      addrEl.style.display = 'flex';
+    } else { addrEl.style.display = 'none'; }
+
+    /* Links */
+    var linksEl = document.getElementById('modalLinks');
+    var linksHtml = '';
+    if (b.instagram) {
+      linksHtml += '<a href="https://www.instagram.com/' + encodeURIComponent(b.instagram) + '/" target="_blank" rel="noopener" class="biz-modal-link instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg> Instagram</a>';
+    }
+    if (b.tiktok) {
+      linksHtml += '<a href="https://www.tiktok.com/@' + encodeURIComponent(b.tiktok) + '" target="_blank" rel="noopener" class="biz-modal-link tiktok"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V8.73a8.19 8.19 0 004.76 1.52v-3.4a4.85 4.85 0 01-1-.16z"/></svg> TikTok</a>';
+    }
+    if (b.address) {
+      linksHtml += '<a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(b.address) + '" target="_blank" rel="noopener" class="biz-modal-link maps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Google Maps</a>';
+    }
+    linksEl.innerHTML = linksHtml;
+
+    /* Senja Video Embed */
+    var embedEl = document.getElementById('modalEmbed');
+    if (b.senja) {
+      embedEl.innerHTML =
+        '<div class="biz-modal-section-title">Vidéo témoignage</div>' +
+        '<div class="biz-modal-embed">' +
+        '<iframe src="' + esc(b.senja) + '" ' +
+        'loading="lazy" allow="autoplay; fullscreen" allowfullscreen></iframe>' +
+        '</div>';
+    } else {
+      embedEl.innerHTML = '';
+    }
+
+    modalOverlay.classList.add('open');
+  }
+
+  function closeBizModal() {
+    modalOverlay.classList.remove('open');
+    history.replaceState(null, '', window.location.pathname);
+    /* Clean up iframe to stop loading */
+    setTimeout(function() {
+      document.getElementById('modalEmbed').innerHTML = '';
+    }, 350);
+  }
+
+  modalClose.addEventListener('click', closeBizModal);
+  modalOverlay.addEventListener('click', function(e) {
+    if (e.target === modalOverlay) closeBizModal();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeBizModal();
+  });
+
+  /* ── DEEP LINK: open modal from ?biz=slug ── */
+  var params = new URLSearchParams(window.location.search);
+  var bizSlug = params.get('biz');
+  if (bizSlug) {
+    var match = businesses.find(function(b) { return b.slug === bizSlug; });
+    if (match) {
+      setTimeout(function() { openBizModal(match); }, 300);
+    }
+  }
+
+});
+</script>
+
+</body>
+</html>
