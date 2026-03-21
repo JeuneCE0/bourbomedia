@@ -41,6 +41,7 @@
   <link rel="icon" type="image/jpeg" href="/favicon.jpg">
   <link rel="apple-touch-icon" href="/favicon.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -206,6 +207,66 @@
     }
     .feat .check { color: var(--orange); font-weight: 700; font-size: 1rem; }
 
+    /* ═══════════ TESTIMONIALS ═══════════ */
+    .testimonials {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: -28px;
+      margin-bottom: 48px;
+    }
+    .testimonial {
+      background: var(--night-mid);
+      border: 1px solid var(--night-border);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+    }
+    .testimonial-stars {
+      color: #F5A623;
+      font-size: .85rem;
+      margin-bottom: 8px;
+      letter-spacing: 2px;
+    }
+    .testimonial-text {
+      font-size: .88rem;
+      color: rgba(255,255,255,.85);
+      line-height: 1.55;
+      margin-bottom: 12px;
+      font-style: italic;
+    }
+    .testimonial-author {
+      font-size: .78rem;
+      color: var(--orange);
+      font-weight: 600;
+    }
+    .testimonial-role {
+      font-size: .72rem;
+      color: var(--text-muted);
+    }
+
+    /* ═══════════ PERSONALIZATION ═══════════ */
+    .perso-banner {
+      max-width: 720px;
+      margin: 0 auto 20px;
+      padding: 14px 20px;
+      background: linear-gradient(135deg, rgba(232,105,43,.12), rgba(232,105,43,.05));
+      border: 1px solid rgba(232,105,43,.2);
+      border-radius: var(--radius-sm);
+      text-align: center;
+      font-size: .9rem;
+      color: var(--white);
+      line-height: 1.5;
+      display: none;
+    }
+    .perso-banner strong { color: var(--orange); }
+
+    @media (max-width: 640px) {
+      .testimonials { grid-template-columns: 1fr; margin-top: -16px; margin-bottom: 36px; }
+    }
+
     /* ═══════════ FOOTER ═══════════ */
     footer {
       background: var(--night);
@@ -278,6 +339,8 @@
 <!-- ═══════════ BOOKING ═══════════ -->
 <section class="booking">
   <div class="booking-inner">
+    <!-- Personalization banner (hidden by default, shown via JS if quali data exists) -->
+    <div class="perso-banner" id="persoBanner"></div>
     <div class="booking-card">
       <div class="booking-card-header">
         <div class="booking-icon">
@@ -292,6 +355,8 @@
         <iframe
           src="https://api.leadconnectorhq.com/widget/booking/Lc0QRopqpKqER5Xecqhs"
           scrolling="no"
+          loading="lazy"
+          title="Calendrier de réservation — Appel gratuit avec Siméon"
           id="Lc0QRopqpKqER5Xecqhs_1773322608902"
         ></iframe>
       </div>
@@ -305,6 +370,22 @@
   </div>
 </section>
 
+<!-- ═══════════ TESTIMONIALS ═══════════ -->
+<section class="testimonials">
+  <div class="testimonial">
+    <div class="testimonial-stars">★★★★★</div>
+    <p class="testimonial-text">"En 2 semaines, on a eu plus de visites que sur tout le mois d'avant. La vidéo tourne encore et ramène du monde."</p>
+    <div class="testimonial-author">Marie P.</div>
+    <div class="testimonial-role">Restauratrice — Saint-Denis</div>
+  </div>
+  <div class="testimonial">
+    <div class="testimonial-stars">★★★★★</div>
+    <p class="testimonial-text">"Siméon a tout de suite compris ce qu'on voulait mettre en avant. L'appel m'a convaincu, et les résultats ont suivi."</p>
+    <div class="testimonial-author">Julien R.</div>
+    <div class="testimonial-role">Gérant boutique — Saint-Pierre</div>
+  </div>
+</section>
+
 <!-- ═══════════ FOOTER ═══════════ -->
 <footer>
   <div class="footer-links">
@@ -314,7 +395,49 @@
   <div class="footer-copy">Bourbon Média SAS &mdash; Tous droits réservés &mdash; 2026</div>
 </footer>
 
-<script src="https://link.msgsndr.com/js/form_embed.js" type="text/javascript"></script>
+<script src="https://link.msgsndr.com/js/form_embed.js" async></script>
+
+<!-- Personalization from qualification form -->
+<script>
+(function() {
+  try {
+    var raw = localStorage.getItem('bbp_quali');
+    if (!raw) return;
+    var d = JSON.parse(raw);
+    if (!d.name) return;
+
+    var prenom = d.name.split(' ')[0];
+    var banner = document.getElementById('persoBanner');
+
+    // Build personalized message
+    var msg = '<strong>' + prenom + '</strong>, vous êtes au bon endroit.';
+    if (d.commerceType) {
+      msg += ' En tant que <strong>' + d.commerceType.toLowerCase() + '</strong>';
+      if (d.ville) msg += ' à <strong>' + d.ville + '</strong>';
+      msg += ', Siméon a des idées concrètes pour vous.';
+    }
+    if (d.objectif) {
+      var objectifs = {
+        'Plus de clients en boutique': 'attirer plus de clients en boutique',
+        'Me faire connaître': 'développer votre notoriété',
+        'Lancer un nouveau produit/service': 'lancer votre nouveau produit',
+        'Autre': 'atteindre votre objectif'
+      };
+      var obj = objectifs[d.objectif] || d.objectif.toLowerCase();
+      msg += ' On parlera de comment <strong>' + obj + '</strong>.';
+    }
+
+    banner.innerHTML = msg;
+    banner.style.display = 'block';
+
+    // Also personalize the hero subtitle
+    var heroP = document.querySelector('.hero p');
+    if (heroP && d.commerceType) {
+      heroP.textContent = prenom + ', découvrez comment la vidéo BBP peut booster votre ' + d.commerceType.toLowerCase() + '.';
+    }
+  } catch(e) {}
+})();
+</script>
 
 </body>
 </html>
