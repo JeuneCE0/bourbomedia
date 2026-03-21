@@ -40,6 +40,7 @@
   <link rel="icon" type="image/jpeg" href="/favicon.jpg">
   <link rel="apple-touch-icon" href="/favicon.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://connect.facebook.net">
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -154,6 +155,12 @@
       transition: width .5s cubic-bezier(.4,0,.2,1);
       width: 0%;
     }
+    .progress-time {
+      text-align: center;
+      font-size: .72rem;
+      color: rgba(255,255,255,.35);
+      margin-top: 6px;
+    }
 
     /* ═══════════ FORM CONTAINER ═══════════ */
     .form-wrap {
@@ -175,6 +182,44 @@
       width: 400px; height: 200px;
       background: radial-gradient(ellipse, rgba(232,105,43,.06) 0%, transparent 70%);
       pointer-events: none;
+    }
+
+    /* ═══════════ TESTIMONIAL ═══════════ */
+    .testimonial {
+      max-width: 580px;
+      width: 100%;
+      margin-top: 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 18px 20px;
+      background: rgba(255,255,255,.02);
+      border: 1px solid var(--night-border);
+      border-radius: var(--radius-sm);
+    }
+    .testimonial-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--orange), var(--orange-light));
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 800; font-size: .85rem;
+      color: var(--white);
+      flex-shrink: 0;
+    }
+    .testimonial-body {
+      flex: 1;
+    }
+    .testimonial-text {
+      font-size: .82rem;
+      color: rgba(255,255,255,.5);
+      line-height: 1.5;
+      font-style: italic;
+    }
+    .testimonial-name {
+      font-size: .75rem;
+      color: rgba(255,255,255,.35);
+      margin-top: 4px;
+      font-weight: 600;
     }
 
     /* ═══════════ STEP LAYOUT ═══════════ */
@@ -229,13 +274,6 @@
     .form-textarea {
       min-height: 100px; resize: vertical;
     }
-    .char-counter {
-      font-size: .75rem; color: rgba(255,255,255,.3);
-      text-align: right; margin-top: 4px;
-      transition: color .3s ease;
-    }
-    .char-counter.valid { color: var(--green); }
-    .char-counter.invalid { color: var(--red); }
 
     /* ═══════════ RADIO OPTIONS ═══════════ */
     .radio-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
@@ -258,7 +296,12 @@
       border-color: var(--orange);
       background: rgba(232,105,43,.1);
     }
-    .radio-opt input { display: none; }
+    .radio-opt input {
+      position: absolute;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+    }
     .radio-dot {
       width: 20px; height: 20px; border-radius: 50%;
       border: 2px solid rgba(255,255,255,.2);
@@ -271,7 +314,7 @@
       background: var(--orange);
     }
     .radio-dot::after {
-      content: '✓'; font-size: .7rem; color: var(--white);
+      content: '\2713'; font-size: .7rem; color: var(--white);
       opacity: 0; transform: scale(0);
       transition: all .25s cubic-bezier(.34,1.56,.64,1);
     }
@@ -345,13 +388,13 @@
     .btn-next.loading span { display: none; }
 
     /* ═══════════ TRANSITION SCREEN ═══════════ */
-    .screen-transition, .screen-success, .screen-rejected {
+    .screen-transition {
       display: none;
       text-align: center;
       padding: 60px 24px;
       animation: fadeIn .5s ease-out;
     }
-    .screen-transition.active, .screen-success.active, .screen-rejected.active {
+    .screen-transition.active {
       display: block;
     }
     .analysis-list {
@@ -377,82 +420,6 @@
       border-color: var(--green);
       background: var(--green);
       animation: checkPop .5s cubic-bezier(.34,1.56,.64,1);
-    }
-
-    /* ═══════════ SUCCESS SCREEN ═══════════ */
-    .success-icon {
-      width: 80px; height: 80px; border-radius: 50%;
-      background: rgba(34,197,94,.15);
-      border: 2px solid var(--green);
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 24px;
-      font-size: 2.2rem;
-      animation: checkPop .6s cubic-bezier(.34,1.56,.64,1);
-    }
-    .success-title {
-      font-size: clamp(1.5rem, 4vw, 2rem);
-      font-weight: 800; color: var(--white);
-      margin-bottom: 12px;
-    }
-    .success-desc {
-      font-size: 1rem; color: rgba(255,255,255,.6);
-      max-width: 460px; margin: 0 auto 32px;
-      line-height: 1.6;
-    }
-    .btn-calendar {
-      display: inline-flex; align-items: center; gap: 10px;
-      padding: 18px 38px;
-      background: var(--orange);
-      border: none; border-radius: 100px;
-      color: var(--white);
-      font-family: 'Bricolage Grotesque', sans-serif;
-      font-weight: 800; font-size: 1.05rem;
-      text-decoration: none;
-      cursor: pointer;
-      box-shadow: 0 4px 24px rgba(232,105,43,.35);
-      transition: all .3s ease;
-    }
-    .btn-calendar:hover {
-      background: var(--orange-light);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 32px rgba(232,105,43,.45);
-    }
-    .btn-calendar svg { width: 18px; height: 18px; }
-
-    /* ═══════════ REJECTED SCREEN ═══════════ */
-    .rejected-icon {
-      width: 80px; height: 80px; border-radius: 50%;
-      background: rgba(214,48,48,.12);
-      border: 2px solid var(--red);
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 24px;
-      font-size: 2.2rem;
-    }
-    .rejected-title {
-      font-size: clamp(1.3rem, 3.5vw, 1.7rem);
-      font-weight: 800; color: var(--white);
-      margin-bottom: 12px;
-    }
-    .rejected-desc {
-      font-size: .95rem; color: rgba(255,255,255,.55);
-      max-width: 460px; margin: 0 auto 28px;
-      line-height: 1.6;
-    }
-    .btn-follow {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 14px 28px;
-      background: transparent;
-      border: 1.5px solid rgba(255,255,255,.2);
-      border-radius: 100px;
-      color: var(--white);
-      font-family: 'Bricolage Grotesque', sans-serif;
-      font-weight: 700; font-size: .9rem;
-      text-decoration: none;
-      transition: all .3s ease;
-    }
-    .btn-follow:hover {
-      border-color: var(--orange);
-      color: var(--orange);
     }
 
     /* ═══════════ FOOTER ═══════════ */
@@ -491,6 +458,7 @@
       .trust-bar { gap: 12px; padding: 10px 16px; }
       .btn-row { flex-direction: column-reverse; }
       .btn-back { text-align: center; }
+      .testimonial { padding: 14px 16px; }
     }
   </style>
   <script type="application/ld+json">
@@ -540,18 +508,20 @@
 <div class="trust-bar">
   <div class="trust-item"><div class="trust-dot"></div> 60+ commerces accompagnés</div>
   <div class="trust-item"><div class="trust-dot"></div> 100% gratuit</div>
-  <div class="trust-item"><div class="trust-dot"></div> Réponse en 24h</div>
+  <div class="trust-item"><div class="trust-dot"></div> Réponse immédiate</div>
+  <div class="trust-item"><div class="trust-dot"></div> <span id="urgencyCounter">8 commerçants ont fait leur demande cette semaine</span></div>
 </div>
 
 <!-- ═══════════ PROGRESS ═══════════ -->
 <div class="progress-section" id="progressSection">
   <div class="progress-header">
-    <span class="progress-step" id="progressStep">Étape 1/5</span>
-    <span class="progress-pct" id="progressPct">0%</span>
+    <span class="progress-step" id="progressStep">Étape 1/6</span>
+    <span class="progress-pct" id="progressPct">20%</span>
   </div>
   <div class="progress-bar">
     <div class="progress-fill" id="progressFill"></div>
   </div>
+  <div class="progress-time" id="progressTime">Encore ~1 minute</div>
 </div>
 
 <!-- ═══════════ FORM ═══════════ -->
@@ -561,40 +531,8 @@
     <!-- Honeypot -->
     <input type="text" name="website" id="honeypot" style="display:none" tabindex="-1" autocomplete="off">
 
-    <!-- ══ ÉTAPE 1 — CONTACT ══ -->
+    <!-- ══ ÉTAPE 1 — TYPE DE COMMERCE ══ -->
     <div class="step active" id="step1">
-      <div class="step-micro">Étape rapide — 30 secondes</div>
-      <h2>Vos coordonnées</h2>
-      <p class="step-desc">Pour que Siméon puisse vous recontacter.</p>
-
-      <div class="field">
-        <label for="fullName">Prénom et Nom</label>
-        <input type="text" class="form-input" id="fullName" placeholder="Ex : Marie Payet" autocomplete="name">
-        <div class="error-msg" id="errName"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Veuillez entrer votre prénom et nom</div>
-      </div>
-      <div class="field">
-        <label for="companyName">Nom de l'entreprise</label>
-        <input type="text" class="form-input" id="companyName" placeholder="Ex : Ti Case Créole" autocomplete="organization">
-        <div class="error-msg" id="errCompany"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Veuillez entrer le nom de votre entreprise</div>
-      </div>
-      <div class="field">
-        <label for="phone">Numéro de téléphone</label>
-        <input type="tel" class="form-input" id="phone" placeholder="0692 XX XX XX" autocomplete="tel">
-        <div class="error-msg" id="errPhone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Numéro invalide (8 à 15 chiffres)</div>
-      </div>
-      <div class="field">
-        <label for="email">Email</label>
-        <input type="email" class="form-input" id="email" placeholder="marie@email.com" autocomplete="email">
-        <div class="error-msg" id="errEmail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Adresse email invalide</div>
-      </div>
-
-      <div class="btn-row">
-        <button class="btn-next" onclick="nextStep(1)"><span>C'est parti</span></button>
-      </div>
-    </div>
-
-    <!-- ══ ÉTAPE 2 — TYPE DE COMMERCE ══ -->
-    <div class="step" id="step2">
       <div class="step-micro">Parlez-nous de vous</div>
       <h2>Quel est votre type de commerce ?</h2>
       <p class="step-desc">Pour adapter notre approche à votre activité.</p>
@@ -634,15 +572,14 @@
       <div class="error-msg" id="errCommerce"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Sélectionnez un type de commerce</div>
 
       <div class="btn-row">
-        <button class="btn-back" onclick="prevStep(2)">Retour</button>
-        <button class="btn-next" onclick="nextStep(2)"><span>Étape suivante</span></button>
+        <button class="btn-next" onclick="nextStep(1)"><span>C'est parti</span></button>
       </div>
     </div>
 
-    <!-- ══ ÉTAPE 3 — SITUATION ══ -->
-    <div class="step" id="step3">
+    <!-- ══ ÉTAPE 2 — VILLE + ANCIENNETÉ ══ -->
+    <div class="step" id="step2">
       <div class="step-micro">Quelques détails</div>
-      <h2>Votre situation actuelle</h2>
+      <h2>Où êtes-vous installé ?</h2>
       <p class="step-desc">Ces informations restent confidentielles.</p>
 
       <div class="field">
@@ -676,7 +613,18 @@
       </div>
       <div class="error-msg" id="errAnciennete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Sélectionnez une option</div>
 
-      <label style="display:block;font-size:.82rem;font-weight:600;color:rgba(255,255,255,.7);margin-bottom:8px;margin-top:10px;">Avez-vous déjà fait de la publicité en ligne ?</label>
+      <div class="btn-row">
+        <button class="btn-back" onclick="prevStep(2)">Retour</button>
+        <button class="btn-next" onclick="nextStep(2)"><span>Étape suivante</span></button>
+      </div>
+    </div>
+
+    <!-- ══ ÉTAPE 3 — EXPÉRIENCE PUB ══ -->
+    <div class="step" id="step3">
+      <div class="step-micro">Presque là</div>
+      <h2>Avez-vous déjà fait de la publicité ?</h2>
+      <p class="step-desc">Il n'y a pas de mauvaise réponse, c'est juste pour mieux vous accompagner.</p>
+
       <div class="radio-group" id="expPub">
         <label class="radio-opt" onclick="selectRadio(this)">
           <input type="radio" name="expPub" value="Oui déjà testé">
@@ -704,7 +652,7 @@
 
     <!-- ══ ÉTAPE 4 — OBJECTIF ══ -->
     <div class="step" id="step4">
-      <div class="step-micro">Dernière ligne droite</div>
+      <div class="step-micro">Votre projet</div>
       <h2>Quel est votre objectif ?</h2>
       <p class="step-desc">Siméon lira cette réponse avant votre appel.</p>
 
@@ -740,7 +688,7 @@
 
       <div class="btn-row">
         <button class="btn-back" onclick="prevStep(4)">Retour</button>
-        <button class="btn-next" onclick="nextStep(4)"><span>Dernière étape</span></button>
+        <button class="btn-next" onclick="nextStep(4)"><span>Étape suivante</span></button>
       </div>
     </div>
 
@@ -776,10 +724,52 @@
 
       <div class="btn-row">
         <button class="btn-back" onclick="prevStep(5)">Retour</button>
+        <button class="btn-next" onclick="nextStep(5)"><span>Plus qu'une étape</span></button>
+      </div>
+    </div>
+
+    <!-- ══ ÉTAPE 6 — COORDONNÉES ══ -->
+    <div class="step" id="step6">
+      <div class="step-micro">Dernière étape</div>
+      <h2>À qui Siméon doit-il envoyer la réponse ?</h2>
+      <p class="step-desc">Vos informations restent confidentielles et ne seront jamais partagées.</p>
+
+      <div class="field">
+        <label for="fullName">Prénom et Nom</label>
+        <input type="text" class="form-input" id="fullName" placeholder="Ex : Marie Payet" autocomplete="name">
+        <div class="error-msg" id="errName"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Veuillez entrer votre prénom et nom</div>
+      </div>
+      <div class="field">
+        <label for="companyName">Nom de l'entreprise</label>
+        <input type="text" class="form-input" id="companyName" placeholder="Ex : Ti Case Créole" autocomplete="organization">
+        <div class="error-msg" id="errCompany"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Veuillez entrer le nom de votre entreprise</div>
+      </div>
+      <div class="field">
+        <label for="phone">Numéro de téléphone</label>
+        <input type="tel" class="form-input" id="phone" placeholder="0692 XX XX XX" autocomplete="tel">
+        <div class="error-msg" id="errPhone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Numéro invalide (8 à 15 chiffres)</div>
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" class="form-input" id="email" placeholder="marie@email.com" autocomplete="email">
+        <div class="error-msg" id="errEmail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Adresse email invalide</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-back" onclick="prevStep(6)">Retour</button>
         <button class="btn-next" id="btnSubmit" onclick="submitForm()"><span>Vérifier mon éligibilité</span><div class="spinner"></div></button>
       </div>
     </div>
 
+  </div>
+
+  <!-- ══ TÉMOIGNAGE ══ -->
+  <div class="testimonial" id="testimonialBlock">
+    <div class="testimonial-avatar">NP</div>
+    <div class="testimonial-body">
+      <div class="testimonial-text">"J'ai rempli le formulaire en 2 minutes, réservé mon appel le jour même. Depuis, mon restaurant a gagné en visibilité, les clients me disent qu'ils m'ont trouvée grâce à la vidéo."</div>
+      <div class="testimonial-name">Nathalie P. — Restauratrice à Saint-Pierre</div>
+    </div>
   </div>
 
   <!-- ══ ÉCRAN TRANSITION ══ -->
@@ -811,7 +801,7 @@
   'use strict';
 
   var CONFIG = {
-    totalSteps: 5,
+    totalSteps: 6,
     proxyUrl: '/api/submit'
   };
 
@@ -819,12 +809,23 @@
   var formStartTime = Date.now();
   var formData = {};
 
-  // ── Progress bar ──
+  // ── Time remaining labels ──
+  var timeLabels = {
+    1: 'Encore ~1 minute',
+    2: 'Encore ~45 secondes',
+    3: 'Encore ~30 secondes',
+    4: 'Plus que 2 questions',
+    5: 'Plus qu\'une question',
+    6: 'Dernière étape !'
+  };
+
+  // ── Progress bar (starts at 20%) ──
   function updateProgress(step) {
-    var pct = Math.round(((step - 1) / CONFIG.totalSteps) * 100);
+    var pct = 20 + Math.round((step - 1) / CONFIG.totalSteps * 80);
     document.getElementById('progressFill').style.width = pct + '%';
     document.getElementById('progressPct').textContent = pct + '%';
     document.getElementById('progressStep').textContent = 'Étape ' + step + '/' + CONFIG.totalSteps;
+    document.getElementById('progressTime').textContent = timeLabels[step] || '';
   }
 
   // ── Radio selection ──
@@ -836,8 +837,6 @@
     el.classList.add('selected');
     el.querySelector('input').checked = true;
     // Hide error
-    var errId = group.id ? 'err' + group.id.charAt(0).toUpperCase() + group.id.slice(1) : null;
-    // Try common patterns
     group.parentElement.querySelectorAll('.error-msg').forEach(function(e) { e.classList.remove('show'); });
   };
 
@@ -856,10 +855,58 @@
   }
 
   // ── Step validation ──
+  // New order: 1=commerce, 2=ville+anciennete, 3=expPub, 4=objectif, 5=engagement, 6=contact
   function validateStep(step) {
     var valid = true;
 
     if (step === 1) {
+      var val = getRadioValue('commerceType');
+      clearError('errCommerce');
+      if (!val) { showError('errCommerce'); valid = false; }
+      else formData.commerceType = val;
+    }
+
+    if (step === 2) {
+      var ville = document.getElementById('ville').value.trim();
+      var anc = getRadioValue('anciennete');
+
+      clearError('errVille', 'ville');
+      clearError('errAnciennete');
+
+      if (!ville) { showError('errVille', 'ville'); valid = false; }
+      if (!anc) { showError('errAnciennete'); valid = false; }
+
+      if (valid) {
+        formData.ville = ville;
+        formData.anciennete = anc;
+      }
+    }
+
+    if (step === 3) {
+      var pub = getRadioValue('expPub');
+      clearError('errExpPub');
+      if (!pub) { showError('errExpPub'); valid = false; }
+      else formData.expPub = pub;
+    }
+
+    if (step === 4) {
+      var obj = getRadioValue('objectif');
+      clearError('errObjectif');
+      if (!obj) { showError('errObjectif'); valid = false; }
+      else {
+        formData.objectif = obj;
+        formData.detailObjectif = document.getElementById('detailObjectif').value.trim();
+      }
+    }
+
+    if (step === 5) {
+      var eng = getRadioValue('engagement');
+      clearError('errEngagement');
+      if (!eng) { showError('errEngagement'); valid = false; }
+      else formData.engagement = eng;
+    }
+
+    if (step === 6) {
       var name = document.getElementById('fullName').value.trim();
       var companyName = document.getElementById('companyName').value.trim();
       var phone = document.getElementById('phone').value.trim();
@@ -881,50 +928,6 @@
         formData.phone = phone;
         formData.email = email;
       }
-    }
-
-    if (step === 2) {
-      var val = getRadioValue('commerceType');
-      clearError('errCommerce');
-      if (!val) { showError('errCommerce'); valid = false; }
-      else formData.commerceType = val;
-    }
-
-    if (step === 3) {
-      var ville = document.getElementById('ville').value.trim();
-      var anc = getRadioValue('anciennete');
-      var pub = getRadioValue('expPub');
-
-      clearError('errVille', 'ville');
-      clearError('errAnciennete');
-      clearError('errExpPub');
-
-      if (!ville) { showError('errVille', 'ville'); valid = false; }
-      if (!anc) { showError('errAnciennete'); valid = false; }
-      if (!pub) { showError('errExpPub'); valid = false; }
-
-      if (valid) {
-        formData.ville = ville;
-        formData.anciennete = anc;
-        formData.expPub = pub;
-      }
-    }
-
-    if (step === 4) {
-      var obj = getRadioValue('objectif');
-      clearError('errObjectif');
-      if (!obj) { showError('errObjectif'); valid = false; }
-      else {
-        formData.objectif = obj;
-        formData.detailObjectif = document.getElementById('detailObjectif').value.trim();
-      }
-    }
-
-    if (step === 5) {
-      var eng = getRadioValue('engagement');
-      clearError('errEngagement');
-      if (!eng) { showError('errEngagement'); valid = false; }
-      else formData.engagement = eng;
     }
 
     return valid;
@@ -957,9 +960,9 @@
     updateProgress(currentStep);
   };
 
-  // ── Submit ──
+  // ── Submit (now on step 6) ──
   window.submitForm = function() {
-    if (!validateStep(5)) { scrollToFirstError(5); return; }
+    if (!validateStep(6)) { scrollToFirstError(6); return; }
 
     // Anti-spam
     if (document.getElementById('honeypot').value) return;
@@ -970,7 +973,7 @@
     btn.disabled = true;
 
     fbq('track', 'Lead');
-    fbq('trackCustom', 'StepCompleted', { step: 5 });
+    fbq('trackCustom', 'StepCompleted', { step: 6 });
 
     var isQualified = formData.engagement !== 'Non';
 
@@ -997,6 +1000,7 @@
   function showTransition(qualified) {
     document.getElementById('formCard').style.display = 'none';
     document.getElementById('progressSection').style.display = 'none';
+    document.getElementById('testimonialBlock').style.display = 'none';
     var screen = document.getElementById('screenTransition');
     screen.classList.add('active');
 
@@ -1007,7 +1011,7 @@
       setTimeout(function() {
         var el = document.getElementById(id);
         el.classList.add('done');
-        el.querySelector('.analysis-check').textContent = '✓';
+        el.querySelector('.analysis-check').textContent = '\u2713';
       }, delays[i]);
     });
 
@@ -1022,6 +1026,16 @@
     }, 6200);
   }
 
+  // ── Urgency counter (stable per week, 7-9) ──
+  (function() {
+    var now = new Date();
+    var startOfYear = new Date(now.getFullYear(), 0, 1);
+    var weekNumber = Math.floor(((now - startOfYear) / 86400000 + startOfYear.getDay()) / 7);
+    var count = 7 + (weekNumber % 3); // 7, 8 or 9 — stable for the whole week
+    var el = document.getElementById('urgencyCounter');
+    if (el) el.textContent = count + ' commerçants ont fait leur demande cette semaine';
+  })();
+
   // ── Init ──
   updateProgress(1);
 
@@ -1032,6 +1046,23 @@
       var errEl = this.parentElement.querySelector('.error-msg');
       if (errEl) errEl.classList.remove('show');
     });
+  });
+
+  // ── Navigation clavier (Enter) ──
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      var activeEl = document.activeElement;
+      // Don't trigger on textarea or buttons
+      if (activeEl && activeEl.tagName === 'TEXTAREA') return;
+      if (activeEl && activeEl.tagName === 'BUTTON') return;
+
+      e.preventDefault();
+      if (currentStep < CONFIG.totalSteps) {
+        nextStep(currentStep);
+      } else {
+        submitForm();
+      }
+    }
   });
 
 })();

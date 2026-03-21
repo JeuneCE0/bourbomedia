@@ -142,14 +142,6 @@
       margin-right: auto;
     }
     .hero h1 .hl { color: var(--orange); }
-    .hero p {
-      position: relative;
-      font-size: 1.05rem;
-      color: var(--white);
-      line-height: 1.6;
-      max-width: 520px;
-      margin: 0 auto;
-    }
 
     /* ═══════════ BOOKING SECTION ═══════════ */
     .booking {
@@ -250,16 +242,27 @@
     /* ═══════════ PERSONALIZATION ═══════════ */
     .perso-banner {
       max-width: 720px;
-      margin: 0 auto 20px;
-      padding: 14px 20px;
-      background: linear-gradient(135deg, rgba(232,105,43,.12), rgba(232,105,43,.05));
-      border: 1px solid rgba(232,105,43,.2);
-      border-radius: var(--radius-sm);
+      margin: 0 auto 24px;
+      padding: 20px 28px;
+      background: linear-gradient(135deg, rgba(232,105,43,.1) 0%, rgba(37,26,15,.95) 100%);
+      border: 1px solid rgba(232,105,43,.25);
+      border-radius: var(--radius);
       text-align: center;
-      font-size: .9rem;
+      font-size: .95rem;
       color: var(--white);
-      line-height: 1.5;
+      line-height: 1.6;
       display: none;
+      box-shadow: 0 4px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
+      position: relative;
+      overflow: hidden;
+    }
+    .perso-banner::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--orange), transparent);
+      opacity: .6;
     }
     .perso-banner strong { color: var(--orange); }
 
@@ -336,8 +339,7 @@
 <!-- ═══════════ HERO ═══════════ -->
 <section class="hero">
   <div class="hero-badge">Appel gratuit</div>
-  <h1>Réservez votre appel avec <span class="hl">Siméon</span></h1>
-  <p>Siméon vous dira comment la vidéo découverte BourbonBonsPlans peut vous apporter des résultats.</p>
+  <h1 id="heroTitle">Réservez votre appel avec <span class="hl">Siméon</span></h1>
 </section>
 
 <!-- ═══════════ BOOKING ═══════════ -->
@@ -434,11 +436,13 @@
     banner.innerHTML = msg;
     banner.style.display = 'block';
 
-    // Also personalize the hero subtitle
-    var heroP = document.querySelector('.hero p');
-    if (heroP && d.commerceType) {
-      heroP.textContent = prenom + ', découvrez comment la vidéo BBP peut booster votre ' + d.commerceType.toLowerCase() + '.';
+    // Personalize the H1 with first name
+    var heroTitle = document.getElementById('heroTitle');
+    if (heroTitle) {
+      heroTitle.innerHTML = '<span class="hl">' + prenom + '</span>, réservez votre appel avec <span class="hl">Siméon</span>';
     }
+
+
   } catch(e) {}
 })();
 </script>

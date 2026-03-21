@@ -22,7 +22,7 @@
   /></noscript>
   <!-- End Meta Pixel Code -->
   <title>Nos Bons Plans — BourbonMédia</title>
-  <meta name="robots" content="noindex, nofollow">
+  <!-- meta robots removed for SEO indexation -->
   <meta name="description" content="Découvrez tous les bons plans de La Réunion mis en avant par Bourbon Bons Plans. Restaurants, boutiques, activités, hébergements et plus encore.">
   <!-- Open Graph -->
   <meta property="og:type" content="website">
@@ -45,7 +45,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet JS moved to bottom of body for non-blocking render -->
   <style>
 /* ============================================================
    BOURBON BONS PLANS — REVAMP STYLESHEET
@@ -378,7 +378,8 @@
       background: transparent;
       cursor: pointer;
       transition: all var(--t-base);
-      overflow: hidden;
+      overflow: visible;
+      min-width: 0;
       -webkit-tap-highlight-color: transparent;
     }
     /* Left orange bar */
@@ -408,12 +409,14 @@
 
     .biz-card-meta {
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      min-width: 0;
     }
     .biz-card-cat {
       display: inline-flex; align-items: center; gap: 4px;
       font-size: .65rem; font-weight: 700; text-transform: uppercase;
       letter-spacing: .05em; color: var(--text-muted);
       transition: color var(--t-base);
+      white-space: nowrap; flex-shrink: 0;
     }
     .biz-card:hover .biz-card-cat, .biz-card.active .biz-card-cat { color: var(--orange); }
     .biz-card-city {
@@ -423,9 +426,11 @@
     .biz-card-city svg { width: 10px; height: 10px; }
     .biz-card-name {
       font-family: 'Bricolage Grotesque', sans-serif;
-      font-size: .9rem; font-weight: 700; color: var(--text);
-      line-height: 1.25; transition: color var(--t-base);
+      font-size: .88rem; font-weight: 700; color: var(--text);
+      line-height: 1.3; transition: color var(--t-base);
       word-wrap: break-word; overflow-wrap: break-word;
+      hyphens: auto; -webkit-hyphens: auto;
+      min-width: 0;
     }
     .biz-card:hover .biz-card-name, .biz-card.active .biz-card-name { color: var(--white); }
     .biz-card-result {
@@ -802,13 +807,16 @@
       pointer-events: none;
     }
     .biz-modal-close {
-      position: absolute; top: 13px; right: 13px;
-      width: 30px; height: 30px; border-radius: 50%;
+      position: absolute; top: 8px; right: 8px;
+      width: 44px; height: 44px; min-width: 44px; min-height: 44px;
+      border-radius: 50%;
       background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.2);
-      color: var(--white); font-size: 1rem; cursor: pointer;
+      color: var(--white); font-size: 1.2rem; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: background var(--t-base), transform var(--t-spring);
-      z-index: 1;
+      z-index: 10;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
     .biz-modal-close:hover { background: rgba(255,255,255,.3); transform: scale(1.1) rotate(90deg); }
     .biz-modal-cat {
@@ -1008,7 +1016,7 @@
       .biz-card-result { -webkit-line-clamp: 1; }
 
       .map-container {
-        order: 1; position: static;
+        order: 1; position: relative;
         height: 60vmin; min-height: 320px; max-height: 500px;
         border-radius: 0; margin: 0; overflow: hidden;
         border: none; box-shadow: none;
@@ -1038,6 +1046,119 @@
       .hero-stat + .hero-stat { border-left: none; }
     }
 
+    /* ── BIZ CARD ACTIVE PRESS (micro-interaction) ── */
+    .biz-card:active {
+      transform: scale(0.98) !important;
+      transition-duration: 0.08s;
+    }
+
+    /* ── FLOATING CTA (global, hors modale) ── */
+    .floating-cta {
+      position: absolute;
+      bottom: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 1000;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 28px;
+      background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+      color: var(--white);
+      border-radius: var(--radius-pill);
+      text-decoration: none;
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: .88rem; font-weight: 700;
+      box-shadow: 0 6px 32px var(--orange-glow-lg), 0 2px 12px rgba(0,0,0,.4);
+      transition: all var(--t-base);
+      animation: fade-in-up .6s ease both;
+      animation-delay: 1.5s;
+      white-space: nowrap;
+    }
+    .floating-cta:hover {
+      transform: translateX(-50%) translateY(-3px);
+      box-shadow: 0 8px 40px var(--orange-glow-lg), 0 4px 18px rgba(0,0,0,.5);
+      background: linear-gradient(135deg, var(--orange-light), var(--orange));
+    }
+    .floating-cta svg { width: 16px; height: 16px; }
+
+    /* ── MODAL CTA STICKY ── */
+    .biz-modal-cta {
+      position: sticky;
+      bottom: 0;
+      background: var(--night-card);
+      padding: 16px 24px 20px !important;
+      margin: 0 -24px -28px !important;
+      z-index: 10;
+      border-top: 1px solid var(--border) !important;
+      box-shadow: 0 -8px 24px rgba(26,16,8,.9);
+    }
+
+    /* ── MODAL NAVIGATION ARROWS ── */
+    .biz-modal-nav {
+      position: absolute; top: 50%; z-index: 2010;
+      transform: translateY(-50%);
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur-sm);
+      -webkit-backdrop-filter: var(--glass-blur-sm);
+      border: 1px solid var(--glass-border);
+      color: var(--text-mid);
+      font-size: 1.2rem; font-weight: 700;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--t-base);
+    }
+    .biz-modal-nav:hover {
+      background: var(--orange); color: var(--white);
+      border-color: var(--orange);
+      box-shadow: 0 4px 18px var(--orange-glow-md);
+    }
+    .biz-modal-nav.prev { left: -56px; }
+    .biz-modal-nav.next { right: -56px; }
+    .biz-modal-nav svg { width: 18px; height: 18px; }
+
+    /* ── SIDEBAR EMPTY: reset button ── */
+    .sidebar-empty-reset {
+      margin-top: 8px;
+      padding: 9px 20px;
+      background: var(--orange);
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius-pill);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: .8rem; font-weight: 700;
+      cursor: pointer;
+      transition: all var(--t-base);
+    }
+    .sidebar-empty-reset:hover {
+      background: var(--orange-light);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 14px var(--orange-glow-md);
+    }
+
+    /* ── MOBILE: scroll fade indicator on sidebar ── */
+    @media (max-width: 768px) {
+      .sidebar-list-wrap {
+        position: relative;
+      }
+      .sidebar-list-wrap::after {
+        display: block !important;
+        content: '' !important;
+        position: absolute; right: 0; top: 0; bottom: 0;
+        width: 48px;
+        background: linear-gradient(to right, transparent, var(--night-mid)) !important;
+        height: auto !important;
+        pointer-events: none; z-index: 3;
+      }
+      .sidebar-list-wrap::before { display: none !important; }
+
+      /* Modal nav arrows on mobile — inside modal */
+      .biz-modal-nav.prev { left: 8px; top: auto; bottom: 90px; transform: none; }
+      .biz-modal-nav.next { right: 8px; top: auto; bottom: 90px; transform: none; }
+      .biz-modal-nav { width: 36px; height: 36px; opacity: .8; }
+
+      /* Floating CTA smaller on mobile */
+      .floating-cta { font-size: .8rem; padding: 12px 22px; bottom: 16px; }
+    }
+
     @media (min-width: 1400px) {
       :root { --sidebar-width: 380px; }
     }
@@ -1062,7 +1183,7 @@
   <section class="hero">
     <div class="hero-inner">
       <div class="hero-badge"><span class="dot"></span> Mis à jour régulièrement</div>
-      <h1>Les <span class="highlight">Bourbon Bons Plans</span></h1>
+      <h1>Les <span class="highlight">Bourbon Bons Plans</span> de La Réunion</h1>
       <p class="hero-subtitle" id="heroSubtitle">&nbsp;</p>
 
       <!-- Stats row — populated by JS -->
@@ -1085,7 +1206,7 @@
       <div class="sidebar-filters" id="sidebarFilters"></div>
       <!-- Count + sort row -->
       <div class="sidebar-header" style="padding:16px 18px 10px;">
-        <div class="sidebar-count"><span id="sidebarCountNum">0</span> résultats</div>
+        <h2 class="sidebar-count" style="margin:0;"><span id="sidebarCountNum">0</span> résultats</h2>
         <div class="sidebar-sort" id="sidebarSort">
           <button class="sidebar-sort-btn active" data-sort="default">Récents</button>
           <button class="sidebar-sort-btn" data-sort="views">Top vues</button>
@@ -1135,17 +1256,28 @@
         </div>
         <div id="leafletMap"></div>
       </div>
+      <!-- FLOATING CTA -->
+      <a href="/qualification" target="_blank" rel="noopener" class="floating-cta" id="floatingCta">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Vous êtes commerçant ? Boostez votre visibilité
+      </a>
     </div>
 
   </section>
 
   <!-- BUSINESS MODAL -->
   <div class="biz-modal-overlay" id="bizModalOverlay">
+    <button class="biz-modal-nav prev" id="modalPrev" aria-label="Commerce précédent">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <button class="biz-modal-nav next" id="modalNext" aria-label="Commerce suivant">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+    </button>
     <div class="biz-modal" id="bizModal">
       <div class="biz-modal-header">
         <button class="biz-modal-close" id="bizModalClose" aria-label="Fermer">&times;</button>
         <div class="biz-modal-cat" id="modalCat"></div>
-        <div class="biz-modal-name" id="modalName"></div>
+        <h2 class="biz-modal-name" id="modalName" style="margin:0;"></h2>
         <div class="biz-modal-city" id="modalCity"></div>
       </div>
       <div class="biz-modal-body">
@@ -1156,11 +1288,12 @@
         <!-- CTA -->
         <div class="biz-modal-cta">
           <p>Vous aussi, boostez votre visibilité</p>
-          <a href="/" class="biz-modal-cta-btn">Vérifier mon éligibilité &rarr;</a>
+          <a href="/qualification" target="_blank" rel="noopener" class="biz-modal-cta-btn">Je veux être mis en avant &rarr;</a>
         </div>
       </div>
     </div>
   </div>
+
 
   <!-- FOOTER -->
   <footer class="footer">
@@ -1168,6 +1301,7 @@
     <p>Bourbon Média SAS — <a href="/mentions-legales">Mentions légales</a> · <a href="/politique-de-confidentialite">Confidentialité</a></p>
   </footer>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
   'use strict';
@@ -1299,11 +1433,13 @@
     var subtitleEl = document.getElementById('heroSubtitle');
     /* Hero stat boxes */
     var statsEl = document.getElementById('heroStats');
+    var totalViews = businesses.reduce(function (sum, b) { return sum + (b.views || 0); }, 0);
+    var totalViewsDisplay = Math.round(totalViews / 1000000 * 10) / 10; /* in millions */
     var statDefs = [
-      { label: 'Clients',    target: businesses.length },
-      { label: 'Villes',     target: uniqueCityCount },
-      { label: 'Catégories', target: catCount },
-      { label: 'Insta',      target: businesses.filter(function(b){ return b.instagram; }).length }
+      { label: 'Clients',    target: businesses.length,  suffix: '' },
+      { label: 'Villes',     target: uniqueCityCount,    suffix: '' },
+      { label: 'Vues totales', target: totalViewsDisplay, suffix: 'M', decimals: 1 },
+      { label: 'Catégories', target: catCount,           suffix: '' }
     ];
     var statEls = [];
     statsEl.innerHTML = '';
@@ -1319,7 +1455,21 @@
     /* Animate each stat */
     statDefs.forEach(function(s, i) {
       setTimeout(function() {
-        animateCount(0, s.target, 1000, function(v) { statEls[i].textContent = v; });
+        if (s.decimals) {
+          /* Animate with decimal (e.g. 5.6M) */
+          var steps = 60;
+          var step = 0;
+          var interval = setInterval(function () {
+            step++;
+            var progress = step / steps;
+            var eased = progress < .5 ? 2 * progress * progress : -1 + (4 - 2 * progress) * progress;
+            var val = (s.target * eased).toFixed(1);
+            statEls[i].textContent = val + s.suffix;
+            if (step >= steps) clearInterval(interval);
+          }, 1000 / steps);
+        } else {
+          animateCount(0, s.target, 1000, function(v) { statEls[i].textContent = v + s.suffix; });
+        }
       }, i * 150);
     });
 
@@ -1598,7 +1748,10 @@
     if (filtered.length === 0) {
       var empty = document.createElement('div');
       empty.className = 'sidebar-empty';
-      empty.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Aucun résultat';
+      empty.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>' +
+        '<p>Aucun résultat</p>' +
+        '<p style="font-size:.78rem;">Essayez un autre terme ou explorez toutes les catégories</p>' +
+        '<button class="sidebar-empty-reset" id="resetFiltersBtn">Réinitialiser les filtres</button>';
       frag.appendChild(empty);
       sidebarListEl.innerHTML = '';
       sidebarListEl.appendChild(frag);
@@ -1654,7 +1807,7 @@
             b.city +
           '</span>' +
         '</div>' +
-        '<div class="biz-card-name">' + b.name + '</div>' +
+        '<h3 class="biz-card-name">' + b.name + '</h3>' +
         badgesHtml +
         '<div class="biz-card-result">' + b.result + '</div>' +
         socialsHtml;
@@ -1811,6 +1964,129 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') closeBizModal();
   });
+
+  /* ════════════════════════════════════════════════════
+     RESET FILTERS BUTTON (empty state)
+  ════════════════════════════════════════════════════ */
+  sidebarListEl.addEventListener('click', function (e) {
+    if (e.target.id === 'resetFiltersBtn' || e.target.closest('#resetFiltersBtn')) {
+      state.activeCat = 'all';
+      state.searchQuery = '';
+      state.activeCardIdx = -1;
+      searchInput.value = '';
+      searchClear.classList.remove('visible');
+      syncFilterActive();
+      renderAll();
+      map.flyTo(initialCenter, initialZoom, { duration: .8 });
+    }
+  });
+
+  /* ════════════════════════════════════════════════════
+     MODAL NAVIGATION (prev/next arrows + keyboard)
+  ════════════════════════════════════════════════════ */
+  var currentModalBiz = null;
+  var currentModalIdx = -1;
+
+  var origOpenBizModal = openBizModal;
+  openBizModal = function (b, idx) {
+    currentModalBiz = b;
+    currentModalIdx = idx;
+    origOpenBizModal(b, idx);
+  };
+
+  function navigateModal(dir) {
+    var filtered = getFiltered();
+    if (filtered.length === 0) return;
+    /* Find current position in filtered list */
+    var currentFilteredIdx = -1;
+    for (var i = 0; i < filtered.length; i++) {
+      if (businesses.indexOf(filtered[i]) === currentModalIdx) {
+        currentFilteredIdx = i;
+        break;
+      }
+    }
+    var newIdx = currentFilteredIdx + dir;
+    if (newIdx < 0) newIdx = filtered.length - 1;
+    if (newIdx >= filtered.length) newIdx = 0;
+    var newBiz = filtered[newIdx];
+    var newOrigIdx = businesses.indexOf(newBiz);
+    state.activeCardIdx = newOrigIdx;
+    document.querySelectorAll('.biz-card').forEach(function (c) {
+      c.classList.toggle('active', parseInt(c.dataset.idx, 10) === newOrigIdx);
+    });
+    openBizModal(newBiz, newOrigIdx);
+  }
+
+  document.getElementById('modalPrev').addEventListener('click', function (e) {
+    e.stopPropagation();
+    navigateModal(-1);
+  });
+  document.getElementById('modalNext').addEventListener('click', function (e) {
+    e.stopPropagation();
+    navigateModal(1);
+  });
+
+  /* Keyboard: left/right arrows when modal open */
+  document.addEventListener('keydown', function (e) {
+    if (!modalOverlay.classList.contains('open')) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); navigateModal(-1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); navigateModal(1); }
+  });
+
+  /* ════════════════════════════════════════════════════
+     SWIPE-DOWN TO CLOSE MODAL (mobile)
+  ════════════════════════════════════════════════════ */
+  (function () {
+    var modal = document.getElementById('bizModal');
+    var startY = 0;
+    var currentY = 0;
+    var swiping = false;
+
+    modal.addEventListener('touchstart', function (e) {
+      /* Only trigger on the handle area (top 40px) */
+      var rect = modal.getBoundingClientRect();
+      var touchY = e.touches[0].clientY - rect.top;
+      if (touchY > 40) return;
+      if (modal.scrollTop > 0) return;
+      startY = e.touches[0].clientY;
+      swiping = true;
+    }, { passive: true });
+
+    modal.addEventListener('touchmove', function (e) {
+      if (!swiping) return;
+      currentY = e.touches[0].clientY;
+      var diff = currentY - startY;
+      if (diff > 0) {
+        modal.style.transform = 'translateY(' + diff + 'px)';
+      }
+    }, { passive: true });
+
+    modal.addEventListener('touchend', function () {
+      if (!swiping) return;
+      swiping = false;
+      var diff = currentY - startY;
+      if (diff > 100) {
+        closeBizModal();
+      }
+      modal.style.transform = '';
+    }, { passive: true });
+  })();
+
+  /* ════════════════════════════════════════════════════
+     HIDE FLOATING CTA WHEN MODAL OPEN
+  ════════════════════════════════════════════════════ */
+  var floatingCta = document.getElementById('floatingCta');
+  var origOpen = modalOverlay.classList.add.bind(modalOverlay.classList);
+  /* Use MutationObserver to track modal open/close */
+  new MutationObserver(function () {
+    if (modalOverlay.classList.contains('open')) {
+      floatingCta.style.opacity = '0';
+      floatingCta.style.pointerEvents = 'none';
+    } else {
+      floatingCta.style.opacity = '';
+      floatingCta.style.pointerEvents = '';
+    }
+  }).observe(modalOverlay, { attributes: true, attributeFilter: ['class'] });
 
   /* ════════════════════════════════════════════════════
      RENDER ALL

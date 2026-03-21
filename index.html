@@ -2064,6 +2064,11 @@
   var timer;
 
   function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function prep(mot, ville) {
+    if (ville.indexOf('Le ') === 0) return (mot === 'de' ? 'du ' : 'au ') + ville.slice(3);
+    if (ville.indexOf('Les ') === 0) return (mot === 'de' ? 'des ' : 'aux ') + ville.slice(4);
+    return mot + ' ' + ville;
+  }
 
   function showToast() {
     if (dismissed) return;
@@ -2072,7 +2077,10 @@
     var ville = pick(villes);
     var t = pick(temps);
 
-    textEl.innerHTML = msg.replace('{prenom}', prenom).replace('{ville}', ville);
+    var filled = msg.replace('{prenom}', prenom)
+      .replace('de {ville}', prep('de', ville))
+      .replace('à {ville}', prep('à', ville));
+    textEl.innerHTML = filled;
     timeEl.textContent = t;
 
     toast.classList.remove('hide');
