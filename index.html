@@ -32,6 +32,7 @@
   <link rel="icon" type="image/jpeg" href="/favicon.jpg">
   <link rel="apple-touch-icon" href="/favicon.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -69,7 +70,9 @@
       --radius-xs: 8px;
     }
 
-    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: no-preference) {
+      html { scroll-behavior: smooth; }
+    }
 
     body {
       font-family: 'Instrument Sans', -apple-system, sans-serif;
@@ -1100,7 +1103,7 @@
     .footer-disclaimer {
       max-width: 600px; margin: 16px auto 0; padding-top: 16px;
       border-top: 1px solid rgba(255,255,255,.08);
-      color: rgba(255,255,255,.4); font-size: .65rem; line-height: 1.6;
+      color: rgba(255,255,255,.5); font-size: .72rem; line-height: 1.6;
     }
 
     /* ═══════════ ANIMATIONS ═══════════ */
@@ -1156,7 +1159,7 @@
       box-shadow: 0 8px 40px rgba(0,0,0,.15), 0 2px 8px rgba(0,0,0,.08);
       transform: translateX(-120%);
       opacity: 0;
-      transition: transform 3s cubic-bezier(.22,1,.36,1), opacity 3s ease;
+      transition: transform .55s cubic-bezier(.22,1,.36,1), opacity .4s ease;
       max-width: 340px;
       border: 1px solid rgba(0,0,0,.06);
       pointer-events: auto;
@@ -1231,7 +1234,7 @@
     @media (max-width: 640px) {
       .hero h1 { font-size: 1.6rem; }
       .hero-bubble { transform: scale(.6); opacity: .5; }
-      .hero-bubble--3, .hero-bubble--7, .hero-bubble--8 { display: none; }
+      .hero-bubble--3, .hero-bubble--4, .hero-bubble--5, .hero-bubble--6, .hero-bubble--7, .hero-bubble--8 { display: none; }
       .compare-others { grid-template-columns: 1fr; max-width: 340px; margin-left: auto; margin-right: auto; }
       .hero-proof { gap: 0; }
       .hero-proof-item { padding: 0 16px; }
@@ -1254,6 +1257,59 @@
       .engagement-table { font-size: .82rem; }
       .engagement-table th, .engagement-table td { padding: 10px 12px; }
     }
+    /* ═══════════ STICKY MOBILE CTA ═══════════ */
+    .mobile-sticky-cta {
+      display: none;
+      position: fixed; bottom: 0; left: 0; right: 0;
+      z-index: 998;
+      padding: 12px 16px;
+      padding-bottom: calc(12px + env(safe-area-inset-bottom));
+      background: rgba(26,16,8,.92);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid rgba(232,105,43,.2);
+      transform: translateY(100%);
+      transition: transform .4s cubic-bezier(.22,1,.36,1);
+    }
+    .mobile-sticky-cta.visible { transform: translateY(0); }
+    .mobile-sticky-cta a {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 16px 24px;
+      background: var(--orange); color: var(--white);
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 800; font-size: 1rem;
+      border-radius: 100px; text-decoration: none;
+      box-shadow: 0 4px 24px rgba(232,105,43,.4);
+      transition: all .3s ease;
+    }
+    .mobile-sticky-cta a:active { transform: scale(.97); }
+    .mobile-sticky-cta a svg { width: 16px; height: 16px; }
+    @media (min-width: 641px) { .mobile-sticky-cta { display: none !important; } }
+    @media (max-width: 640px) { .mobile-sticky-cta { display: block; } }
+
+    /* ═══════════ SENJA SKELETON ═══════════ */
+    .senja-skeleton {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;
+      padding: 16px 0;
+    }
+    .senja-skeleton-card {
+      background: rgba(0,0,0,.04);
+      border-radius: var(--radius-sm);
+      height: 180px;
+      position: relative; overflow: hidden;
+    }
+    .senja-skeleton-card::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 30%, rgba(232,105,43,.06) 50%, transparent 70%);
+      background-size: 200% 100%;
+      animation: senja-shimmer 1.8s ease-in-out infinite;
+    }
+    @keyframes senja-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .senja-embed[data-loaded="true"] + .senja-skeleton { display: none; }
+
   </style>
 </head>
 <body>
@@ -1449,6 +1505,11 @@
     <div class="showcase reveal">
       <div class="showcase-title">Nos dernières vidéos — imaginez la vôtre</div>
       <div class="senja-embed" data-id="bbf8f06d-7db5-4fab-8397-064cca552dda" data-mode="shadow" data-lazyload="false" style="display: block; width: 100%;"></div>
+      <div class="senja-skeleton">
+        <div class="senja-skeleton-card"></div>
+        <div class="senja-skeleton-card"></div>
+        <div class="senja-skeleton-card"></div>
+      </div>
     </div>
 
     <!-- Calculateur mental -->
@@ -1523,14 +1584,14 @@
       <div class="cases-main">
         <div class="case-card clickable" data-video-id="f967860e-1fb4-4fe2-aa67-9fc1b2e9dbf7">
           <div class="name">💎 Sousou Access</div>
-          <div class="result">+40 000€ de CA</div>
+          <div class="result"><span class="case-num" data-target="40000" data-prefix="+" data-suffix="€ de CA" data-format="space">+40 000€ de CA</span></div>
           <div class="detail">en 30 jours — plus de 1 000 ventes</div>
 
           <div class="watch-label"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Voir la vidéo</div>
         </div>
         <div class="case-card clickable" data-video-id="357ba5b3-be03-4a11-804e-a46c16490b1e">
           <div class="name">🧗 Crazy Adventures</div>
-          <div class="result">+10 000€ de CA</div>
+          <div class="result"><span class="case-num" data-target="10000" data-prefix="+" data-suffix="€ de CA" data-format="space">+10 000€ de CA</span></div>
           <div class="detail">en 14 jours — +1M de vues en 45 jours</div>
 
           <div class="watch-label"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Voir la vidéo</div>
@@ -1796,7 +1857,7 @@
       rotatingEl.offsetHeight; // reflow
       rotatingEl.textContent = words[wordIndex];
       rotatingEl.style.animation = 'wordFadeIn .5s ease both';
-    }, 1500);
+    }, 2500);
   }
 
   // Video popup for case cards
@@ -1847,6 +1908,53 @@
   const reachEl = document.querySelector('.reach-block');
   if (reachEl) reachObs.observe(reachEl);
 
+  // Case-card count-up animation
+  const casesObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.case-num[data-target]').forEach(animateCount);
+        casesObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.3 });
+  const casesEl = document.querySelector('.cases-main');
+  if (casesEl) casesObs.observe(casesEl);
+
+  // Mobile sticky CTA — show after scrolling 50% of the page
+  (function() {
+    var stickyCta = document.getElementById('mobileStickyCta');
+    if (!stickyCta || window.innerWidth > 640) return;
+    var shown = false;
+    window.addEventListener('scroll', function() {
+      var scrollPct = window.scrollY / (document.body.scrollHeight - window.innerHeight);
+      if (scrollPct > 0.35 && !shown) {
+        stickyCta.classList.add('visible');
+        shown = true;
+      }
+    }, { passive: true });
+    // Hide when modal is open
+    var modalObs = new MutationObserver(function() {
+      var anyModalOpen = document.querySelector('.modal-overlay.open, .video-popup-overlay.open');
+      stickyCta.style.display = anyModalOpen ? 'none' : '';
+    });
+    var body = document.body;
+    modalObs.observe(body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  })();
+
+  // Senja skeleton — hide when widget loads
+  (function() {
+    var skeletons = document.querySelectorAll('.senja-skeleton');
+    if (!skeletons.length) return;
+    var checkLoaded = setInterval(function() {
+      skeletons.forEach(function(sk) {
+        var prev = sk.previousElementSibling;
+        if (prev && prev.querySelector('iframe, .senja-frame, [data-loaded]')) {
+          sk.style.display = 'none';
+        }
+      });
+    }, 1000);
+    setTimeout(function() { clearInterval(checkLoaded); skeletons.forEach(function(s) { s.style.display = 'none'; }); }, 10000);
+  })();
 
 </script>
 
@@ -1927,6 +2035,14 @@
   setTimeout(showToast, 3000 + Math.random() * 2000);
 })();
 </script>
+
+<!-- ═══════════ MOBILE STICKY CTA ═══════════ -->
+<div class="mobile-sticky-cta" id="mobileStickyCta">
+  <a href="/qualification/">
+    Vérifier mon éligibilité
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+  </a>
+</div>
 
 </body>
 </html>
