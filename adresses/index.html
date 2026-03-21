@@ -1045,8 +1045,7 @@
 
     /* ── FLOATING CTA (global, hors modale) ── */
     .floating-cta {
-      position: absolute;
-      bottom: 24px; left: 50%; transform: translateX(-50%);
+      position: fixed;
       z-index: 1000;
       display: inline-flex; align-items: center; gap: 8px;
       padding: 14px 28px;
@@ -1057,13 +1056,12 @@
       font-family: 'Instrument Sans', sans-serif;
       font-size: .88rem; font-weight: 700;
       box-shadow: 0 6px 32px var(--orange-glow-lg), 0 2px 12px rgba(0,0,0,.4);
-      transition: all var(--t-base);
+      transition: opacity var(--t-base), box-shadow var(--t-base), background var(--t-base);
       animation: fade-in-up .6s ease both;
       animation-delay: 1.5s;
       white-space: nowrap;
     }
     .floating-cta:hover {
-      transform: translateX(-50%) translateY(-3px);
       box-shadow: 0 8px 40px var(--orange-glow-lg), 0 4px 18px rgba(0,0,0,.5);
       background: linear-gradient(135deg, var(--orange-light), var(--orange));
     }
@@ -2061,6 +2059,21 @@
       floatingCta.style.pointerEvents = '';
     }
   }).observe(modalOverlay, { attributes: true, attributeFilter: ['class'] });
+
+  /* ════════════════════════════════════════════════════
+     POSITION FLOATING CTA CENTERED ON LEAFLET MAP
+  ════════════════════════════════════════════════════ */
+  function positionFloatingCta() {
+    var mapEl = document.getElementById('leafletMap');
+    if (!mapEl || !floatingCta) return;
+    var rect = mapEl.getBoundingClientRect();
+    var ctaRect = floatingCta.getBoundingClientRect();
+    floatingCta.style.left = (rect.left + rect.width / 2 - ctaRect.width / 2) + 'px';
+    floatingCta.style.bottom = (window.innerHeight - rect.bottom + 24) + 'px';
+  }
+  positionFloatingCta();
+  window.addEventListener('resize', positionFloatingCta);
+  window.addEventListener('scroll', positionFloatingCta);
 
   /* ════════════════════════════════════════════════════
      RENDER ALL
