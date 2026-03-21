@@ -430,25 +430,33 @@
       to { opacity: 0; transform: scale(.95); }
     }
 
-    /* ── INTERACTIVE MAP (LEAFLET) ── */
+    /* ── INTERACTIVE MAP (LEAFLET) — HERO MAP ── */
     .map-section {
-      max-width: 900px; margin: 0 auto 40px;
-      padding: 0 24px;
+      max-width: 100%; margin: 0 0 48px;
+      padding: 0;
+      position: relative;
     }
     .map-section h2 {
       font-family: 'Bricolage Grotesque', sans-serif;
-      font-size: 1.3rem; font-weight: 700;
+      font-size: 1.5rem; font-weight: 800;
       margin-bottom: 16px; text-align: center;
+      padding: 0 24px;
     }
     .map-section h2 span { color: var(--orange); }
+    .map-section .map-subtitle {
+      text-align: center; color: var(--text-muted);
+      font-size: .9rem; margin-bottom: 20px;
+      padding: 0 24px;
+    }
     .map-wrap {
       position: relative;
-      border-radius: var(--radius);
       overflow: hidden;
-      border: 1px solid var(--night-border);
+      border-top: 1px solid var(--night-border);
+      border-bottom: 1px solid var(--night-border);
     }
     #leafletMap {
-      width: 100%; height: 420px;
+      width: 100%; height: 70vh;
+      min-height: 500px; max-height: 750px;
       background: var(--night-card);
     }
     /* Toggle satellite / carte */
@@ -634,11 +642,11 @@
       border-radius: var(--radius-sm);
       overflow: hidden;
       border: 1px solid var(--night-border);
-      background: #000;
+      background: var(--night);
       margin-bottom: 18px;
     }
     .biz-modal-embed iframe {
-      width: 100%; height: 480px;
+      width: 100%; min-height: 400px;
       border: none; display: block;
     }
 
@@ -708,8 +716,9 @@
       .filters { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
       .filter-pill { flex-shrink: 0; }
       .results-info { padding: 0 16px; }
-      .map-section { padding: 0 16px; }
-      #leafletMap { height: 320px; }
+      .map-section h2 { font-size: 1.2rem; padding: 0 16px; }
+      .map-section .map-subtitle { padding: 0 16px; font-size: .82rem; }
+      #leafletMap { height: 55vh; min-height: 380px; }
     }
   </style>
 </head>
@@ -731,6 +740,20 @@
     <p>Tous les commerces mis en avant par Bourbon Bons Plans. Trouvez votre prochain coup de coeur.</p>
   </section>
 
+  <!-- INTERACTIVE MAP — HERO -->
+  <section class="map-section">
+    <h2>Explorez nos <span>clients</span> sur La Réunion</h2>
+    <p class="map-subtitle">Cliquez sur une épingle pour découvrir le commerce et les résultats obtenus</p>
+    <div class="map-stats" id="mapStats"></div>
+    <div class="map-wrap">
+      <div class="map-toggle">
+        <button id="btnMapStreet" class="active">Carte</button>
+        <button id="btnMapSat">Satellite</button>
+      </div>
+      <div id="leafletMap"></div>
+    </div>
+  </section>
+
   <!-- SEARCH + FILTERS -->
   <div class="controls">
     <div class="search-wrap">
@@ -750,19 +773,6 @@
   </div>
 
   <div class="results-info" id="resultsInfo"></div>
-
-  <!-- INTERACTIVE MAP -->
-  <section class="map-section">
-    <h2>Nos clients sur <span>La Réunion</span></h2>
-    <div class="map-stats" id="mapStats"></div>
-    <div class="map-wrap">
-      <div class="map-toggle">
-        <button id="btnMapStreet" class="active">Carte</button>
-        <button id="btnMapSat">Satellite</button>
-      </div>
-      <div id="leafletMap"></div>
-    </div>
-  </section>
 
   <!-- BUSINESS MODAL -->
   <div class="biz-modal-overlay" id="bizModalOverlay">
@@ -797,34 +807,34 @@
 
   /* ── DATA ── */
   var businesses = [
-    { name: "Sousou Access", cat: "boutique", city: "Saint-Denis", address: "30 Rue Maréchal Leclerc, 97400 Saint-Denis", instagram: "sousou_access", tiktok: null, result: "+40 000€ de CA en 30 jours — +1 000 ventes" },
-    { name: "Crazy Adventures", cat: "activite", city: "Saint-Leu", address: "Saint-Leu, La Réunion", instagram: "crazy_adventures_reunion", tiktok: null, result: "+10 000€ de CA en 14 jours — +1M de vues en 45 jours" },
-    { name: "Memphis Burger", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, result: "80% des commandes du lendemain venaient de la vidéo" },
-    { name: "Jungle à Pat'", cat: "activite", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: "jungle_a_pat", tiktok: null, result: "+900 000 vues en 15 jours — rentabilisé en moins de 24h" },
-    { name: "La Crème de la Crêpe", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: "lacremedelacrepe974", tiktok: null, result: "+5 000 abonnés en 30 jours — complètement débordés" },
-    { name: "Le Mazéniène", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: "lemazeniene", tiktok: null, result: "+500 000 vues sur Instagram — impact visible dès la 1ère semaine" },
-    { name: "Tropic Appart'Hôtel", cat: "hebergement", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: "tropicapparthotel", tiktok: null, result: "+100 000 vues — période de vacances remplie" },
-    { name: "Fraises & Compagnie", cat: "gourmandise", city: "Plaine des Cafres", address: "Plaine des Cafres, La Réunion", instagram: "fraises_et_compagnie974", tiktok: null, result: "Afflux de visiteurs après la vidéo" },
-    { name: "Maison GAC", cat: "gourmandise", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: "maison_gac", tiktok: null, result: "Glacier artisan découvert par des milliers de Réunionnais" },
-    { name: "Popeline Vintage", cat: "boutique", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: "popeline.vintage", tiktok: null, result: "Boutique prise d'assaut après la vidéo BBP" },
-    { name: "Pizza Cosy", cat: "restaurant", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: null, tiktok: null, result: "Commandes explosées après la mise en avant" },
-    { name: "Trapèze Studio", cat: "activite", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, result: "Inscriptions en forte hausse" },
-    { name: "Le Madison", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, result: "Restaurant complet les jours suivant la vidéo" },
-    { name: "Poké Run", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, result: "File d'attente dès le lendemain de la vidéo" },
-    { name: "Les Dalons", cat: "restaurant", city: "Saint-Gilles", address: "Saint-Gilles-les-Bains, La Réunion", instagram: null, tiktok: null, result: "Visibilité locale décuplée" },
-    { name: "La Saint-Georges", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, result: "Découvert par une nouvelle clientèle" },
-    { name: "Kazaoké", cat: "activite", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, result: "Réservations en hausse immédiate" },
-    { name: "La Bonne Maison", cat: "gourmandise", city: "Le Tampon", address: "Le Tampon, La Réunion", instagram: null, tiktok: null, result: "Afflux de curieux après la vidéo" },
-    { name: "Coliver", cat: "hebergement", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: null, tiktok: null, result: "Taux d'occupation en hausse" },
-    { name: "Alidou", cat: "boutique", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, result: "Visibilité boostée sur les réseaux" },
-    { name: "La Baie des Anges", cat: "hebergement", city: "Saint-Gilles", address: "Saint-Gilles-les-Bains, La Réunion", instagram: null, tiktok: null, result: "Réservations boostées en saison" },
-    { name: "Le Gourmand", cat: "restaurant", city: "Saint-André", address: "Saint-André, La Réunion", instagram: null, tiktok: null, result: "Notoriété locale renforcée" },
-    { name: "Le Paradoxe", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, result: "Clientèle élargie grâce à BBP" },
-    { name: "Chez Kisbee", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, result: "Découvert par des milliers de personnes" },
-    { name: "The Donuts Island", cat: "gourmandise", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, result: "Ventes doublées la semaine suivante" },
-    { name: "Kaloubadia", cat: "boutique", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: null, tiktok: null, result: "Boutique mise en lumière" },
-    { name: "Terre de Running", cat: "boutique", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, result: "Communauté engagée après la vidéo" },
-    { name: "Nonna Luisa", cat: "restaurant", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: "nonnaluisa.re", tiktok: null, result: "Pizzeria prise d'assaut après la vidéo BBP" }
+    { name: "Sousou Access", cat: "boutique", city: "Saint-Denis", address: "30 Rue Maréchal Leclerc, 97400 Saint-Denis", instagram: "sousou_access", tiktok: null, senja: null, result: "+40 000€ de CA en 30 jours — +1 000 ventes" },
+    { name: "Crazy Adventures", cat: "activite", city: "Saint-Leu", address: "Saint-Leu, La Réunion", instagram: "crazy_adventures_reunion", tiktok: null, senja: null, result: "+10 000€ de CA en 14 jours — +1M de vues en 45 jours" },
+    { name: "Memphis Burger", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, senja: null, result: "80% des commandes du lendemain venaient de la vidéo" },
+    { name: "Jungle à Pat'", cat: "activite", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: "jungle_a_pat", tiktok: null, senja: null, result: "+900 000 vues en 15 jours — rentabilisé en moins de 24h" },
+    { name: "La Crème de la Crêpe", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: "lacremedelacrepe974", tiktok: null, senja: null, result: "+5 000 abonnés en 30 jours — complètement débordés" },
+    { name: "Le Mazéniène", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: "lemazeniene", tiktok: null, senja: null, result: "+500 000 vues sur Instagram — impact visible dès la 1ère semaine" },
+    { name: "Tropic Appart'Hôtel", cat: "hebergement", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: "tropicapparthotel", tiktok: null, senja: null, result: "+100 000 vues — période de vacances remplie" },
+    { name: "Fraises & Compagnie", cat: "gourmandise", city: "Plaine des Cafres", address: "Plaine des Cafres, La Réunion", instagram: "fraises_et_compagnie974", tiktok: null, senja: null, result: "Afflux de visiteurs après la vidéo" },
+    { name: "Maison GAC", cat: "gourmandise", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: "maison_gac", tiktok: null, senja: null, result: "Glacier artisan découvert par des milliers de Réunionnais" },
+    { name: "Popeline Vintage", cat: "boutique", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: "popeline.vintage", tiktok: null, senja: null, result: "Boutique prise d'assaut après la vidéo BBP" },
+    { name: "Pizza Cosy", cat: "restaurant", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: null, tiktok: null, senja: null, result: "Commandes explosées après la mise en avant" },
+    { name: "Trapèze Studio", cat: "activite", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Inscriptions en forte hausse" },
+    { name: "Le Madison", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Restaurant complet les jours suivant la vidéo" },
+    { name: "Poké Run", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, senja: null, result: "File d'attente dès le lendemain de la vidéo" },
+    { name: "Les Dalons", cat: "restaurant", city: "Saint-Gilles", address: "Saint-Gilles-les-Bains, La Réunion", instagram: null, tiktok: null, senja: null, result: "Visibilité locale décuplée" },
+    { name: "La Saint-Georges", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Découvert par une nouvelle clientèle" },
+    { name: "Kazaoké", cat: "activite", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, senja: null, result: "Réservations en hausse immédiate" },
+    { name: "La Bonne Maison", cat: "gourmandise", city: "Le Tampon", address: "Le Tampon, La Réunion", instagram: null, tiktok: null, senja: null, result: "Afflux de curieux après la vidéo" },
+    { name: "Coliver", cat: "hebergement", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: null, tiktok: null, senja: null, result: "Taux d'occupation en hausse" },
+    { name: "Alidou", cat: "boutique", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Visibilité boostée sur les réseaux" },
+    { name: "La Baie des Anges", cat: "hebergement", city: "Saint-Gilles", address: "Saint-Gilles-les-Bains, La Réunion", instagram: null, tiktok: null, senja: null, result: "Réservations boostées en saison" },
+    { name: "Le Gourmand", cat: "restaurant", city: "Saint-André", address: "Saint-André, La Réunion", instagram: null, tiktok: null, senja: null, result: "Notoriété locale renforcée" },
+    { name: "Le Paradoxe", cat: "restaurant", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, senja: null, result: "Clientèle élargie grâce à BBP" },
+    { name: "Chez Kisbee", cat: "restaurant", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Découvert par des milliers de personnes" },
+    { name: "The Donuts Island", cat: "gourmandise", city: "Saint-Pierre", address: "Saint-Pierre, La Réunion", instagram: null, tiktok: null, senja: null, result: "Ventes doublées la semaine suivante" },
+    { name: "Kaloubadia", cat: "boutique", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: null, tiktok: null, senja: null, result: "Boutique mise en lumière" },
+    { name: "Terre de Running", cat: "boutique", city: "Saint-Denis", address: "Saint-Denis, La Réunion", instagram: null, tiktok: null, senja: null, result: "Communauté engagée après la vidéo" },
+    { name: "Nonna Luisa", cat: "restaurant", city: "Saint-Paul", address: "Saint-Paul, La Réunion", instagram: "nonnaluisa.re", tiktok: null, senja: null, result: "Pizzeria prise d'assaut après la vidéo BBP" }
   ];
 
   var categories = [
@@ -1108,14 +1118,14 @@
     }
     linksEl.innerHTML = linksHtml;
 
-    /* Instagram Embed */
+    /* Senja Video Embed */
     var embedEl = document.getElementById('modalEmbed');
-    if (b.instagram) {
+    if (b.senja) {
       embedEl.innerHTML =
-        '<div class="biz-modal-section-title">Profil Instagram</div>' +
+        '<div class="biz-modal-section-title">Vidéo témoignage</div>' +
         '<div class="biz-modal-embed">' +
-        '<iframe src="https://www.instagram.com/' + b.instagram + '/embed" ' +
-        'loading="lazy" allowtransparency="true" scrolling="no"></iframe>' +
+        '<iframe src="' + b.senja + '" ' +
+        'loading="lazy" allow="autoplay; fullscreen" allowfullscreen></iframe>' +
         '</div>';
     } else {
       embedEl.innerHTML = '';
