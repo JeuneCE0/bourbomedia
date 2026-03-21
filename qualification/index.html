@@ -926,9 +926,19 @@
     return valid;
   }
 
+  // ── Scroll to first error ──
+  function scrollToFirstError(step) {
+    var stepEl = document.getElementById('step' + step);
+    var firstErr = stepEl.querySelector('.error-msg.show');
+    if (firstErr) {
+      firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
   // ── Navigation ──
   window.nextStep = function(step) {
-    if (!validateStep(step)) return;
+    if (!validateStep(step)) { scrollToFirstError(step); return; }
+    fbq('trackCustom', 'StepCompleted', { step: step });
     document.getElementById('step' + step).classList.remove('active');
     currentStep = step + 1;
     document.getElementById('step' + currentStep).classList.add('active');
@@ -945,7 +955,7 @@
 
   // ── Submit ──
   window.submitForm = function() {
-    if (!validateStep(5)) return;
+    if (!validateStep(5)) { scrollToFirstError(5); return; }
 
     // Anti-spam
     if (document.getElementById('honeypot').value) return;
@@ -955,33 +965,26 @@
     btn.classList.add('loading');
     btn.disabled = true;
 
-    var isQualified = formData.engagement !== 'Non';
+    fbq('track', 'Lead');
+    fbq('trackCustom', 'StepCompleted', { step: 5 });
 
-    // Send to proxy (avoids CORS issues with GHL API)
-    var payload = JSON.stringify(formData);
-    console.log('Sending to /api/submit:', payload);
+    var isQualified = formData.engagement !== 'Non';
 
     fetch(CONFIG.proxyUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: payload
+      body: JSON.stringify(formData)
     })
-    .then(function(res) {
-      console.log('Response status:', res.status);
-      return res.text();
-    })
+    .then(function(res) { return res.text(); })
     .then(function(text) {
-      console.log('Response body:', text);
       try {
         var result = JSON.parse(text);
         showTransition(result.qualified !== undefined ? result.qualified : isQualified);
       } catch(e) {
-        console.error('Parse error:', e, 'Raw:', text);
         showTransition(isQualified);
       }
     })
-    .catch(function(err) {
-      console.error('Fetch error:', err);
+    .catch(function() {
       showTransition(isQualified);
     });
   };
