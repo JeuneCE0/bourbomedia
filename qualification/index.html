@@ -456,6 +456,7 @@
       .form-card { padding: 28px 20px; }
       .radio-grid { grid-template-columns: 1fr; }
       .trust-bar { gap: 12px; padding: 10px 16px; }
+      .trust-gratuit { display: none; }
       .btn-row { flex-direction: column-reverse; }
       .btn-back { text-align: center; }
       .testimonial { padding: 14px 16px; }
@@ -507,7 +508,7 @@
 <!-- ═══════════ TRUST BAR ═══════════ -->
 <div class="trust-bar">
   <div class="trust-item"><div class="trust-dot"></div> 60+ commerces accompagnés</div>
-  <div class="trust-item"><div class="trust-dot"></div> 100% gratuit</div>
+  <div class="trust-item trust-gratuit"><div class="trust-dot"></div> 100% gratuit</div>
   <div class="trust-item"><div class="trust-dot"></div> Réponse immédiate</div>
   <div class="trust-item"><div class="trust-dot"></div> <span id="urgencyCounter">8 commerçants ont fait leur demande cette semaine</span></div>
 </div>
@@ -838,6 +839,10 @@
     el.querySelector('input').checked = true;
     // Hide error
     group.parentElement.querySelectorAll('.error-msg').forEach(function(e) { e.classList.remove('show'); });
+    // Auto-advance on step 1 (type de commerce)
+    if (currentStep === 1) {
+      setTimeout(function() { nextStep(1); }, 350);
+    }
   };
 
   // ── Validation helpers ──
