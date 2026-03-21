@@ -1007,7 +1007,7 @@
       /* ── SIDEBAR — masquée sur mobile ── */
       .sidebar { display: none; }
 
-      /* ── FLOATING CTA — icon-only centered on mobile ── */
+      /* ── FLOATING CTA — icon-only centered, expands on tap ── */
       .floating-cta {
         position: fixed !important;
         bottom: 20px !important;
@@ -1021,9 +1021,22 @@
         justify-content: center;
         align-items: center;
         z-index: 1500;
+        overflow: hidden;
+        transition: width .35s ease, height .35s ease, border-radius .35s ease, padding .35s ease;
       }
-      .floating-cta svg { width: 22px !important; height: 22px !important; }
-      .floating-cta .floating-cta-text { display: none; }
+      .floating-cta svg { width: 22px !important; height: 22px !important; flex-shrink: 0; }
+      .floating-cta .floating-cta-text {
+        display: none;
+        white-space: nowrap;
+        font-size: .82rem;
+      }
+      .floating-cta.expanded {
+        width: auto !important; height: auto !important;
+        border-radius: 100px !important;
+        padding: 14px 24px !important;
+        gap: 10px;
+      }
+      .floating-cta.expanded .floating-cta-text { display: inline; }
 
       /* ── MODAL — bottom sheet ── */
       .biz-modal-overlay { align-items: flex-end; padding: 0; }
@@ -1552,7 +1565,7 @@
   });
 
   var initialCenter = [-21.115, 55.535];
-  var initialZoom = isMobile ? 9.6 : 10.5;
+  var initialZoom = isMobile ? 9.4 : 10.5;
 
   var map = L.map('leafletMap', {
     center: initialCenter,
@@ -2125,6 +2138,26 @@
       floatingCta.style.pointerEvents = '';
     }
   }).observe(modalOverlay, { attributes: true, attributeFilter: ['class'] });
+
+  /* ════════════════════════════════════════════════════
+     FLOATING CTA — EXPAND ON FIRST TAP (mobile only)
+  ════════════════════════════════════════════════════ */
+  if (isMobile && floatingCta) {
+    var ctaExpanded = false;
+    var collapseTimer;
+    floatingCta.addEventListener('click', function (e) {
+      if (!ctaExpanded) {
+        e.preventDefault();
+        floatingCta.classList.add('expanded');
+        ctaExpanded = true;
+        clearTimeout(collapseTimer);
+        collapseTimer = setTimeout(function () {
+          floatingCta.classList.remove('expanded');
+          ctaExpanded = false;
+        }, 4000);
+      }
+    });
+  }
 
   /* ════════════════════════════════════════════════════
      POSITION FLOATING CTA CENTERED ON LEAFLET MAP
