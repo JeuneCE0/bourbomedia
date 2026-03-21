@@ -105,7 +105,7 @@
       --glass-blur-sm:      blur(10px);
     }
 
-    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; overflow-x: hidden; }
 
     body {
       font-family: 'Instrument Sans', -apple-system, sans-serif;
@@ -966,16 +966,22 @@
     }
 
     /* ── RESPONSIVE — MOBILE ── */
-    @media (max-width: 768px) {
-      .hero { padding: calc(var(--header-height) + 20px) 18px 20px; }
-      .hero h1 { font-size: clamp(1.6rem, 7vw, 2.2rem); }
-      .hero-stat { padding: 0 14px; }
-      .hero-stat-value { font-size: 1.25rem; }
-      .hero-stat-label { font-size: .62rem; }
+    @media (max-width: 900px) {
+      /* ── HERO ── */
+      .hero { padding: calc(var(--header-height) + 24px) 20px 24px; }
+      .hero h1 { font-size: clamp(1.6rem, 6.5vw, 2.2rem); margin-bottom: 14px; }
+      .hero-badge { font-size: .76rem; padding: 7px 16px; margin-bottom: 14px; }
+      .hero-stat { padding: 0 16px; }
+      .hero-stat-value { font-size: 1.3rem; }
+      .hero-stat-label { font-size: .65rem; }
+      .hero-stats { margin-bottom: 20px; }
       .search-bar { max-width: 100%; }
-      .search-bar input { padding: 12px 18px 12px 42px; font-size: .85rem; }
+      .search-bar input { padding: 14px 20px 14px 44px; font-size: .88rem; }
 
+      /* ── LAYOUT ── */
       .main-content { flex-direction: column; padding: 0 0 28px; gap: 0; }
+
+      /* ── SIDEBAR ── */
       .sidebar {
         width: 100%; position: static; height: auto;
         border: none; border-radius: 0;
@@ -985,6 +991,12 @@
         order: 2; max-height: none;
         overflow: visible;
       }
+      .sidebar-header {
+        padding: 12px 16px 6px !important;
+      }
+      .sidebar-count { font-size: .72rem; }
+      .sidebar-count span { font-size: .85rem; }
+      .sidebar-sort-btn { font-size: .68rem; padding: 5px 12px; }
       .sidebar-list-wrap {
         overflow: visible;
       }
@@ -993,20 +1005,20 @@
         display: flex; flex-direction: row; height: auto;
         overflow-x: auto; overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
-        padding: 4px 10px 12px; gap: 8px;
+        padding: 6px 16px 14px; gap: 10px;
         scrollbar-width: none;
         scroll-snap-type: x mandatory;
-        scroll-padding: 0 10px;
+        scroll-padding: 0 16px;
       }
       .sidebar-list::-webkit-scrollbar { display: none; }
       .biz-card {
-        min-width: 220px; max-width: 240px;
+        min-width: 230px; max-width: 260px;
         flex-shrink: 0; transform: none !important;
         scroll-snap-align: start;
         border: 1px solid var(--border);
         border-radius: var(--radius);
         background: var(--night-card);
-        padding: 12px 14px;
+        padding: 14px 16px;
       }
       .biz-card:hover, .biz-card.active { transform: translateY(-3px) !important; }
       .biz-card::before {
@@ -1014,11 +1026,15 @@
         transform: translateX(-50%); border-radius: 0 0 3px 3px;
       }
       .biz-card:hover::before, .biz-card.active::before { width: 55%; height: 3px; }
-      .biz-card-result { -webkit-line-clamp: 1; }
+      .biz-card-name { font-size: .9rem; }
+      .biz-card-result { -webkit-line-clamp: 2; font-size: .76rem; }
+      .biz-card-cat { font-size: .67rem; }
+      .biz-card-city { font-size: .72rem; }
 
+      /* ── MAP ── */
       .map-container {
         order: 1; position: relative;
-        height: 55vmin; min-height: 280px; max-height: 420px;
+        height: 48vh; min-height: 280px; max-height: 440px;
         border-radius: 0; margin: 0;
         overflow: visible;
         border: none; box-shadow: none;
@@ -1029,63 +1045,153 @@
 
       /* Map filters — scrollable, smaller on mobile */
       .map-filters-wrap {
+        top: 10px;
         max-width: calc(100% - 16px);
         left: 50%; transform: translateX(-50%);
       }
-      .map-filter-btn { font-size: .68rem; padding: 5px 9px; }
+      .map-filters { padding: 4px; gap: 3px; }
+      .map-filter-btn { font-size: .7rem; padding: 6px 10px; }
 
       /* Map controls repositioned for mobile */
-      .map-recenter { bottom: 48px; left: 8px; font-size: .68rem; padding: 6px 10px; }
-      .map-toggle { bottom: 8px; right: 8px; }
-      .map-toggle button { font-size: .68rem; padding: 4px 10px; }
+      .map-recenter { bottom: 52px; left: 10px; font-size: .7rem; padding: 7px 12px; }
+      .map-recenter svg { width: 14px; height: 14px; }
+      .map-toggle { bottom: 10px; right: 10px; }
+      .map-toggle button { font-size: .7rem; padding: 5px 11px; }
 
-      /* Floating CTA — smaller text, centered by JS */
+      /* ── FLOATING CTA — fixed bottom on mobile ── */
       .floating-cta {
-        font-size: .75rem; padding: 11px 18px;
-        max-width: calc(100vw - 32px);
-        white-space: normal; text-align: center;
-        line-height: 1.3;
+        position: fixed !important;
+        bottom: 16px !important;
+        left: 16px !important;
+        right: 16px !important;
+        width: auto !important;
+        max-width: none !important;
+        justify-content: center;
+        text-align: center;
+        font-size: .8rem;
+        padding: 13px 20px;
+        white-space: normal;
+        line-height: 1.35;
+        z-index: 1500;
       }
 
-      /* Modal as bottom sheet */
+      /* ── MODAL — bottom sheet ── */
       .biz-modal-overlay { align-items: flex-end; padding: 0; }
       .biz-modal {
-        max-width: 100%; width: 100%; max-height: 88vh;
+        max-width: 100%; width: 100%; max-height: 90vh;
         border-radius: var(--radius-lg) var(--radius-lg) 0 0;
         transform: translateY(100%) scale(1);
       }
       .biz-modal-overlay.open .biz-modal { transform: translateY(0) scale(1); }
+      /* Handle bar */
       .biz-modal::before {
         content: ''; display: block;
-        width: 40px; height: 4px; border-radius: 2px;
-        background: var(--border-md); margin: 10px auto -4px;
+        width: 40px; height: 5px; border-radius: 3px;
+        background: rgba(255,255,255,.2);
+        margin: 10px auto 6px;
+        cursor: grab;
       }
-      .biz-modal-header { padding: 20px 20px 18px; }
+      .biz-modal-header { padding: 16px 20px 18px; }
+      .biz-modal-close {
+        width: 44px; height: 44px;
+        min-width: 44px; min-height: 44px;
+        top: 8px; right: 8px;
+        font-size: 1.3rem;
+      }
       .biz-modal-name { font-size: 1.25rem; }
-      .biz-modal-body { padding: 16px 20px 24px; }
-      .biz-modal-embed iframe { min-height: 300px; }
-      .biz-modal-reels iframe { min-height: 420px; }
+      .biz-modal-cat { font-size: .7rem; }
+      .biz-modal-city { font-size: .85rem; }
+      .biz-modal-body { padding: 18px 20px 24px; }
+      .biz-modal-result { font-size: .84rem; padding: 12px 14px; }
+      .biz-modal-address { font-size: .82rem; }
+      .biz-modal-link { font-size: .8rem; padding: 10px 14px; }
+      .biz-modal-embed iframe { min-height: 280px; }
+      .biz-modal-reels iframe { min-height: 400px; }
 
       /* Modal CTA sticky — adjust margins for mobile body padding */
       .biz-modal-cta {
-        padding: 14px 20px 18px !important;
+        padding: 14px 20px calc(env(safe-area-inset-bottom, 0px) + 18px) !important;
         margin: 0 -20px -24px !important;
       }
+      .biz-modal-cta p { font-size: .78rem; }
+      .biz-modal-cta-btn { font-size: .84rem; padding: 13px 22px; }
 
-      /* Sidebar empty state — ensure reset button visible */
+      /* ── MODAL NAV ARROWS ── */
+      .biz-modal-nav {
+        position: fixed;
+        width: 40px; height: 40px;
+        min-width: 44px; min-height: 44px;
+        top: auto; bottom: 50%;
+        transform: none;
+        opacity: .85;
+        z-index: 2020;
+      }
+      .biz-modal-nav.prev { left: 6px; }
+      .biz-modal-nav.next { right: 6px; }
+
+      /* ── SIDEBAR EMPTY STATE ── */
       .sidebar-empty {
         padding: 24px 16px;
-        min-width: 220px;
+        min-width: 230px;
         flex-shrink: 0;
       }
+      .sidebar-empty p { font-size: .82rem; }
+
+      /* ── FOOTER ── */
+      .footer { padding: 24px 20px; }
+      .footer p { font-size: .74rem; line-height: 1.5; }
+
+      /* ── LEAFLET ZOOM CONTROL ── */
+      .leaflet-control-zoom { transform: scale(0.9); transform-origin: top right; }
     }
 
+    /* ── SMALL SCREENS (iPhone SE, etc.) ── */
     @media (max-width: 480px) {
-      .hero-stats { flex-wrap: wrap; row-gap: 10px; }
+      .hero { padding: calc(var(--header-height) + 18px) 16px 20px; }
+      .hero h1 { font-size: clamp(1.45rem, 7vw, 1.9rem); }
+      .hero-badge { font-size: .72rem; padding: 6px 14px; }
+      .hero-stats { flex-wrap: wrap; row-gap: 10px; gap: 0; }
       .hero-stat + .hero-stat { border-left: none; }
-      .hero-stat { padding: 0 12px; }
+      .hero-stat { padding: 0 12px; flex: 0 0 33.33%; }
+      .hero-stat-value { font-size: 1.15rem; }
+      .hero-stat-label { font-size: .6rem; }
+      .search-bar input { padding: 12px 18px 12px 40px; font-size: .85rem; }
 
-      .biz-card { min-width: 200px; max-width: 220px; }
+      .header { padding: 0 16px; }
+      .header-logo { font-size: 1.05rem; }
+      .header-count { font-size: .7rem; }
+
+      .biz-card { min-width: 200px; max-width: 230px; padding: 12px 14px; }
+      .biz-card-name { font-size: .86rem; }
+      .sidebar-list { padding: 6px 12px 14px; gap: 8px; }
+
+      .map-container { height: 45vh; min-height: 250px; max-height: 380px; }
+      .map-filter-btn { font-size: .65rem; padding: 5px 8px; }
+
+      .floating-cta { font-size: .76rem; padding: 12px 16px; bottom: 12px !important; left: 12px !important; right: 12px !important; }
+
+      .biz-modal-name { font-size: 1.15rem; }
+      .biz-modal-header { padding: 14px 16px 16px; }
+      .biz-modal-body { padding: 16px 16px 20px; }
+      .biz-modal-cta {
+        padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
+        margin: 0 -16px -20px !important;
+      }
+      .biz-modal-link { font-size: .78rem; padding: 9px 12px; }
+      .biz-modal-links { gap: 6px; }
+      .biz-modal-embed iframe { min-height: 240px; }
+      .biz-modal-reels iframe { min-height: 360px; }
+    }
+
+    /* ── VERY SMALL SCREENS (320px) ── */
+    @media (max-width: 360px) {
+      .hero h1 { font-size: 1.35rem; }
+      .hero-stat { flex: 0 0 33.33%; padding: 0 8px; }
+      .hero-stat-value { font-size: 1.05rem; }
+      .biz-card { min-width: 180px; max-width: 210px; }
+      .map-filter-btn { font-size: .62rem; padding: 4px 7px; }
+      .floating-cta { font-size: .72rem; padding: 11px 14px; }
+      .biz-modal-name { font-size: 1.05rem; }
     }
 
     /* ── BIZ CARD ACTIVE PRESS (micro-interaction) ── */
@@ -1175,7 +1281,7 @@
     }
 
     /* ── MOBILE: scroll fade indicator on sidebar ── */
-    @media (max-width: 768px) {
+    @media (max-width: 900px) {
       .sidebar-list-wrap {
         position: relative;
       }
@@ -1183,24 +1289,12 @@
         display: block !important;
         content: '' !important;
         position: absolute; right: 0; top: 0; bottom: 0;
-        width: 48px;
+        width: 56px;
         background: linear-gradient(to right, transparent, var(--night-mid)) !important;
         height: auto !important;
         pointer-events: none; z-index: 3;
       }
       .sidebar-list-wrap::before { display: none !important; }
-
-      /* Modal nav arrows on mobile — positioned inside the bottom sheet */
-      .biz-modal-nav {
-        position: fixed;
-        width: 38px; height: 38px;
-        top: auto; bottom: 50%;
-        transform: none;
-        opacity: .85;
-        z-index: 2020;
-      }
-      .biz-modal-nav.prev { left: 6px; }
-      .biz-modal-nav.next { right: 6px; }
     }
 
     @media (min-width: 1400px) {
@@ -1531,7 +1625,7 @@
   /* ════════════════════════════════════════════════════
      LEAFLET MAP
   ════════════════════════════════════════════════════ */
-  var isMobile = window.innerWidth <= 768;
+  var isMobile = window.innerWidth <= 900;
 
   var streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
@@ -2123,32 +2217,33 @@
   function positionFloatingCta() {
     var mapEl = document.getElementById('leafletMap');
     if (!mapEl || !floatingCta) return;
+    var isMobileNow = window.innerWidth <= 900;
+
+    /* On mobile: CSS handles position (fixed bottom). Only manage visibility. */
+    if (isMobileNow) {
+      floatingCta.style.left = '';
+      floatingCta.style.bottom = '';
+      floatingCta.style.right = '';
+      if (!modalOverlay.classList.contains('open')) {
+        floatingCta.style.opacity = '';
+        floatingCta.style.pointerEvents = '';
+      }
+      return;
+    }
+
     var rect = mapEl.getBoundingClientRect();
     var ctaRect = floatingCta.getBoundingClientRect();
-    var isMobileNow = window.innerWidth <= 768;
 
     /* Center horizontally relative to map */
     var leftPos = rect.left + rect.width / 2 - ctaRect.width / 2;
     /* Clamp so it doesn't overflow viewport */
     leftPos = Math.max(16, Math.min(leftPos, window.innerWidth - ctaRect.width - 16));
     floatingCta.style.left = leftPos + 'px';
+    floatingCta.style.right = '';
 
-    /* On mobile: if map has scrolled out of view, hide CTA */
-    if (isMobileNow) {
-      var mapBottomVisible = rect.bottom > 0 && rect.top < window.innerHeight;
-      if (!mapBottomVisible) {
-        floatingCta.style.opacity = '0';
-        floatingCta.style.pointerEvents = 'none';
-        return;
-      } else if (!modalOverlay.classList.contains('open')) {
-        floatingCta.style.opacity = '';
-        floatingCta.style.pointerEvents = '';
-      }
-    }
-
-    var bottomOffset = window.innerHeight - rect.bottom + (isMobileNow ? 16 : 24);
+    var bottomOffset = window.innerHeight - rect.bottom + 24;
     /* Ensure minimum bottom distance */
-    bottomOffset = Math.max(isMobileNow ? 12 : 20, bottomOffset);
+    bottomOffset = Math.max(20, bottomOffset);
     floatingCta.style.bottom = bottomOffset + 'px';
   }
   positionFloatingCta();
