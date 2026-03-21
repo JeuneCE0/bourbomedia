@@ -967,79 +967,25 @@
 
     /* ── RESPONSIVE — MOBILE ── */
     @media (max-width: 900px) {
-      /* ── HERO ── */
-      .hero { padding: calc(var(--header-height) + 24px) 20px 24px; }
-      .hero h1 { font-size: clamp(1.6rem, 6.5vw, 2.2rem); margin-bottom: 14px; }
-      .hero-badge { font-size: .76rem; padding: 7px 16px; margin-bottom: 14px; }
-      .hero-stat { padding: 0 16px; }
-      .hero-stat-value { font-size: 1.3rem; }
-      .hero-stat-label { font-size: .65rem; }
-      .hero-stats { margin-bottom: 20px; }
-      .search-bar { max-width: 100%; }
-      .search-bar input { padding: 14px 20px 14px 44px; font-size: .88rem; }
+      /* ── HERO — masqué sur mobile, carte fullscreen ── */
+      .hero { display: none; }
 
       /* ── LAYOUT ── */
-      .main-content { flex-direction: column; padding: 0 0 28px; gap: 0; }
+      .main-content {
+        flex-direction: column; padding: 0; gap: 0;
+        height: calc(100vh - var(--header-height));
+        height: calc(100dvh - var(--header-height));
+      }
 
-      /* ── SIDEBAR ── */
-      .sidebar {
-        width: 100%; position: static; height: auto;
-        border: none; border-radius: 0;
-        margin: 0; box-shadow: none;
-        border-bottom: 1px solid var(--night-border);
-        background: var(--night-mid);
-        order: 2; max-height: none;
-        overflow: visible;
-      }
-      .sidebar-header {
-        padding: 12px 16px 6px !important;
-      }
-      .sidebar-count { font-size: .72rem; }
-      .sidebar-count span { font-size: .85rem; }
-      .sidebar-sort-btn { font-size: .68rem; padding: 5px 12px; }
-      .sidebar-list-wrap {
-        overflow: visible;
-      }
-      .sidebar-list-wrap::before, .sidebar-list-wrap::after { display: none; }
-      .sidebar-list {
-        display: flex; flex-direction: row; height: auto;
-        overflow-x: auto; overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        padding: 6px 16px 14px; gap: 10px;
-        scrollbar-width: none;
-        scroll-snap-type: x mandatory;
-        scroll-padding: 0 16px;
-      }
-      .sidebar-list::-webkit-scrollbar { display: none; }
-      .biz-card {
-        min-width: 230px; max-width: 260px;
-        flex-shrink: 0; transform: none !important;
-        scroll-snap-align: start;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        background: var(--night-card);
-        padding: 14px 16px;
-      }
-      .biz-card:hover, .biz-card.active { transform: translateY(-3px) !important; }
-      .biz-card::before {
-        left: 50%; top: 0; width: 0; height: 3px;
-        transform: translateX(-50%); border-radius: 0 0 3px 3px;
-      }
-      .biz-card:hover::before, .biz-card.active::before { width: 55%; height: 3px; }
-      .biz-card-name { font-size: .9rem; }
-      .biz-card-result { -webkit-line-clamp: 2; font-size: .76rem; }
-      .biz-card-cat { font-size: .67rem; }
-      .biz-card-city { font-size: .72rem; }
-
-      /* ── MAP ── */
+      /* ── MAP — fullscreen ── */
       .map-container {
         order: 1; position: relative;
-        height: 48vh; min-height: 280px; max-height: 440px;
+        flex: 1; min-height: 0;
         border-radius: 0; margin: 0;
         overflow: visible;
         border: none; box-shadow: none;
       }
-      .map-wrap { border-radius: 0; overflow: hidden; }
+      .map-wrap { border-radius: 0; overflow: hidden; height: 100%; }
       .map-skeleton { border-radius: 0; }
       #leafletMap { height: 100%; }
 
@@ -1058,6 +1004,9 @@
       .map-toggle { bottom: 10px; right: 10px; }
       .map-toggle button { font-size: .7rem; padding: 5px 11px; }
 
+      /* ── SIDEBAR — masquée sur mobile ── */
+      .sidebar { display: none; }
+
       /* ── FLOATING CTA — fixed bottom on mobile ── */
       .floating-cta {
         position: fixed !important;
@@ -1068,8 +1017,8 @@
         max-width: none !important;
         justify-content: center;
         text-align: center;
-        font-size: .8rem;
-        padding: 13px 20px;
+        font-size: .82rem;
+        padding: 14px 20px;
         white-space: normal;
         line-height: 1.35;
         z-index: 1500;
@@ -1129,17 +1078,8 @@
       .biz-modal-nav.prev { left: 6px; }
       .biz-modal-nav.next { right: 6px; }
 
-      /* ── SIDEBAR EMPTY STATE ── */
-      .sidebar-empty {
-        padding: 24px 16px;
-        min-width: 230px;
-        flex-shrink: 0;
-      }
-      .sidebar-empty p { font-size: .82rem; }
-
-      /* ── FOOTER ── */
-      .footer { padding: 24px 20px; }
-      .footer p { font-size: .74rem; line-height: 1.5; }
+      /* ── FOOTER — masqué sur mobile ── */
+      .footer { display: none; }
 
       /* ── LEAFLET ZOOM CONTROL ── */
       .leaflet-control-zoom { transform: scale(0.9); transform-origin: top right; }
@@ -1147,27 +1087,6 @@
 
     /* ── SMALL SCREENS (iPhone SE, etc.) ── */
     @media (max-width: 480px) {
-      .hero { padding: calc(var(--header-height) + 18px) 16px 20px; }
-      .hero h1 { font-size: clamp(1.45rem, 7vw, 1.9rem); }
-      .hero-badge { font-size: .72rem; padding: 6px 14px; }
-      .hero-stats { flex-wrap: wrap; row-gap: 10px; gap: 0; }
-      .hero-stat + .hero-stat { border-left: none; }
-      .hero-stat { padding: 0 12px; flex: 0 0 33.33%; }
-      .hero-stat-value { font-size: 1.15rem; }
-      .hero-stat-label { font-size: .6rem; }
-      .search-bar input { padding: 12px 18px 12px 40px; font-size: .85rem; }
-
-      .header { padding: 0 16px; }
-      .header-logo { font-size: 1.05rem; }
-      .header-count { font-size: .7rem; }
-
-      .biz-card { min-width: 200px; max-width: 230px; padding: 12px 14px; }
-      .biz-card-name { font-size: .86rem; }
-      .sidebar-list { padding: 6px 12px 14px; gap: 8px; }
-
-      .map-container { height: 45vh; min-height: 250px; max-height: 380px; }
-      .map-filter-btn { font-size: .65rem; padding: 5px 8px; }
-
       .floating-cta { font-size: .76rem; padding: 12px 16px; bottom: 12px !important; left: 12px !important; right: 12px !important; }
 
       .biz-modal-name { font-size: 1.15rem; }
@@ -1181,17 +1100,15 @@
       .biz-modal-links { gap: 6px; }
       .biz-modal-embed iframe { min-height: 240px; }
       .biz-modal-reels iframe { min-height: 360px; }
+
+      .map-filter-btn { font-size: .65rem; padding: 5px 8px; }
     }
 
     /* ── VERY SMALL SCREENS (320px) ── */
     @media (max-width: 360px) {
-      .hero h1 { font-size: 1.35rem; }
-      .hero-stat { flex: 0 0 33.33%; padding: 0 8px; }
-      .hero-stat-value { font-size: 1.05rem; }
-      .biz-card { min-width: 180px; max-width: 210px; }
-      .map-filter-btn { font-size: .62rem; padding: 4px 7px; }
       .floating-cta { font-size: .72rem; padding: 11px 14px; }
       .biz-modal-name { font-size: 1.05rem; }
+      .map-filter-btn { font-size: .62rem; padding: 4px 7px; }
     }
 
     /* ── BIZ CARD ACTIVE PRESS (micro-interaction) ── */
