@@ -307,50 +307,19 @@
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      background: var(--night-mid);
-      border-right: 1px solid var(--night-border);
+      background: var(--night-card);
+      border: 1px solid var(--border-md);
+      border-radius: 30px;
       position: sticky;
-      top: var(--header-height);
-      height: calc(100vh - var(--header-height));
+      top: calc(var(--header-height) + 12px);
+      height: calc(100vh - var(--header-height) - 24px);
       overflow: hidden;
+      margin: 12px 0 12px 12px;
+      box-shadow: 0 4px 32px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.04);
     }
 
-    /* Sidebar top: filter pills */
-    .sidebar-filters {
-      padding: 14px 14px 0;
-      flex-shrink: 0;
-    }
-    .sidebar-filters-scroll {
-      display: flex; gap: 6px;
-      overflow-x: auto; padding-bottom: 14px;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
-    .sidebar-filters-scroll::-webkit-scrollbar { display: none; }
-
-    .cat-pill {
-      display: inline-flex; align-items: center; gap: 5px;
-      background: transparent; border: 1px solid var(--border);
-      border-radius: var(--radius-pill);
-      padding: 7px 13px;
-      color: var(--text-muted);
-      font-family: 'Instrument Sans', sans-serif;
-      font-size: .75rem; font-weight: 600;
-      cursor: pointer; transition: all var(--t-base);
-      white-space: nowrap; -webkit-tap-highlight-color: transparent;
-    }
-    .cat-pill:hover { color: var(--text-mid); border-color: var(--border-md); background: rgba(255,255,255,.04); }
-    .cat-pill.active {
-      background: var(--orange); border-color: var(--orange);
-      color: var(--white);
-      box-shadow: 0 2px 14px var(--orange-glow-md);
-    }
-    .cat-pill.active:hover { background: var(--orange-light); border-color: var(--orange-light); }
-    .cat-pill .pill-count { font-size: .67rem; opacity: .65; }
-    .cat-pill.active .pill-count { opacity: .8; }
-
-    /* Sidebar divider */
-    .sidebar-divider { height: 1px; background: var(--border); flex-shrink: 0; }
+    /* Sidebar filters — hidden (filters on map only) */
+    .sidebar-filters { display: none; }
 
     /* Sidebar count */
     .sidebar-header {
@@ -377,11 +346,11 @@
     }
     .sidebar-list-wrap::before {
       top: 0;
-      background: linear-gradient(to bottom, var(--night-mid), transparent);
+      background: linear-gradient(to bottom, var(--night-card), transparent);
     }
     .sidebar-list-wrap::after {
       bottom: 0;
-      background: linear-gradient(to top, var(--night-mid), transparent);
+      background: linear-gradient(to top, var(--night-card), transparent);
     }
 
     .sidebar-list {
@@ -450,6 +419,7 @@
       font-family: 'Bricolage Grotesque', sans-serif;
       font-size: .9rem; font-weight: 700; color: var(--text);
       line-height: 1.25; transition: color var(--t-base);
+      word-wrap: break-word; overflow-wrap: break-word;
     }
     .biz-card:hover .biz-card-name, .biz-card.active .biz-card-name { color: var(--white); }
     .biz-card-result {
@@ -462,6 +432,36 @@
       transition: color var(--t-base);
     }
     .biz-card:hover .biz-card-result, .biz-card.active .biz-card-result { color: var(--text-mid); }
+
+    /* Card social links */
+    .biz-card-socials {
+      display: flex; gap: 6px; margin-top: 4px;
+    }
+    .biz-card-social {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: .68rem; font-weight: 600;
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 3px 8px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.02);
+      transition: all var(--t-base);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .biz-card-social:hover {
+      color: var(--white);
+      border-color: var(--border-orange);
+      background: var(--orange-glow);
+      transform: translateY(-1px);
+    }
+    .biz-card-social svg { width: 12px; height: 12px; }
+    .biz-card-social.ig { color: #E1306C; }
+    .biz-card-social.ig:hover { border-color: rgba(225,48,108,.4); background: rgba(225,48,108,.08); }
+    .biz-card-social.tt { color: var(--text-mid); }
+    .biz-card-social.tt:hover { border-color: rgba(105,201,208,.4); background: rgba(105,201,208,.08); color: #69C9D0; }
+    .biz-card-social.reel { color: var(--orange); }
+    .biz-card-social.reel:hover { border-color: var(--border-orange); background: var(--orange-glow); }
 
     .sidebar-empty {
       display: flex; flex-direction: column; align-items: center;
@@ -807,6 +807,17 @@
       margin-bottom: 18px;
     }
     .biz-modal-embed iframe { width: 100%; min-height: 380px; border: none; display: block; }
+    /* Instagram Reels embed */
+    .biz-modal-reels {
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--night);
+      margin-bottom: 18px;
+    }
+    .biz-modal-reels iframe {
+      width: 100%; min-height: 530px; border: none; display: block;
+    }
 
     /* Modal CTA */
     .biz-modal-cta {
@@ -891,7 +902,10 @@
       .main-content { flex-direction: column; padding: 0 0 28px; }
       .sidebar {
         width: 100%; position: static; height: auto;
-        border-right: none; border-bottom: 1px solid var(--night-border);
+        border: none; border-radius: 0;
+        margin: 0; box-shadow: none;
+        border-bottom: 1px solid var(--night-border);
+        background: var(--night-mid);
         order: 2; max-height: none;
       }
       .sidebar-list-wrap::before, .sidebar-list-wrap::after { display: none; }
@@ -982,21 +996,10 @@
 
     <!-- SIDEBAR -->
     <aside class="sidebar">
-      <!-- Category filter pills -->
-      <div class="sidebar-filters">
-        <div class="sidebar-filters-scroll" id="sidebarFilters">
-          <!-- Generated by JS -->
-        </div>
-      </div>
-
-      <div style="height:1px;background:var(--border);flex-shrink:0;"></div>
-
       <!-- Count row -->
-      <div class="sidebar-header">
+      <div class="sidebar-header" style="padding:16px 18px 10px;">
         <div class="sidebar-count"><span id="sidebarCountNum">0</span> résultats</div>
       </div>
-
-      <div style="height:1px;background:var(--border);flex-shrink:0;"></div>
 
       <!-- Business list with scroll shadows -->
       <div class="sidebar-list-wrap">
@@ -1082,34 +1085,34 @@
      DATA
   ════════════════════════════════════════════════════ */
   var businesses = [
-    { name: "Sousou Access",        cat: "boutique",     city: "Saint-Denis",      address: "30 Rue Maréchal Leclerc, 97400 Saint-Denis", instagram: "sousou_access",             tiktok: null, senja: null, result: "+40 000€ de CA en 30 jours — +1 000 ventes" },
-    { name: "Crazy Adventures",     cat: "activite",     city: "Saint-Leu",        address: "Saint-Leu, La Réunion",                       instagram: "crazy_adventures_reunion",  tiktok: null, senja: null, result: "+10 000€ de CA en 14 jours — +1M de vues en 45 jours" },
-    { name: "Memphis Burger",       cat: "restaurant",   city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: null,                        tiktok: null, senja: null, result: "80% des commandes du lendemain venaient de la vidéo" },
-    { name: "Jungle à Pat'",        cat: "activite",     city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: "jungle_a_pat",              tiktok: null, senja: null, result: "+900 000 vues en 15 jours — rentabilisé en moins de 24h" },
-    { name: "La Crème de la Crêpe", cat: "restaurant",   city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: "lacremedelacrepe974",        tiktok: null, senja: null, result: "+5 000 abonnés en 30 jours — complètement débordés" },
-    { name: "Le Mazéniène",         cat: "restaurant",   city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: "lemazeniene",               tiktok: null, senja: null, result: "+500 000 vues sur Instagram — impact visible dès la 1ère semaine" },
-    { name: "Tropic Appart'Hôtel",  cat: "hebergement",  city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: "tropicapparthotel",         tiktok: null, senja: null, result: "+100 000 vues — période de vacances remplie" },
-    { name: "Fraises & Compagnie",  cat: "gourmandise",  city: "Plaine des Cafres",address: "Plaine des Cafres, La Réunion",               instagram: "fraises_et_compagnie974",   tiktok: null, senja: null, result: "Afflux de visiteurs après la vidéo" },
-    { name: "Maison GAC",           cat: "gourmandise",  city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: "maison_gac",                tiktok: null, senja: null, result: "Glacier artisan découvert par des milliers de Réunionnais" },
-    { name: "Popeline Vintage",     cat: "boutique",     city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: "popeline.vintage",          tiktok: null, senja: null, result: "Boutique prise d'assaut après la vidéo BBP" },
-    { name: "Pizza Cosy",           cat: "restaurant",   city: "Saint-Paul",       address: "Saint-Paul, La Réunion",                      instagram: null,                        tiktok: null, senja: null, result: "Commandes explosées après la mise en avant" },
-    { name: "Trapèze Studio",       cat: "activite",     city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, result: "Inscriptions en forte hausse" },
-    { name: "Le Madison",           cat: "restaurant",   city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, result: "Restaurant complet les jours suivant la vidéo" },
-    { name: "Poké Run",             cat: "restaurant",   city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: null,                        tiktok: null, senja: null, result: "File d'attente dès le lendemain de la vidéo" },
-    { name: "Les Dalons",           cat: "restaurant",   city: "Saint-Gilles",     address: "Saint-Gilles-les-Bains, La Réunion",          instagram: null,                        tiktok: null, senja: null, result: "Visibilité locale décuplée" },
-    { name: "La Saint-Georges",     cat: "restaurant",   city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, result: "Découvert par une nouvelle clientèle" },
-    { name: "Kazaoké",              cat: "activite",     city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: null,                        tiktok: null, senja: null, result: "Réservations en hausse immédiate" },
-    { name: "La Bonne Maison",      cat: "gourmandise",  city: "Le Tampon",        address: "Le Tampon, La Réunion",                       instagram: null,                        tiktok: null, senja: null, result: "Afflux de curieux après la vidéo" },
-    { name: "Coliver",              cat: "hebergement",  city: "Saint-Paul",       address: "Saint-Paul, La Réunion",                      instagram: null,                        tiktok: null, senja: null, result: "Taux d'occupation en hausse" },
-    { name: "Alidou",               cat: "boutique",     city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, result: "Visibilité boostée sur les réseaux" },
-    { name: "La Baie des Anges",    cat: "hebergement",  city: "Saint-Gilles",     address: "Saint-Gilles-les-Bains, La Réunion",          instagram: null,                        tiktok: null, senja: null, result: "Réservations boostées en saison" },
-    { name: "Le Gourmand",          cat: "restaurant",   city: "Saint-André",      address: "Saint-André, La Réunion",                     instagram: null,                        tiktok: null, senja: null, result: "Notoriété locale renforcée" },
-    { name: "Le Paradoxe",          cat: "restaurant",   city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: null,                        tiktok: null, senja: null, result: "Clientèle élargie grâce à BBP" },
-    { name: "Chez Kisbee",          cat: "restaurant",   city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, result: "Découvert par des milliers de personnes" },
-    { name: "The Donuts Island",    cat: "gourmandise",  city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: null,                        tiktok: null, senja: null, result: "Ventes doublées la semaine suivante" },
-    { name: "Kaloubadia",           cat: "boutique",     city: "Saint-Paul",       address: "Saint-Paul, La Réunion",                      instagram: null,                        tiktok: null, senja: null, result: "Boutique mise en lumière" },
-    { name: "Terre de Running",     cat: "boutique",     city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, result: "Communauté engagée après la vidéo" },
-    { name: "Nonna Luisa",          cat: "restaurant",   city: "Saint-Paul",       address: "Saint-Paul, La Réunion",                      instagram: "nonnaluisa.re",             tiktok: null, senja: null, result: "Pizzeria prise d'assaut après la vidéo BBP" }
+    { name: "Sousou Access",        cat: "boutique",     city: "Saint-Denis",      address: "30 Rue Maréchal Leclerc, 97400 Saint-Denis", instagram: "sousou_access",             tiktok: null, senja: null, reels: null, result: "+40 000€ de CA en 30 jours — +1 000 ventes" },
+    { name: "Crazy Adventures",     cat: "activite",     city: "Saint-Leu",        address: "Saint-Leu, La Réunion",                       instagram: "crazy_adventures_reunion",  tiktok: null, senja: null, reels: null, result: "+10 000€ de CA en 14 jours — +1M de vues en 45 jours" },
+    { name: "Memphis Burger",       cat: "restaurant",   city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: null,                        tiktok: null, senja: null, reels: null, result: "80% des commandes du lendemain venaient de la vidéo" },
+    { name: "Jungle à Pat'",        cat: "activite",     city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: "jungle_a_pat",              tiktok: null, senja: null, reels: null, result: "+900 000 vues en 15 jours — rentabilisé en moins de 24h" },
+    { name: "La Crème de la Crêpe", cat: "restaurant",   city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: "lacremedelacrepe974",        tiktok: null, senja: null, reels: null, result: "+5 000 abonnés en 30 jours — complètement débordés" },
+    { name: "Le Mazéniène",         cat: "restaurant",   city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: "lemazeniene",               tiktok: null, senja: null, reels: null, result: "+500 000 vues sur Instagram — impact visible dès la 1ère semaine" },
+    { name: "Tropic Appart'Hôtel",  cat: "hebergement",  city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: "tropicapparthotel",         tiktok: null, senja: null, reels: null, result: "+100 000 vues — période de vacances remplie" },
+    { name: "Fraises & Compagnie",  cat: "gourmandise",  city: "Plaine des Cafres",address: "Plaine des Cafres, La Réunion",               instagram: "fraises_et_compagnie974",   tiktok: null, senja: null, reels: null, result: "Afflux de visiteurs après la vidéo" },
+    { name: "Maison GAC",           cat: "gourmandise",  city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: "maison_gac",                tiktok: null, senja: null, reels: null, result: "Glacier artisan découvert par des milliers de Réunionnais" },
+    { name: "Popeline Vintage",     cat: "boutique",     city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: "popeline.vintage",          tiktok: null, senja: null, reels: null, result: "Boutique prise d'assaut après la vidéo BBP" },
+    { name: "Pizza Cosy",           cat: "restaurant",   city: "Saint-Paul",       address: "Saint-Paul, La Réunion",                      instagram: null,                        tiktok: null, senja: null, reels: null, result: "Commandes explosées après la mise en avant" },
+    { name: "Trapèze Studio",       cat: "activite",     city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, reels: null, result: "Inscriptions en forte hausse" },
+    { name: "Le Madison",           cat: "restaurant",   city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, reels: null, result: "Restaurant complet les jours suivant la vidéo" },
+    { name: "Poké Run",             cat: "restaurant",   city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: null,                        tiktok: null, senja: null, reels: null, result: "File d'attente dès le lendemain de la vidéo" },
+    { name: "Les Dalons",           cat: "restaurant",   city: "Saint-Gilles",     address: "Saint-Gilles-les-Bains, La Réunion",          instagram: null,                        tiktok: null, senja: null, reels: null, result: "Visibilité locale décuplée" },
+    { name: "La Saint-Georges",     cat: "restaurant",   city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, reels: null, result: "Découvert par une nouvelle clientèle" },
+    { name: "Kazaoké",              cat: "activite",     city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: null,                        tiktok: null, senja: null, reels: null, result: "Réservations en hausse immédiate" },
+    { name: "La Bonne Maison",      cat: "gourmandise",  city: "Le Tampon",        address: "Le Tampon, La Réunion",                       instagram: null,                        tiktok: null, senja: null, reels: null, result: "Afflux de curieux après la vidéo" },
+    { name: "Coliver",              cat: "hebergement",  city: "Saint-Paul",       address: "Saint-Paul, La Réunion",                      instagram: null,                        tiktok: null, senja: null, reels: null, result: "Taux d'occupation en hausse" },
+    { name: "Alidou",               cat: "boutique",     city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, reels: null, result: "Visibilité boostée sur les réseaux" },
+    { name: "La Baie des Anges",    cat: "hebergement",  city: "Saint-Gilles",     address: "Saint-Gilles-les-Bains, La Réunion",          instagram: null,                        tiktok: null, senja: null, reels: null, result: "Réservations boostées en saison" },
+    { name: "Le Gourmand",          cat: "restaurant",   city: "Saint-André",      address: "Saint-André, La Réunion",                     instagram: null,                        tiktok: null, senja: null, reels: null, result: "Notoriété locale renforcée" },
+    { name: "Le Paradoxe",          cat: "restaurant",   city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: null,                        tiktok: null, senja: null, reels: null, result: "Clientèle élargie grâce à BBP" },
+    { name: "Chez Kisbee",          cat: "restaurant",   city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, reels: null, result: "Découvert par des milliers de personnes" },
+    { name: "The Donuts Island",    cat: "gourmandise",  city: "Saint-Pierre",     address: "Saint-Pierre, La Réunion",                    instagram: null,                        tiktok: null, senja: null, reels: null, result: "Ventes doublées la semaine suivante" },
+    { name: "Kaloubadia",           cat: "boutique",     city: "Saint-Paul",       address: "Saint-Paul, La Réunion",                      instagram: null,                        tiktok: null, senja: null, reels: null, result: "Boutique mise en lumière" },
+    { name: "Terre de Running",     cat: "boutique",     city: "Saint-Denis",      address: "Saint-Denis, La Réunion",                     instagram: null,                        tiktok: null, senja: null, reels: null, result: "Communauté engagée après la vidéo" },
+    { name: "Nonna Luisa",          cat: "restaurant",   city: "Saint-Paul",       address: "Saint-Paul, La Réunion",                      instagram: "nonnaluisa.re",             tiktok: null, senja: null, reels: null, result: "Pizzeria prise d'assaut après la vidéo BBP" }
   ];
 
   var categories = [
@@ -1506,6 +1509,21 @@
       card.style.animationDelay = Math.min(i * 35, 300) + 'ms';
 
       var catObj = catInfo[b.cat] || { icon: '•', label: b.cat };
+      var socialsHtml = '';
+      if (b.instagram || b.tiktok || b.reels) {
+        socialsHtml = '<div class="biz-card-socials">';
+        if (b.instagram) {
+          socialsHtml += '<a href="https://www.instagram.com/' + b.instagram + '/" target="_blank" rel="noopener" class="biz-card-social ig" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/></svg>Insta</a>';
+        }
+        if (b.tiktok) {
+          socialsHtml += '<a href="https://www.tiktok.com/@' + b.tiktok + '" target="_blank" rel="noopener" class="biz-card-social tt" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V8.73a8.19 8.19 0 004.76 1.52v-3.4a4.85 4.85 0 01-1-.16z"/></svg>TikTok</a>';
+        }
+        if (b.reels) {
+          socialsHtml += '<span class="biz-card-social reel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>Reel</span>';
+        }
+        socialsHtml += '</div>';
+      }
+
       card.innerHTML =
         '<div class="biz-card-meta">' +
           '<span class="biz-card-cat">' + catObj.icon + ' ' + catObj.label + '</span>' +
@@ -1515,7 +1533,8 @@
           '</span>' +
         '</div>' +
         '<div class="biz-card-name">' + b.name + '</div>' +
-        '<div class="biz-card-result">' + b.result + '</div>';
+        '<div class="biz-card-result">' + b.result + '</div>' +
+        socialsHtml;
 
       frag.appendChild(card);
     });
@@ -1613,17 +1632,24 @@
     }
     document.getElementById('modalLinks').innerHTML = linksHtml;
 
-    /* Senja embed */
+    /* Reels + Senja embed */
     var embedEl = document.getElementById('modalEmbed');
+    var embedHtml = '';
+    if (b.reels) {
+      embedHtml +=
+        '<div class="biz-modal-section-title">Reel Instagram</div>' +
+        '<div class="biz-modal-reels">' +
+        '<iframe src="https://www.instagram.com/reel/' + b.reels + '/embed/" loading="lazy" allowfullscreen></iframe>' +
+        '</div>';
+    }
     if (b.senja) {
-      embedEl.innerHTML =
+      embedHtml +=
         '<div class="biz-modal-section-title">Vidéo témoignage</div>' +
         '<div class="biz-modal-embed">' +
         '<iframe src="' + b.senja + '" loading="lazy" allow="autoplay; fullscreen" allowfullscreen></iframe>' +
         '</div>';
-    } else {
-      embedEl.innerHTML = '';
     }
+    embedEl.innerHTML = embedHtml;
 
     modalOverlay.classList.add('open');
     document.body.style.overflow = 'hidden';
