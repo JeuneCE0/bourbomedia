@@ -624,6 +624,61 @@
     .biz-modal-link.tiktok:hover { border-color: #69C9D0; background: rgba(105,201,208,.08); }
     .biz-modal-link.maps { color: #4285F4; }
     .biz-modal-link.maps:hover { border-color: #4285F4; background: rgba(66,133,244,.08); }
+    .biz-modal-section-title {
+      font-size: .72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .8px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .biz-modal-embed {
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--night-border);
+      background: #000;
+      margin-bottom: 18px;
+    }
+    .biz-modal-embed iframe {
+      width: 100%; height: 480px;
+      border: none; display: block;
+    }
+
+    /* ── MAP STATS ── */
+    .map-stats {
+      display: flex; justify-content: center; gap: 24px;
+      margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .map-stat {
+      text-align: center;
+    }
+    .map-stat-value {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.6rem; font-weight: 800;
+      color: var(--orange);
+      line-height: 1;
+    }
+    .map-stat-label {
+      font-size: .75rem; color: var(--text-muted);
+      font-weight: 600; margin-top: 4px;
+    }
+
+    /* ── CITY LABEL ON MAP PIN ── */
+    .pin-city-label {
+      position: absolute; top: -22px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(26,16,8,.85);
+      backdrop-filter: blur(6px);
+      color: var(--white);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: .65rem; font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      border: 1px solid rgba(255,255,255,.1);
+    }
+
+    /* ── CLICKABLE CARD ── */
+    .card.clickable { cursor: pointer; }
 
     /* ── FOOTER ── */
     .footer {
@@ -699,6 +754,7 @@
   <!-- INTERACTIVE MAP -->
   <section class="map-section">
     <h2>Nos clients sur <span>La Réunion</span></h2>
+    <div class="map-stats" id="mapStats"></div>
     <div class="map-wrap">
       <div class="map-toggle">
         <button id="btnMapStreet" class="active">Carte</button>
@@ -721,6 +777,7 @@
         <div class="biz-modal-result" id="modalResult"></div>
         <div class="biz-modal-address" id="modalAddress"></div>
         <div class="biz-modal-links" id="modalLinks"></div>
+        <div id="modalEmbed"></div>
       </div>
     </div>
   </div>
@@ -856,18 +913,18 @@
 
     filtered.forEach(function(b, i) {
       var card = document.createElement('div');
-      card.className = 'card';
+      card.className = 'card clickable';
 
       /* Social + Maps actions */
       var actionsHtml = '<div class="card-actions">';
       if (b.instagram) {
-        actionsHtml += '<a href="https://www.instagram.com/' + b.instagram + '/" target="_blank" rel="noopener" class="card-social-link" title="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg></a>';
+        actionsHtml += '<a href="https://www.instagram.com/' + b.instagram + '/" target="_blank" rel="noopener" class="card-social-link" title="Instagram" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg></a>';
       }
       if (b.tiktok) {
-        actionsHtml += '<a href="https://www.tiktok.com/@' + b.tiktok + '" target="_blank" rel="noopener" class="card-social-link" title="TikTok"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V8.73a8.19 8.19 0 004.76 1.52v-3.4a4.85 4.85 0 01-1-.16z"/></svg></a>';
+        actionsHtml += '<a href="https://www.tiktok.com/@' + b.tiktok + '" target="_blank" rel="noopener" class="card-social-link" title="TikTok" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V8.73a8.19 8.19 0 004.76 1.52v-3.4a4.85 4.85 0 01-1-.16z"/></svg></a>';
       }
       if (b.address) {
-        actionsHtml += '<a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(b.address) + '" target="_blank" rel="noopener" class="card-maps-btn" title="Voir sur Google Maps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Maps</a>';
+        actionsHtml += '<a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(b.address) + '" target="_blank" rel="noopener" class="card-maps-btn" title="Voir sur Google Maps" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Maps</a>';
       }
       actionsHtml += '</div>';
 
@@ -877,6 +934,9 @@
         '<div class="card-location"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ' + b.city + '</div>' +
         '<div class="card-result">' + b.result + '</div>' +
         actionsHtml;
+
+      /* Click on card opens modal */
+      card.addEventListener('click', function() { openBizModal(b); });
 
       gridEl.appendChild(card);
 
@@ -940,14 +1000,26 @@
     btnSat.classList.add('active'); btnStreet.classList.remove('active');
   });
 
+  /* Stats counters */
+  var statsEl = document.getElementById('mapStats');
+  var uniqueCities = Object.keys(cityCoords);
+  var activeCityCount = 0;
+  businesses.forEach(function(b) { if (cityCoords[b.city]) activeCityCount++; });
+  statsEl.innerHTML =
+    '<div class="map-stat"><div class="map-stat-value">' + businesses.length + '</div><div class="map-stat-label">Clients</div></div>' +
+    '<div class="map-stat"><div class="map-stat-value">' + uniqueCities.length + '</div><div class="map-stat-label">Villes</div></div>' +
+    '<div class="map-stat"><div class="map-stat-value">' + (categories.length - 1) + '</div><div class="map-stat-label">Catégories</div></div>' +
+    '<div class="map-stat"><div class="map-stat-value">' + businesses.filter(function(b) { return b.instagram; }).length + '</div><div class="map-stat-label">Profils Insta</div></div>';
+
   /* Custom pin icon factory */
-  function makePin(count) {
+  function makePin(count, cityName) {
     return L.divIcon({
       className: '',
-      iconSize: [36, 46],
+      iconSize: [36, 70],
       iconAnchor: [18, 46],
       popupAnchor: [0, -46],
       html: '<div class="custom-pin">' +
+            '<div class="pin-city-label">' + cityName + '</div>' +
             '<div class="pin-pulse"></div>' +
             '<div class="pin-head">' + count + '</div>' +
             '<div class="pin-tail"></div>' +
@@ -967,14 +1039,18 @@
     var coords = cityCoords[city];
     if (!coords) return;
     var cityBiz = bizByCity[city];
-    var marker = L.marker(coords, { icon: makePin(cityBiz.length) }).addTo(map);
+    var marker = L.marker(coords, { icon: makePin(cityBiz.length, city) }).addTo(map);
 
     if (cityBiz.length === 1) {
       /* Single business → open modal directly */
-      marker.on('click', function() { openBizModal(cityBiz[0]); });
+      marker.on('click', function() {
+        map.flyTo(coords, 14, { duration: .8 });
+        openBizModal(cityBiz[0]);
+      });
     } else {
       /* Multiple businesses → show a popup list */
       marker.on('click', function() {
+        map.flyTo(coords, 13, { duration: .8 });
         var html = '<div style="font-family:Instrument Sans,sans-serif;min-width:180px;">';
         html += '<div style="font-weight:700;font-size:.85rem;margin-bottom:8px;color:#1A1008;">' + city + ' <span style="color:#A08B78;font-weight:500;">(' + cityBiz.length + ')</span></div>';
         cityBiz.forEach(function(b, i) {
@@ -1032,11 +1108,28 @@
     }
     linksEl.innerHTML = linksHtml;
 
+    /* Instagram Embed */
+    var embedEl = document.getElementById('modalEmbed');
+    if (b.instagram) {
+      embedEl.innerHTML =
+        '<div class="biz-modal-section-title">Profil Instagram</div>' +
+        '<div class="biz-modal-embed">' +
+        '<iframe src="https://www.instagram.com/' + b.instagram + '/embed" ' +
+        'loading="lazy" allowtransparency="true" scrolling="no"></iframe>' +
+        '</div>';
+    } else {
+      embedEl.innerHTML = '';
+    }
+
     modalOverlay.classList.add('open');
   }
 
   function closeBizModal() {
     modalOverlay.classList.remove('open');
+    /* Clean up iframe to stop loading */
+    setTimeout(function() {
+      document.getElementById('modalEmbed').innerHTML = '';
+    }, 350);
   }
 
   modalClose.addEventListener('click', closeBizModal);
