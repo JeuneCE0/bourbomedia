@@ -125,6 +125,13 @@
       padding: 7px 20px; border-radius: 100px;
       margin-bottom: 20px;
     }
+    .confirm-merci {
+      position: relative;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      font-weight: 800; color: var(--orange);
+      margin-bottom: 12px;
+    }
     .confirm-hero h1 {
       position: relative;
       font-size: clamp(1.8rem, 5vw, 2.8rem);
@@ -139,99 +146,127 @@
       margin: 0 auto;
     }
 
-    /* ═══════════ RESULTS BANNER ═══════════ */
-    .results-banner {
-      padding: 48px 24px;
-      text-align: center;
-      background: linear-gradient(175deg, var(--night-mid) 0%, var(--night) 100%);
-      border-bottom: 1px solid var(--night-border);
+    /* Info encart date/heure */
+    .confirm-info {
+      position: relative;
+      max-width: 500px;
+      margin: 24px auto 0;
+      padding: 16px 20px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--radius-sm);
+      font-size: .92rem;
+      color: rgba(255,255,255,.8);
+      line-height: 1.55;
     }
-    .results-banner h2 {
-      font-size: clamp(1.4rem, 4vw, 2rem);
-      font-weight: 800; color: var(--white);
-      margin-bottom: 0; line-height: 1.2;
+    .confirm-info svg {
+      display: inline-block;
+      vertical-align: -2px;
+      margin-right: 6px;
     }
-    .results-banner h2 span { color: var(--orange); }
 
-    /* ═══════════ SENJA TESTIMONIALS ═══════════ */
-    .senja-section {
-      padding: 48px 24px;
-      background: var(--night);
+    /* Bouton calendrier */
+    .btn-calendar {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 24px;
+      padding: 14px 28px;
+      background: var(--orange);
+      color: var(--white);
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 100px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background .3s ease, transform .15s ease;
     }
-    .senja-section .container { max-width: 760px; margin: 0 auto; }
+    .btn-calendar:hover { background: var(--orange-dark); transform: translateY(-1px); }
+    .btn-calendar svg { flex-shrink: 0; }
 
-    /* ═══════════ SOCIAL PROOF ═══════════ */
-    .proof {
-      padding: 64px 0;
+    /* ═══════════ MESSAGE SIMEON ═══════════ */
+    .simeon-msg {
+      padding: 56px 24px;
       background: linear-gradient(175deg, var(--night) 0%, var(--night-mid) 100%);
     }
-    .proof h2 {
-      text-align: center;
-      font-size: clamp(1.3rem, 3.5vw, 1.8rem);
-      font-weight: 800; color: var(--white);
-      margin-bottom: 36px;
-    }
-    .proof h2 span { color: var(--orange); }
-    .proof-grid {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
-    }
-    .proof-card {
+    .simeon-card {
+      max-width: 620px;
+      margin: 0 auto;
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      padding: 28px 28px;
       background: rgba(255,255,255,.04);
       border: 1px solid rgba(255,255,255,.08);
       border-radius: var(--radius);
-      padding: 32px 20px; text-align: center;
-      transition: border-color .3s ease, transform .3s ease;
     }
-    .proof-card:hover {
-      border-color: rgba(232,105,43,.3); transform: translateY(-3px);
-    }
-    .proof-num {
+    .simeon-avatar {
+      flex-shrink: 0;
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: var(--orange);
+      display: flex; align-items: center; justify-content: center;
       font-family: 'Bricolage Grotesque', sans-serif;
-      font-size: 2rem; font-weight: 800;
-      color: var(--orange); line-height: 1;
+      font-size: 1.5rem; font-weight: 800;
+      color: var(--white);
+    }
+    .simeon-content { flex: 1; }
+    .simeon-name {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1rem; font-weight: 700;
+      color: var(--white);
       margin-bottom: 8px;
     }
-    .proof-label { font-size: .88rem; color: var(--white); line-height: 1.45; }
+    .simeon-text {
+      font-size: .95rem;
+      color: rgba(255,255,255,.82);
+      line-height: 1.7;
+    }
 
-    /* ═══════════ LOGOS MARQUEE ═══════════ */
-    .logos {
-      padding: 40px 0;
+    /* ═══════════ MICRO-ENGAGEMENT ═══════════ */
+    .prep-section {
+      padding: 56px 24px;
       background: var(--night);
-      border-top: 1px solid var(--night-border);
-      border-bottom: 1px solid var(--night-border);
-      overflow: hidden;
-      position: relative;
     }
-    .logos::before, .logos::after {
-      content: ''; position: absolute; top: 0; bottom: 0; width: 60px; z-index: 2;
-    }
-    .logos::before { left: 0; background: linear-gradient(90deg, var(--night), transparent); }
-    .logos::after { right: 0; background: linear-gradient(-90deg, var(--night), transparent); }
-    .logos-title {
+    .prep-section h2 {
       text-align: center;
-      font-family: 'Bricolage Grotesque', sans-serif;
-      font-size: .75rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .14em;
-      color: var(--white); margin-bottom: 20px;
+      font-size: clamp(1.2rem, 3.5vw, 1.6rem);
+      font-weight: 800; color: var(--white);
+      margin-bottom: 32px;
     }
-    .logos-track {
-      display: flex; gap: 18px;
-      animation: marquee 30s linear infinite;
-      width: max-content;
+    .prep-list {
+      max-width: 580px;
+      margin: 0 auto;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
     }
-    .logos-track .logo-item {
-      font-family: 'Bricolage Grotesque', sans-serif;
-      font-weight: 600; font-size: .88rem;
-      color: var(--white); white-space: nowrap;
-      padding: 10px 20px; border-radius: 100px;
-      border: 1px solid var(--night-border);
-      background: var(--night-card);
-      transition: border-color .3s ease;
+    .prep-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 18px 20px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: var(--radius-sm);
+      font-size: .95rem;
+      color: rgba(255,255,255,.85);
+      line-height: 1.55;
     }
-    .logos-track .logo-item:hover { border-color: var(--orange); color: var(--orange); }
-    @keyframes marquee {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
+    .prep-list li .prep-icon {
+      flex-shrink: 0;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--orange-glow);
+      border: 1px solid rgba(232,105,43,.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .8rem;
+      color: var(--orange);
+      margin-top: 1px;
     }
 
     /* ═══════════ FAQ ═══════════ */
@@ -265,6 +300,105 @@
     .faq-item.open .faq-a { max-height: 400px; padding-bottom: 20px; }
     .faq-a p { font-size: .9rem; color: var(--white); line-height: 1.65; }
 
+    /* ═══════════ TESTIMONIALS (static) ═══════════ */
+    .testimonials-section {
+      padding: 56px 24px;
+      background: var(--night);
+      border-top: 1px solid var(--night-border);
+    }
+    .testimonials-section h2 {
+      text-align: center;
+      font-size: clamp(1.2rem, 3.5vw, 1.6rem);
+      font-weight: 800; color: var(--white);
+      margin-bottom: 28px;
+    }
+    .testimonials-grid {
+      max-width: 680px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .testimonial-card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: var(--radius);
+      padding: 24px 22px;
+    }
+    .testimonial-stars {
+      color: var(--orange);
+      font-size: .9rem;
+      margin-bottom: 12px;
+      letter-spacing: 2px;
+    }
+    .testimonial-text {
+      font-size: .9rem;
+      color: rgba(255,255,255,.82);
+      line-height: 1.65;
+      margin-bottom: 16px;
+      font-style: italic;
+    }
+    .testimonial-author {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--white);
+    }
+    .testimonial-role {
+      font-size: .78rem;
+      color: rgba(255,255,255,.5);
+      margin-top: 2px;
+    }
+
+    /* ═══════════ SOCIAL LINKS BBP ═══════════ */
+    .social-bbp {
+      padding: 48px 24px;
+      text-align: center;
+      background: linear-gradient(175deg, var(--night-mid) 0%, var(--night) 100%);
+      border-top: 1px solid var(--night-border);
+    }
+    .social-bbp h2 {
+      font-size: clamp(1.1rem, 3vw, 1.4rem);
+      font-weight: 800; color: var(--white);
+      margin-bottom: 24px;
+    }
+    .social-bbp-links {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .social-bbp-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 100px;
+      color: var(--white);
+      text-decoration: none;
+      font-size: .88rem;
+      font-weight: 600;
+      transition: border-color .3s ease, color .3s ease;
+    }
+    .social-bbp-links a:hover {
+      border-color: var(--orange);
+      color: var(--orange);
+    }
+    .social-bbp-links a svg { flex-shrink: 0; }
+
+    /* ═══════════ RARETE ═══════════ */
+    .scarcity-note {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 16px 20px;
+      text-align: center;
+      font-size: .84rem;
+      color: rgba(255,255,255,.55);
+      line-height: 1.55;
+    }
+
     /* ═══════════ FOOTER ═══════════ */
     footer {
       background: var(--night); border-top: 1px solid var(--night-border);
@@ -281,7 +415,8 @@
     /* ═══════════ RESPONSIVE ═══════════ */
     @media (max-width: 640px) {
       .confirm-hero { padding: 56px 20px 40px; }
-      .proof-grid { grid-template-columns: 1fr; max-width: 320px; margin-left: auto; margin-right: auto; }
+      .simeon-card { flex-direction: column; align-items: center; text-align: center; padding: 24px 20px; }
+      .testimonials-grid { grid-template-columns: 1fr; max-width: 400px; }
       .faq-list { padding: 0 20px; }
     }
   </style>
@@ -301,70 +436,17 @@
 <section class="confirm-hero">
   <div class="confirm-icon">&#10003;</div>
   <div class="confirm-badge">Rendez-vous confirmé</div>
+  <div class="confirm-merci" id="merci-text">Merci !</div>
   <h1>On se parle <span class="hl">très bientôt</span></h1>
-  <p>Votre appel gratuit de 20 minutes avec Siméon est confirmé. Vous allez découvrir comment la Vidéo Découverte BBP peut donner de la visibilité et des clients à votre commerce.</p>
-</section>
+  <p>Votre appel gratuit de 20 minutes avec Siméon est confirmé.</p>
 
-<!-- ═══════════ RESULTS BANNER ═══════════ -->
-<section class="results-banner">
-  <h2>Des vrais <span>résultats</span>.<br>Pas des promesses.</h2>
-</section>
+  <a class="btn-calendar" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=Appel+avec+Sim%C3%A9on+%E2%80%94+BourbonM%C3%A9dia&details=Appel+gratuit+de+20+minutes+pour+d%C3%A9couvrir+la+Vid%C3%A9o+D%C3%A9couverte+BBP.&duration=PT20M" target="_blank" rel="noopener">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Ajouter à mon calendrier
+  </a>
 
-<!-- ═══════════ SENJA TESTIMONIALS ═══════════ -->
-<section class="senja-section">
-  <div class="container">
-    <div class="senja-embed" data-id="bbf8f06d-7db5-4fab-8397-064cca552dda" data-mode="shadow" data-lazyload="false" style="display: block; width: 100%;"></div>
-  </div>
-</section>
-
-<!-- ═══════════ SOCIAL PROOF ═══════════ -->
-<section class="proof">
-  <div class="container">
-    <h2><span>Bourbon Bons Plans</span> c'est...</h2>
-    <div class="proof-grid">
-      <div class="proof-card">
-        <div class="proof-num">60+</div>
-        <div class="proof-label">Commerces accompagnés à La Réunion</div>
-      </div>
-      <div class="proof-card">
-        <div class="proof-num">180 000</div>
-        <div class="proof-label">Réunionnais touchés en moyenne par vidéo</div>
-      </div>
-      <div class="proof-card">
-        <div class="proof-num">68 000</div>
-        <div class="proof-label">Abonnés sur 3 réseaux sociaux</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════ LOGOS MARQUEE ═══════════ -->
-<section class="logos">
-  <div class="logos-title">Ils nous ont fait confiance</div>
-  <div class="logos-track">
-    <span class="logo-item">Memphis Burger</span>
-    <span class="logo-item">Sousou Access</span>
-    <span class="logo-item">Jungle à Pat'</span>
-    <span class="logo-item">Crazy Adventures</span>
-    <span class="logo-item">Nonna</span>
-    <span class="logo-item">Popeline Vintage</span>
-    <span class="logo-item">Fraises & Compagnie</span>
-    <span class="logo-item">Maison GA</span>
-    <span class="logo-item">La Crème de la Crêpe</span>
-    <span class="logo-item">Tropic Appart'Hôtel</span>
-    <span class="logo-item">Le Mazéniène</span>
-    <!-- Duplicate for seamless loop -->
-    <span class="logo-item">Memphis Burger</span>
-    <span class="logo-item">Sousou Access</span>
-    <span class="logo-item">Jungle à Pat'</span>
-    <span class="logo-item">Crazy Adventures</span>
-    <span class="logo-item">Nonna</span>
-    <span class="logo-item">Popeline Vintage</span>
-    <span class="logo-item">Fraises & Compagnie</span>
-    <span class="logo-item">Maison GA</span>
-    <span class="logo-item">La Crème de la Crêpe</span>
-    <span class="logo-item">Tropic Appart'Hôtel</span>
-    <span class="logo-item">Le Mazéniène</span>
+  <div class="scarcity-note">
+    Les créneaux avec Siméon sont limités &mdash; si vous devez reporter, prévenez-nous au moins 24h avant pour libérer la place.
   </div>
 </section>
 
@@ -403,6 +485,44 @@
   </div>
 </section>
 
+<!-- ═══════════ TESTIMONIALS (2 statiques) ═══════════ -->
+<section class="testimonials-section">
+  <h2>Ils en parlent mieux que nous</h2>
+  <div class="testimonials-grid">
+    <div class="testimonial-card">
+      <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+      <div class="testimonial-text">"Depuis la vidéo BBP, on a eu un rush de nouveaux clients. Les gens venaient en disant qu'ils nous avaient vus sur les réseaux. Effet immédiat !"</div>
+      <div class="testimonial-author">Memphis Burger</div>
+      <div class="testimonial-role">Restaurant &mdash; Saint-Denis</div>
+    </div>
+    <div class="testimonial-card">
+      <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+      <div class="testimonial-text">"Siméon et son équipe sont super pros. La vidéo a dépassé les 200 000 vues et on a vu une vraie différence dans la fréquentation du salon."</div>
+      <div class="testimonial-author">Sousou Access</div>
+      <div class="testimonial-role">Salon de beauté &mdash; Le Port</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ SOCIAL LINKS BBP ═══════════ -->
+<section class="social-bbp">
+  <h2>En attendant notre appel, découvrez nos dernières vidéos</h2>
+  <div class="social-bbp-links">
+    <a href="https://www.instagram.com/bourbonbonsplans/" target="_blank" rel="noopener">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 1.17.054 1.97.24 2.43.403a4.088 4.088 0 011.523.99 4.088 4.088 0 01.99 1.524c.163.46.349 1.26.403 2.43.058 1.265.07 1.645.07 4.849s-.012 3.584-.07 4.85c-.054 1.17-.24 1.97-.403 2.43a4.088 4.088 0 01-.99 1.523 4.088 4.088 0 01-1.524.99c-.46.163-1.26.349-2.43.403-1.265.058-1.645.07-4.849.07s-3.584-.012-4.85-.07c-1.17-.054-1.97-.24-2.43-.403a4.088 4.088 0 01-1.523-.99 4.088 4.088 0 01-.99-1.524c-.163-.46-.349-1.26-.403-2.43C2.175 15.747 2.163 15.367 2.163 12s.012-3.584.07-4.85c.054-1.17.24-1.97.403-2.43a4.088 4.088 0 01.99-1.523A4.088 4.088 0 015.15 2.207c.46-.163 1.26-.349 2.43-.403C8.845 2.175 9.225 2.163 12 2.163zm0-2.163C8.741 0 8.333.014 7.053.072 5.775.13 4.902.333 4.14.63a6.21 6.21 0 00-2.245 1.462A6.21 6.21 0 00.433 4.337C.136 5.1-.067 5.973-.125 7.25-.183 8.53-.197 8.939-.197 12.198s.014 3.668.072 4.948c.058 1.277.261 2.15.558 2.913a6.21 6.21 0 001.462 2.245 6.21 6.21 0 002.245 1.462c.763.297 1.636.5 2.913.558C8.333 24.383 8.741 24.397 12 24.397s3.668-.014 4.948-.072c1.277-.058 2.15-.261 2.913-.558a6.21 6.21 0 002.245-1.462 6.21 6.21 0 001.462-2.245c.297-.763.5-1.636.558-2.913.058-1.28.072-1.688.072-4.948s-.014-3.668-.072-4.948c-.058-1.277-.261-2.15-.558-2.913a6.21 6.21 0 00-1.462-2.245A6.21 6.21 0 0019.861.63C19.1.333 18.225.13 16.948.072 15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 11-2.88 0 1.44 1.44 0 012.88 0z"/></svg>
+      Instagram
+    </a>
+    <a href="https://www.tiktok.com/@bourbonbonsplans" target="_blank" rel="noopener">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.97a8.28 8.28 0 004.77 1.51V7.04a4.85 4.85 0 01-1-.35z"/></svg>
+      TikTok
+    </a>
+    <a href="https://www.facebook.com/bourbonbonsplans" target="_blank" rel="noopener">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+      Facebook
+    </a>
+  </div>
+</section>
+
 <!-- ═══════════ FOOTER ═══════════ -->
 <footer>
   <div class="footer-links">
@@ -413,16 +533,31 @@
 </footer>
 
 <script>
+  // Prénom depuis localStorage
+  (function() {
+    try {
+      var data = localStorage.getItem('bbp_quali');
+      if (data) {
+        var parsed = JSON.parse(data);
+        var prenom = parsed.prenom || parsed.firstName || parsed.name || '';
+        if (prenom) {
+          prenom = prenom.charAt(0).toUpperCase() + prenom.slice(1).toLowerCase();
+          document.getElementById('merci-text').textContent = 'Merci ' + prenom + ' !';
+        }
+      }
+    } catch(e) {}
+  })();
+
+  // FAQ accordion
   document.querySelectorAll('.faq-q').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      const item = btn.parentElement;
-      const wasOpen = item.classList.contains('open');
+      var item = btn.parentElement;
+      var wasOpen = item.classList.contains('open');
       document.querySelectorAll('.faq-item').forEach(function(i) { i.classList.remove('open'); });
       if (!wasOpen) item.classList.add('open');
     });
   });
 </script>
 
-<script src="https://widget.senja.io/widget/bbf8f06d-7db5-4fab-8397-064cca552dda/platform.js" type="text/javascript" async></script>
 </body>
 </html>

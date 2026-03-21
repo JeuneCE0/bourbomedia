@@ -223,14 +223,6 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       background-clip: text;
     }
-    .hero-subtitle {
-      font-size: .93rem; color: var(--text-muted);
-      margin-bottom: 22px; font-weight: 500;
-      animation: fade-in-up .6s ease both; animation-delay: .3s;
-    }
-    .hero-subtitle .stat-num {
-      color: var(--text-mid); font-weight: 700;
-    }
     /* Hero stats row */
     .hero-stats {
       display: flex; align-items: center; justify-content: center;
@@ -245,7 +237,6 @@
     .hero-stat:nth-child(1) { animation-delay: .38s; }
     .hero-stat:nth-child(2) { animation-delay: .46s; }
     .hero-stat:nth-child(3) { animation-delay: .54s; }
-    .hero-stat:nth-child(4) { animation-delay: .62s; }
     .hero-stat-value {
       font-family: 'Bricolage Grotesque', sans-serif;
       font-size: 1.5rem; font-weight: 800;
@@ -560,7 +551,7 @@
       top: calc(var(--header-height) + 12px);
       height: calc(100vh - var(--header-height) - 24px);
       border-radius: 30px;
-      overflow: hidden;
+      overflow: visible;
       margin: 12px 12px 12px 0;
       border: 1px solid var(--border-md);
       box-shadow: 0 4px 32px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.04);
@@ -1183,8 +1174,7 @@
   <section class="hero">
     <div class="hero-inner">
       <div class="hero-badge"><span class="dot"></span> Mis à jour régulièrement</div>
-      <h1>Les <span class="highlight">Bourbon Bons Plans</span> de La Réunion</h1>
-      <p class="hero-subtitle" id="heroSubtitle">&nbsp;</p>
+      <h1>Les <span class="highlight">Bourbons Bons Plans</span></h1>
 
       <!-- Stats row — populated by JS -->
       <div class="hero-stats" id="heroStats"></div>
@@ -1430,16 +1420,12 @@
   }
 
   function runHeroStats() {
-    var subtitleEl = document.getElementById('heroSubtitle');
     /* Hero stat boxes */
     var statsEl = document.getElementById('heroStats');
-    var totalViews = businesses.reduce(function (sum, b) { return sum + (b.views || 0); }, 0);
-    var totalViewsDisplay = Math.round(totalViews / 1000000 * 10) / 10; /* in millions */
     var statDefs = [
-      { label: 'Clients',    target: businesses.length,  suffix: '' },
-      { label: 'Villes',     target: uniqueCityCount,    suffix: '' },
-      { label: 'Vues totales', target: totalViewsDisplay, suffix: 'M', decimals: 1 },
-      { label: 'Catégories', target: catCount,           suffix: '' }
+      { label: 'Établissements', target: businesses.length,  suffix: '' },
+      { label: 'Villes',          target: uniqueCityCount,    suffix: '' },
+      { label: 'Catégories',      target: catCount,           suffix: '' }
     ];
     var statEls = [];
     statsEl.innerHTML = '';
@@ -1473,18 +1459,6 @@
       }, i * 150);
     });
 
-    /* Also animate the subtitle */
-    var vals = [0, 0, 0];
-    function render() {
-      subtitleEl.innerHTML =
-        'Tous les commerces réunionnais mis en lumière par <strong>Bourbon Bons Plans</strong> — ' +
-        '<span class="stat-num">' + vals[0] + '</span> établissements dans ' +
-        '<span class="stat-num">' + vals[1] + '</span> villes';
-    }
-    render();
-    animateCount(0, businesses.length, 1400, function (v) { vals[0] = v; render(); }, function () {
-      animateCount(0, uniqueCityCount, 900, function (v) { vals[1] = v; render(); });
-    });
   }
 
   /* header counter */
