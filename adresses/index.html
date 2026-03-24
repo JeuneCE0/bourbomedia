@@ -1982,7 +1982,7 @@
     document.getElementById('modalCity').innerHTML = PIN_SVG + ' ' + b.city + (b.isNew ? ' <span style="color:#22C55E;font-weight:700;font-size:.72rem;margin-left:4px;">NOUVEAU</span>' : '');
     if (b.createdAt) {
       var year = new Date(b.createdAt).getFullYear();
-      document.getElementById('modalCity').innerHTML += ' <span style="display:inline-block;margin-left:10px;font-size:.68rem;font-weight:600;color:var(--orange);background:rgba(232,105,43,.1);border:1px solid rgba(232,105,43,.2);padding:2px 10px;border-radius:20px;">BourbonBonsPlans depuis ' + year + '</span>';
+      document.getElementById('modalCity').innerHTML += ' <span style="display:inline-block;margin-left:10px;font-size:.68rem;font-weight:600;color:#FFFFFF;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);padding:2px 10px;border-radius:20px;">BourbonBonsPlans depuis ' + year + '</span>';
     }
     document.getElementById('modalResult').textContent = b.result;
     var descEl = document.getElementById('modalDescription');
