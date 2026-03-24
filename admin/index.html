@@ -378,11 +378,50 @@
           <div class="form-group">
             <label class="form-label">Secteur d'activité *</label>
             <select id="fCategory" class="form-select">
-              <option value="restaurant">🍴 Restaurant</option>
-              <option value="boutique">🛍 Boutique</option>
-              <option value="activite">🎯 Activité</option>
-              <option value="gourmandise">🍦 Gourmandise</option>
-              <option value="hebergement">🏠 Hébergement</option>
+              <option value="Restaurant">🍴 Restaurant</option>
+              <option value="Restaurant gastronomique">🍴 Restaurant gastronomique</option>
+              <option value="Restaurant halal">🍴 Restaurant halal</option>
+              <option value="Restaurant / Bar">🍴 Restaurant / Bar</option>
+              <option value="Restaurant / Bar / Boutique">🍴 Restaurant / Bar / Boutique</option>
+              <option value="Restaurant / Hébergement">🍴 Restaurant / Hébergement</option>
+              <option value="Restaurant / Pizzeria">🍴 Restaurant / Pizzeria</option>
+              <option value="Restaurant / Plage">🍴 Restaurant / Plage</option>
+              <option value="Restaurant / Traiteur">🍴 Restaurant / Traiteur</option>
+              <option value="Restaurant poké bowls">🍴 Restaurant poké bowls</option>
+              <option value="Bar">🍻 Bar</option>
+              <option value="Bar / Restaurant">🍻 Bar / Restaurant</option>
+              <option value="Bar à vin">🍷 Bar à vin</option>
+              <option value="Bar culturel">🎵 Bar culturel</option>
+              <option value="Karaoké / Bar">🎤 Karaoké / Bar</option>
+              <option value="Coffee shop">☕ Coffee shop</option>
+              <option value="Crêperie">🥞 Crêperie</option>
+              <option value="Crêperie / Coffee shop">🥞 Crêperie / Coffee shop</option>
+              <option value="Glacier artisanal">🍦 Glacier artisanal</option>
+              <option value="Cookies artisanaux">🍪 Cookies artisanaux</option>
+              <option value="Donuts artisanaux">🍩 Donuts artisanaux</option>
+              <option value="Accessoires / Bijoux">🛍 Accessoires / Bijoux</option>
+              <option value="Boutique vêtements femme">👗 Boutique vêtements femme</option>
+              <option value="Boutique running / Trail">🏃 Boutique running / Trail</option>
+              <option value="Boutique lithothérapie / Pierres">💎 Boutique lithothérapie / Pierres</option>
+              <option value="Friperie / Vintage">👔 Friperie / Vintage</option>
+              <option value="Concept store / Salon de thé">🍵 Concept store / Salon de thé</option>
+              <option value="Nutrition sportive">💪 Nutrition sportive</option>
+              <option value="Activités outdoor / Aventure">🎯 Activités outdoor / Aventure</option>
+              <option value="Parc aventure / Nature">🌿 Parc aventure / Nature</option>
+              <option value="Saut à l'élastique / Loisirs">🪂 Saut à l'élastique / Loisirs</option>
+              <option value="Studio photo / Création">📸 Studio photo / Création</option>
+              <option value="Studio yoga / Pilates">🧘 Studio yoga / Pilates</option>
+              <option value="Réflexologie / Bien-être">💆 Réflexologie / Bien-être</option>
+              <option value="Piercing / Tatouage">✨ Piercing / Tatouage</option>
+              <option value="Maquillage permanent / Tatouage">💄 Maquillage permanent / Tatouage</option>
+              <option value="Pension pour chats">🐱 Pension pour chats</option>
+              <option value="Hébergement">🏠 Hébergement</option>
+              <option value="Hébergement / Gîte">🏡 Hébergement / Gîte</option>
+              <option value="Maison d'hôtes">🏡 Maison d'hôtes</option>
+              <option value="Coliving">🏘 Coliving</option>
+              <option value="Conciergerie locative">🔑 Conciergerie locative</option>
+              <option value="Ferme / Cueillette">🍓 Ferme / Cueillette</option>
+              <option value="VTC / Transport">🚗 VTC / Transport</option>
             </select>
           </div>
           <div class="form-group">
@@ -394,7 +433,16 @@
               <option value="Saint-Leu">Saint-Leu</option>
               <option value="Saint-André">Saint-André</option>
               <option value="Saint-Gilles">Saint-Gilles</option>
+              <option value="Saint-Gilles-les-Bains">Saint-Gilles-les-Bains</option>
+              <option value="Saint-Gilles-les-Hauts">Saint-Gilles-les-Hauts</option>
+              <option value="Saint-Louis">Saint-Louis</option>
+              <option value="Saint-Joseph">Saint-Joseph</option>
               <option value="Le Tampon">Le Tampon</option>
+              <option value="Le Port">Le Port</option>
+              <option value="La Possession">La Possession</option>
+              <option value="L'Étang-Salé">L'Étang-Salé</option>
+              <option value="Les Avirons">Les Avirons</option>
+              <option value="Cilaos">Cilaos</option>
               <option value="Plaine des Cafres">Plaine des Cafres</option>
             </select>
           </div>
@@ -1090,7 +1138,12 @@ function parseAndPreviewCSV(text) {
   csvParsedRows = rows;
 
   // Render summary
+  var existingNames = projects.map(function(p){return p.name.toLowerCase().trim();});
+  var updateCount = rows.filter(function(r){return existingNames.indexOf(r.name.toLowerCase().trim()) !== -1;}).length;
+  var createCount = rows.length - updateCount;
   var summary = '<strong>' + rows.length + '</strong> projet(s) valide(s) sur <strong>' + (lines.length - 1) + '</strong> ligne(s).';
+  if (updateCount) summary += '<br><span style="color:var(--orange);">' + updateCount + ' mise(s) à jour</span> (logos et résultats existants conservés)';
+  if (createCount) summary += '<br><span style="color:var(--green);">' + createCount + ' nouveau(x) projet(s)</span>';
   document.getElementById('importSummary').innerHTML = summary;
 
   // Render errors
@@ -1146,16 +1199,51 @@ document.getElementById('importConfirmBtn').addEventListener('click', async func
   var total = csvParsedRows.length;
   var successCount = 0;
   var errorCount = 0;
+  var updatedCount = 0;
+  var createdCount = 0;
 
   for (var i = 0; i < total; i++) {
     var row = csvParsedRows[i];
     try {
-      var r = await fetch(API + '/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify(row)
+      /* Check if project already exists by name */
+      var existing = projects.find(function(p) {
+        return p.name.toLowerCase().trim() === row.name.toLowerCase().trim();
       });
-      if (r.ok) { successCount++; } else { errorCount++; }
+
+      if (existing) {
+        /* UPDATE: merge with existing, protect logo_url and result */
+        var payload = { id: existing.id };
+        CSV_FIELDS.forEach(function(f) {
+          if (f === 'logo_url') {
+            /* Only update logo if CSV provides one AND existing has none */
+            if (row[f] && !existing.logo_url) payload[f] = row[f];
+          } else if (f === 'result') {
+            /* Only update result if existing has none */
+            if (row[f] && !existing.result) payload[f] = row[f];
+          } else if (f === 'photos') {
+            /* Don't touch photos from CSV */
+          } else if (row[f] !== null && row[f] !== undefined && row[f] !== '') {
+            payload[f] = row[f];
+          }
+        });
+        /* Keep existing photos */
+        payload.photos = existing.photos || [];
+
+        var r = await fetch(API + '/api/projects', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify(payload)
+        });
+        if (r.ok) { successCount++; updatedCount++; } else { errorCount++; }
+      } else {
+        /* CREATE: new project */
+        var r = await fetch(API + '/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify(row)
+        });
+        if (r.ok) { successCount++; createdCount++; } else { errorCount++; }
+      }
     } catch (e) { errorCount++; }
 
     var pct = Math.round(((i + 1) / total) * 100);
@@ -1164,9 +1252,13 @@ document.getElementById('importConfirmBtn').addEventListener('click', async func
   }
 
   document.getElementById('importProgressBar').style.background = errorCount === 0 ? 'var(--green)' : 'var(--yellow)';
-  document.getElementById('importProgressText').textContent = 'Terminé : ' + successCount + ' importé(s), ' + errorCount + ' erreur(s).';
+  var doneMsg = 'Terminé : ';
+  if (updatedCount) doneMsg += updatedCount + ' mis à jour, ';
+  if (createdCount) doneMsg += createdCount + ' créé(s), ';
+  doneMsg += errorCount + ' erreur(s).';
+  document.getElementById('importProgressText').textContent = doneMsg;
 
-  showToast(successCount + ' projet(s) importé(s)', errorCount === 0 ? 'success' : 'error');
+  showToast((updatedCount ? updatedCount + ' mis à jour' : '') + (createdCount ? (updatedCount ? ', ' : '') + createdCount + ' créé(s)' : ''), errorCount === 0 ? 'success' : 'error');
 
   // Reload after a short delay
   setTimeout(function() {

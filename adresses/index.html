@@ -530,9 +530,9 @@
     .biz-card-logo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,.1); flex-shrink: 0; margin-top: 2px; }
 
     .biz-modal-gallery { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-    .biz-modal-gallery-img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); cursor: pointer; transition: transform .2s; }
+    .biz-modal-gallery-img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e5e5; cursor: pointer; transition: transform .2s; }
     .biz-modal-gallery-img:hover { transform: scale(1.05); }
-    .biz-modal-desc { color: #C4A98A; font-size: .88rem; margin-top: 8px; line-height: 1.5; }
+    .biz-modal-desc { color: #666; font-size: .88rem; margin-top: 8px; line-height: 1.5; }
 
     .sidebar-empty {
       display: flex; flex-direction: column; align-items: center;
@@ -783,8 +783,8 @@
     }
     .biz-modal-overlay.open { opacity: 1; pointer-events: auto; }
     .biz-modal {
-      background: var(--night-card);
-      border: 1px solid var(--border-md);
+      background: #FFFFFF;
+      border: none;
       border-radius: var(--radius-lg);
       padding: 0;
       max-width: 460px; width: 100%;
@@ -792,7 +792,7 @@
       transition: transform .4s cubic-bezier(0.34,1.4,0.64,1);
       overflow: hidden;
       max-height: 92vh; overflow-y: auto;
-      box-shadow: 0 8px 40px rgba(0,0,0,.5), 0 0 60px rgba(0,0,0,.4);
+      box-shadow: 0 8px 40px rgba(0,0,0,.3), 0 0 60px rgba(0,0,0,.2);
     }
     .biz-modal-overlay.open .biz-modal { transform: translateY(0) scale(1); }
     .biz-modal-header {
@@ -837,18 +837,18 @@
       position: relative; z-index: 1;
     }
     .biz-modal-city svg { width: 13px; height: 13px; }
-    .biz-modal-body { padding: 20px 24px 28px; }
+    .biz-modal-body { padding: 20px 24px 28px; color: #333; }
     .biz-modal-result {
-      background: var(--green-bg);
-      border: 1px solid var(--green-border);
+      background: rgba(34,197,94,.08);
+      border: 1px solid rgba(34,197,94,.25);
       border-radius: var(--radius-sm);
       padding: 12px 16px;
-      font-size: .86rem; color: var(--green-text);
+      font-size: .86rem; color: #15803d;
       line-height: 1.55; margin-bottom: 18px;
     }
     .biz-modal-address {
       display: flex; align-items: flex-start; gap: 8px;
-      font-size: .83rem; color: var(--text-muted);
+      font-size: .83rem; color: #666;
       margin-bottom: 18px; line-height: 1.5;
     }
     .biz-modal-address svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; }
@@ -857,19 +857,19 @@
       display: inline-flex; align-items: center; gap: 7px;
       padding: 9px 16px;
       border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,.03);
-      color: var(--text-mid);
+      border: 1px solid #e5e5e5;
+      background: #f9f9f9;
+      color: #555;
       text-decoration: none;
       font-size: .8rem; font-weight: 600;
       font-family: 'Instrument Sans', sans-serif;
       transition: all var(--t-base);
     }
     .biz-modal-link:hover {
-      border-color: var(--border-orange);
-      background: var(--orange-glow);
-      color: var(--white); transform: translateY(-2px);
-      box-shadow: 0 4px 14px rgba(0,0,0,.2);
+      border-color: var(--orange);
+      background: rgba(232,105,43,.06);
+      color: var(--orange); transform: translateY(-2px);
+      box-shadow: 0 4px 14px rgba(0,0,0,.08);
     }
     .biz-modal-link svg { width: 15px; height: 15px; }
     .biz-modal-link.instagram { color: #E1306C; }
@@ -881,11 +881,11 @@
     .biz-modal-section-title {
       font-size: .7rem; font-weight: 700;
       text-transform: uppercase; letter-spacing: .09em;
-      color: var(--text-muted); margin-bottom: 10px;
+      color: #999; margin-bottom: 10px;
     }
     .biz-modal-embed {
       border-radius: var(--radius-sm); overflow: hidden;
-      border: 1px solid var(--border); background: var(--night);
+      border: 1px solid #e5e5e5; background: #f5f5f5;
       margin-bottom: 18px;
     }
     .biz-modal-embed iframe { width: 100%; min-height: 380px; border: none; display: block; }
@@ -1433,14 +1433,24 @@
   ];
 
   var cityCoords = {
-    "Saint-Denis":       [-20.8823, 55.4504],
-    "Saint-André":       [-20.9630, 55.6550],
-    "Saint-Leu":         [-21.1738, 55.2820],
-    "Saint-Paul":        [-21.0097, 55.2708],
-    "Saint-Pierre":      [-21.3393, 55.4781],
-    "Saint-Gilles":      [-21.0728, 55.2233],
-    "Le Tampon":         [-21.2781, 55.5178],
-    "Plaine des Cafres": [-21.2167, 55.5667]
+    "Saint-Denis":             [-20.8823, 55.4504],
+    "Saint-André":             [-20.9630, 55.6550],
+    "Saint-Leu":               [-21.1738, 55.2820],
+    "Saint-Paul":              [-21.0097, 55.2708],
+    "Saint-Pierre":            [-21.3393, 55.4781],
+    "Saint-Gilles":            [-21.0728, 55.2233],
+    "Saint-Gilles-les-Bains":  [-21.0728, 55.2233],
+    "Saint-Gilles-les-Hauts":  [-21.0500, 55.2500],
+    "Le Tampon":               [-21.2781, 55.5178],
+    "Plaine des Cafres":       [-21.2167, 55.5667],
+    "Saint-Louis":             [-21.2833, 55.4167],
+    "Saint-Joseph":            [-21.3833, 55.6167],
+    "Les Avirons":             [-21.2406, 55.3275],
+    "Cilaos":                  [-21.1333, 55.4667],
+    "Le Port":                 [-20.9350, 55.2900],
+    "L'Étang-Salé":            [-21.2667, 55.3500],
+    "La Possession":           [-20.9333, 55.3333],
+    "La Réunion":              [-21.1150, 55.5350]  /* fallback générique, à corriger manuellement */
   };
 
   /* category label map */
