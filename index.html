@@ -2085,16 +2085,20 @@
       var heroTrust = document.getElementById('heroTrustCount');
       if (heroTrust) heroTrust.textContent = '+' + totalProjects + ' commerces';
 
-      /* 2. Hero vues cumulées */
+      /* 2. Hero vues cumulées — set + re-animate */
       var heroViewsEl = document.getElementById('heroViews');
-      if (heroViewsEl) heroViewsEl.setAttribute('data-target', totalViewsM);
+      if (heroViewsEl) {
+        heroViewsEl.setAttribute('data-target', totalViewsM);
+        animateCount(heroViewsEl);
+      }
 
-      /* 3. Hero vues par vidéo en moyenne */
+      /* 3. Hero vues par vidéo en moyenne — set + re-animate */
       var proofItems = document.querySelectorAll('.hp-num');
       proofItems.forEach(function(el) {
         var lbl = el.nextElementSibling;
         if (lbl && lbl.textContent.indexOf('par vidéo') !== -1) {
           el.setAttribute('data-target', String(avgViews));
+          animateCount(el);
         }
       });
 
@@ -2111,10 +2115,11 @@
         if (hlSpans[1]) hlSpans[1].textContent = totalProjects + '+ commerces';
       }
 
-      /* 5. Reach block counter */
+      /* 5. Reach block counter — set + re-animate */
       var reachEl = document.querySelector('.reach-counter');
       if (reachEl) {
         reachEl.setAttribute('data-target', totalViewsM);
+        animateCount(reachEl);
       }
 
       /* 6. Fondateur "60+" */
@@ -2142,7 +2147,10 @@
           + (parseInt(settingsMap.facebook_followers, 10) || 0);
         var followersK = Math.round(totalFollowers / 1000);
         var heroFollowersEl = document.getElementById('heroFollowers');
-        if (heroFollowersEl) heroFollowersEl.setAttribute('data-target', String(followersK));
+        if (heroFollowersEl) {
+          heroFollowersEl.setAttribute('data-target', String(followersK));
+          animateCount(heroFollowersEl);
+        }
       } catch(e) {}
 
       /* 4. Carousel avec logos */
