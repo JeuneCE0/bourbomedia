@@ -996,11 +996,10 @@
       .hero { display: none; }
 
       /* ── LAYOUT ── */
-      /* header (57px) + search bar (50px) = 107px top, cards strip (100px) bottom */
       .main-content {
         flex-direction: column; padding: 0; gap: 0;
-        height: calc(100vh - var(--header-height) - 50px - 100px);
-        height: calc(100dvh - var(--header-height) - 50px - 100px);
+        height: calc(100vh - var(--header-height) - 50px);
+        height: calc(100dvh - var(--header-height) - 50px);
         margin-top: calc(var(--header-height) + 50px);
       }
 
