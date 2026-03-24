@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Admin — BourbonMédia</title>
+  <link rel="icon" type="image/jpeg" href="/favicon.jpg">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --orange: #E8692B; --orange-dark: #C9541E; --orange-light: #F28C55;
+      --night: #1A1008; --night-mid: #1E1309; --night-card: #251B0D;
+      --night-card-hover: #2D2010; --night-raised: #312213;
+      --border: rgba(255,255,255,.07); --border-md: rgba(255,255,255,.12);
+      --border-orange: rgba(232,105,43,.35);
+      --text: #F5EBE0; --text-mid: #C4A98A; --text-muted: #8A7060;
+      --white: #FFFFFF; --green: #22C55E; --red: #EF4444;
+      --radius: 16px; --radius-sm: 10px; --radius-xs: 6px;
+      --glass-bg: rgba(26,16,8,.92); --glass-border: rgba(255,255,255,.08);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Instrument Sans', -apple-system, sans-serif;
+      background: var(--night); color: var(--text);
+      min-height: 100vh; -webkit-font-smoothing: antialiased;
+    }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--night-mid); }
+    ::-webkit-scrollbar-thumb { background: var(--orange); border-radius: 10px; }
+
+    /* ── LOGIN ── */
+    .login-wrap {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 24px;
+    }
+    .login-box {
+      background: var(--night-card); border: 1px solid var(--border-md);
+      border-radius: var(--radius); padding: 48px 40px; width: 100%; max-width: 400px;
+      text-align: center;
+    }
+    .login-logo {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 800; font-size: 1.5rem; color: var(--white); margin-bottom: 8px;
+    }
+    .login-logo span { color: var(--orange); }
+    .login-sub { color: var(--text-muted); font-size: .85rem; margin-bottom: 32px; }
+    .login-field {
+      width: 100%; padding: 14px 16px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border-md); background: var(--night-mid);
+      color: var(--text); font-size: .95rem; outline: none;
+      font-family: inherit; margin-bottom: 12px; transition: border-color .2s;
+    }
+    .login-field:focus { border-color: var(--orange); }
+    .login-field::placeholder { color: var(--text-muted); }
+    .login-btn {
+      width: 100%; padding: 14px; border-radius: var(--radius-sm);
+      border: none; background: var(--orange); color: var(--white);
+      font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 8px;
+      font-family: inherit; transition: background .2s;
+    }
+    .login-btn:hover { background: var(--orange-dark); }
+    .login-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .login-error {
+      color: var(--red); font-size: .82rem; margin-top: 12px;
+      min-height: 20px;
+    }
+
+    /* ── LAYOUT ── */
+    .app { display: none; }
+    .app.visible { display: block; }
+    .topbar {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--glass-bg); backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 0 32px; height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .topbar-logo {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 800; font-size: 1.15rem; color: var(--white);
+    }
+    .topbar-logo span { color: var(--orange); }
+    .topbar-badge {
+      font-size: .7rem; background: var(--orange); color: var(--white);
+      padding: 2px 8px; border-radius: 20px; margin-left: 10px;
+      font-weight: 600; vertical-align: middle;
+    }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .topbar-user { color: var(--text-muted); font-size: .82rem; }
+    .btn-logout {
+      padding: 8px 16px; border-radius: var(--radius-xs); border: 1px solid var(--border-md);
+      background: transparent; color: var(--text-mid); font-size: .8rem;
+      cursor: pointer; font-family: inherit; transition: all .2s;
+    }
+    .btn-logout:hover { border-color: var(--red); color: var(--red); }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+    /* ── STATS ── */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px; margin-bottom: 32px;
+    }
+    .stat-card {
+      background: var(--night-card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 20px; text-align: center;
+    }
+    .stat-value {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-size: 1.8rem; font-weight: 800; color: var(--orange);
+    }
+    .stat-label { font-size: .78rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* ── TOOLBAR ── */
+    .toolbar {
+      display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap; margin-bottom: 24px;
+    }
+    .toolbar-search {
+      flex: 1; min-width: 200px; padding: 12px 16px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border-md);
+      background: var(--night-mid); color: var(--text);
+      font-size: .9rem; outline: none; font-family: inherit;
+    }
+    .toolbar-search:focus { border-color: var(--orange); }
+    .toolbar-search::placeholder { color: var(--text-muted); }
+    .btn-add {
+      padding: 12px 24px; border-radius: var(--radius-sm); border: none;
+      background: var(--orange); color: var(--white);
+      font-size: .9rem; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: background .2s;
+      display: flex; align-items: center; gap: 8px; white-space: nowrap;
+    }
+    .btn-add:hover { background: var(--orange-dark); }
+
+    /* ── TABLE ── */
+    .projects-table {
+      width: 100%; border-collapse: separate; border-spacing: 0;
+      background: var(--night-card); border-radius: var(--radius);
+      border: 1px solid var(--border); overflow: hidden;
+    }
+    .projects-table th {
+      padding: 14px 16px; text-align: left; font-size: .72rem;
+      font-weight: 600; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: .05em; border-bottom: 1px solid var(--border);
+      background: var(--night-raised);
+    }
+    .projects-table td {
+      padding: 14px 16px; font-size: .88rem; border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .projects-table tr:last-child td { border-bottom: none; }
+    .projects-table tr:hover td { background: var(--night-card-hover); }
+    .td-name { font-weight: 600; color: var(--white); }
+    .td-cat {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 20px; font-size: .75rem;
+      background: rgba(232,105,43,.1); color: var(--orange-light);
+      border: 1px solid rgba(232,105,43,.15);
+    }
+    .td-city { color: var(--text-mid); font-size: .84rem; }
+    .td-views { color: var(--text-mid); font-size: .84rem; }
+    .td-new {
+      display: inline-block; padding: 3px 8px; border-radius: 12px;
+      font-size: .7rem; font-weight: 600;
+    }
+    .td-new.yes { background: rgba(34,197,94,.1); color: var(--green); border: 1px solid rgba(34,197,94,.2); }
+    .td-new.no { background: rgba(255,255,255,.03); color: var(--text-muted); border: 1px solid var(--border); }
+    .td-actions { display: flex; gap: 8px; }
+    .btn-edit, .btn-delete {
+      padding: 6px 12px; border-radius: var(--radius-xs);
+      font-size: .78rem; cursor: pointer; font-family: inherit;
+      border: 1px solid var(--border-md); background: transparent;
+      transition: all .2s;
+    }
+    .btn-edit { color: var(--orange-light); }
+    .btn-edit:hover { background: rgba(232,105,43,.1); border-color: var(--orange); }
+    .btn-delete { color: var(--text-muted); }
+    .btn-delete:hover { color: var(--red); border-color: var(--red); background: rgba(239,68,68,.08); }
+
+    .empty-state {
+      text-align: center; padding: 80px 24px; color: var(--text-muted);
+    }
+    .empty-state p { margin-top: 8px; font-size: .9rem; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,.7); backdrop-filter: blur(6px);
+      align-items: flex-start; justify-content: center;
+      padding: 40px 16px; overflow-y: auto;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--night-card); border: 1px solid var(--border-md);
+      border-radius: var(--radius); width: 100%; max-width: 680px;
+      padding: 0; animation: modalIn .25s ease;
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .modal-header {
+      padding: 24px 28px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-title {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 700; font-size: 1.15rem; color: var(--white);
+    }
+    .modal-close {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 1px solid var(--border-md); background: transparent;
+      color: var(--text-muted); font-size: 1.2rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .2s;
+    }
+    .modal-close:hover { color: var(--red); border-color: var(--red); }
+    .modal-body { padding: 28px; }
+    .modal-footer {
+      padding: 20px 28px; border-top: 1px solid var(--border);
+      display: flex; justify-content: flex-end; gap: 12px;
+    }
+
+    /* ── FORM ── */
+    .form-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-label {
+      font-size: .78rem; font-weight: 600; color: var(--text-mid);
+      text-transform: uppercase; letter-spacing: .03em;
+    }
+    .form-input, .form-select, .form-textarea {
+      padding: 12px 14px; border-radius: var(--radius-xs);
+      border: 1px solid var(--border-md); background: var(--night-mid);
+      color: var(--text); font-size: .9rem; outline: none;
+      font-family: inherit; transition: border-color .2s;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: var(--orange);
+    }
+    .form-input::placeholder, .form-textarea::placeholder { color: var(--text-muted); }
+    .form-select { cursor: pointer; }
+    .form-select option { background: var(--night-mid); color: var(--text); }
+    .form-textarea { resize: vertical; min-height: 80px; }
+    .form-row { display: flex; align-items: center; gap: 12px; }
+    .form-toggle {
+      position: relative; width: 44px; height: 24px; cursor: pointer;
+    }
+    .form-toggle input { display: none; }
+    .form-toggle .slider {
+      position: absolute; inset: 0; border-radius: 24px;
+      background: var(--night-raised); border: 1px solid var(--border-md);
+      transition: all .2s;
+    }
+    .form-toggle .slider::after {
+      content: ''; position: absolute; width: 18px; height: 18px;
+      border-radius: 50%; background: var(--text-muted);
+      top: 2px; left: 2px; transition: all .2s;
+    }
+    .form-toggle input:checked + .slider {
+      background: var(--orange); border-color: var(--orange);
+    }
+    .form-toggle input:checked + .slider::after {
+      transform: translateX(20px); background: var(--white);
+    }
+    .form-hint { font-size: .72rem; color: var(--text-muted); }
+
+    /* ── PHOTOS ── */
+    .photos-zone {
+      border: 2px dashed var(--border-md); border-radius: var(--radius-sm);
+      padding: 24px; text-align: center; cursor: pointer;
+      transition: all .2s; min-height: 120px;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 8px;
+    }
+    .photos-zone:hover, .photos-zone.dragover {
+      border-color: var(--orange); background: rgba(232,105,43,.05);
+    }
+    .photos-zone svg { width: 32px; height: 32px; color: var(--text-muted); }
+    .photos-zone p { color: var(--text-muted); font-size: .84rem; }
+    .photos-zone small { color: var(--text-muted); font-size: .72rem; }
+    .photos-preview {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px;
+    }
+    .photo-thumb {
+      position: relative; width: 90px; height: 90px; border-radius: var(--radius-xs);
+      overflow: hidden; border: 1px solid var(--border-md);
+    }
+    .photo-thumb img {
+      width: 100%; height: 100%; object-fit: cover;
+    }
+    .photo-thumb .photo-remove {
+      position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
+      border-radius: 50%; background: rgba(0,0,0,.7); border: none;
+      color: var(--red); font-size: .8rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .photo-uploading {
+      display: flex; align-items: center; justify-content: center;
+      background: var(--night-mid); color: var(--text-muted); font-size: .7rem;
+    }
+
+    .btn-save {
+      padding: 12px 28px; border-radius: var(--radius-sm); border: none;
+      background: var(--orange); color: var(--white);
+      font-size: .9rem; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: background .2s;
+    }
+    .btn-save:hover { background: var(--orange-dark); }
+    .btn-save:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-cancel {
+      padding: 12px 28px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border-md); background: transparent;
+      color: var(--text-mid); font-size: .9rem; cursor: pointer;
+      font-family: inherit; transition: all .2s;
+    }
+    .btn-cancel:hover { border-color: var(--text-mid); color: var(--text); }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 600;
+      padding: 14px 20px; border-radius: var(--radius-sm);
+      font-size: .88rem; font-weight: 500;
+      transform: translateY(100px); opacity: 0;
+      transition: all .3s ease;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { background: var(--green); color: #fff; }
+    .toast.error { background: var(--red); color: #fff; }
+
+    /* ── CONFIRM ── */
+    .confirm-overlay {
+      display: none; position: fixed; inset: 0; z-index: 600;
+      background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center;
+    }
+    .confirm-overlay.open { display: flex; }
+    .confirm-box {
+      background: var(--night-card); border: 1px solid var(--border-md);
+      border-radius: var(--radius); padding: 32px; max-width: 400px;
+      text-align: center;
+    }
+    .confirm-box h3 { color: var(--white); margin-bottom: 8px; font-family: 'Bricolage Grotesque', sans-serif; }
+    .confirm-box p { color: var(--text-muted); font-size: .88rem; margin-bottom: 24px; }
+    .confirm-btns { display: flex; gap: 12px; justify-content: center; }
+    .btn-confirm-delete {
+      padding: 10px 24px; border-radius: var(--radius-sm); border: none;
+      background: var(--red); color: #fff; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .topbar { padding: 0 16px; }
+      .container { padding: 20px 16px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .projects-table { font-size: .82rem; }
+      .projects-table th:nth-child(4),
+      .projects-table td:nth-child(4),
+      .projects-table th:nth-child(5),
+      .projects-table td:nth-child(5) { display: none; }
+      .modal-body { padding: 20px; }
+      .toolbar { flex-direction: column; }
+      .toolbar-search { min-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════ LOGIN ════ -->
+<div id="loginView" class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">Bourbon<span>Média</span></div>
+    <p class="login-sub">Administration</p>
+    <input type="text" id="loginUser" class="login-field" placeholder="Identifiant" autocomplete="username">
+    <input type="password" id="loginPass" class="login-field" placeholder="Mot de passe" autocomplete="current-password">
+    <button id="loginBtn" class="login-btn">Se connecter</button>
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
+
+<!-- ════ APP ════ -->
+<div id="app" class="app">
+  <div class="topbar">
+    <div>
+      <span class="topbar-logo">Bourbon<span>Média</span></span>
+      <span class="topbar-badge">ADMIN</span>
+    </div>
+    <div class="topbar-right">
+      <span class="topbar-user">Connecté</span>
+      <button id="logoutBtn" class="btn-logout">Déconnexion</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Stats -->
+    <div id="statsRow" class="stats-row"></div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <input type="text" id="searchInput" class="toolbar-search" placeholder="Rechercher un projet...">
+      <button id="addBtn" class="btn-add">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Ajouter un projet
+      </button>
+    </div>
+
+    <!-- Table -->
+    <div style="overflow-x:auto;">
+      <table class="projects-table">
+        <thead>
+          <tr>
+            <th>Entreprise</th>
+            <th>Secteur</th>
+            <th>Ville</th>
+            <th>Vues</th>
+            <th>Statut</th>
+            <th style="text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="projectsBody"></tbody>
+      </table>
+    </div>
+    <div id="emptyState" class="empty-state" style="display:none;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+      <p>Aucun projet pour l'instant</p>
+    </div>
+  </div>
+</div>
+
+<!-- ════ ADD/EDIT MODAL ════ -->
+<div id="formOverlay" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="formTitle" class="modal-title">Ajouter un projet</span>
+      <button class="modal-close" onclick="closeForm()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="formId">
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label class="form-label">Entreprise *</label>
+          <input type="text" id="fName" class="form-input" placeholder="Nom du commerce">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Secteur d'activité *</label>
+          <select id="fCategory" class="form-select">
+            <option value="restaurant">🍴 Restaurant</option>
+            <option value="boutique">🛍 Boutique</option>
+            <option value="activite">🎯 Activité</option>
+            <option value="gourmandise">🍦 Gourmandise</option>
+            <option value="hebergement">🏠 Hébergement</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Ville *</label>
+          <select id="fCity" class="form-select">
+            <option value="Saint-Denis">Saint-Denis</option>
+            <option value="Saint-Pierre">Saint-Pierre</option>
+            <option value="Saint-Paul">Saint-Paul</option>
+            <option value="Saint-Leu">Saint-Leu</option>
+            <option value="Saint-André">Saint-André</option>
+            <option value="Saint-Gilles">Saint-Gilles</option>
+            <option value="Le Tampon">Le Tampon</option>
+            <option value="Plaine des Cafres">Plaine des Cafres</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Adresse complète</label>
+          <input type="text" id="fAddress" class="form-input" placeholder="30 Rue Maréchal Leclerc, 97400...">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Instagram</label>
+          <input type="text" id="fInstagram" class="form-input" placeholder="nom_du_compte (sans @)">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">TikTok</label>
+          <input type="text" id="fTiktok" class="form-input" placeholder="nom_du_compte (sans @)">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Lien vidéo BBP</label>
+          <input type="text" id="fBbpLink" class="form-input" placeholder="https://...">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Vidéo publiée sur IG</label>
+          <input type="text" id="fVideoIg" class="form-input" placeholder="URL ou code du reel IG">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Code Reel (embed)</label>
+          <input type="text" id="fReels" class="form-input" placeholder="Code du reel pour embed">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Vidéo témoignage (Senja)</label>
+          <input type="text" id="fSenja" class="form-input" placeholder="URL embed Senja">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nombre de vues</label>
+          <input type="number" id="fViews" class="form-input" placeholder="0" min="0">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nouveau ?</label>
+          <label class="form-toggle">
+            <input type="checkbox" id="fIsNew">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="form-group full">
+          <label class="form-label">Résultat / Impact</label>
+          <textarea id="fResult" class="form-textarea" placeholder="Ex: +40 000€ de CA en 30 jours — +1 000 ventes"></textarea>
+        </div>
+
+        <div class="form-group full">
+          <label class="form-label">Photos</label>
+          <div id="photosZone" class="photos-zone">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+            <p>Cliquer ou glisser des images ici</p>
+            <small>JPG, PNG — max 5 Mo par image</small>
+          </div>
+          <input type="file" id="photosInput" multiple accept="image/*" style="display:none;">
+          <div id="photosPreview" class="photos-preview"></div>
+        </div>
+
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeForm()">Annuler</button>
+      <button id="saveBtn" class="btn-save">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ CONFIRM DELETE ════ -->
+<div id="confirmOverlay" class="confirm-overlay">
+  <div class="confirm-box">
+    <h3>Supprimer ce projet ?</h3>
+    <p id="confirmText">Cette action est irréversible.</p>
+    <div class="confirm-btns">
+      <button class="btn-cancel" onclick="closeConfirm()">Annuler</button>
+      <button id="confirmDeleteBtn" class="btn-confirm-delete">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ TOAST ════ -->
+<div id="toast" class="toast"></div>
+
+<script>
+'use strict';
+
+/* ════════════════════════════════════════
+   CONFIG
+════════════════════════════════════════ */
+var API = '';  // same origin
+var token = localStorage.getItem('bbp_admin_token');
+var projects = [];
+var editingPhotos = [];
+
+var catLabels = {
+  restaurant: '🍴 Restaurant', boutique: '🛍 Boutique',
+  activite: '🎯 Activité', gourmandise: '🍦 Gourmandise',
+  hebergement: '🏠 Hébergement'
+};
+
+/* ════════════════════════════════════════
+   AUTH
+════════════════════════════════════════ */
+async function checkAuth() {
+  if (!token) return showLogin();
+  try {
+    var r = await fetch(API + '/api/auth', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (r.ok) { showApp(); loadProjects(); }
+    else { token = null; localStorage.removeItem('bbp_admin_token'); showLogin(); }
+  } catch (e) { showLogin(); }
+}
+
+function showLogin() {
+  document.getElementById('loginView').style.display = 'flex';
+  document.getElementById('app').classList.remove('visible');
+}
+
+function showApp() {
+  document.getElementById('loginView').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+}
+
+document.getElementById('loginBtn').addEventListener('click', async function () {
+  var btn = this;
+  var user = document.getElementById('loginUser').value.trim();
+  var pass = document.getElementById('loginPass').value;
+  var errEl = document.getElementById('loginError');
+  if (!user || !pass) { errEl.textContent = 'Remplissez tous les champs'; return; }
+  btn.disabled = true; errEl.textContent = '';
+  try {
+    var r = await fetch(API + '/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    var data = await r.json();
+    if (r.ok && data.token) {
+      token = data.token;
+      localStorage.setItem('bbp_admin_token', token);
+      showApp(); loadProjects();
+    } else {
+      errEl.textContent = data.error || 'Erreur de connexion';
+    }
+  } catch (e) { errEl.textContent = 'Erreur réseau'; }
+  btn.disabled = false;
+});
+
+document.getElementById('loginPass').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', function () {
+  token = null;
+  localStorage.removeItem('bbp_admin_token');
+  showLogin();
+});
+
+/* ════════════════════════════════════════
+   LOAD PROJECTS
+════════════════════════════════════════ */
+async function loadProjects() {
+  try {
+    var r = await fetch(API + '/api/projects');
+    projects = await r.json();
+    renderStats();
+    renderTable();
+  } catch (e) { showToast('Erreur de chargement', 'error'); }
+}
+
+/* ════════════════════════════════════════
+   STATS
+════════════════════════════════════════ */
+function renderStats() {
+  var cats = {};
+  projects.forEach(function (p) {
+    cats[p.category] = (cats[p.category] || 0) + 1;
+  });
+  var totalViews = projects.reduce(function (s, p) { return s + (p.views || 0); }, 0);
+  var html = '<div class="stat-card"><div class="stat-value">' + projects.length + '</div><div class="stat-label">Projets</div></div>';
+  html += '<div class="stat-card"><div class="stat-value">' + formatViews(totalViews) + '</div><div class="stat-label">Vues totales</div></div>';
+  Object.keys(catLabels).forEach(function (k) {
+    if (cats[k]) {
+      html += '<div class="stat-card"><div class="stat-value">' + cats[k] + '</div><div class="stat-label">' + catLabels[k] + '</div></div>';
+    }
+  });
+  document.getElementById('statsRow').innerHTML = html;
+}
+
+function formatViews(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.0', '') + 'M';
+  if (n >= 1000) return Math.round(n / 1000) + 'K';
+  return String(n);
+}
+
+/* ════════════════════════════════════════
+   TABLE
+════════════════════════════════════════ */
+function renderTable() {
+  var q = document.getElementById('searchInput').value.toLowerCase().trim();
+  var filtered = projects.filter(function (p) {
+    if (!q) return true;
+    return p.name.toLowerCase().indexOf(q) !== -1 ||
+           p.city.toLowerCase().indexOf(q) !== -1 ||
+           (p.category && p.category.toLowerCase().indexOf(q) !== -1);
+  });
+
+  var tbody = document.getElementById('projectsBody');
+  var empty = document.getElementById('emptyState');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = filtered.map(function (p) {
+    return '<tr>' +
+      '<td class="td-name">' + esc(p.name) + '</td>' +
+      '<td><span class="td-cat">' + (catLabels[p.category] || p.category) + '</span></td>' +
+      '<td class="td-city">' + esc(p.city) + '</td>' +
+      '<td class="td-views">' + formatViews(p.views || 0) + ' vues</td>' +
+      '<td><span class="td-new ' + (p.is_new ? 'yes' : 'no') + '">' + (p.is_new ? 'Nouveau' : 'Établi') + '</span></td>' +
+      '<td><div class="td-actions">' +
+        '<button class="btn-edit" onclick="openEdit(\'' + p.id + '\')">Modifier</button>' +
+        '<button class="btn-delete" onclick="confirmDelete(\'' + p.id + '\',\'' + esc(p.name).replace(/'/g, "\\'") + '\')">Supprimer</button>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+}
+
+document.getElementById('searchInput').addEventListener('input', renderTable);
+
+function esc(s) {
+  if (!s) return '';
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/* ════════════════════════════════════════
+   FORM (ADD / EDIT)
+════════════════════════════════════════ */
+document.getElementById('addBtn').addEventListener('click', function () {
+  openForm();
+});
+
+function openForm(project) {
+  var isEdit = !!project;
+  document.getElementById('formTitle').textContent = isEdit ? 'Modifier le projet' : 'Ajouter un projet';
+  document.getElementById('formId').value = isEdit ? project.id : '';
+  document.getElementById('fName').value = isEdit ? project.name : '';
+  document.getElementById('fCategory').value = isEdit ? project.category : 'restaurant';
+  document.getElementById('fCity').value = isEdit ? project.city : 'Saint-Denis';
+  document.getElementById('fAddress').value = isEdit ? (project.address || '') : '';
+  document.getElementById('fInstagram').value = isEdit ? (project.instagram || '') : '';
+  document.getElementById('fTiktok').value = isEdit ? (project.tiktok || '') : '';
+  document.getElementById('fBbpLink').value = isEdit ? (project.bbp_link || '') : '';
+  document.getElementById('fVideoIg').value = isEdit ? (project.video_ig_url || '') : '';
+  document.getElementById('fReels').value = isEdit ? (project.reels || '') : '';
+  document.getElementById('fSenja').value = isEdit ? (project.senja || '') : '';
+  document.getElementById('fViews').value = isEdit ? (project.views || 0) : 0;
+  document.getElementById('fIsNew').checked = isEdit ? !!project.is_new : true;
+  document.getElementById('fResult').value = isEdit ? (project.result || '') : '';
+
+  editingPhotos = isEdit && project.photos ? project.photos.slice() : [];
+  renderPhotosPreview();
+
+  document.getElementById('formOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeForm() {
+  document.getElementById('formOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function openEdit(id) {
+  var p = projects.find(function (x) { return x.id === id; });
+  if (p) openForm(p);
+}
+
+/* ════════════════════════════════════════
+   PHOTOS UPLOAD
+════════════════════════════════════════ */
+var photosZone = document.getElementById('photosZone');
+var photosInput = document.getElementById('photosInput');
+
+photosZone.addEventListener('click', function () { photosInput.click(); });
+photosZone.addEventListener('dragover', function (e) {
+  e.preventDefault(); photosZone.classList.add('dragover');
+});
+photosZone.addEventListener('dragleave', function () {
+  photosZone.classList.remove('dragover');
+});
+photosZone.addEventListener('drop', function (e) {
+  e.preventDefault(); photosZone.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+photosInput.addEventListener('change', function () {
+  handleFiles(this.files); this.value = '';
+});
+
+function handleFiles(files) {
+  Array.from(files).forEach(function (file) {
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 5 * 1024 * 1024) { showToast('Image trop lourde (max 5 Mo)', 'error'); return; }
+    uploadPhoto(file);
+  });
+}
+
+async function uploadPhoto(file) {
+  var placeholder = '___uploading_' + Date.now();
+  editingPhotos.push(placeholder);
+  renderPhotosPreview();
+
+  try {
+    var reader = new FileReader();
+    var base64 = await new Promise(function (resolve) {
+      reader.onload = function () { resolve(reader.result.split(',')[1]); };
+      reader.readAsDataURL(file);
+    });
+
+    var r = await fetch(API + '/api/upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ file: base64, filename: file.name, contentType: file.type })
+    });
+    var data = await r.json();
+    if (r.ok && data.url) {
+      var idx = editingPhotos.indexOf(placeholder);
+      if (idx !== -1) editingPhotos[idx] = data.url;
+    } else {
+      editingPhotos = editingPhotos.filter(function (x) { return x !== placeholder; });
+      showToast('Erreur upload: ' + (data.error || ''), 'error');
+    }
+  } catch (e) {
+    editingPhotos = editingPhotos.filter(function (x) { return x !== placeholder; });
+    showToast('Erreur upload', 'error');
+  }
+  renderPhotosPreview();
+}
+
+function removePhoto(idx) {
+  editingPhotos.splice(idx, 1);
+  renderPhotosPreview();
+}
+
+function renderPhotosPreview() {
+  var container = document.getElementById('photosPreview');
+  container.innerHTML = editingPhotos.map(function (url, i) {
+    if (url.startsWith('___uploading')) {
+      return '<div class="photo-thumb photo-uploading">Upload...</div>';
+    }
+    return '<div class="photo-thumb">' +
+      '<img src="' + url + '" alt="">' +
+      '<button class="photo-remove" onclick="removePhoto(' + i + ')">&times;</button>' +
+    '</div>';
+  }).join('');
+}
+
+/* ════════════════════════════════════════
+   SAVE
+════════════════════════════════════════ */
+document.getElementById('saveBtn').addEventListener('click', async function () {
+  var btn = this;
+  var id = document.getElementById('formId').value;
+  var name = document.getElementById('fName').value.trim();
+  var category = document.getElementById('fCategory').value;
+  var city = document.getElementById('fCity').value;
+
+  if (!name) { showToast('Nom requis', 'error'); return; }
+
+  var payload = {
+    name: name,
+    category: category,
+    city: city,
+    address: document.getElementById('fAddress').value.trim() || null,
+    instagram: document.getElementById('fInstagram').value.trim() || null,
+    tiktok: document.getElementById('fTiktok').value.trim() || null,
+    bbp_link: document.getElementById('fBbpLink').value.trim() || null,
+    video_ig_url: document.getElementById('fVideoIg').value.trim() || null,
+    reels: document.getElementById('fReels').value.trim() || null,
+    senja: document.getElementById('fSenja').value.trim() || null,
+    views: parseInt(document.getElementById('fViews').value, 10) || 0,
+    is_new: document.getElementById('fIsNew').checked,
+    result: document.getElementById('fResult').value.trim() || null,
+    photos: editingPhotos.filter(function (u) { return !u.startsWith('___'); })
+  };
+
+  if (id) payload.id = id;
+
+  btn.disabled = true;
+  try {
+    var r = await fetch(API + '/api/projects', {
+      method: id ? 'PUT' : 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify(payload)
+    });
+    var data = await r.json();
+    if (r.ok) {
+      showToast(id ? 'Projet modifié' : 'Projet ajouté', 'success');
+      closeForm();
+      loadProjects();
+    } else {
+      showToast('Erreur: ' + (data.error || ''), 'error');
+    }
+  } catch (e) {
+    showToast('Erreur réseau', 'error');
+  }
+  btn.disabled = false;
+});
+
+/* ════════════════════════════════════════
+   DELETE
+════════════════════════════════════════ */
+var pendingDeleteId = null;
+
+function confirmDelete(id, name) {
+  pendingDeleteId = id;
+  document.getElementById('confirmText').textContent = 'Supprimer « ' + name + ' » ? Cette action est irréversible.';
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmOverlay').classList.remove('open');
+  pendingDeleteId = null;
+}
+
+document.getElementById('confirmDeleteBtn').addEventListener('click', async function () {
+  if (!pendingDeleteId) return;
+  try {
+    var r = await fetch(API + '/api/projects', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ id: pendingDeleteId })
+    });
+    if (r.ok) {
+      showToast('Projet supprimé', 'success');
+      loadProjects();
+    } else {
+      showToast('Erreur de suppression', 'error');
+    }
+  } catch (e) { showToast('Erreur réseau', 'error'); }
+  closeConfirm();
+});
+
+/* ════════════════════════════════════════
+   TOAST
+════════════════════════════════════════ */
+function showToast(msg, type) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + (type || 'success');
+  setTimeout(function () { el.classList.add('show'); }, 10);
+  setTimeout(function () { el.classList.remove('show'); }, 3000);
+}
+
+/* ════════════════════════════════════════
+   INIT
+════════════════════════════════════════ */
+checkAuth();
+</script>
+</body>
+</html>
