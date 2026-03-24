@@ -25,45 +25,36 @@ module.exports = async (req, res) => {
   /* ── GET clicks analytics ── */
   if (req.method === 'GET' && action === 'clicks') {
     try {
-      // Clicks des 30 derniers jours, groupés par jour
-      const r1 = await fetch(`${SUPABASE_URL}/rest/v1/rpc/clicks_by_day`, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      });
+      const fromDate = req.query.from || new Date(Date.now() - 30 * 86400000).toISOString();
+      const toDate = req.query.to || new Date().toISOString();
+      const dateParams = { from_date: fromDate, to_date: toDate };
+      const rpcHeaders = { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' };
+
+      const [r1, r2, r3, r4] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/rpc/clicks_by_day`, { method: 'POST', headers: rpcHeaders, body: JSON.stringify(dateParams) }),
+        fetch(`${SUPABASE_URL}/rest/v1/rpc/clicks_by_project`, { method: 'POST', headers: rpcHeaders, body: JSON.stringify(dateParams) }),
+        fetch(`${SUPABASE_URL}/rest/v1/rpc/clicks_by_category`, { method: 'POST', headers: rpcHeaders, body: JSON.stringify(dateParams) }),
+        fetch(`${SUPABASE_URL}/rest/v1/rpc/clicks_by_city`, { method: 'POST', headers: rpcHeaders, body: JSON.stringify(dateParams) })
+      ]);
+
       const byDay = r1.ok ? await r1.json() : [];
-
-      // Clicks par projet (top 15)
-      const r2 = await fetch(`${SUPABASE_URL}/rest/v1/rpc/clicks_by_project`, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      });
       const byProject = r2.ok ? await r2.json() : [];
-
-      // Clicks par catégorie
-      const r3 = await fetch(`${SUPABASE_URL}/rest/v1/rpc/clicks_by_category`, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      });
       const byCat = r3.ok ? await r3.json() : [];
-
-      // Clicks par ville
-      const r4 = await fetch(`${SUPABASE_URL}/rest/v1/rpc/clicks_by_city`, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      });
       const byCity = r4.ok ? await r4.json() : [];
 
-      // Total aujourd'hui
-      const r5 = await fetch(`${SUPABASE_URL}/rest/v1/project_clicks?select=id&created_at=gte.${new Date().toISOString().slice(0,10)}`, {
+      // Total sur la période
+      const r5 = await fetch(`${SUPABASE_URL}/rest/v1/project_clicks?select=id&created_at=gte.${fromDate}&created_at=lte.${toDate}`, {
         headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Prefer': 'count=exact', 'Range-Unit': 'items', 'Range': '0-0' }
       });
       const todayCount = parseInt((r5.headers.get('content-range') || '0/0').split('/')[1], 10) || 0;
 
-      return res.status(200).json({ byDay, byProject, byCat, byCity, today: todayCount });
+      // Visiteurs uniques sur la période
+      const r6 = await fetch(`${SUPABASE_URL}/rest/v1/rpc/unique_visitors`, {
+        method: 'POST', headers: rpcHeaders, body: JSON.stringify(dateParams)
+      });
+      const uniqueCount = r6.ok ? await r6.json() : 0;
+
+      return res.status(200).json({ byDay, byProject, byCat, byCity, total: todayCount, unique: uniqueCount });
     } catch (e) {
       return res.status(500).json({ error: e.message });
     }

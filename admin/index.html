@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
@@ -387,6 +388,22 @@
 
     <!-- TAB: DASHBOARD -->
     <div id="tabDashboard" style="display:none;">
+      <!-- FILTRE PÉRIODE -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:20px;padding:16px 20px;background:var(--night-card);border:1px solid var(--border);border-radius:var(--radius-sm);">
+        <span style="font-size:.8rem;font-weight:600;color:var(--text-muted);margin-right:4px;">Période :</span>
+        <button class="filter-btn active" data-period="1">Aujourd'hui</button>
+        <button class="filter-btn" data-period="7">7 jours</button>
+        <button class="filter-btn" data-period="30">30 jours</button>
+        <button class="filter-btn" data-period="365">Année</button>
+        <button class="filter-btn" data-period="custom">Personnalisé</button>
+        <div id="customDateRange" style="display:none;margin-left:8px;display:none;align-items:center;gap:6px;">
+          <input type="date" id="dateFrom" class="form-input" style="padding:6px 10px;font-size:.78rem;width:auto;">
+          <span style="color:var(--text-muted);font-size:.8rem;">→</span>
+          <input type="date" id="dateTo" class="form-input" style="padding:6px 10px;font-size:.78rem;width:auto;">
+          <button id="applyDateRange" class="btn-save" style="padding:6px 14px;font-size:.78rem;">OK</button>
+        </div>
+      </div>
+
       <div class="stats-row" style="margin-bottom:24px;">
         <div class="stat-card"><div class="stat-value" id="dashTotal">0</div><div class="stat-label">Projets publiés</div></div>
         <div class="stat-card"><div class="stat-value" id="dashViews">0</div><div class="stat-label">Vues totales</div></div>
@@ -433,7 +450,8 @@
         <h3 style="font-family:'Bricolage Grotesque',sans-serif;font-size:1.1rem;color:var(--white);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           Suivi des découvertes visiteurs
-          <span id="clicksToday" style="font-size:.75rem;background:var(--green);color:#fff;padding:3px 10px;border-radius:20px;font-weight:600;margin-left:8px;">0 aujourd'hui</span>
+          <span id="clicksToday" style="font-size:.75rem;background:var(--green);color:#fff;padding:3px 10px;border-radius:20px;font-weight:600;margin-left:8px;">0 découvertes</span>
+          <span id="clicksUnique" style="font-size:.75rem;background:var(--orange);color:#fff;padding:3px 10px;border-radius:20px;font-weight:600;">0 visiteurs uniques</span>
         </h3>
       </div>
 
@@ -1831,6 +1849,11 @@ document.getElementById('adminTabs').addEventListener('click', function(e) {
 
 /* ════ DASHBOARD ════ */
 var dashCharts = {};
+if (typeof ChartDataLabels !== 'undefined') {
+  Chart.register(ChartDataLabels);
+  Chart.defaults.set('plugins.datalabels', { display: false });
+}
+var barDatalabels = { display: true, color: '#fff', font: { size: 10, weight: '600' }, anchor: 'end', align: 'start', offset: 4, formatter: function(v) { return v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? Math.round(v/1e3)+'K' : v; } };
 function renderDashboard() {
   if (!projects.length) return;
 
@@ -1869,7 +1892,7 @@ function renderDashboard() {
   dashCharts.chartViewsByCat = new Chart(document.getElementById('chartViewsByCat'), {
     type: 'bar',
     data: { labels: catKeys.map(function(k) { return catNames[k] || k; }), datasets: [{ label: 'Vues', data: catKeys.map(function(k) { return catViews[k] || 0; }), backgroundColor: '#E8692B', borderRadius: 6 }] },
-    options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#8A7060', callback: function(v) { return fv(v); } }, grid: { color: 'rgba(255,255,255,.05)' } }, y: { ticks: { color: '#C4A98A', font: { size: 11 } }, grid: { display: false } } } }
+    options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false }, datalabels: barDatalabels }, scales: { x: { ticks: { color: '#8A7060', callback: function(v) { return fv(v); } }, grid: { color: 'rgba(255,255,255,.05)' } }, y: { ticks: { color: '#C4A98A', font: { size: 11 } }, grid: { display: false } } } }
   });
 
   /* Chart 3: Répartition par ville */
@@ -1880,7 +1903,7 @@ function renderDashboard() {
   dashCharts.chartCities = new Chart(document.getElementById('chartCities'), {
     type: 'bar',
     data: { labels: cityKeys, datasets: [{ label: 'Projets', data: cityKeys.map(function(k) { return cityCounts[k]; }), backgroundColor: '#F28C55', borderRadius: 6 }] },
-    options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.05)' } }, y: { ticks: { color: '#C4A98A', font: { size: 11 } }, grid: { display: false } } } }
+    options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false }, datalabels: barDatalabels }, scales: { x: { ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.05)' } }, y: { ticks: { color: '#C4A98A', font: { size: 11 } }, grid: { display: false } } } }
   });
 
   /* Chart 4: Top 10 projets par vues */
@@ -1889,7 +1912,7 @@ function renderDashboard() {
   dashCharts.chartTopProjects = new Chart(document.getElementById('chartTopProjects'), {
     type: 'bar',
     data: { labels: top10.map(function(p) { return p.name.length > 18 ? p.name.slice(0, 18) + '…' : p.name; }), datasets: [{ label: 'Vues', data: top10.map(function(p) { return p.views || 0; }), backgroundColor: '#22C55E', borderRadius: 6 }] },
-    options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#8A7060', callback: function(v) { return fv(v); } }, grid: { color: 'rgba(255,255,255,.05)' } }, y: { ticks: { color: '#C4A98A', font: { size: 10 } }, grid: { display: false } } } }
+    options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false }, datalabels: barDatalabels }, scales: { x: { ticks: { color: '#8A7060', callback: function(v) { return fv(v); } }, grid: { color: 'rgba(255,255,255,.05)' } }, y: { ticks: { color: '#C4A98A', font: { size: 10 } }, grid: { display: false } } } }
   });
 
   /* Chart 5: Complétude des fiches */
@@ -1922,7 +1945,7 @@ function renderDashboard() {
   dashCharts.chartMedia = new Chart(document.getElementById('chartMedia'), {
     type: 'bar',
     data: { labels: Object.keys(mediaStats), datasets: [{ label: 'Projets', data: Object.values(mediaStats), backgroundColor: ['#E8692B','#F28C55','#FFA96A','#EC4899','#000','#4285F4','#22C55E'], borderRadius: 6 }] },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#C4A98A', font: { size: 10 } }, grid: { display: false } }, y: { ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.05)' }, beginAtZero: true } } }
+    options: { responsive: true, plugins: { legend: { display: false }, datalabels: barDatalabels }, scales: { x: { ticks: { color: '#C4A98A', font: { size: 10 } }, grid: { display: false } }, y: { ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.05)' }, beginAtZero: true } } }
   });
 }
 
@@ -1930,10 +1953,65 @@ function destroyChart(id) {
   if (dashCharts[id]) { dashCharts[id].destroy(); dashCharts[id] = null; }
 }
 
+/* ════ PERIOD FILTER ════ */
+var dashPeriod = 1; // days (1=today, 7, 30, 365, 'custom')
+var dashFrom = null;
+var dashTo = null;
+
+function getPeriodDates() {
+  var now = new Date();
+  var to = now.toISOString();
+  var from;
+  if (dashPeriod === 'custom' && dashFrom && dashTo) {
+    from = new Date(dashFrom).toISOString();
+    to = new Date(dashTo + 'T23:59:59').toISOString();
+  } else {
+    var days = parseInt(dashPeriod, 10) || 30;
+    from = new Date(Date.now() - days * 86400000).toISOString();
+  }
+  return { from: from, to: to };
+}
+
+function getPeriodLabel() {
+  if (dashPeriod === 1) return "aujourd'hui";
+  if (dashPeriod === 7) return 'sur 7 jours';
+  if (dashPeriod === 30) return 'sur 30 jours';
+  if (dashPeriod === 365) return "sur l'année";
+  if (dashPeriod === 'custom') return 'période perso.';
+  return '';
+}
+
+/* Period buttons */
+document.querySelector('#tabDashboard').addEventListener('click', function(e) {
+  var btn = e.target.closest('[data-period]');
+  if (!btn) return;
+  var period = btn.dataset.period;
+  document.querySelectorAll('[data-period]').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.period === period);
+  });
+  var customEl = document.getElementById('customDateRange');
+  if (period === 'custom') {
+    customEl.style.display = 'flex';
+    return; // wait for OK click
+  }
+  customEl.style.display = 'none';
+  dashPeriod = parseInt(period, 10);
+  renderDashboard();
+});
+
+document.getElementById('applyDateRange').addEventListener('click', function() {
+  dashFrom = document.getElementById('dateFrom').value;
+  dashTo = document.getElementById('dateTo').value;
+  if (!dashFrom || !dashTo) { showToast('Sélectionnez les dates', 'error'); return; }
+  dashPeriod = 'custom';
+  renderDashboard();
+});
+
 /* ════ CLICKS ANALYTICS ════ */
 async function loadClicksAnalytics() {
   try {
-    var r = await fetch(API + '/api/admin?action=clicks', {
+    var dates = getPeriodDates();
+    var r = await fetch(API + '/api/admin?action=clicks&from=' + encodeURIComponent(dates.from) + '&to=' + encodeURIComponent(dates.to), {
       headers: { 'Authorization': 'Bearer ' + token }
     });
     if (!r.ok) return;
@@ -1942,7 +2020,8 @@ async function loadClicksAnalytics() {
     var colors = ['#E8692B','#F28C55','#FFA96A','#22C55E','#4285F4','#9333EA','#EC4899','#FACC15','#06B6D4','#8B5CF6','#EF4444','#10B981','#F59E0B','#6366F1','#84CC16'];
 
     /* Today badge */
-    document.getElementById('clicksToday').textContent = data.today + ' aujourd\'hui';
+    document.getElementById('clicksToday').textContent = (data.total || 0) + ' découvertes ' + getPeriodLabel();
+    document.getElementById('clicksUnique').textContent = (data.unique || 0) + ' visiteurs uniques';
 
     /* Chart: Clics par jour */
     if (data.byDay && data.byDay.length) {
