@@ -526,6 +526,14 @@
     }
     .biz-card-bbp svg { width: 11px; height: 11px; }
 
+    .biz-card-header { display: flex; align-items: flex-start; gap: 10px; }
+    .biz-card-logo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,.1); flex-shrink: 0; margin-top: 2px; }
+
+    .biz-modal-gallery { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .biz-modal-gallery-img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); cursor: pointer; transition: transform .2s; }
+    .biz-modal-gallery-img:hover { transform: scale(1.05); }
+    .biz-modal-desc { color: #C4A98A; font-size: .88rem; margin-top: 8px; line-height: 1.5; }
+
     .sidebar-empty {
       display: flex; flex-direction: column; align-items: center;
       padding: 40px 20px; text-align: center; gap: 10px;
@@ -1350,6 +1358,7 @@
       </div>
       <div class="biz-modal-body">
         <div class="biz-modal-result" id="modalResult"></div>
+        <div id="modalDescription" class="biz-modal-desc" style="display:none;"></div>
         <div class="biz-modal-address" id="modalAddress"></div>
         <div class="biz-modal-links" id="modalLinks"></div>
         <div id="modalEmbed"></div>
@@ -1388,7 +1397,12 @@
       instagram: p.instagram, tiktok: p.tiktok, senja: p.senja,
       reels: p.reels, views: p.views || 0, isNew: !!p.is_new,
       bbpLink: p.bbp_link, result: p.result, photos: p.photos || [],
-      videoIg: p.video_ig_url
+      videoIg: p.video_ig_url,
+      logoUrl: p.logo_url,
+      description: p.description,
+      googleReview: p.google_review_url,
+      videoUrl: p.video_url,
+      createdAt: p.created_at
     };
   }
 
@@ -1459,6 +1473,12 @@
     if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.0', '') + 'M';
     if (n >= 1000) return Math.round(n / 1000) + 'K';
     return String(n);
+  }
+
+  function extractReelCode(url) {
+    if (!url) return null;
+    var m = url.match(/\/(reel|p)\/([A-Za-z0-9_-]+)/);
+    return m ? m[2] : null;
   }
 
   function getFiltered() {
@@ -1851,14 +1871,19 @@
       }
 
       card.innerHTML =
-        '<div class="biz-card-meta">' +
-          '<span class="biz-card-cat">' + catObj.icon + ' ' + catObj.label + '</span>' +
-          '<span class="biz-card-city">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
-            b.city +
-          '</span>' +
+        '<div class="biz-card-header">' +
+          (b.logoUrl ? '<img class="biz-card-logo" src="' + b.logoUrl + '" alt="">' : '') +
+          '<div>' +
+            '<div class="biz-card-meta">' +
+              '<span class="biz-card-cat">' + catObj.icon + ' ' + catObj.label + '</span>' +
+              '<span class="biz-card-city">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+                b.city +
+              '</span>' +
+            '</div>' +
+            '<h3 class="biz-card-name">' + b.name + '</h3>' +
+          '</div>' +
         '</div>' +
-        '<h3 class="biz-card-name">' + b.name + '</h3>' +
         badgesHtml +
         '<div class="biz-card-result">' + b.result + '</div>' +
         socialsHtml;
@@ -1948,9 +1973,24 @@
     var catLabel = catObj.icon + ' ' + catObj.label;
     if (b.views) catLabel += '  ·  ' + formatViews(b.views) + ' vues BBP';
     document.getElementById('modalCat').textContent = catLabel;
-    document.getElementById('modalName').textContent = b.name;
+    var nameEl = document.getElementById('modalName');
+    if (b.logoUrl) {
+      nameEl.innerHTML = '<img src="' + b.logoUrl + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,.1);vertical-align:middle;margin-right:10px;">' + b.name;
+    } else {
+      nameEl.textContent = b.name;
+    }
     document.getElementById('modalCity').innerHTML = PIN_SVG + ' ' + b.city + (b.isNew ? ' <span style="color:#22C55E;font-weight:700;font-size:.72rem;margin-left:4px;">NOUVEAU</span>' : '');
+    if (b.createdAt) {
+      var days = Math.floor((Date.now() - new Date(b.createdAt).getTime()) / 86400000);
+      var timeAgo = days === 0 ? "Publié aujourd'hui" : days === 1 ? 'Publié hier' : 'Publié il y a ' + days + ' jours';
+      document.getElementById('modalCity').innerHTML += ' <span style="color:var(--text-muted);font-size:.7rem;margin-left:8px;">' + timeAgo + '</span>';
+    }
     document.getElementById('modalResult').textContent = b.result;
+    var descEl = document.getElementById('modalDescription');
+    if (descEl) {
+      if (b.description) { descEl.textContent = b.description; descEl.style.display = 'block'; }
+      else { descEl.style.display = 'none'; }
+    }
 
     /* Address */
     var addrEl = document.getElementById('modalAddress');
@@ -1975,17 +2015,19 @@
     if (b.address) {
       linksHtml += '<a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(b.address) + '" target="_blank" rel="noopener" class="biz-modal-link maps">' + PIN_SVG + ' Google Maps</a>';
     }
+    if (b.googleReview) {
+      linksHtml += '<a href="' + b.googleReview + '" target="_blank" rel="noopener" class="biz-modal-link google-review" style="color:var(--green);border-color:rgba(34,197,94,.25);background:rgba(34,197,94,.06);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> Laisser un avis Google</a>';
+    }
     document.getElementById('modalLinks').innerHTML = linksHtml;
 
-    /* Reels + Senja embed */
+    /* Video + Senja + Photos embed */
     var embedEl = document.getElementById('modalEmbed');
     var embedHtml = '';
-    if (b.reels) {
-      embedHtml +=
-        '<div class="biz-modal-section-title">Reel Instagram</div>' +
-        '<div class="biz-modal-reels">' +
-        '<iframe src="https://www.instagram.com/reel/' + b.reels + '/embed/" loading="lazy" allowfullscreen></iframe>' +
-        '</div>';
+    if (b.videoUrl) {
+      var reelCode = extractReelCode(b.videoUrl);
+      if (reelCode) {
+        embedHtml += '<div class="biz-modal-section-title">Vidéo BBP</div><div class="biz-modal-reels"><iframe src="https://www.instagram.com/reel/' + reelCode + '/embed/" loading="lazy" allowfullscreen></iframe></div>';
+      }
     }
     if (b.senja) {
       embedHtml +=
@@ -1993,6 +2035,13 @@
         '<div class="biz-modal-embed">' +
         '<iframe src="' + b.senja + '" loading="lazy" allow="autoplay; fullscreen" allowfullscreen></iframe>' +
         '</div>';
+    }
+    if (b.photos && b.photos.length) {
+      embedHtml += '<div class="biz-modal-section-title">Photos</div><div class="biz-modal-gallery">';
+      b.photos.forEach(function(url) {
+        embedHtml += '<img src="' + url + '" alt="" class="biz-modal-gallery-img">';
+      });
+      embedHtml += '</div>';
     }
     embedEl.innerHTML = embedHtml;
 
