@@ -2280,6 +2280,23 @@
     buildFilters();
     renderAll();
     runHeroStats();
+
+    /* Auto-open fiche from QR code (?biz=UUID) */
+    var params = new URLSearchParams(window.location.search);
+    var bizId = params.get('biz');
+    if (bizId) {
+      var found = businesses.findIndex(function (b) { return b.dbId === bizId; });
+      if (found !== -1) {
+        state.activeCardIdx = found;
+        var b = businesses[found];
+        var coords = cityCoords[b.city];
+        if (coords) {
+          map.flyTo(coords, 13, { duration: .8 });
+          setTimeout(function () { highlightPin(b.city); }, 600);
+        }
+        openBizModal(b, found);
+      }
+    }
   });
 
 })();
