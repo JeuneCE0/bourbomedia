@@ -1407,7 +1407,7 @@
 
     <div class="hero-trust">
       <span class="hero-trust-dot"></span>
-      <span><strong>+60 commerces</strong> accompagnés à La Réunion</span>
+      <span><strong id="heroTrustCount">+60 commerces</strong> accompagnés à La Réunion</span>
     </div>
 
     <p class="hero-eyebrow">Pour les commerces 🇷🇪 en manque de visibilité</p>
@@ -1691,7 +1691,7 @@
       <div class="founder-stats">
         <span class="founder-stat"><strong>7 ans</strong> d'expérience</span>
         <span class="founder-stat"><strong>100M+</strong> de vues</span>
-        <span class="founder-stat"><strong>60+</strong> commerces</span>
+        <span class="founder-stat"><strong id="founderCount">60+</strong> commerces</span>
       </div>
     </div>
   </div>
@@ -2079,24 +2079,55 @@
       var totalViews = allProjects.reduce(function(s, p) { return s + (p.views || 0); }, 0);
       var totalViewsM = (totalViews / 1000000).toFixed(1);
 
-      /* 1. Mettre à jour le compteur du carrousel */
+      var avgViews = totalProjects > 0 ? Math.round(totalViews / totalProjects / 1000) : 180;
+
+      /* 1. Hero "+60 commerces accompagnés" */
+      var heroTrust = document.getElementById('heroTrustCount');
+      if (heroTrust) heroTrust.textContent = '+' + totalProjects + ' commerces';
+
+      /* 2. Hero proof counters (data-target) */
+      var proofItems = document.querySelectorAll('.hp-num');
+      proofItems.forEach(function(el) {
+        var lbl = el.nextElementSibling;
+        if (lbl && lbl.textContent.indexOf('vues en') !== -1) {
+          el.setAttribute('data-target', totalViewsM);
+        }
+        if (lbl && lbl.textContent.indexOf('par vidéo') !== -1) {
+          el.setAttribute('data-target', String(avgViews));
+          el.setAttribute('data-suffix', 'K');
+        }
+      });
+
+      /* 3. Carrousel title */
       var titleEl = document.querySelector('.logos-title');
       if (titleEl) {
         titleEl.innerHTML = '<span class="reveal-text">+' + totalProjects + ' commerces sont déjà passés chez nous</span>';
       }
 
-      /* 2. Mettre à jour "60+ commerces" dans le texte */
+      /* 4. "60+ commerces" dans le texte problem-transition */
       var transitionEl = document.querySelector('.problem-transition');
       if (transitionEl) {
         var hlSpans = transitionEl.querySelectorAll('.hl');
         if (hlSpans[1]) hlSpans[1].textContent = totalProjects + '+ commerces';
       }
 
-      /* 3. Mettre à jour le compteur de vues (reach-counter) */
+      /* 5. Reach block counter */
       var reachEl = document.querySelector('.reach-counter');
       if (reachEl) {
         reachEl.setAttribute('data-target', totalViewsM);
       }
+
+      /* 6. Fondateur "60+" */
+      var founderEl = document.getElementById('founderCount');
+      if (founderEl) founderEl.textContent = totalProjects + '+';
+
+      /* 7. Fondateur "100M+ de vues" */
+      var founderStats = document.querySelectorAll('.founder-stat strong');
+      founderStats.forEach(function(el) {
+        if (el.textContent.indexOf('M+') !== -1 && el.textContent.indexOf('ans') === -1) {
+          el.textContent = Math.round(totalViews / 1000000) + 'M+';
+        }
+      });
 
       /* 4. Carousel avec logos */
       var withLogo = allProjects.filter(function(p) { return p.logo_url; });
