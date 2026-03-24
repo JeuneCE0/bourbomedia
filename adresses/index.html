@@ -1266,33 +1266,37 @@
     .mobile-cards-strip {
       display: none;
       position: fixed; bottom: 80px; left: 0; right: 0; z-index: 150;
-      padding: 0 8px;
       overflow-x: auto; overflow-y: hidden;
       -webkit-overflow-scrolling: touch;
       scroll-snap-type: x mandatory;
       scrollbar-width: none;
+      padding: 6px 0;
     }
     .mobile-cards-strip::-webkit-scrollbar { display: none; }
     @media (max-width: 900px) {
-      .mobile-cards-strip { display: flex; }
+      .mobile-cards-strip { display: block; }
     }
     .mobile-strip-inner {
-      display: flex; gap: 10px; padding: 4px 4px;
+      display: inline-flex; gap: 10px;
+      padding: 0 12px;
+      min-width: max-content;
     }
     .mobile-strip-card {
-      flex-shrink: 0; width: 260px;
-      background: var(--glass-bg); backdrop-filter: blur(12px);
-      border: 1px solid var(--glass-border);
+      flex-shrink: 0; width: 240px;
+      background: rgba(26,16,8,.92); backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,.12);
       border-radius: 14px; padding: 12px 14px;
-      scroll-snap-align: center;
-      cursor: pointer; transition: border-color .2s;
+      scroll-snap-align: start;
+      cursor: pointer; transition: border-color .2s, transform .15s;
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
     }
-    .mobile-strip-card:active { border-color: var(--orange); }
-    .mobile-strip-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-    .mobile-strip-card-logo { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,.1); }
-    .mobile-strip-card-name { font-weight: 700; font-size: .85rem; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .mobile-strip-card-meta { font-size: .7rem; color: var(--text-mid); }
-    .mobile-strip-card-desc { font-size: .72rem; color: var(--text-muted); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .mobile-strip-card:active { border-color: var(--orange); transform: scale(0.97); }
+    .mobile-strip-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .mobile-strip-card-logo { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,.15); flex-shrink: 0; }
+    .mobile-strip-card-name { font-weight: 700; font-size: .88rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mobile-strip-card-meta { font-size: .72rem; color: var(--text-mid); margin-top: 1px; }
+    .mobile-strip-card-desc { font-size: .74rem; color: var(--text-muted); margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; }
 
     /* ── MOBILE SEARCH BAR ── */
     .mobile-search-bar {
@@ -1408,10 +1412,11 @@
           <button id="btnMapStreet" class="active">Carte</button>
           <button id="btnMapSat">Satellite</button>
         </div>
-        <div class="mobile-search-bar" id="mobileSearchBar">
-          <input type="search" id="mobileSearchInput" placeholder="Rechercher un commerce, une ville…" autocomplete="off" spellcheck="false">
-        </div>
         <div id="leafletMap"></div>
+      </div>
+      <!-- MOBILE SEARCH BAR (outside map-wrap for proper fixed positioning) -->
+      <div class="mobile-search-bar" id="mobileSearchBar">
+        <input type="search" id="mobileSearchInput" placeholder="Rechercher un commerce…" autocomplete="off" spellcheck="false">
       </div>
       <!-- MOBILE CARDS STRIP -->
       <div class="mobile-cards-strip" id="mobileCardsStrip">
@@ -2330,9 +2335,17 @@
       floatingCta.style.pointerEvents = '';
     }
     var mobileStrip = document.getElementById('mobileCardsStrip');
+    var mobileSearch = document.getElementById('mobileSearchBar');
+    var isOpen = modalOverlay.classList.contains('open');
     if (mobileStrip) {
-      mobileStrip.style.opacity = modalOverlay.classList.contains('open') ? '0' : '';
-      mobileStrip.style.pointerEvents = modalOverlay.classList.contains('open') ? 'none' : '';
+      mobileStrip.style.opacity = isOpen ? '0' : '1';
+      mobileStrip.style.pointerEvents = isOpen ? 'none' : '';
+      mobileStrip.style.transition = 'opacity .2s';
+    }
+    if (mobileSearch) {
+      mobileSearch.style.opacity = isOpen ? '0' : '1';
+      mobileSearch.style.pointerEvents = isOpen ? 'none' : '';
+      mobileSearch.style.transition = 'opacity .2s';
     }
   }).observe(modalOverlay, { attributes: true, attributeFilter: ['class'] });
 
@@ -2403,8 +2416,8 @@
   function renderMobileStrip(filtered) {
     var strip = document.getElementById('mobileStripInner');
     if (!strip) return;
-    if (!filtered.length) { strip.innerHTML = ''; return; }
-    strip.innerHTML = filtered.map(function(b, i) {
+    if (!filtered.length) { strip.innerHTML = '<div style="padding:12px 16px;color:var(--text-muted);font-size:.82rem;white-space:nowrap;">Aucun résultat</div>'; return; }
+    strip.innerHTML = '<div class="mobile-strip-card" style="width:auto;min-width:60px;display:flex;align-items:center;justify-content:center;background:var(--orange);border-color:var(--orange);"><span style="font-weight:800;font-size:1rem;color:#fff;">' + filtered.length + '</span><span style="font-size:.65rem;color:rgba(255,255,255,.8);margin-left:4px;">lieux</span></div>' + filtered.map(function(b, i) {
       var idx = businesses.indexOf(b);
       var logoHtml = b.logoUrl ? '<img class="mobile-strip-card-logo" src="' + b.logoUrl + '" loading="lazy" alt="">' : '';
       var catObj = catInfo[b.cat] || { icon: '', label: b.cat };
