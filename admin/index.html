@@ -281,6 +281,10 @@
         Importer CSV
       </button>
       <input type="file" id="csvInput" accept=".csv,.txt" style="display:none;">
+      <a href="/template-import.csv" download class="btn-add" style="background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:.78rem;padding:10px 16px;text-decoration:none;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Template CSV
+      </a>
     </div>
     <div class="projects-table-wrap" style="overflow-x:auto;">
       <table class="projects-table">
@@ -944,6 +948,9 @@ function parseAndPreviewCSV(text) {
         if (!row[f]) row[f] = null;
       }
     });
+
+    // Default photos array
+    row.photos = [];
 
     rows.push(row);
   }
