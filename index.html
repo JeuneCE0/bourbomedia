@@ -1433,9 +1433,9 @@
     <p class="hero-scarcity">Appel de 20 min · Offert · Aucun engagement</p>
 
     <div class="hero-proof">
-      <div class="hero-proof-item"><span class="hp-num" data-target="70" data-prefix="+" data-suffix="K" data-format="">0</span><span class="hp-lbl">abonnés à La Réunion</span></div>
+      <div class="hero-proof-item"><span class="hp-num" id="heroFollowers" data-target="70" data-prefix="+" data-suffix="K" data-format="">0</span><span class="hp-lbl">abonnés à La Réunion</span></div>
       <div class="hero-proof-sep"></div>
-      <div class="hero-proof-item"><span class="hp-num" data-target="10.2" data-prefix="+" data-suffix="M" data-decimals="1">0</span><span class="hp-lbl">de vues en 2025</span></div>
+      <div class="hero-proof-item"><span class="hp-num" id="heroViews" data-target="10.2" data-prefix="+" data-suffix="M" data-decimals="1">0</span><span class="hp-lbl">de vues cumulées</span></div>
       <div class="hero-proof-sep"></div>
       <div class="hero-proof-item"><span class="hp-num" data-target="180" data-prefix="+" data-suffix="K">0</span><span class="hp-lbl">vues par vidéo en moyenne</span></div>
     </div>
@@ -2081,20 +2081,20 @@
 
       var avgViews = totalProjects > 0 ? Math.round(totalViews / totalProjects / 1000) : 180;
 
-      /* 1. Hero "+60 commerces accompagnés" */
+      /* 1. Hero "+X commerces accompagnés" */
       var heroTrust = document.getElementById('heroTrustCount');
       if (heroTrust) heroTrust.textContent = '+' + totalProjects + ' commerces';
 
-      /* 2. Hero proof counters (data-target) */
+      /* 2. Hero vues cumulées */
+      var heroViewsEl = document.getElementById('heroViews');
+      if (heroViewsEl) heroViewsEl.setAttribute('data-target', totalViewsM);
+
+      /* 3. Hero vues par vidéo en moyenne */
       var proofItems = document.querySelectorAll('.hp-num');
       proofItems.forEach(function(el) {
         var lbl = el.nextElementSibling;
-        if (lbl && lbl.textContent.indexOf('vues en') !== -1) {
-          el.setAttribute('data-target', totalViewsM);
-        }
         if (lbl && lbl.textContent.indexOf('par vidéo') !== -1) {
           el.setAttribute('data-target', String(avgViews));
-          el.setAttribute('data-suffix', 'K');
         }
       });
 
@@ -2129,7 +2129,7 @@
         }
       });
 
-      /* 8. Abonnés depuis site_settings */
+      /* 8. Abonnés = somme IG + TikTok + Facebook */
       try {
         var rSettings = await fetch(SUPABASE_URL + '/rest/v1/site_settings?select=key,value', {
           headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
@@ -2137,16 +2137,12 @@
         var settings = await rSettings.json();
         var settingsMap = {};
         settings.forEach(function(s) { settingsMap[s.key] = s.value; });
-        var igFollowers = parseInt(settingsMap.instagram_followers, 10) || 0;
-        var igK = Math.round(igFollowers / 1000);
-        /* Mettre à jour le compteur abonnés dans le hero */
-        proofItems.forEach(function(el) {
-          var lbl = el.nextElementSibling;
-          if (lbl && lbl.textContent.indexOf('abonnés') !== -1) {
-            el.setAttribute('data-target', String(igK));
-            el.setAttribute('data-suffix', 'K');
-          }
-        });
+        var totalFollowers = (parseInt(settingsMap.instagram_followers, 10) || 0)
+          + (parseInt(settingsMap.tiktok_followers, 10) || 0)
+          + (parseInt(settingsMap.facebook_followers, 10) || 0);
+        var followersK = Math.round(totalFollowers / 1000);
+        var heroFollowersEl = document.getElementById('heroFollowers');
+        if (heroFollowersEl) heroFollowersEl.setAttribute('data-target', String(followersK));
       } catch(e) {}
 
       /* 4. Carousel avec logos */
