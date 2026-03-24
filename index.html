@@ -1477,7 +1477,7 @@
 
     <div class="problem-transition reveal">
       Et si des <span class="hl">dizaines de milliers de Réunionnais</span> pouvaient découvrir votre commerce cette semaine ?<br>
-      C'est exactement ce que font les <span class="hl">60+ commerces</span> déjà passés sur Bourbon Bons Plans.
+      C'est exactement ce que font les <span class="hl" id="dynCommerces2">+60 commerces</span> déjà passés sur Bourbon Bons Plans.
     </div>
   </div>
 </section>
@@ -1497,12 +1497,12 @@
       <div class="step">
         <div class="step-num">2</div>
         <h3>On poste sur nos 3 comptes</h3>
-        <p>La vidéo sort sur Instagram (23K), TikTok (20K) et Facebook (25K). Et elle apparaît aussi sur votre compte.</p>
+        <p>La vidéo sort sur Instagram (<span id="dynIgK">23K</span>), TikTok (<span id="dynTtK">20K</span>) et Facebook (<span id="dynFbK">25K</span>). Et elle apparaît aussi sur votre compte.</p>
       </div>
       <div class="step">
         <div class="step-num">3</div>
         <h3>Des milliers de gens vous découvrent</h3>
-        <p>En moyenne, nos vidéos font +180 000 vues sur les 3 réseaux. Ce sont des vrais Réunionnais, près de chez vous.</p>
+        <p>En moyenne, nos vidéos font <span id="dynAvgVues">+180 000</span> vues sur les 3 réseaux. Ce sont des vrais Réunionnais, près de chez vous.</p>
       </div>
       <div class="step">
         <div class="step-num">4</div>
@@ -1686,7 +1686,7 @@
     </div>
     <div class="founder-bio">
       <h3>Siméon Drogou</h3>
-      <p>Ça fait 7 ans que je parcours La Réunion pour filmer les commerces locaux. En 2 ans, Bourbon Bons Plans est devenu le plus gros compte de découverte locale de l'île — +70.000 abonnés, plus de 100 millions de vues.</p>
+      <p>Ça fait 7 ans que je parcours La Réunion pour filmer les commerces locaux. En 2 ans, Bourbon Bons Plans est devenu le plus gros compte de découverte locale de l'île — <span id="dynBioAbonnes">+70.000 abonnés</span>, plus de 100 millions de vues.</p>
       <p class="power-line">Quand je poste votre commerce, les gens viennent.<br>C'est aussi simple que ça.</p>
       <div class="founder-stats">
         <span class="founder-stat"><strong>7 ans</strong> d'expérience</span>
@@ -1704,7 +1704,7 @@
     <h2 class="reveal">
       Votre commerce pourrait<br>
       être vu par<br>
-      <span class="hl">+180 000 Réunionnais</span><br>
+      <span class="hl" id="dynCtaVues">+180 000 Réunionnais</span><br>
       dès cette semaine.
     </h2>
 
@@ -1743,7 +1743,7 @@
       </div>
       <div class="faq-item">
         <button class="faq-q">C'est qui votre audience ?</button>
-        <div class="faq-a"><p>+70 000 Réunionnais — sur Instagram (23K), Facebook (25K) et TikTok (20K). Des gens de tous les âges qui suivent le compte pour découvrir les bonnes adresses. Nos vidéos font en moyenne +180 000 vues sur les 3 réseaux.</p></div>
+        <div class="faq-a"><p><span id="dynFaqAbonnes">+70 000</span> Réunionnais — sur Instagram (<span id="dynFaqIg">23K</span>), Facebook (<span id="dynFaqFb">25K</span>) et TikTok (<span id="dynFaqTt">20K</span>). Des gens de tous les âges qui suivent le compte pour découvrir les bonnes adresses. Nos vidéos font en moyenne <span id="dynFaqAvg">+180 000</span> vues sur les 3 réseaux.</p></div>
       </div>
       <div class="faq-item">
         <button class="faq-q">La vidéo apparaît sur mon compte aussi ?</button>
@@ -1751,7 +1751,7 @@
       </div>
       <div class="faq-item">
         <button class="faq-q">Et si ça marche pas ?</button>
-        <div class="faq-a"><p>On garantit un minimum de +50 000 vues. Si on n'y arrive pas, on vous rembourse. Mais nos vidéos font en moyenne +180 000 vues — on est largement au-dessus à chaque fois.</p></div>
+        <div class="faq-a"><p>On garantit un minimum de +50 000 vues. Si on n'y arrive pas, on vous rembourse. Mais nos vidéos font en moyenne <span id="dynFaqAvg2">+180 000</span> vues — on est largement au-dessus à chaque fois.</p></div>
       </div>
       <div class="faq-item">
         <button class="faq-q">Et après, c'est quoi la suite ?</button>
@@ -2151,6 +2151,39 @@
           heroFollowersEl.setAttribute('data-target', String(followersK));
           animateCount(heroFollowersEl);
         }
+
+        /* Abonnés par réseau */
+        var igK = Math.round((parseInt(settingsMap.instagram_followers, 10) || 0) / 1000);
+        var ttK = Math.round((parseInt(settingsMap.tiktok_followers, 10) || 0) / 1000);
+        var fbK = Math.round((parseInt(settingsMap.facebook_followers, 10) || 0) / 1000);
+        var totalFormatted = totalFollowers >= 1000 ? Math.round(totalFollowers / 1000) + ' 000' : String(totalFollowers);
+
+        /* Section "La vidéo sort sur Instagram (XK), TikTok (XK) et Facebook (XK)" */
+        var dynIg = document.getElementById('dynIgK'); if (dynIg) dynIg.textContent = igK + 'K';
+        var dynTt = document.getElementById('dynTtK'); if (dynTt) dynTt.textContent = ttK + 'K';
+        var dynFb = document.getElementById('dynFbK'); if (dynFb) dynFb.textContent = fbK + 'K';
+
+        /* "En moyenne, nos vidéos font +X vues" */
+        var avgFormatted = '+' + (avgViews >= 1000 ? Math.round(avgViews) + ' 000' : avgViews);
+        var dynAvg = document.getElementById('dynAvgVues'); if (dynAvg) dynAvg.textContent = avgFormatted;
+
+        /* "+X commerces" dans problem-transition */
+        var dynC2 = document.getElementById('dynCommerces2'); if (dynC2) dynC2.textContent = '+' + totalProjects + ' commerces';
+
+        /* Bio Siméon "+X abonnés" */
+        var dynBio = document.getElementById('dynBioAbonnes'); if (dynBio) dynBio.textContent = '+' + totalFormatted + ' abonnés';
+
+        /* CTA "+X Réunionnais" */
+        var dynCta = document.getElementById('dynCtaVues'); if (dynCta) dynCta.textContent = '+' + (avgViews >= 1000 ? Math.round(avgViews) + ' 000' : avgViews) + ' Réunionnais';
+
+        /* FAQ audience */
+        var dynFaqAb = document.getElementById('dynFaqAbonnes'); if (dynFaqAb) dynFaqAb.textContent = '+' + totalFormatted;
+        var dynFaqIg = document.getElementById('dynFaqIg'); if (dynFaqIg) dynFaqIg.textContent = igK + 'K';
+        var dynFaqFb = document.getElementById('dynFaqFb'); if (dynFaqFb) dynFaqFb.textContent = fbK + 'K';
+        var dynFaqTt = document.getElementById('dynFaqTt'); if (dynFaqTt) dynFaqTt.textContent = ttK + 'K';
+        var dynFaqAvg = document.getElementById('dynFaqAvg'); if (dynFaqAvg) dynFaqAvg.textContent = avgFormatted;
+        var dynFaqAvg2 = document.getElementById('dynFaqAvg2'); if (dynFaqAvg2) dynFaqAvg2.textContent = avgFormatted;
+
       } catch(e) {}
 
       /* 4. Carousel avec logos */
