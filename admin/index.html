@@ -7,6 +7,7 @@
   <title>Admin — BourbonMédia</title>
   <link rel="icon" type="image/jpeg" href="/favicon.jpg">
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
@@ -93,6 +94,10 @@
     .td-status { font-size:.68rem; font-weight:600; padding:3px 8px; border-radius:12px; }
     .td-status.pub { color:var(--green); background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.15); }
     .td-status.draft { color:var(--text-muted); background:rgba(255,255,255,.03); border:1px solid var(--border); }
+    .form-input.invalid, .form-select.invalid { border-color: var(--red); box-shadow: 0 0 0 2px rgba(239,68,68,.15); }
+    .filter-btn { padding:6px 14px; border-radius:20px; border:1px solid var(--border-md); background:transparent; color:var(--text-muted); font-size:.75rem; cursor:pointer; font-family:inherit; transition:all .2s; }
+    .filter-btn:hover { border-color:var(--orange); color:var(--orange-light); }
+    .filter-btn.active { background:var(--orange); border-color:var(--orange); color:var(--white); }
     .empty-state { text-align: center; padding: 80px 24px; color: var(--text-muted); }
 
     /* ── MODAL ── */
@@ -307,6 +312,40 @@
         Exporter CSV
       </button>
     </div>
+    <div id="filterBar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      <button class="filter-btn active" data-filter="all">Tous</button>
+      <button class="filter-btn" data-filter="published">Publiés</button>
+      <button class="filter-btn" data-filter="draft">Brouillons</button>
+      <button class="filter-btn" data-filter="has-logo">Avec logo</button>
+      <button class="filter-btn" data-filter="no-logo">Sans logo</button>
+      <button class="filter-btn" data-filter="has-video">Avec vidéo</button>
+      <button class="filter-btn" data-filter="complete">Complets (80%+)</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:.75rem;color:var(--text-muted);font-weight:600;">Filtres :</span>
+      <select id="filterStatus" class="form-select" style="padding:8px 12px;font-size:.78rem;width:auto;">
+        <option value="">Tous statuts</option>
+        <option value="published">Publiés</option>
+        <option value="draft">Brouillons</option>
+      </select>
+      <select id="filterCat" class="form-select" style="padding:8px 12px;font-size:.78rem;width:auto;">
+        <option value="">Tous secteurs</option>
+        <option value="restaurant">🍴 Restaurants</option>
+        <option value="bar">🍻 Bars</option>
+        <option value="boutique">🛍 Boutiques</option>
+        <option value="activite">🎯 Activités</option>
+        <option value="gourmandise">🍦 Gourmandises</option>
+        <option value="hebergement">🏠 Hébergements</option>
+        <option value="service">💼 Services</option>
+      </select>
+      <select id="filterMedia" class="form-select" style="padding:8px 12px;font-size:.78rem;width:auto;">
+        <option value="">Tous médias</option>
+        <option value="logo">Avec logo</option>
+        <option value="nologo">Sans logo</option>
+        <option value="photos">Avec photos</option>
+        <option value="video">Avec vidéo</option>
+      </select>
+    </div>
     <div id="bulkBar" style="display:none;margin-bottom:16px;padding:14px 20px;background:var(--night-card);border:1px solid var(--border-orange);border-radius:var(--radius-sm);align-items:center;gap:12px;flex-wrap:wrap;">
       <span id="bulkCount" style="font-size:.85rem;color:var(--orange);font-weight:600;"></span>
       <button class="btn-icon edit" onclick="bulkSetStatus('published')" style="width:auto;padding:6px 14px;font-size:.78rem;">Publier</button>
@@ -321,6 +360,7 @@
           <th data-sort="category">Secteur <span class="sort-icon">▼</span></th>
           <th data-sort="city">Ville <span class="sort-icon">▼</span></th>
           <th data-sort="views">Vues <span class="sort-icon">▼</span></th>
+          <th>Médias</th>
           <th>Statut</th>
           <th style="text-align:right;">Actions</th>
         </tr></thead>
@@ -638,8 +678,26 @@ var projects = [];
 var editingPhotos = [];
 var editingLogoUrl = null;
 var sortCol = 'name'; var sortDir = 'asc';
+var activeFilter = 'all';
 
 var catLabels = { restaurant:'🍴 Restaurant', bar:'🍻 Bar', boutique:'🛍 Boutique', activite:'🎯 Activité', gourmandise:'🍦 Gourmandise', hebergement:'🏠 Hébergement', service:'💼 Service' };
+
+/* Session timeout - 30 min */
+var idleTimeout;
+function resetIdleTimer() {
+  clearTimeout(idleTimeout);
+  idleTimeout = setTimeout(function() {
+    if (token) {
+      token = null; localStorage.removeItem('bbp_admin_token');
+      showToast('Session expirée — reconnectez-vous', 'error');
+      showLogin();
+    }
+  }, 30 * 60 * 1000);
+}
+['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(function(evt) {
+  document.addEventListener(evt, resetIdleTimer, { passive: true });
+});
+resetIdleTimer();
 
 /* ════ AUTH ════ */
 async function checkAuth() {
@@ -691,10 +749,30 @@ function getCompleteness(p){
 /* ════ TABLE ════ */
 function renderTable(){
   var q=document.getElementById('searchInput').value.toLowerCase().trim();
+  var fStatus = document.getElementById('filterStatus').value;
+  var fCat = document.getElementById('filterCat').value;
+  var fMedia = document.getElementById('filterMedia').value;
   var filtered=projects.filter(function(p){
-    if(!q)return true;
-    return p.name.toLowerCase().indexOf(q)!==-1||p.city.toLowerCase().indexOf(q)!==-1||(p.category||'').toLowerCase().indexOf(q)!==-1;
+    if(q && p.name.toLowerCase().indexOf(q)===-1 && p.city.toLowerCase().indexOf(q)===-1 && (p.category||'').toLowerCase().indexOf(q)===-1) return false;
+    if (fStatus && p.status !== fStatus) return false;
+    if (fCat && p.category !== fCat) return false;
+    if (fMedia === 'logo' && !p.logo_url) return false;
+    if (fMedia === 'nologo' && p.logo_url) return false;
+    if (fMedia === 'photos' && (!p.photos || !p.photos.length)) return false;
+    if (fMedia === 'video' && !p.video_url) return false;
+    return true;
   });
+  if (activeFilter !== 'all') {
+    filtered = filtered.filter(function(p) {
+      if (activeFilter === 'published') return p.status === 'published';
+      if (activeFilter === 'draft') return p.status === 'draft';
+      if (activeFilter === 'has-logo') return !!p.logo_url;
+      if (activeFilter === 'no-logo') return !p.logo_url;
+      if (activeFilter === 'has-video') return !!p.video_url;
+      if (activeFilter === 'complete') return getCompleteness(p) >= 80;
+      return true;
+    });
+  }
   filtered.sort(function(a,b){
     var va=a[sortCol],vb=b[sortCol];
     if(sortCol==='views'){va=va||0;vb=vb||0;return sortDir==='asc'?va-vb:vb-va;}
@@ -717,6 +795,11 @@ function renderTable(){
       '<td><span class="td-cat">'+(catLabels[p.category]||p.category)+'</span></td>'+
       '<td class="td-city">'+esc(p.city)+'</td>'+
       '<td class="td-views">'+fv(p.views||0)+' vues</td>'+
+      '<td style="font-size:.75rem;">' +
+        (p.logo_url ? '🖼' : '<span style="opacity:.2">🖼</span>') + ' ' +
+        (p.photos && p.photos.length ? '📸' + p.photos.length : '<span style="opacity:.2">📸</span>') + ' ' +
+        (p.video_url ? '🎥' : '<span style="opacity:.2">🎥</span>') +
+      '</td>' +
       '<td><div style="display:flex;align-items:center;gap:8px;"><span class="td-status '+(p.status==='draft'?'draft':'pub')+'">'+(p.status==='draft'?'Brouillon':'Publié')+'</span></div></td>'+
       '<td><div class="td-actions">'+
         '<button class="btn-icon edit" title="Modifier" onclick="openEdit(\''+p.id+'\')">✎</button>'+
@@ -757,7 +840,22 @@ function renderTable(){
   }).join('');
 }
 
-document.getElementById('searchInput').addEventListener('input',renderTable);
+var searchTimeout;
+document.getElementById('searchInput').addEventListener('input', function() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(renderTable, 300);
+});
+document.getElementById('filterStatus').addEventListener('change', renderTable);
+document.getElementById('filterCat').addEventListener('change', renderTable);
+document.getElementById('filterMedia').addEventListener('change', renderTable);
+
+document.getElementById('filterBar').addEventListener('click', function(e) {
+  var btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  activeFilter = btn.dataset.filter;
+  document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.filter === activeFilter); });
+  renderTable();
+});
 
 /* Sort */
 document.querySelector('.projects-table thead').addEventListener('click',function(e){
@@ -895,10 +993,15 @@ function renderPhotosPreview(){
 }
 
 /* ════ LIVE PREVIEW ════ */
+var previewTimeout;
+function updatePreviewDebounced() {
+  clearTimeout(previewTimeout);
+  previewTimeout = setTimeout(updatePreview, 200);
+}
 var previewFields=['fName','fCategory','fCity','fViews','fResult','fDescription','fVideoUrl','fInstagram','fFacebook','fGoogleReview','fIsNew'];
 previewFields.forEach(function(id){
   var el=document.getElementById(id);if(!el)return;
-  el.addEventListener('input',updatePreview);el.addEventListener('change',updatePreview);
+  el.addEventListener('input',updatePreviewDebounced);el.addEventListener('change',updatePreviewDebounced);
 });
 
 function updatePreview(){
@@ -982,7 +1085,15 @@ function updatePreview(){
 /* ════ SAVE ════ */
 document.getElementById('saveBtn').addEventListener('click',async function(){
   var btn=this,id=document.getElementById('formId').value,name=document.getElementById('fName').value.trim();
-  if(!name){showToast('Nom requis','error');return;}
+  var nameField = document.getElementById('fName');
+  var catField = document.getElementById('fCategory');
+  var cityField = document.getElementById('fCity');
+  nameField.classList.remove('invalid'); catField.classList.remove('invalid'); cityField.classList.remove('invalid');
+  var valid = true;
+  if (!name) { nameField.classList.add('invalid'); valid = false; }
+  if (!document.getElementById('fCategory').value) { catField.classList.add('invalid'); valid = false; }
+  if (!document.getElementById('fCity').value) { cityField.classList.add('invalid'); valid = false; }
+  if (!valid) { showToast('Champs obligatoires manquants', 'error'); return; }
   var payload={
     name:name, category:document.getElementById('fCategory').value, city:document.getElementById('fCity').value,
     address:document.getElementById('fAddress').value.trim()||null,
@@ -1005,22 +1116,64 @@ document.getElementById('saveBtn').addEventListener('click',async function(){
   try{
     var r=await fetch(API+'/api/projects',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(payload)});
     var d=await r.json();
-    if(r.ok){logAction(id?'Projet modifié':'Projet créé',d.id||id,name);showToast(id?'Projet modifié':'Projet ajouté','success');closeForm();loadProjects();}
+    if(r.ok){
+      var filledFields = [];
+      if (payload.logo_url) filledFields.push('logo');
+      if (payload.video_url) filledFields.push('vidéo');
+      if (payload.instagram) filledFields.push('IG');
+      if (payload.facebook) filledFields.push('FB');
+      if (payload.photos && payload.photos.length) filledFields.push(payload.photos.length + ' photos');
+      if (payload.google_review_url) filledFields.push('Google');
+      var details = filledFields.length ? filledFields.join(', ') : null;
+      logAction(id ? 'Projet modifié' : 'Projet créé', d.id || id, name, details);
+      showToast(id?'Projet modifié':'Projet ajouté','success');closeForm();loadProjects();}
     else{showToast('Erreur: '+(d.error||''),'error');}
   }catch(e){showToast('Erreur réseau','error');}
   btn.disabled=false;
+});
+
+['fName','fCategory','fCity'].forEach(function(id) {
+  document.getElementById(id).addEventListener('input', function() { this.style.borderColor = ''; });
 });
 
 /* ════ DELETE ════ */
 var pendingDeleteId=null;
 function confirmDelete(id,name){pendingDeleteId=id;document.getElementById('confirmText').textContent='Supprimer « '+name+' » ? Irréversible.';document.getElementById('confirmOverlay').classList.add('open');}
 function closeConfirm(){document.getElementById('confirmOverlay').classList.remove('open');pendingDeleteId=null;}
-document.getElementById('confirmDeleteBtn').addEventListener('click',async function(){
-  if(!pendingDeleteId)return;
-  var delProject=projects.find(function(x){return x.id===pendingDeleteId;});
-  try{var r=await fetch(API+'/api/projects',{method:'DELETE',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({id:pendingDeleteId})});
-    if(r.ok){logAction('Projet supprimé',pendingDeleteId,delProject?delProject.name:'');showToast('Supprimé','success');loadProjects();}else{showToast('Erreur','error');}
-  }catch(e){showToast('Erreur','error');}closeConfirm();
+document.getElementById('confirmDeleteBtn').addEventListener('click', async function() {
+  if (!pendingDeleteId) return;
+  var deleteId = pendingDeleteId;
+  var deleteName = document.getElementById('confirmText').textContent.match(/« (.+) »/);
+  deleteName = deleteName ? deleteName[1] : '';
+  closeConfirm();
+
+  // Show undo toast
+  var toastEl = document.getElementById('toast');
+  toastEl.innerHTML = 'Projet supprimé <button id="undoDeleteBtn" style="margin-left:12px;padding:4px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.4);background:transparent;color:#fff;cursor:pointer;font-family:inherit;font-weight:600;">Annuler</button>';
+  toastEl.className = 'toast error';
+  setTimeout(function() { toastEl.classList.add('show'); }, 10);
+
+  var undone = false;
+  document.getElementById('undoDeleteBtn').addEventListener('click', function() {
+    undone = true;
+    toastEl.classList.remove('show');
+    showToast('Suppression annulée', 'success');
+  });
+
+  // Wait 8 seconds then actually delete if not undone
+  setTimeout(async function() {
+    toastEl.classList.remove('show');
+    if (undone) return;
+    try {
+      var r = await fetch(API + '/api/projects', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ id: deleteId })
+      });
+      if (r.ok) { logAction('Projet supprimé', deleteId, deleteName); loadProjects(); }
+      else { showToast('Erreur de suppression', 'error'); }
+    } catch(e) { showToast('Erreur', 'error'); }
+  }, 8000);
 });
 
 /* ════ TOAST ════ */
@@ -1431,7 +1584,11 @@ async function loadHistory() {
     el.innerHTML = logs.map(function(l) {
       var dotClass = l.action.indexOf('cr\u00e9\u00e9') !== -1 ? 'create' : l.action.indexOf('supprim\u00e9') !== -1 ? 'delete' : l.action.indexOf('bulk') !== -1 ? 'bulk' : 'update';
       var ago = timeAgo(new Date(l.created_at));
-      return '<div class="log-item"><div class="log-dot '+dotClass+'"></div><div class="log-content"><div class="log-action">'+l.action+(l.project_name?' \u2014 <strong>'+l.project_name+'</strong>':'')+(l.details?' <span style="color:var(--text-muted);font-size:.8rem;">'+l.details+'</span>':'')+'</div><div class="log-time">'+ago+'</div></div></div>';
+      var detailsHtml = '';
+      if (l.details) {
+        detailsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">' + l.details.split(', ').map(function(d){ return '<span style="font-size:.68rem;padding:2px 8px;border-radius:12px;background:rgba(232,105,43,.08);border:1px solid rgba(232,105,43,.15);color:var(--orange-light);">' + d + '</span>'; }).join('') + '</div>';
+      }
+      return '<div class="log-item"><div class="log-dot '+dotClass+'"></div><div class="log-content"><div class="log-action">'+l.action+(l.project_name?' \u2014 <strong>'+l.project_name+'</strong>':'')+'</div>'+detailsHtml+'<div class="log-time">'+ago+'</div></div></div>';
     }).join('');
   } catch(e) { console.error('Error loading history:', e); }
 }
@@ -1447,15 +1604,46 @@ function timeAgo(date) {
 /* ════ QR CODE ════ */
 function showQR(id, name) {
   var url = 'https://bourbonmedia.fr/adresses/?biz=' + id;
-  var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(url) + '&bgcolor=1A1008&color=E8692B';
   document.getElementById('qrTitle').textContent = 'QR \u2014 ' + name;
-  document.getElementById('qrImage').innerHTML = '<img src="' + qrUrl + '" alt="QR Code" style="width:250px;height:250px;border-radius:12px;">';
+
+  var qr = qrcode(0, 'M');
+  qr.addData(url);
+  qr.make();
+
+  var canvas = document.createElement('canvas');
+  var size = 250;
+  var cellSize = Math.floor(size / qr.getModuleCount());
+  canvas.width = cellSize * qr.getModuleCount();
+  canvas.height = canvas.width;
+  var ctx = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#1A1008';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // QR modules
+  for (var row = 0; row < qr.getModuleCount(); row++) {
+    for (var col = 0; col < qr.getModuleCount(); col++) {
+      if (qr.isDark(row, col)) {
+        ctx.fillStyle = '#E8692B';
+        ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+      }
+    }
+  }
+
+  document.getElementById('qrImage').innerHTML = '';
+  canvas.style.borderRadius = '12px';
+  canvas.style.width = '250px';
+  canvas.style.height = '250px';
+  document.getElementById('qrImage').appendChild(canvas);
+
   document.getElementById('downloadQr').onclick = function() {
     var a = document.createElement('a');
-    a.href = qrUrl;
+    a.href = canvas.toDataURL('image/png');
     a.download = 'qr-' + name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '.png';
     a.click();
   };
+
   document.getElementById('qrOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -1501,6 +1689,36 @@ document.getElementById('saveSocialsBtn').addEventListener('click', async functi
       showToast('Erreur: '+(d.error||''),'error');
     }
   } catch(e){showToast('Erreur réseau','error');}
+});
+
+/* Session timeout - 30 min */
+var lastActivity = Date.now();
+['mousemove','keydown','click','scroll','touchstart'].forEach(function(evt) {
+  document.addEventListener(evt, function() { lastActivity = Date.now(); }, { passive: true });
+});
+setInterval(function() {
+  if (token && Date.now() - lastActivity > 30 * 60 * 1000) {
+    token = null; localStorage.removeItem('bbp_admin_token');
+    showToast('Session expirée — reconnectez-vous', 'error');
+    showLogin();
+  }
+}, 60000);
+
+/* Keyboard shortcuts */
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.getElementById('searchInput').focus(); }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); openForm(); }
+});
+document.addEventListener('keydown', function(e) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 's' && document.getElementById('formOverlay').classList.contains('open')) {
+    e.preventDefault(); document.getElementById('saveBtn').click();
+  }
+});
+
+/* Remove invalid class on focus */
+document.querySelectorAll('.form-input, .form-select').forEach(function(el) {
+  el.addEventListener('focus', function() { this.classList.remove('invalid'); });
 });
 
 /* ════ INIT ════ */

@@ -530,9 +530,9 @@
     .biz-card-logo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,.1); flex-shrink: 0; margin-top: 2px; }
 
     .biz-modal-gallery { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-    .biz-modal-gallery-img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e5e5; cursor: pointer; transition: transform .2s; }
+    .biz-modal-gallery-img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); cursor: pointer; transition: transform .2s; }
     .biz-modal-gallery-img:hover { transform: scale(1.05); }
-    .biz-modal-desc { color: #666; font-size: .88rem; margin-top: 8px; line-height: 1.5; }
+    .biz-modal-desc { color: #C4A98A; font-size: .88rem; margin-top: 8px; line-height: 1.5; }
 
     .sidebar-empty {
       display: flex; flex-direction: column; align-items: center;
@@ -783,7 +783,7 @@
     }
     .biz-modal-overlay.open { opacity: 1; pointer-events: auto; }
     .biz-modal {
-      background: #FFFFFF;
+      background: var(--night-card);
       border: none;
       border-radius: var(--radius-lg);
       padding: 0;
@@ -837,18 +837,18 @@
       position: relative; z-index: 1;
     }
     .biz-modal-city svg { width: 13px; height: 13px; }
-    .biz-modal-body { padding: 20px 24px 28px; color: #333; }
+    .biz-modal-body { padding: 20px 24px 28px; color: var(--text); }
     .biz-modal-result {
-      background: rgba(34,197,94,.08);
+      background: var(--green-bg);
       border: 1px solid rgba(34,197,94,.25);
       border-radius: var(--radius-sm);
       padding: 12px 16px;
-      font-size: .86rem; color: #15803d;
+      font-size: .86rem; color: var(--green-text);
       line-height: 1.55; margin-bottom: 18px;
     }
     .biz-modal-address {
       display: flex; align-items: flex-start; gap: 8px;
-      font-size: .83rem; color: #666;
+      font-size: .83rem; color: var(--text-muted);
       margin-bottom: 18px; line-height: 1.5;
     }
     .biz-modal-address svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; }
@@ -857,19 +857,19 @@
       display: inline-flex; align-items: center; gap: 7px;
       padding: 9px 16px;
       border-radius: var(--radius-sm);
-      border: 1px solid #e5e5e5;
-      background: #f9f9f9;
-      color: #555;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.03);
+      color: var(--text-mid);
       text-decoration: none;
       font-size: .8rem; font-weight: 600;
       font-family: 'Instrument Sans', sans-serif;
       transition: all var(--t-base);
     }
     .biz-modal-link:hover {
-      border-color: var(--orange);
-      background: rgba(232,105,43,.06);
-      color: var(--orange); transform: translateY(-2px);
-      box-shadow: 0 4px 14px rgba(0,0,0,.08);
+      border-color: var(--border-orange);
+      background: var(--orange-glow);
+      color: var(--white); transform: translateY(-2px);
+      box-shadow: 0 4px 14px rgba(0,0,0,.2);
     }
     .biz-modal-link svg { width: 15px; height: 15px; }
     .biz-modal-link.instagram { color: #E1306C; }
@@ -881,11 +881,11 @@
     .biz-modal-section-title {
       font-size: .7rem; font-weight: 700;
       text-transform: uppercase; letter-spacing: .09em;
-      color: #999; margin-bottom: 10px;
+      color: var(--text-muted); margin-bottom: 10px;
     }
     .biz-modal-embed {
       border-radius: var(--radius-sm); overflow: hidden;
-      border: 1px solid #e5e5e5; background: #f5f5f5;
+      border: 1px solid var(--border); background: var(--night);
       margin-bottom: 18px;
     }
     .biz-modal-embed iframe { width: 100%; min-height: 380px; border: none; display: block; }
@@ -893,8 +893,8 @@
     .biz-modal-reels {
       border-radius: 12px;
       overflow: hidden;
-      border: 1px solid #e5e5e5;
-      background: #fff;
+      border: 1px solid var(--border);
+      background: var(--night);
       margin-bottom: 8px;
     }
     .biz-modal-reels iframe {
@@ -1420,6 +1420,11 @@
     } catch (e) {
       console.error('Erreur chargement projets:', e);
       businesses = [];
+      // Show error message to user
+      var sidebar = document.getElementById('sidebarList');
+      if (sidebar) {
+        sidebar.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);"><p style="margin-bottom:8px;">Impossible de charger les commerces</p><button onclick="location.reload()" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border-md);background:var(--night-raised);color:var(--text);cursor:pointer;font-family:inherit;">Réessayer</button></div>';
+      }
     }
   }
 
@@ -1502,7 +1507,7 @@
     var filtered = businesses.filter(function (b, i) {
       b._origIdx = i;
       var catMatch = state.activeCat === 'all' || b.cat === state.activeCat;
-      var searchMatch = !q || normalize(b.name).indexOf(q) !== -1 || normalize(b.city).indexOf(q) !== -1;
+      var searchMatch = !q || normalize(b.name).indexOf(q) !== -1 || normalize(b.city).indexOf(q) !== -1 || (b.address && normalize(b.address).indexOf(q) !== -1) || (b.description && normalize(b.description).indexOf(q) !== -1);
       return catMatch && searchMatch;
     });
     if (state.sortBy === 'views') {
@@ -1894,7 +1899,7 @@
 
       card.innerHTML =
         '<div class="biz-card-header">' +
-          (b.logoUrl ? '<img class="biz-card-logo" src="' + b.logoUrl + '" alt="">' : '') +
+          (b.logoUrl ? '<img class="biz-card-logo" src="' + b.logoUrl + '" alt="" loading="lazy">' : '') +
           '<div>' +
             '<div class="biz-card-meta">' +
               '<span class="biz-card-cat">' + catObj.icon + ' ' + catObj.label + '</span>' +
@@ -2004,7 +2009,7 @@
     document.getElementById('modalCat').textContent = catLabel;
     var nameEl = document.getElementById('modalName');
     if (b.logoUrl) {
-      nameEl.innerHTML = '<img src="' + b.logoUrl + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,.1);vertical-align:middle;margin-right:10px;">' + b.name;
+      nameEl.innerHTML = '<img src="' + b.logoUrl + '" loading="lazy" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,.1);vertical-align:middle;margin-right:10px;">' + b.name;
     } else {
       nameEl.textContent = b.name;
     }
@@ -2072,7 +2077,7 @@
     if (b.photos && b.photos.length) {
       embedHtml += '<div class="biz-modal-section-title">Photos</div><div class="biz-modal-gallery">';
       b.photos.forEach(function(url) {
-        embedHtml += '<img src="' + url + '" alt="" class="biz-modal-gallery-img">';
+        embedHtml += '<img src="' + url + '" alt="" class="biz-modal-gallery-img" loading="lazy">';
       });
       embedHtml += '</div>';
     }
@@ -2080,11 +2085,21 @@
 
     modalOverlay.classList.add('open');
     document.body.style.overflow = 'hidden';
+    // Focus trap
+    setTimeout(function() {
+      var closeBtn = document.getElementById('bizModalClose');
+      if (closeBtn) closeBtn.focus();
+    }, 100);
+    // Update URL for sharing
+    if (b.dbId) {
+      history.replaceState({ biz: b.dbId }, '', '?biz=' + b.dbId);
+    }
   }
 
   function closeBizModal() {
     modalOverlay.classList.remove('open');
     document.body.style.overflow = '';
+    history.replaceState({}, '', window.location.pathname);
     setTimeout(function () {
       document.getElementById('modalEmbed').innerHTML = '';
     }, 350);
@@ -2164,6 +2179,16 @@
     if (!modalOverlay.classList.contains('open')) return;
     if (e.key === 'ArrowLeft') { e.preventDefault(); navigateModal(-1); }
     if (e.key === 'ArrowRight') { e.preventDefault(); navigateModal(1); }
+  });
+
+  // Focus trap in modal
+  document.addEventListener('keydown', function(e) {
+    if (!modalOverlay.classList.contains('open') || e.key !== 'Tab') return;
+    var focusable = modalOverlay.querySelectorAll('a[href], button, input, [tabindex]:not([tabindex="-1"])');
+    if (!focusable.length) return;
+    var first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
 
   /* ════════════════════════════════════════════════════

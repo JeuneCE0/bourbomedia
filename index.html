@@ -41,6 +41,7 @@
   <link rel="apple-touch-icon" href="/favicon.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://qtnrccpghqbvoaskbpgx.supabase.co">
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -355,6 +356,8 @@
       font-family: 'Bricolage Grotesque', sans-serif;
       font-size: 2rem; font-weight: 800; color: var(--orange);
     }
+    .hero-proof .hp-num { opacity: 0; transition: opacity .3s; }
+    .hero-proof.loaded .hp-num { opacity: 1; }
     .hp-lbl {
       display: block; font-size: .8rem; color: var(--white); margin-top: 2px;
     }
@@ -852,6 +855,8 @@
     }
     .reach-block .big .hl { color: var(--white); }
     .reach-block p { color: var(--white); font-size: 1rem; }
+    .reach-counter { opacity: 0; transition: opacity .3s; }
+    .reach-counter.loaded { opacity: 1; }
 
     /* ═══════════ S7 — TÉMOIGNAGES ═══════════ */
     .testimonials {
@@ -1701,7 +1706,7 @@
 <section class="founder">
   <div class="founder-inner reveal">
     <div class="founder-left">
-      <div class="founder-photo"><img src="https://msgsndr-private.storage.googleapis.com/calendar-widget-logo/c63c8cf8-97c9-46d1-b476-c38392854d35.png" alt="Siméon Drogou" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>
+      <div class="founder-photo"><img src="https://msgsndr-private.storage.googleapis.com/calendar-widget-logo/c63c8cf8-97c9-46d1-b476-c38392854d35.png" alt="Siméon Drogou" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>
       <span class="founder-badge">Fondateur BBP</span>
     </div>
     <div class="founder-bio">
@@ -1996,7 +2001,7 @@
 <!-- ═══════════ SOCIAL PROOF TOAST ═══════════ -->
 <div class="social-proof-toast" id="socialProofToast">
   <button class="spt-close" id="sptClose">✕</button>
-  <div class="spt-icon"><img src="/favicon.jpg" alt="BBP"></div>
+  <div class="spt-icon"><img src="/favicon.jpg" alt="BBP" loading="lazy"></div>
   <div class="spt-body">
     <div class="spt-text" id="sptText"></div>
     <div class="spt-time"><span class="spt-dot"></span> <span id="sptTime"></span></div>
@@ -2140,6 +2145,7 @@
       if (reachEl) {
         reachEl.setAttribute('data-target', totalViewsM);
         animateCount(reachEl);
+        reachEl.classList.add('loaded');
       }
 
       /* 6. Fondateur "60+" */
@@ -2205,6 +2211,10 @@
         var dynFaqAvg2 = document.getElementById('dynFaqAvg2'); if (dynFaqAvg2) dynFaqAvg2.textContent = avgFormatted;
 
       } catch(e) {}
+
+      /* Reveal counters after data is loaded */
+      var proofEl = document.querySelector('.hero-proof');
+      if (proofEl) proofEl.classList.add('loaded');
 
       /* 4. Carousel avec logos */
       var withLogo = allProjects.filter(function(p) { return p.logo_url; });
