@@ -891,11 +891,11 @@
     .biz-modal-embed iframe { width: 100%; min-height: 380px; border: none; display: block; }
     /* Instagram Reels embed */
     .biz-modal-reels {
-      border-radius: var(--radius-sm);
+      border-radius: 12px;
       overflow: hidden;
-      border: 1px solid var(--border);
-      background: var(--night);
-      margin-bottom: 18px;
+      border: 1px solid #e5e5e5;
+      background: #fff;
+      margin-bottom: 8px;
     }
     .biz-modal-reels iframe {
       width: 100%; min-height: 530px; border: none; display: block;
@@ -1873,10 +1873,10 @@
 
       /* Social links row */
       var socialsHtml = '';
-      if (b.instagram || b.tiktok || b.reels || b.bbpLink) {
+      if (b.instagram || b.tiktok || b.videoUrl) {
         socialsHtml = '<div class="biz-card-socials">';
-        if (b.bbpLink) {
-          socialsHtml += '<a href="' + b.bbpLink + '" target="_blank" rel="noopener" class="biz-card-bbp" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>Vidéo BBP</a>';
+        if (b.videoUrl) {
+          socialsHtml += '<span class="biz-card-bbp" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>Vidéo</span>';
         }
         if (b.instagram) {
           socialsHtml += '<a href="https://www.instagram.com/' + b.instagram + '/" target="_blank" rel="noopener" class="biz-card-social ig" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/></svg>Insta</a>';
@@ -1905,7 +1905,7 @@
           '</div>' +
         '</div>' +
         badgesHtml +
-        '<div class="biz-card-result">' + b.result + '</div>' +
+        '<div class="biz-card-result">' + (b.description || b.result || '') + '</div>' +
         socialsHtml;
 
       frag.appendChild(card);
@@ -2029,8 +2029,8 @@
 
     /* Links */
     var linksHtml = '';
-    if (b.bbpLink) {
-      linksHtml += '<a href="' + b.bbpLink + '" target="_blank" rel="noopener" class="biz-modal-link" style="color:var(--orange);border-color:var(--border-orange);background:var(--orange-glow);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Voir la vidéo BBP</a>';
+    if (b.videoUrl) {
+      linksHtml += '<a href="#modalEmbed" onclick="event.preventDefault();document.getElementById(\'modalEmbed\').scrollIntoView({behavior:\'smooth\'});" class="biz-modal-link" style="color:var(--orange);border-color:var(--border-orange);background:var(--orange-glow);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Voir la vidéo</a>';
     }
     if (b.instagram) {
       linksHtml += '<a href="https://www.instagram.com/' + b.instagram + '/" target="_blank" rel="noopener" class="biz-modal-link instagram">' + IG_SVG + ' Instagram</a>';
@@ -2055,7 +2055,9 @@
     if (b.videoUrl) {
       var reelCode = extractReelCode(b.videoUrl);
       if (reelCode) {
-        embedHtml += '<div class="biz-modal-section-title">Vidéo BBP</div><div class="biz-modal-reels"><iframe src="https://www.instagram.com/reel/' + reelCode + '/embed/" loading="lazy" allowfullscreen></iframe></div>';
+        embedHtml += '<div class="biz-modal-section-title">Vidéo BBP</div>' +
+          '<div class="biz-modal-reels"><iframe src="https://www.instagram.com/reel/' + reelCode + '/embed/" loading="lazy" allowfullscreen style="width:100%;min-height:500px;border:none;border-radius:12px;"></iframe></div>' +
+          '<a href="' + b.videoUrl + '" target="_blank" rel="noopener" style="display:block;text-align:center;font-size:.75rem;color:#666;margin-top:8px;text-decoration:none;">Voir sur Instagram ↗</a>';
       }
     }
     if (b.senja) {
