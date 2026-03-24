@@ -1851,9 +1851,17 @@ document.getElementById('adminTabs').addEventListener('click', function(e) {
 var dashCharts = {};
 if (typeof ChartDataLabels !== 'undefined') {
   Chart.register(ChartDataLabels);
-  Chart.defaults.set('plugins.datalabels', { display: false });
 }
-var barDatalabels = { display: true, color: '#fff', font: { size: 10, weight: '600' }, anchor: 'end', align: 'start', offset: 4, formatter: function(v) { return v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? Math.round(v/1e3)+'K' : v; } };
+function fvLabel(v) { return v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? Math.round(v/1e3)+'K' : v; }
+var barDatalabels = { display: true, color: '#fff', font: { size: 10, weight: '600' }, anchor: 'end', align: 'start', offset: 4, formatter: function(v) { return fvLabel(v); } };
+var donutDatalabels = { display: true, color: '#fff', font: { size: 11, weight: '700' }, formatter: function(v, ctx) { var total = ctx.chart.data.datasets[0].data.reduce(function(s,n){return s+n;},0); var pct = Math.round(v/total*100); return pct >= 5 ? v + ' (' + pct + '%)' : ''; } };
+var lineDatalabels = { display: false };
+
+/* Palettes distinctes */
+var PAL_SECTORS = ['#E8692B','#3B82F6','#22C55E','#A855F7','#EC4899','#FACC15','#06B6D4'];
+var PAL_CITIES = ['#E8692B','#F59E0B','#22C55E','#3B82F6','#8B5CF6','#EC4899','#06B6D4','#EF4444','#84CC16','#F97316'];
+var PAL_TOP = ['#E8692B','#F28C55','#FFA96A','#22C55E','#3B82F6','#A855F7','#EC4899','#06B6D4','#FACC15','#EF4444','#84CC16','#F97316','#10B981','#6366F1','#D946EF'];
+var PAL_MEDIA = ['#E8692B','#22C55E','#EF4444','#E1306C','#000000','#1877F2','#4285F4'];
 function renderDashboard() {
   if (!projects.length) return;
 
@@ -1871,51 +1879,50 @@ function renderDashboard() {
   document.getElementById('dashLogos').textContent = withLogo + '/' + projects.length;
   document.getElementById('dashComplete').textContent = avgComp + '%';
 
-  var colors = ['#E8692B','#F28C55','#FFA96A','#22C55E','#4285F4','#9333EA','#EC4899','#FACC15','#06B6D4','#8B5CF6'];
   var catNames = {restaurant:'Restaurants',bar:'Bars',boutique:'Boutiques',activite:'Activités',gourmandise:'Gourmandises',hebergement:'Hébergements',service:'Services'};
 
-  /* Chart 1: Répartition par secteur */
+  /* Chart 1: Répartition par secteur (donut) */
   var catCounts = {};
   projects.forEach(function(p) { catCounts[p.category] = (catCounts[p.category] || 0) + 1; });
   var catKeys = Object.keys(catCounts).sort(function(a, b) { return catCounts[b] - catCounts[a]; });
   destroyChart('chartCategories');
   dashCharts.chartCategories = new Chart(document.getElementById('chartCategories'), {
     type: 'doughnut',
-    data: { labels: catKeys.map(function(k) { return catNames[k] || k; }), datasets: [{ data: catKeys.map(function(k) { return catCounts[k]; }), backgroundColor: colors.slice(0, catKeys.length), borderWidth: 0 }] },
-    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#C4A98A', font: { size: 11 } } } } }
+    data: { labels: catKeys.map(function(k) { return catNames[k] || k; }), datasets: [{ data: catKeys.map(function(k) { return catCounts[k]; }), backgroundColor: PAL_SECTORS.slice(0, catKeys.length), borderWidth: 0 }] },
+    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#C4A98A', font: { size: 11 } } }, datalabels: donutDatalabels } }
   });
 
-  /* Chart 2: Vues par secteur */
+  /* Chart 2: Vues par secteur (barres couleurs distinctes) */
   var catViews = {};
   projects.forEach(function(p) { catViews[p.category] = (catViews[p.category] || 0) + (p.views || 0); });
   destroyChart('chartViewsByCat');
   dashCharts.chartViewsByCat = new Chart(document.getElementById('chartViewsByCat'), {
     type: 'bar',
-    data: { labels: catKeys.map(function(k) { return catNames[k] || k; }), datasets: [{ label: 'Vues', data: catKeys.map(function(k) { return catViews[k] || 0; }), backgroundColor: '#E8692B', borderRadius: 6 }] },
+    data: { labels: catKeys.map(function(k) { return catNames[k] || k; }), datasets: [{ label: 'Vues', data: catKeys.map(function(k) { return catViews[k] || 0; }), backgroundColor: PAL_SECTORS.slice(0, catKeys.length), borderRadius: 6 }] },
     options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false }, datalabels: barDatalabels }, scales: { x: { ticks: { color: '#8A7060', callback: function(v) { return fv(v); } }, grid: { color: 'rgba(255,255,255,.05)' } }, y: { ticks: { color: '#C4A98A', font: { size: 11 } }, grid: { display: false } } } }
   });
 
-  /* Chart 3: Répartition par ville */
+  /* Chart 3: Répartition par ville (barres couleurs distinctes) */
   var cityCounts = {};
   projects.forEach(function(p) { cityCounts[p.city] = (cityCounts[p.city] || 0) + 1; });
   var cityKeys = Object.keys(cityCounts).sort(function(a, b) { return cityCounts[b] - cityCounts[a]; }).slice(0, 10);
   destroyChart('chartCities');
   dashCharts.chartCities = new Chart(document.getElementById('chartCities'), {
     type: 'bar',
-    data: { labels: cityKeys, datasets: [{ label: 'Projets', data: cityKeys.map(function(k) { return cityCounts[k]; }), backgroundColor: '#F28C55', borderRadius: 6 }] },
+    data: { labels: cityKeys, datasets: [{ label: 'Projets', data: cityKeys.map(function(k) { return cityCounts[k]; }), backgroundColor: PAL_CITIES.slice(0, cityKeys.length), borderRadius: 6 }] },
     options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false }, datalabels: barDatalabels }, scales: { x: { ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.05)' } }, y: { ticks: { color: '#C4A98A', font: { size: 11 } }, grid: { display: false } } } }
   });
 
-  /* Chart 4: Top 10 projets par vues */
+  /* Chart 4: Top 10 projets par vues (barres couleurs distinctes) */
   var top10 = projects.slice().sort(function(a, b) { return (b.views || 0) - (a.views || 0); }).slice(0, 10);
   destroyChart('chartTopProjects');
   dashCharts.chartTopProjects = new Chart(document.getElementById('chartTopProjects'), {
     type: 'bar',
-    data: { labels: top10.map(function(p) { return p.name.length > 18 ? p.name.slice(0, 18) + '…' : p.name; }), datasets: [{ label: 'Vues', data: top10.map(function(p) { return p.views || 0; }), backgroundColor: '#22C55E', borderRadius: 6 }] },
+    data: { labels: top10.map(function(p) { return p.name.length > 18 ? p.name.slice(0, 18) + '…' : p.name; }), datasets: [{ label: 'Vues', data: top10.map(function(p) { return p.views || 0; }), backgroundColor: PAL_TOP.slice(0, top10.length), borderRadius: 6 }] },
     options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false }, datalabels: barDatalabels }, scales: { x: { ticks: { color: '#8A7060', callback: function(v) { return fv(v); } }, grid: { color: 'rgba(255,255,255,.05)' } }, y: { ticks: { color: '#C4A98A', font: { size: 10 } }, grid: { display: false } } } }
   });
 
-  /* Chart 5: Complétude des fiches */
+  /* Chart 5: Complétude des fiches (donut) */
   var compBuckets = { '0-25%': 0, '25-50%': 0, '50-75%': 0, '75-100%': 0 };
   projects.forEach(function(p) {
     var c = getCompleteness(p);
@@ -1928,10 +1935,10 @@ function renderDashboard() {
   dashCharts.chartCompleteness = new Chart(document.getElementById('chartCompleteness'), {
     type: 'doughnut',
     data: { labels: Object.keys(compBuckets), datasets: [{ data: Object.values(compBuckets), backgroundColor: ['#EF4444', '#FACC15', '#F28C55', '#22C55E'], borderWidth: 0 }] },
-    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#C4A98A', font: { size: 11 } } } } }
+    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#C4A98A', font: { size: 11 } } }, datalabels: donutDatalabels } }
   });
 
-  /* Chart 6: Médias renseignés */
+  /* Chart 6: Médias renseignés (barres couleurs distinctes) */
   var mediaStats = {
     'Logo': projects.filter(function(p) { return p.logo_url; }).length,
     'Photos': projects.filter(function(p) { return p.photos && p.photos.length; }).length,
@@ -1944,7 +1951,7 @@ function renderDashboard() {
   destroyChart('chartMedia');
   dashCharts.chartMedia = new Chart(document.getElementById('chartMedia'), {
     type: 'bar',
-    data: { labels: Object.keys(mediaStats), datasets: [{ label: 'Projets', data: Object.values(mediaStats), backgroundColor: ['#E8692B','#F28C55','#FFA96A','#EC4899','#000','#4285F4','#22C55E'], borderRadius: 6 }] },
+    data: { labels: Object.keys(mediaStats), datasets: [{ label: 'Projets', data: Object.values(mediaStats), backgroundColor: PAL_MEDIA, borderRadius: 6 }] },
     options: { responsive: true, plugins: { legend: { display: false }, datalabels: barDatalabels }, scales: { x: { ticks: { color: '#C4A98A', font: { size: 10 } }, grid: { display: false } }, y: { ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.05)' }, beginAtZero: true } } }
   });
 }
@@ -2048,7 +2055,7 @@ async function loadClicksAnalytics() {
         },
         options: {
           responsive: true,
-          plugins: { legend: { display: false } },
+          plugins: { legend: { display: false }, datalabels: lineDatalabels },
           scales: {
             x: { ticks: { color: '#8A7060', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.04)' } },
             y: { beginAtZero: true, ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.04)' } }
@@ -2067,13 +2074,13 @@ async function loadClicksAnalytics() {
           datasets: [{
             label: 'Clics',
             data: data.byProject.map(function(p) { return p.count; }),
-            backgroundColor: colors.slice(0, data.byProject.length),
+            backgroundColor: PAL_TOP.slice(0, data.byProject.length),
             borderRadius: 6
           }]
         },
         options: {
           responsive: true, indexAxis: 'y',
-          plugins: { legend: { display: false } },
+          plugins: { legend: { display: false }, datalabels: barDatalabels },
           scales: {
             x: { beginAtZero: true, ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.04)' } },
             y: { ticks: { color: '#C4A98A', font: { size: 10 } }, grid: { display: false } }
@@ -2091,11 +2098,11 @@ async function loadClicksAnalytics() {
           labels: data.byCat.map(function(c) { return catNames[c.category] || c.category; }),
           datasets: [{
             data: data.byCat.map(function(c) { return c.count; }),
-            backgroundColor: colors.slice(0, data.byCat.length),
+            backgroundColor: PAL_SECTORS.slice(0, data.byCat.length),
             borderWidth: 0
           }]
         },
-        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#C4A98A', font: { size: 11 } } } } }
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#C4A98A', font: { size: 11 } } }, datalabels: donutDatalabels } }
       });
     }
 
@@ -2109,13 +2116,13 @@ async function loadClicksAnalytics() {
           datasets: [{
             label: 'Clics',
             data: data.byCity.map(function(c) { return c.count; }),
-            backgroundColor: '#F28C55',
+            backgroundColor: PAL_CITIES.slice(0, data.byCity.length),
             borderRadius: 6
           }]
         },
         options: {
           responsive: true,
-          plugins: { legend: { display: false } },
+          plugins: { legend: { display: false }, datalabels: barDatalabels },
           scales: {
             x: { ticks: { color: '#C4A98A', font: { size: 10 } }, grid: { display: false } },
             y: { beginAtZero: true, ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.04)' } }
