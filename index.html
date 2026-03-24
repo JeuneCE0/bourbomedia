@@ -453,8 +453,28 @@
       font-family: 'Bricolage Grotesque', sans-serif;
       font-weight: 600; font-size: .88rem; color: var(--white);
       flex-shrink: 0; transition: border-color .3s ease;
+      position: relative; cursor: default;
     }
     .logo-pill:hover { border-color: var(--orange); color: var(--orange); }
+    .pill-tooltip {
+      display: none; position: absolute; bottom: calc(100% + 10px); left: 50%;
+      transform: translateX(-50%); background: var(--night-card);
+      border: 1px solid var(--orange); border-radius: 14px;
+      padding: 14px 18px; min-width: 220px; max-width: 280px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.4); z-index: 100;
+      pointer-events: none; white-space: normal;
+    }
+    .pill-tooltip::after {
+      content: ''; position: absolute; top: 100%; left: 50%;
+      transform: translateX(-50%); border: 6px solid transparent;
+      border-top-color: var(--orange);
+    }
+    .logo-pill:hover .pill-tooltip { display: block; }
+    .pill-tt-name { font-size: .85rem; font-weight: 700; color: var(--white); margin-bottom: 4px; }
+    .pill-tt-cat { font-size: .7rem; color: var(--orange); margin-bottom: 2px; }
+    .pill-tt-city { font-size: .72rem; color: rgba(255,255,255,.6); margin-bottom: 6px; }
+    .pill-tt-desc { font-size: .72rem; color: rgba(255,255,255,.5); line-height: 1.4; margin-bottom: 6px; }
+    .pill-tt-views { font-size: .7rem; font-weight: 600; color: var(--orange); }
 
     /* ═══════════ S4 — LE PROBLÈME (douleur amplifiée) ═══════════ */
     .problem { padding: 80px 0; background: var(--cream); }
@@ -2071,7 +2091,7 @@
   (async function() {
     try {
       /* Charger tous les projets publiés (nom, logo, vues) */
-      var r = await fetch(SUPABASE_URL + '/rest/v1/projects?select=name,logo_url,views&status=eq.published&order=created_at.desc', {
+      var r = await fetch(SUPABASE_URL + '/rest/v1/projects?select=name,logo_url,views,category,city,description&status=eq.published&order=created_at.desc', {
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
       });
       var allProjects = await r.json();
@@ -2190,8 +2210,19 @@
       var withLogo = allProjects.filter(function(p) { return p.logo_url; });
       var track = document.getElementById('logoTrack');
       if (track && withLogo.length) {
+        var catEmojis = {restaurant:'🍴',bar:'🍻',boutique:'🛍',activite:'🎯',gourmandise:'🍦',hebergement:'🏠',service:'💼'};
+        function fvLanding(n){if(n>=1e6)return(n/1e6).toFixed(1).replace('.0','')+'M';if(n>=1e3)return Math.round(n/1e3)+'K';return String(n);}
         var pillsHtml = withLogo.map(function(p) {
-          return '<span class="logo-pill"><img src="' + p.logo_url + '" alt="" style="width:22px;height:22px;border-radius:50%;object-fit:cover;margin-right:6px;vertical-align:middle;border:1px solid rgba(255,255,255,.1);">' + p.name + '</span>';
+          var emoji = catEmojis[p.category] || '•';
+          var desc = p.description ? (p.description.length > 80 ? p.description.slice(0,80) + '…' : p.description) : '';
+          var tooltip = '<div class="pill-tooltip">' +
+            '<div class="pill-tt-name">' + p.name + '</div>' +
+            '<div class="pill-tt-cat">' + emoji + ' ' + (p.category || '') + '</div>' +
+            '<div class="pill-tt-city">📍 ' + (p.city || '') + '</div>' +
+            (desc ? '<div class="pill-tt-desc">' + desc + '</div>' : '') +
+            (p.views ? '<div class="pill-tt-views">👁 ' + fvLanding(p.views) + ' vues</div>' : '') +
+          '</div>';
+          return '<span class="logo-pill"><img src="' + p.logo_url + '" alt="" style="width:22px;height:22px;border-radius:50%;object-fit:cover;margin-right:6px;vertical-align:middle;border:1px solid rgba(255,255,255,.1);">' + p.name + tooltip + '</span>';
         }).join('');
         track.innerHTML = pillsHtml + pillsHtml;
       }
