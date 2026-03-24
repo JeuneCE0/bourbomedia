@@ -31,6 +31,7 @@ module.exports = async (req, res) => {
       {
         method: 'POST',
         headers: {
+          'apikey': SUPABASE_SERVICE_KEY,
           'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
           'Content-Type': contentType || 'image/jpeg',
           'x-upsert': 'true'
@@ -41,6 +42,7 @@ module.exports = async (req, res) => {
 
     if (!uploadRes.ok) {
       const err = await uploadRes.text();
+      console.error('Supabase Storage error:', uploadRes.status, err);
       return res.status(uploadRes.status).json({ error: err });
     }
 
