@@ -2077,15 +2077,10 @@
       var track = document.getElementById('logoTrack');
       if (!track || !projects.length) return;
 
-      // Update counter in title (total projets, pas juste ceux avec logo)
-      var rAll = await fetch(SUPABASE_URL + '/rest/v1/projects?select=id&limit=1', {
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'count=exact', 'Range-Unit': 'items', 'Range': '0-0' }
-      });
-      var totalCount = parseInt(rAll.headers.get('content-range').split('/')[1], 10) || projects.length;
+      // Compteur fixé à +60
       var titleEl = document.querySelector('.logos-title');
       if (titleEl) {
-        var displayCount = Math.max(Math.ceil(totalCount / 10) * 10, totalCount);
-        titleEl.innerHTML = '<span class="reveal-text">+' + displayCount + ' commerces sont déjà passés chez nous</span>';
+        titleEl.innerHTML = '<span class="reveal-text">+60 commerces sont déjà passés chez nous</span>';
       }
 
       // Build pills HTML (uniquement ceux avec logo)
