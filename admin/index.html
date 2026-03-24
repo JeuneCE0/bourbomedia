@@ -146,17 +146,35 @@
     .photo-thumb .photo-remove { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.7); border: none; color: var(--red); font-size: .75rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .photo-uploading { display: flex; align-items: center; justify-content: center; background: var(--night-mid); color: var(--text-muted); font-size: .68rem; }
 
-    /* ── PREVIEW CARD ── */
+    /* ── PREVIEW CARD (replica /adresses) ── */
     .preview-title { font-size: .72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
-    .preview-card { background: var(--night-mid); border: 1px solid var(--border-md); border-radius: var(--radius-sm); padding: 16px; }
-    .preview-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-    .preview-card-logo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); }
-    .preview-card-logo-ph { width: 36px; height: 36px; border-radius: 50%; background: var(--night-raised); border: 1px solid var(--border); }
-    .preview-card-meta { font-size: .68rem; color: var(--text-muted); }
-    .preview-card-name { font-weight: 700; font-size: .95rem; color: var(--white); margin-bottom: 6px; }
-    .preview-card-result { font-size: .78rem; color: var(--text-mid); margin-bottom: 8px; }
-    .preview-card-badges { display: flex; gap: 6px; flex-wrap: wrap; }
-    .preview-badge { font-size: .65rem; padding: 3px 8px; border-radius: 12px; border: 1px solid var(--border); color: var(--text-muted); }
+    .preview-card {
+      background: var(--night-card); border: 1px solid var(--border-md); border-radius: 14px;
+      padding: 18px; transition: border-color .2s, box-shadow .2s;
+    }
+    .preview-card:hover { border-color: var(--border-orange); box-shadow: 0 0 20px rgba(232,105,43,.08); }
+    .preview-card-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
+    .preview-card-logo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,.1); flex-shrink: 0; margin-top: 2px; }
+    .preview-card-logo-ph { width: 36px; height: 36px; border-radius: 50%; background: var(--night-raised); border: 1px dashed var(--border-md); flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; font-size: .6rem; color: var(--text-muted); }
+    .preview-card-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+    .preview-card-cat { font-size: .7rem; color: var(--orange-light); background: rgba(232,105,43,.1); border: 1px solid rgba(232,105,43,.15); padding: 2px 8px; border-radius: 20px; }
+    .preview-card-city { font-size: .7rem; color: var(--text-muted); display: flex; align-items: center; gap: 3px; }
+    .preview-card-city svg { width: 11px; height: 11px; }
+    .preview-card-name { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 1rem; color: var(--white); margin: 6px 0 4px; }
+    .preview-card-views { display: inline-flex; align-items: center; gap: 4px; font-size: .72rem; color: var(--text-muted); margin-bottom: 6px; }
+    .preview-card-views svg { width: 13px; height: 13px; }
+    .preview-card-new { display: inline-block; font-size: .65rem; font-weight: 600; color: var(--green); background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.18); padding: 2px 8px; border-radius: 12px; margin-left: 6px; }
+    .preview-card-result { font-size: .78rem; color: var(--text-mid); line-height: 1.4; margin: 6px 0 8px; }
+    .preview-card-desc { font-size: .75rem; color: var(--text-muted); font-style: italic; margin-bottom: 8px; }
+    .preview-card-socials { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .preview-social { font-size: .68rem; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; text-decoration: none; transition: all .2s; }
+    .preview-social svg { width: 12px; height: 12px; }
+    .preview-social.ig { color: #E1306C; border-color: rgba(225,48,108,.2); }
+    .preview-social.tt { color: #fff; border-color: rgba(255,255,255,.15); }
+    .preview-social.video { color: var(--orange); border-color: var(--border-orange); background: rgba(232,105,43,.06); }
+    .preview-social.google { color: var(--green); border-color: rgba(34,197,94,.2); }
+    .preview-card-photos { display: flex; gap: 4px; margin-top: 10px; border-radius: 8px; overflow: hidden; }
+    .preview-card-photos img { height: 52px; flex: 1; object-fit: cover; min-width: 0; }
     .preview-completeness { margin-top: 16px; }
     .completeness-bar { height: 6px; border-radius: 3px; background: var(--night-raised); overflow: hidden; margin-top: 6px; }
     .completeness-fill { height: 100%; border-radius: 3px; transition: width .3s, background .3s; }
@@ -606,23 +624,54 @@ function updatePreview(){
   var city=document.getElementById('fCity').value;
   var views=parseInt(document.getElementById('fViews').value,10)||0;
   var result=document.getElementById('fResult').value.trim();
+  var desc=document.getElementById('fDescription').value.trim();
   var isNew=document.getElementById('fIsNew').checked;
+  var ig=document.getElementById('fInstagram').value.trim();
+  var tt=document.getElementById('fTiktok').value.trim();
+  var videoUrl=document.getElementById('fVideoUrl').value.trim();
+  var googleReview=document.getElementById('fGoogleReview').value.trim();
   var catObj=catLabels[cat]||cat;
+  var pinSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+  var eyeSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
 
-  var logoHtml=editingLogoUrl?'<img class="preview-card-logo" src="'+editingLogoUrl+'" alt="">':'<div class="preview-card-logo-ph"></div>';
+  var logoHtml=editingLogoUrl?'<img class="preview-card-logo" src="'+editingLogoUrl+'" alt="">':'<div class="preview-card-logo-ph">?</div>';
 
-  var badges='';
-  if(views)badges+='<span class="preview-badge">'+fv(views)+' vues</span>';
-  if(isNew)badges+='<span class="preview-badge" style="color:var(--green);border-color:rgba(34,197,94,.3)">Nouveau</span>';
-  if(document.getElementById('fInstagram').value.trim())badges+='<span class="preview-badge">IG</span>';
-  if(document.getElementById('fVideoUrl').value.trim())badges+='<span class="preview-badge" style="color:var(--orange);border-color:var(--border-orange)">Vidéo</span>';
-  if(document.getElementById('fGoogleReview').value.trim())badges+='<span class="preview-badge">Google</span>';
+  /* Views + New badge */
+  var viewsHtml='';
+  if(views) viewsHtml+='<span class="preview-card-views">'+eyeSvg+' '+fv(views)+' vues</span>';
+  if(isNew) viewsHtml+='<span class="preview-card-new">Nouveau</span>';
+
+  /* Social links */
+  var socialsHtml='';
+  if(videoUrl) socialsHtml+='<span class="preview-social video"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>Vidéo BBP</span>';
+  if(ig) socialsHtml+='<span class="preview-social ig"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/></svg>@'+esc(ig)+'</span>';
+  if(tt) socialsHtml+='<span class="preview-social tt"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V8.73a8.19 8.19 0 004.76 1.52v-3.4a4.85 4.85 0 01-1-.16z"/></svg>TikTok</span>';
+  if(googleReview) socialsHtml+='<span class="preview-social google"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Avis Google</span>';
+
+  /* Photos strip */
+  var photosHtml='';
+  var realPhotos=editingPhotos.filter(function(u){return !u.startsWith('___');});
+  if(realPhotos.length){
+    photosHtml='<div class="preview-card-photos">';
+    realPhotos.slice(0,4).forEach(function(u){photosHtml+='<img src="'+u+'" alt="">';});
+    photosHtml+='</div>';
+  }
 
   document.getElementById('previewCard').innerHTML=
-    '<div class="preview-card-header">'+logoHtml+'<div class="preview-card-meta">'+catObj+' · '+esc(city)+'</div></div>'+
-    '<div class="preview-card-name">'+esc(name)+'</div>'+
+    '<div class="preview-card-header">'+logoHtml+
+      '<div style="flex:1;min-width:0;">'+
+        '<div class="preview-card-meta">'+
+          '<span class="preview-card-cat">'+catObj+'</span>'+
+          '<span class="preview-card-city">'+pinSvg+' '+esc(city)+'</span>'+
+        '</div>'+
+        '<div class="preview-card-name">'+esc(name)+'</div>'+
+      '</div>'+
+    '</div>'+
+    (viewsHtml?'<div style="margin-bottom:6px;">'+viewsHtml+'</div>':'')+
+    (desc?'<div class="preview-card-desc">'+esc(desc)+'</div>':'')+
     (result?'<div class="preview-card-result">'+esc(result)+'</div>':'')+
-    '<div class="preview-card-badges">'+badges+'</div>';
+    (socialsHtml?'<div class="preview-card-socials">'+socialsHtml+'</div>':'')+
+    photosHtml;
 
   /* Completeness */
   var fields=[
