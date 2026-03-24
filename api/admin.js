@@ -115,5 +115,41 @@ module.exports = async (req, res) => {
     }
   }
 
+  /* ── GET settings ── */
+  if (req.method === 'GET' && action === 'settings') {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/site_settings?select=key,value`, {
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+      const data = await r.json();
+      return res.status(200).json(data);
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  /* ── POST settings ── */
+  if (req.method === 'POST' && action === 'settings') {
+    try {
+      const { settings } = req.body || {};
+      if (!settings || !Array.isArray(settings)) return res.status(400).json({ error: 'settings array requis' });
+      for (const s of settings) {
+        await fetch(`${SUPABASE_URL}/rest/v1/site_settings?key=eq.${s.key}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ value: String(s.value), updated_at: new Date().toISOString() })
+        });
+      }
+      return res.status(200).json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   return res.status(400).json({ error: 'Action inconnue' });
 };

@@ -1452,13 +1452,10 @@ function showQR(id, name) {
 }
 
 /* ════ SOCIALS ════ */
-var SUPABASE_URL_ADMIN = 'https://qtnrccpghqbvoaskbpgx.supabase.co';
-var SUPABASE_KEY_ADMIN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF0bnJjY3BnaHFidm9hc2ticGd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNTUzOTcsImV4cCI6MjA4OTkzMTM5N30.kLZ3Qtqjt01W70uAwksvCNEeLRm03kNGWefXfFpzahM';
-
 async function loadSocials() {
   try {
-    var r = await fetch(SUPABASE_URL_ADMIN+'/rest/v1/site_settings?select=key,value', {
-      headers:{'apikey':SUPABASE_KEY_ADMIN,'Authorization':'Bearer '+SUPABASE_KEY_ADMIN}
+    var r = await fetch(API+'/api/admin?action=settings', {
+      headers:{'Authorization':'Bearer '+token}
     });
     var settings = await r.json();
     var map = {};
@@ -1469,11 +1466,11 @@ async function loadSocials() {
     document.getElementById('setTtHandle').value = map.tiktok_handle || '';
     document.getElementById('setFbFollowers').value = map.facebook_followers || '';
     document.getElementById('setFbUrl').value = map.facebook_url || '';
-  } catch(e){}
+  } catch(e){ console.error('loadSocials error:', e); }
 }
 
 document.getElementById('saveSocialsBtn').addEventListener('click', async function() {
-  var pairs = [
+  var settingsArr = [
     {key:'instagram_followers', value:document.getElementById('setIgFollowers').value},
     {key:'instagram_handle', value:document.getElementById('setIgHandle').value},
     {key:'tiktok_followers', value:document.getElementById('setTtFollowers').value},
@@ -1482,16 +1479,19 @@ document.getElementById('saveSocialsBtn').addEventListener('click', async functi
     {key:'facebook_url', value:document.getElementById('setFbUrl').value}
   ];
   try {
-    for (var i=0;i<pairs.length;i++) {
-      await fetch(SUPABASE_URL_ADMIN+'/rest/v1/site_settings?key=eq.'+pairs[i].key, {
-        method:'PATCH',
-        headers:{'apikey':SUPABASE_KEY_ADMIN,'Authorization':'Bearer '+token,'Content-Type':'application/json','Prefer':'return=minimal'},
-        body:JSON.stringify({value:pairs[i].value,updated_at:new Date().toISOString()})
-      });
+    var r = await fetch(API+'/api/admin?action=settings', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({settings:settingsArr})
+    });
+    if (r.ok) {
+      var msg=document.getElementById('socialsSaved');msg.style.display='inline';setTimeout(function(){msg.style.display='none';},2000);
+      showToast('Réseaux sociaux enregistrés','success');
+    } else {
+      var d = await r.json();
+      showToast('Erreur: '+(d.error||''),'error');
     }
-    var msg=document.getElementById('socialsSaved');msg.style.display='inline';setTimeout(function(){msg.style.display='none';},2000);
-    showToast('Réseaux sociaux enregistrés','success');
-  } catch(e){showToast('Erreur','error');}
+  } catch(e){showToast('Erreur réseau','error');}
 });
 
 /* ════ INIT ════ */
