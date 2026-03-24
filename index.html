@@ -429,13 +429,13 @@
     .stat-item .lbl { font-size: .78rem; color: var(--white); margin-top: 2px; }
 
     /* ═══════════ S3 — LOGOS ═══════════ */
-    .logos-section { padding: 52px 0 44px; background: var(--night); }
+    .logos-section { padding: 52px 0 44px; background: var(--night); overflow: visible; position: relative; z-index: 3; }
     .logos-title {
       text-align: center; font-size: .82rem; font-weight: 600;
       text-transform: uppercase; letter-spacing: .14em;
       color: var(--white); margin-bottom: 28px;
     }
-    .logo-track-wrap { overflow: hidden; position: relative; }
+    .logo-track-wrap { overflow-x: clip; overflow-y: visible; position: relative; }
     .logo-track-wrap::before, .logo-track-wrap::after {
       content: ''; position: absolute; top: 0; bottom: 0; width: 60px; z-index: 2;
     }
@@ -461,7 +461,7 @@
       transform: translateX(-50%); background: var(--night-card);
       border: 1px solid var(--orange); border-radius: 14px;
       padding: 14px 18px; min-width: 220px; max-width: 280px;
-      box-shadow: 0 8px 30px rgba(0,0,0,.4); z-index: 100;
+      box-shadow: 0 8px 30px rgba(0,0,0,.5); z-index: 999;
       pointer-events: none; white-space: normal;
     }
     .pill-tooltip::after {

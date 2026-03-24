@@ -339,30 +339,39 @@
         <span style="font-size:.72rem;color:var(--text-muted);font-weight:400;margin-left:auto;">Connecté à la landing page</span>
       </summary>
       <div style="background:var(--night-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px;">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
-          <div>
-            <label class="form-label" style="margin-bottom:6px;">Instagram — Abonnés</label>
-            <div style="display:flex;gap:8px;">
-              <input type="number" id="setIgFollowers" class="form-input" style="flex:1;" placeholder="70000">
-              <input type="text" id="setIgHandle" class="form-input" style="flex:1;" placeholder="bourbonbonsplans">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;">
+          <div style="background:var(--night-mid);border:1px solid var(--border);border-radius:var(--radius-xs);padding:16px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <span style="font-size:1.2rem;">📸</span>
+              <span style="font-weight:700;color:var(--white);font-size:.9rem;">Instagram</span>
             </div>
+            <label class="form-label" style="margin-bottom:4px;">Nombre d'abonnés</label>
+            <input type="number" id="setIgFollowers" class="form-input" style="width:100%;margin-bottom:10px;" placeholder="70000">
+            <label class="form-label" style="margin-bottom:4px;">Pseudo (sans @)</label>
+            <input type="text" id="setIgHandle" class="form-input" style="width:100%;" placeholder="bourbonbonsplans">
           </div>
-          <div>
-            <label class="form-label" style="margin-bottom:6px;">TikTok — Abonnés</label>
-            <div style="display:flex;gap:8px;">
-              <input type="number" id="setTtFollowers" class="form-input" style="flex:1;" placeholder="0">
-              <input type="text" id="setTtHandle" class="form-input" style="flex:1;" placeholder="bourbonbonsplans">
+          <div style="background:var(--night-mid);border:1px solid var(--border);border-radius:var(--radius-xs);padding:16px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <span style="font-size:1.2rem;">🎵</span>
+              <span style="font-weight:700;color:var(--white);font-size:.9rem;">TikTok</span>
             </div>
+            <label class="form-label" style="margin-bottom:4px;">Nombre d'abonnés</label>
+            <input type="number" id="setTtFollowers" class="form-input" style="width:100%;margin-bottom:10px;" placeholder="0">
+            <label class="form-label" style="margin-bottom:4px;">Pseudo (sans @)</label>
+            <input type="text" id="setTtHandle" class="form-input" style="width:100%;" placeholder="bourbonbonsplans">
           </div>
-          <div>
-            <label class="form-label" style="margin-bottom:6px;">Facebook — Abonnés</label>
-            <div style="display:flex;gap:8px;">
-              <input type="number" id="setFbFollowers" class="form-input" style="flex:1;" placeholder="0">
-              <input type="text" id="setFbUrl" class="form-input" style="flex:1;" placeholder="https://facebook.com/...">
+          <div style="background:var(--night-mid);border:1px solid var(--border);border-radius:var(--radius-xs);padding:16px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <span style="font-size:1.2rem;">👤</span>
+              <span style="font-weight:700;color:var(--white);font-size:.9rem;">Facebook</span>
             </div>
+            <label class="form-label" style="margin-bottom:4px;">Nombre d'abonnés</label>
+            <input type="number" id="setFbFollowers" class="form-input" style="width:100%;margin-bottom:10px;" placeholder="0">
+            <label class="form-label" style="margin-bottom:4px;">URL de la page</label>
+            <input type="text" id="setFbUrl" class="form-input" style="width:100%;" placeholder="https://facebook.com/...">
           </div>
         </div>
-        <button id="saveSocialsBtn" class="btn-save" style="margin-top:16px;">Enregistrer les réseaux</button>
+        <button id="saveSocialsBtn" class="btn-save" style="margin-top:20px;">Enregistrer les réseaux</button>
         <span id="socialsSaved" style="margin-left:12px;font-size:.82rem;color:var(--green);display:none;">Enregistré !</span>
       </div>
     </details>
