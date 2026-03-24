@@ -1678,11 +1678,9 @@
     Object.keys(bizByCity).forEach(function (city) {
       var coords = cityCoords[city];
       var cityBiz = bizByCity[city];
-      /* Show logo (or emoji fallback) for single-business city, count otherwise */
+      /* Emoji catégorie sur le pin, nombre si multi-commerces */
       var pinContent;
-      if (cityBiz.length === 1 && cityBiz[0].logoUrl) {
-        pinContent = '<img src="' + cityBiz[0].logoUrl + '" style="width:22px;height:22px;border-radius:50%;object-fit:cover;">';
-      } else if (cityBiz.length === 1) {
+      if (cityBiz.length === 1) {
         pinContent = catInfo[cityBiz[0].cat].icon;
       } else {
         pinContent = String(cityBiz.length);
