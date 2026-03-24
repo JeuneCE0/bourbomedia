@@ -1,4 +1,1 @@
-name;category;city;address;description;result;views;is_new;video_url;instagram;tiktok;google_review_url;senja;logo_url
-Sousou Access;boutique;Saint-Denis;30 Rue Maréchal Leclerc, 97400 Saint-Denis;Boutique streetwear et accessoires au coeur de Saint-Denis;+40 000€ de CA en 30 jours — +1 000 ventes;420000;false;https://www.instagram.com/reel/ABC123/;sousou_access;;;
-Crazy Adventures;activite;Saint-Leu;Saint-Leu, La Réunion;Parapente, canyoning et aventures outdoor sur la côte ouest;+10 000€ de CA en 14 jours — +1M de vues en 45 jours;1000000;false;https://www.instagram.com/reel/DEF456/;crazy_adventures_reunion;;https://g.page/crazyadventures/review;
-Memphis Burger;restaurant;Saint-Pierre;Saint-Pierre, La Réunion;Burgers gourmets et ambiance américaine;80% des commandes du lendemain venaient de la vidéo;350000;false;;;;;;
+name;category;city;address;description;result;views;is_new;video_url;instagram;tiktok;facebook;google_review_url;senja;logo_url

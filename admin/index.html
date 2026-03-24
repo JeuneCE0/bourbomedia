@@ -402,6 +402,10 @@
             <input type="text" id="fTiktok" class="form-input" placeholder="nom_du_compte (sans @)">
           </div>
           <div class="form-group">
+            <label class="form-label">Facebook</label>
+            <input type="text" id="fFacebook" class="form-input" placeholder="https://facebook.com/...">
+          </div>
+          <div class="form-group">
             <label class="form-label">Fiche Google (avis)</label>
             <input type="text" id="fGoogleReview" class="form-input" placeholder="https://g.page/...">
           </div>
@@ -641,6 +645,7 @@ function openForm(project){
   document.getElementById('fVideoUrl').value=e?(project.video_url||''):'';
   document.getElementById('fInstagram').value=e?(project.instagram||''):'';
   document.getElementById('fTiktok').value=e?(project.tiktok||''):'';
+  document.getElementById('fFacebook').value=e?(project.facebook||''):'';
   document.getElementById('fGoogleReview').value=e?(project.google_review_url||''):'';
   document.getElementById('fSenja').value=e?(project.senja||''):'';
   editingLogoUrl=e?(project.logo_url||null):null;
@@ -712,7 +717,7 @@ function renderPhotosPreview(){
 }
 
 /* ════ LIVE PREVIEW ════ */
-var previewFields=['fName','fCategory','fCity','fViews','fResult','fDescription','fVideoUrl','fInstagram','fGoogleReview','fIsNew'];
+var previewFields=['fName','fCategory','fCity','fViews','fResult','fDescription','fVideoUrl','fInstagram','fFacebook','fGoogleReview','fIsNew'];
 previewFields.forEach(function(id){
   var el=document.getElementById(id);if(!el)return;
   el.addEventListener('input',updatePreview);el.addEventListener('change',updatePreview);
@@ -728,6 +733,7 @@ function updatePreview(){
   var isNew=document.getElementById('fIsNew').checked;
   var ig=document.getElementById('fInstagram').value.trim();
   var tt=document.getElementById('fTiktok').value.trim();
+  var fb=document.getElementById('fFacebook').value.trim();
   var videoUrl=document.getElementById('fVideoUrl').value.trim();
   var googleReview=document.getElementById('fGoogleReview').value.trim();
   var catObj=catLabels[cat]||cat;
@@ -746,6 +752,7 @@ function updatePreview(){
   if(videoUrl) socialsHtml+='<span class="preview-social video"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>Vidéo BBP</span>';
   if(ig) socialsHtml+='<span class="preview-social ig"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/></svg>@'+esc(ig)+'</span>';
   if(tt) socialsHtml+='<span class="preview-social tt"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.34-6.34V8.73a8.19 8.19 0 004.76 1.52v-3.4a4.85 4.85 0 01-1-.16z"/></svg>TikTok</span>';
+  if(fb) socialsHtml+='<span class="preview-social" style="color:#1877F2;border-color:rgba(24,119,242,.25);"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>Facebook</span>';
   if(googleReview) socialsHtml+='<span class="preview-social google"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>Avis Google</span>';
 
   /* Photos strip */
@@ -808,6 +815,7 @@ document.getElementById('saveBtn').addEventListener('click',async function(){
     video_url:document.getElementById('fVideoUrl').value.trim()||null,
     instagram:document.getElementById('fInstagram').value.trim()||null,
     tiktok:document.getElementById('fTiktok').value.trim()||null,
+    facebook:document.getElementById('fFacebook').value.trim()||null,
     google_review_url:document.getElementById('fGoogleReview').value.trim()||null,
     senja:document.getElementById('fSenja').value.trim()||null,
     logo_url:editingLogoUrl,
@@ -896,7 +904,7 @@ function normalizeHeader(h) {
   return h.toLowerCase().replace(/[\s\-]+/g, '_').replace(/[^\w]/g, '');
 }
 
-var CSV_FIELDS = ['name','category','city','address','description','result','views','is_new','video_url','instagram','tiktok','google_review_url','senja','logo_url'];
+var CSV_FIELDS = ['name','category','city','address','description','result','views','is_new','video_url','instagram','tiktok','facebook','google_review_url','senja','logo_url'];
 
 function parseBool(v) {
   if (!v) return false;
