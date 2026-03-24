@@ -996,13 +996,15 @@
       .hero { display: none; }
 
       /* ── LAYOUT ── */
+      /* header (57px) + search bar (50px) = 107px top, cards strip (100px) bottom */
       .main-content {
         flex-direction: column; padding: 0; gap: 0;
-        height: calc(100vh - var(--header-height));
-        height: calc(100dvh - var(--header-height));
+        height: calc(100vh - var(--header-height) - 50px - 100px);
+        height: calc(100dvh - var(--header-height) - 50px - 100px);
+        margin-top: calc(var(--header-height) + 50px);
       }
 
-      /* ── MAP — fullscreen ── */
+      /* ── MAP ── */
       .map-container {
         order: 1; position: relative;
         flex: 1; min-height: 0;
@@ -1039,7 +1041,7 @@
       /* ── FLOATING CTA — icon-only centered, expands on tap ── */
       .floating-cta {
         position: fixed !important;
-        bottom: 20px !important;
+        bottom: 110px !important;
         left: 50% !important;
         right: auto !important;
         transform: translateX(-50%) !important;
@@ -1265,12 +1267,14 @@
     /* ── MOBILE CARDS STRIP ── */
     .mobile-cards-strip {
       display: none;
-      position: fixed; bottom: 80px; left: 0; right: 0; z-index: 150;
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 150;
       overflow-x: auto; overflow-y: hidden;
       -webkit-overflow-scrolling: touch;
       scroll-snap-type: x mandatory;
       scrollbar-width: none;
-      padding: 6px 0;
+      padding: 8px 0 12px;
+      background: linear-gradient(to top, rgba(26,16,8,.95) 60%, rgba(26,16,8,.0));
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     }
     .mobile-cards-strip::-webkit-scrollbar { display: none; }
     @media (max-width: 900px) {
@@ -1319,7 +1323,7 @@
     .mobile-search-bar input::placeholder { color: var(--text-muted); }
 
     @media (max-width: 900px) {
-      .map-filters-wrap { top: calc(var(--header-height) + 50px) !important; }
+      .map-filters-wrap { top: 10px !important; }
     }
   </style>
   <script>
