@@ -428,6 +428,40 @@
           <canvas id="chartMedia" height="250"></canvas>
         </div>
       </div>
+      <!-- SECTION TRACKING VISITEURS -->
+      <div style="margin-top:32px;margin-bottom:8px;">
+        <h3 style="font-family:'Bricolage Grotesque',sans-serif;font-size:1.1rem;color:var(--white);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Suivi des découvertes visiteurs
+          <span id="clicksToday" style="font-size:.75rem;background:var(--green);color:#fff;padding:3px 10px;border-radius:20px;font-weight:600;margin-left:8px;">0 aujourd'hui</span>
+        </h3>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr;gap:20px;margin-bottom:24px;">
+        <div style="background:var(--night-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px;">
+          <h3 style="font-family:'Bricolage Grotesque',sans-serif;font-size:.9rem;color:var(--white);margin-bottom:16px;">Clics par jour (30 derniers jours)</h3>
+          <canvas id="chartClicksDay" height="200"></canvas>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
+        <div style="background:var(--night-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px;">
+          <h3 style="font-family:'Bricolage Grotesque',sans-serif;font-size:.9rem;color:var(--white);margin-bottom:16px;">Top fiches découvertes</h3>
+          <canvas id="chartClicksProject" height="300"></canvas>
+        </div>
+        <div style="background:var(--night-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px;">
+          <h3 style="font-family:'Bricolage Grotesque',sans-serif;font-size:.9rem;color:var(--white);margin-bottom:16px;">Découvertes par secteur</h3>
+          <canvas id="chartClicksCat" height="300"></canvas>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr;gap:20px;margin-bottom:24px;">
+        <div style="background:var(--night-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px;">
+          <h3 style="font-family:'Bricolage Grotesque',sans-serif;font-size:.9rem;color:var(--white);margin-bottom:16px;">Découvertes par ville</h3>
+          <canvas id="chartClicksCity" height="200"></canvas>
+        </div>
+      </div>
+
     </div><!-- /tabDashboard -->
 
     <!-- ════ NOS RÉSEAUX SOCIAUX ════ -->
@@ -1895,6 +1929,131 @@ function renderDashboard() {
 function destroyChart(id) {
   if (dashCharts[id]) { dashCharts[id].destroy(); dashCharts[id] = null; }
 }
+
+/* ════ CLICKS ANALYTICS ════ */
+async function loadClicksAnalytics() {
+  try {
+    var r = await fetch(API + '/api/admin?action=clicks', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!r.ok) return;
+    var data = await r.json();
+    var catNames = {restaurant:'Restaurants',bar:'Bars',boutique:'Boutiques',activite:'Activités',gourmandise:'Gourmandises',hebergement:'Hébergements',service:'Services'};
+    var colors = ['#E8692B','#F28C55','#FFA96A','#22C55E','#4285F4','#9333EA','#EC4899','#FACC15','#06B6D4','#8B5CF6','#EF4444','#10B981','#F59E0B','#6366F1','#84CC16'];
+
+    /* Today badge */
+    document.getElementById('clicksToday').textContent = data.today + ' aujourd\'hui';
+
+    /* Chart: Clics par jour */
+    if (data.byDay && data.byDay.length) {
+      var days = data.byDay.map(function(d) {
+        var dt = new Date(d.day);
+        return dt.getDate() + '/' + (dt.getMonth() + 1);
+      });
+      destroyChart('chartClicksDay');
+      dashCharts.chartClicksDay = new Chart(document.getElementById('chartClicksDay'), {
+        type: 'line',
+        data: {
+          labels: days,
+          datasets: [{
+            label: 'Découvertes',
+            data: data.byDay.map(function(d) { return d.count; }),
+            borderColor: '#E8692B',
+            backgroundColor: 'rgba(232,105,43,.15)',
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: '#E8692B',
+            pointRadius: 3,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8A7060', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.04)' } },
+            y: { beginAtZero: true, ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.04)' } }
+          }
+        }
+      });
+    }
+
+    /* Chart: Top fiches découvertes */
+    if (data.byProject && data.byProject.length) {
+      destroyChart('chartClicksProject');
+      dashCharts.chartClicksProject = new Chart(document.getElementById('chartClicksProject'), {
+        type: 'bar',
+        data: {
+          labels: data.byProject.map(function(p) { return p.project_name.length > 20 ? p.project_name.slice(0, 20) + '…' : p.project_name; }),
+          datasets: [{
+            label: 'Clics',
+            data: data.byProject.map(function(p) { return p.count; }),
+            backgroundColor: colors.slice(0, data.byProject.length),
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true, indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { beginAtZero: true, ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.04)' } },
+            y: { ticks: { color: '#C4A98A', font: { size: 10 } }, grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    /* Chart: Découvertes par secteur */
+    if (data.byCat && data.byCat.length) {
+      destroyChart('chartClicksCat');
+      dashCharts.chartClicksCat = new Chart(document.getElementById('chartClicksCat'), {
+        type: 'doughnut',
+        data: {
+          labels: data.byCat.map(function(c) { return catNames[c.category] || c.category; }),
+          datasets: [{
+            data: data.byCat.map(function(c) { return c.count; }),
+            backgroundColor: colors.slice(0, data.byCat.length),
+            borderWidth: 0
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#C4A98A', font: { size: 11 } } } } }
+      });
+    }
+
+    /* Chart: Découvertes par ville */
+    if (data.byCity && data.byCity.length) {
+      destroyChart('chartClicksCity');
+      dashCharts.chartClicksCity = new Chart(document.getElementById('chartClicksCity'), {
+        type: 'bar',
+        data: {
+          labels: data.byCity.map(function(c) { return c.city; }),
+          datasets: [{
+            label: 'Clics',
+            data: data.byCity.map(function(c) { return c.count; }),
+            backgroundColor: '#F28C55',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#C4A98A', font: { size: 10 } }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { color: '#8A7060' }, grid: { color: 'rgba(255,255,255,.04)' } }
+          }
+        }
+      });
+    }
+
+  } catch(e) { console.error('Clicks analytics error:', e); }
+}
+
+/* Appeler loadClicksAnalytics quand on ouvre le dashboard */
+var origRenderDashboard = renderDashboard;
+renderDashboard = function() {
+  origRenderDashboard();
+  loadClicksAnalytics();
+};
 
 /* ════ INIT ════ */
 checkAuth();
