@@ -379,10 +379,12 @@
             <label class="form-label">Secteur d'activité *</label>
             <select id="fCategory" class="form-select">
               <option value="restaurant">🍴 Restaurants</option>
+              <option value="bar">🍻 Bars</option>
               <option value="boutique">🛍 Boutiques</option>
               <option value="activite">🎯 Activités</option>
               <option value="gourmandise">🍦 Gourmandises</option>
               <option value="hebergement">🏠 Hébergements</option>
+              <option value="service">💼 Services</option>
             </select>
           </div>
           <div class="form-group">
@@ -592,7 +594,7 @@ var editingPhotos = [];
 var editingLogoUrl = null;
 var sortCol = 'name'; var sortDir = 'asc';
 
-var catLabels = { restaurant:'🍴 Restaurant', boutique:'🛍 Boutique', activite:'🎯 Activité', gourmandise:'🍦 Gourmandise', hebergement:'🏠 Hébergement' };
+var catLabels = { restaurant:'🍴 Restaurant', bar:'🍻 Bar', boutique:'🛍 Boutique', activite:'🎯 Activité', gourmandise:'🍦 Gourmandise', hebergement:'🏠 Hébergement', service:'💼 Service' };
 
 /* ════ AUTH ════ */
 async function checkAuth() {
