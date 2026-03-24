@@ -199,15 +199,49 @@
     .confirm-btns { display: flex; gap: 12px; justify-content: center; }
     .btn-confirm-delete { padding: 10px 24px; border-radius: var(--radius-sm); border: none; background: var(--red); color: #fff; font-weight: 600; cursor: pointer; font-family: inherit; }
 
+    /* ── MOBILE CARDS (hidden by default, shown on small screens) ── */
+    .mobile-cards { display: none; flex-direction: column; gap: 10px; }
+    .mobile-card { background: var(--night-card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+    .mobile-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .mobile-card-header .td-logo, .mobile-card-header .td-logo-placeholder { width: 36px; height: 36px; }
+    .mobile-card-name { font-weight: 600; color: var(--white); font-size: .92rem; }
+    .mobile-card-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .mobile-card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .mobile-card-city { color: var(--text-muted); font-size: .82rem; }
+    .mobile-card-views { color: var(--text-mid); font-size: .82rem; }
+    .mobile-card-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .mobile-card-actions { display: flex; gap: 8px; }
+    .mobile-card-actions .btn-icon { width: 44px; height: 44px; font-size: .95rem; }
+
     @media (max-width: 900px) {
-      .topbar { padding: 0 16px; } .container { padding: 20px 16px; }
+      .topbar { padding: 0 16px; height: 52px; }
+      .topbar-logo { font-size: 1rem; }
+      .topbar-badge { font-size: .62rem; padding: 2px 6px; margin-left: 6px; }
+      .topbar-user { font-size: .75rem; }
+      .btn-logout { padding: 6px 12px; font-size: .75rem; }
+      .container { padding: 20px 12px; }
       .form-grid { grid-template-columns: 1fr; }
-      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .stats-row { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 24px; }
+      .stat-card { padding: 14px 10px; }
+      .stat-value { font-size: 1.3rem; }
       .modal-content { flex-direction: column; }
       .modal-preview-side { width: 100%; border-right: none; border-top: 1px solid var(--border); max-height: none; }
-      .modal-form-side { max-height: none; border-right: none; }
-      .projects-table th:nth-child(4), .projects-table td:nth-child(4) { display: none; }
-      .toolbar { flex-direction: column; } .toolbar-search { min-width: 100%; }
+      .modal-form-side { max-height: none; border-right: none; padding: 20px 16px; }
+      .modal-preview-side { padding: 20px 16px; }
+      .modal-header { padding: 18px 16px; }
+      .modal-footer { padding: 16px; }
+      .modal { max-width: 100%; }
+      .toolbar { flex-direction: column; gap: 8px; }
+      .toolbar-search { min-width: 100%; width: 100%; }
+      .btn-add { width: 100%; justify-content: center; padding: 14px 24px; }
+      .btn-icon { width: 44px; height: 44px; font-size: .95rem; }
+      .toast { left: 16px; right: 16px; bottom: 16px; text-align: center; }
+      .confirm-box { margin: 0 16px; padding: 24px; }
+    }
+
+    @media (max-width: 768px) {
+      .projects-table-wrap { display: none; }
+      .mobile-cards { display: flex; }
     }
   </style>
 </head>
@@ -242,8 +276,13 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Ajouter un projet
       </button>
+      <button id="importBtn" class="btn-add" style="background:var(--night-raised);border:1px solid var(--border-md);color:var(--text-mid);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Importer CSV
+      </button>
+      <input type="file" id="csvInput" accept=".csv,.txt" style="display:none;">
     </div>
-    <div style="overflow-x:auto;">
+    <div class="projects-table-wrap" style="overflow-x:auto;">
       <table class="projects-table">
         <thead><tr>
           <th data-sort="name">Entreprise <span class="sort-icon">▼</span></th>
@@ -256,6 +295,7 @@
         <tbody id="projectsBody"></tbody>
       </table>
     </div>
+    <div id="mobileCards" class="mobile-cards"></div>
     <div id="emptyState" class="empty-state" style="display:none;">
       <p>Aucun projet pour l'instant</p>
     </div>
@@ -415,6 +455,33 @@
   </div>
 </div>
 
+<!-- ════ IMPORT CSV MODAL ════ -->
+<div id="importOverlay" class="modal-overlay">
+  <div class="modal" style="max-width:700px;">
+    <div class="modal-header">
+      <span class="modal-title">Importer des projets (CSV)</span>
+      <button class="modal-close" onclick="closeImport()">&times;</button>
+    </div>
+    <div style="padding:24px 28px;">
+      <div id="importSummary" style="margin-bottom:16px;font-size:.9rem;color:var(--text-mid);"></div>
+      <div id="importErrors" style="margin-bottom:16px;"></div>
+      <div style="overflow-x:auto;max-height:45vh;overflow-y:auto;">
+        <table id="importPreviewTable" class="projects-table" style="font-size:.82rem;"></table>
+      </div>
+      <div id="importProgress" style="display:none;margin-top:16px;">
+        <div style="height:6px;border-radius:3px;background:var(--night-raised);overflow:hidden;">
+          <div id="importProgressBar" style="height:100%;border-radius:3px;background:var(--orange);width:0%;transition:width .3s;"></div>
+        </div>
+        <div id="importProgressText" style="font-size:.8rem;color:var(--text-muted);margin-top:6px;text-align:center;"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeImport()">Annuler</button>
+      <button id="importConfirmBtn" class="btn-save">Importer</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -490,8 +557,8 @@ function renderTable(){
   });
   document.querySelectorAll('.projects-table th').forEach(function(th){th.classList.toggle('sorted',th.dataset.sort===sortCol);});
 
-  var tbody=document.getElementById('projectsBody'),empty=document.getElementById('emptyState');
-  if(!filtered.length){tbody.innerHTML='';empty.style.display='block';return;}
+  var tbody=document.getElementById('projectsBody'),empty=document.getElementById('emptyState'),mobileCards=document.getElementById('mobileCards');
+  if(!filtered.length){tbody.innerHTML='';mobileCards.innerHTML='';empty.style.display='block';return;}
   empty.style.display='none';
 
   tbody.innerHTML=filtered.map(function(p){
@@ -509,6 +576,35 @@ function renderTable(){
         '<button class="btn-icon dup" title="Dupliquer" onclick="duplicateProject(\''+p.id+'\')">⧉</button>'+
         '<button class="btn-icon del" title="Supprimer" onclick="confirmDelete(\''+p.id+'\',\''+esc(p.name).replace(/'/g,"\\'")+'\')">✕</button>'+
       '</div></td></tr>';
+  }).join('');
+
+  /* Mobile cards */
+  mobileCards.innerHTML=filtered.map(function(p){
+    var comp=getCompleteness(p);
+    var dots=comp>=80?'filled':comp>=50?'partial':'empty';
+    var logoHtml=p.logo_url?'<img class="td-logo" src="'+p.logo_url+'" alt="">':'<div class="td-logo-placeholder">?</div>';
+    return '<div class="mobile-card">'+
+      '<div class="mobile-card-header">'+logoHtml+'<span class="mobile-card-name">'+esc(p.name)+'</span></div>'+
+      '<div class="mobile-card-row">'+
+        '<div class="mobile-card-meta">'+
+          '<span class="td-cat">'+(catLabels[p.category]||p.category)+'</span>'+
+          '<span class="mobile-card-city">'+esc(p.city)+'</span>'+
+        '</div>'+
+        '<span class="mobile-card-views">'+fv(p.views||0)+' vues</span>'+
+      '</div>'+
+      '<div class="mobile-card-bottom">'+
+        '<div class="td-completeness" title="'+comp+'%">'+
+          '<div class="completeness-dot '+dots+'"></div>'+
+          '<div class="completeness-dot '+(comp>=50?dots:'empty')+'"></div>'+
+          '<div class="completeness-dot '+(comp>=80?dots:'empty')+'"></div>'+
+        '</div>'+
+        '<div class="mobile-card-actions">'+
+          '<button class="btn-icon edit" title="Modifier" onclick="openEdit(\''+p.id+'\')">✎</button>'+
+          '<button class="btn-icon dup" title="Dupliquer" onclick="duplicateProject(\''+p.id+'\')">⧉</button>'+
+          '<button class="btn-icon del" title="Supprimer" onclick="confirmDelete(\''+p.id+'\',\''+esc(p.name).replace(/'/g,"\\'")+'\')">✕</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
   }).join('');
 }
 
@@ -737,6 +833,209 @@ document.getElementById('confirmDeleteBtn').addEventListener('click',async funct
 
 /* ════ TOAST ════ */
 function showToast(msg,type){var el=document.getElementById('toast');el.textContent=msg;el.className='toast '+(type||'success');setTimeout(function(){el.classList.add('show');},10);setTimeout(function(){el.classList.remove('show');},3000);}
+
+/* ════ CSV IMPORT ════ */
+var csvParsedRows = [];
+
+document.getElementById('importBtn').addEventListener('click', function() {
+  document.getElementById('csvInput').click();
+});
+
+document.getElementById('csvInput').addEventListener('change', function() {
+  if (!this.files[0]) return;
+  var file = this.files[0];
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var text = e.target.result;
+    parseAndPreviewCSV(text);
+  };
+  reader.readAsText(file, 'UTF-8');
+  this.value = '';
+});
+
+function detectDelimiter(firstLine) {
+  var commas = (firstLine.match(/,/g) || []).length;
+  var semis = (firstLine.match(/;/g) || []).length;
+  return semis > commas ? ';' : ',';
+}
+
+function parseCSVLine(line, delimiter) {
+  var result = [];
+  var current = '';
+  var inQuotes = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && i + 1 < line.length && line[i + 1] === '"') {
+        current += '"'; i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === delimiter) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function normalizeHeader(h) {
+  return h.toLowerCase().replace(/[\s\-]+/g, '_').replace(/[^\w]/g, '');
+}
+
+var CSV_FIELDS = ['name','category','city','address','description','result','views','is_new','video_url','instagram','tiktok','google_review_url','senja','logo_url'];
+
+function parseBool(v) {
+  if (!v) return false;
+  var s = v.toString().toLowerCase().trim();
+  return s === 'true' || s === 'oui' || s === '1' || s === 'yes';
+}
+
+function parseAndPreviewCSV(text) {
+  var lines = text.split(/\r?\n/).filter(function(l) { return l.trim() !== ''; });
+  if (lines.length < 2) { showToast('CSV vide ou sans en-tête', 'error'); return; }
+
+  var delimiter = detectDelimiter(lines[0]);
+  var headers = parseCSVLine(lines[0], delimiter).map(normalizeHeader);
+
+  // Map headers to field indices
+  var fieldMap = {};
+  CSV_FIELDS.forEach(function(f) {
+    var idx = headers.indexOf(f);
+    if (idx !== -1) fieldMap[f] = idx;
+  });
+
+  if (fieldMap.name === undefined || fieldMap.category === undefined || fieldMap.city === undefined) {
+    showToast('Colonnes requises manquantes : name, category, city', 'error');
+    return;
+  }
+
+  var rows = [];
+  var errors = [];
+  for (var i = 1; i < lines.length; i++) {
+    var vals = parseCSVLine(lines[i], delimiter);
+    var row = {};
+    CSV_FIELDS.forEach(function(f) {
+      if (fieldMap[f] !== undefined) row[f] = (vals[fieldMap[f]] || '').trim();
+    });
+
+    // Convert types
+    row.views = parseInt(row.views, 10) || 0;
+    row.is_new = parseBool(row.is_new);
+
+    // Validate required
+    if (!row.name || !row.category || !row.city) {
+      errors.push('Ligne ' + (i + 1) + ' : champs requis manquants (name/category/city)');
+      continue;
+    }
+
+    // Nullify empty optional strings
+    CSV_FIELDS.forEach(function(f) {
+      if (f !== 'name' && f !== 'category' && f !== 'city' && f !== 'views' && f !== 'is_new') {
+        if (!row[f]) row[f] = null;
+      }
+    });
+
+    rows.push(row);
+  }
+
+  csvParsedRows = rows;
+
+  // Render summary
+  var summary = '<strong>' + rows.length + '</strong> projet(s) valide(s) sur <strong>' + (lines.length - 1) + '</strong> ligne(s).';
+  document.getElementById('importSummary').innerHTML = summary;
+
+  // Render errors
+  var errHtml = '';
+  if (errors.length) {
+    errHtml = '<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:var(--radius-xs);padding:12px;font-size:.8rem;color:var(--red);max-height:120px;overflow-y:auto;">';
+    errors.forEach(function(e) { errHtml += '<div>' + esc(e) + '</div>'; });
+    errHtml += '</div>';
+  }
+  document.getElementById('importErrors').innerHTML = errHtml;
+
+  // Render preview table (first 5 rows)
+  var previewRows = rows.slice(0, 5);
+  var tableHtml = '<thead><tr><th>Nom</th><th>Secteur</th><th>Ville</th><th>Vues</th><th>Nouveau</th></tr></thead><tbody>';
+  previewRows.forEach(function(r) {
+    tableHtml += '<tr>' +
+      '<td>' + esc(r.name) + '</td>' +
+      '<td>' + esc(r.category) + '</td>' +
+      '<td>' + esc(r.city) + '</td>' +
+      '<td>' + r.views + '</td>' +
+      '<td>' + (r.is_new ? 'Oui' : 'Non') + '</td>' +
+    '</tr>';
+  });
+  if (rows.length > 5) {
+    tableHtml += '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);font-style:italic;">... et ' + (rows.length - 5) + ' autre(s)</td></tr>';
+  }
+  tableHtml += '</tbody>';
+  document.getElementById('importPreviewTable').innerHTML = tableHtml;
+
+  // Reset progress
+  document.getElementById('importProgress').style.display = 'none';
+  document.getElementById('importProgressBar').style.width = '0%';
+  document.getElementById('importProgressText').textContent = '';
+  document.getElementById('importConfirmBtn').disabled = rows.length === 0;
+
+  // Open modal
+  document.getElementById('importOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeImport() {
+  document.getElementById('importOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  csvParsedRows = [];
+}
+
+document.getElementById('importConfirmBtn').addEventListener('click', async function() {
+  if (!csvParsedRows.length) return;
+  var btn = this;
+  btn.disabled = true;
+  document.getElementById('importProgress').style.display = 'block';
+
+  var total = csvParsedRows.length;
+  var successCount = 0;
+  var errorCount = 0;
+
+  for (var i = 0; i < total; i++) {
+    var row = csvParsedRows[i];
+    try {
+      var r = await fetch(API + '/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(row)
+      });
+      if (r.ok) { successCount++; } else { errorCount++; }
+    } catch (e) { errorCount++; }
+
+    var pct = Math.round(((i + 1) / total) * 100);
+    document.getElementById('importProgressBar').style.width = pct + '%';
+    document.getElementById('importProgressText').textContent = (i + 1) + ' / ' + total + ' — ' + successCount + ' OK, ' + errorCount + ' erreur(s)';
+  }
+
+  document.getElementById('importProgressBar').style.background = errorCount === 0 ? 'var(--green)' : 'var(--yellow)';
+  document.getElementById('importProgressText').textContent = 'Terminé : ' + successCount + ' importé(s), ' + errorCount + ' erreur(s).';
+
+  showToast(successCount + ' projet(s) importé(s)', errorCount === 0 ? 'success' : 'error');
+
+  // Reload after a short delay
+  setTimeout(function() {
+    closeImport();
+    loadProjects();
+    btn.disabled = false;
+  }, 1500);
+});
 
 /* ════ INIT ════ */
 checkAuth();
