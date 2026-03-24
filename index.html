@@ -2184,7 +2184,7 @@
         var dynFb = document.getElementById('dynFbK'); if (dynFb) dynFb.textContent = fbK + 'K';
 
         /* "En moyenne, nos vidéos font +X vues" */
-        var avgFormatted = '+' + (avgViews >= 1000 ? Math.round(avgViews) + ' 000' : avgViews);
+        var avgFormatted = '+' + avgViews.toLocaleString('fr-FR') + ' 000';
         var dynAvg = document.getElementById('dynAvgVues'); if (dynAvg) dynAvg.textContent = avgFormatted;
 
         /* "+X commerces" dans problem-transition */
@@ -2194,7 +2194,7 @@
         var dynBio = document.getElementById('dynBioAbonnes'); if (dynBio) dynBio.textContent = '+' + totalFormatted + ' abonnés';
 
         /* CTA "+X Réunionnais" */
-        var dynCta = document.getElementById('dynCtaVues'); if (dynCta) dynCta.textContent = '+' + (avgViews >= 1000 ? Math.round(avgViews) + ' 000' : avgViews) + ' Réunionnais';
+        var dynCta = document.getElementById('dynCtaVues'); if (dynCta) dynCta.textContent = '+' + avgViews.toLocaleString('fr-FR') + ' 000 Réunionnais';
 
         /* FAQ audience */
         var dynFaqAb = document.getElementById('dynFaqAbonnes'); if (dynFaqAb) dynFaqAb.textContent = '+' + totalFormatted;
