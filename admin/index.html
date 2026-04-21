@@ -269,6 +269,60 @@
     .log-action { font-size:.85rem; color:var(--text); }
     .log-action strong { color:var(--white); }
     .log-time { font-size:.72rem; color:var(--text-muted); margin-top:2px; }
+
+    /* ── CLIENTS TAB ── */
+    .clients-toolbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:24px; }
+    .clients-search { flex:1; min-width:200px; padding:12px 16px; border-radius:var(--radius-sm); border:1px solid var(--border-md); background:var(--night-mid); color:var(--text); font-size:.9rem; outline:none; font-family:inherit; }
+    .clients-search:focus { border-color:var(--orange); }
+    .clients-search::placeholder { color:var(--text-muted); }
+    .client-card { background:var(--night-card); border:1px solid var(--border); border-radius:var(--radius); padding:0; overflow:hidden; transition:border-color .2s; }
+    .client-card:hover { border-color:var(--border-orange); }
+    .client-card-header { padding:20px 24px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--border); }
+    .client-card-info h3 { font-family:'Bricolage Grotesque',sans-serif; font-weight:700; font-size:1rem; color:var(--white); margin-bottom:2px; }
+    .client-card-info .client-sub { font-size:.8rem; color:var(--text-muted); }
+    .client-card-actions { display:flex; gap:6px; }
+    .client-card-body { padding:20px 24px; }
+    .client-deadline-badge { display:inline-flex; align-items:center; gap:4px; font-size:.68rem; font-weight:600; padding:3px 10px; border-radius:12px; }
+    .client-deadline-badge.on-track { color:var(--green); background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.15); }
+    .client-deadline-badge.late { color:var(--red); background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.15); }
+    .client-deadline-badge.upcoming { color:var(--yellow); background:rgba(250,204,21,.08); border:1px solid rgba(250,204,21,.15); }
+    .client-deadline-badge.done { color:var(--text-muted); background:rgba(255,255,255,.03); border:1px solid var(--border); }
+
+    .client-timeline { display:flex; flex-direction:column; gap:0; }
+    .client-step { display:flex; align-items:flex-start; gap:14px; position:relative; padding:12px 0; }
+    .client-step:not(:last-child)::after { content:''; position:absolute; left:15px; top:36px; bottom:0; width:2px; background:var(--border); }
+    .client-step.step-done:not(:last-child)::after { background:var(--green); }
+    .client-step-dot { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:.8rem; border:2px solid var(--border-md); background:var(--night-mid); transition:all .2s; z-index:1; }
+    .client-step.step-done .client-step-dot { background:rgba(34,197,94,.15); border-color:var(--green); color:var(--green); }
+    .client-step.step-late .client-step-dot { background:rgba(239,68,68,.1); border-color:var(--red); color:var(--red); }
+    .client-step.step-upcoming .client-step-dot { background:rgba(250,204,21,.1); border-color:var(--yellow); color:var(--yellow); }
+    .client-step.step-current .client-step-dot { background:rgba(232,105,43,.1); border-color:var(--orange); color:var(--orange); animation:pulse-dot 2s infinite; }
+    @keyframes pulse-dot { 0%,100%{box-shadow:0 0 0 0 rgba(232,105,43,.3)} 50%{box-shadow:0 0 0 6px rgba(232,105,43,0)} }
+    .client-step-content { flex:1; min-width:0; }
+    .client-step-label { font-size:.82rem; font-weight:600; color:var(--text); margin-bottom:2px; }
+    .client-step.step-done .client-step-label { color:var(--text-muted); text-decoration:line-through; }
+    .client-step-date { font-size:.75rem; color:var(--text-muted); }
+    .client-step-date.late { color:var(--red); font-weight:600; }
+    .client-step-actions { display:flex; gap:6px; margin-top:6px; }
+    .client-step-btn { padding:4px 12px; border-radius:var(--radius-xs); border:1px solid var(--border-md); background:transparent; color:var(--text-mid); font-size:.72rem; font-weight:600; cursor:pointer; font-family:inherit; transition:all .2s; }
+    .client-step-btn:hover { border-color:var(--green); color:var(--green); background:rgba(34,197,94,.06); }
+    .client-step-btn.validated { background:rgba(34,197,94,.1); border-color:var(--green); color:var(--green); cursor:default; }
+
+    .client-progress-bar { height:4px; background:var(--night-raised); border-radius:4px; overflow:hidden; margin-top:16px; }
+    .client-progress-fill { height:100%; background:linear-gradient(90deg,var(--orange),var(--green)); border-radius:4px; transition:width .4s ease; }
+    .client-notes { font-size:.8rem; color:var(--text-muted); margin-top:12px; padding:10px 14px; background:var(--night-mid); border-radius:var(--radius-xs); border:1px solid var(--border); line-height:1.5; }
+    .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); gap:16px; }
+    .client-empty { text-align:center; padding:80px 24px; color:var(--text-muted); }
+    .client-empty p { margin-bottom:16px; }
+    .client-filter-btns { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+
+    @media (max-width:900px) {
+      .client-grid { grid-template-columns:1fr; }
+      .client-card-header { padding:16px; }
+      .client-card-body { padding:16px; }
+      .clients-toolbar { flex-direction:column; }
+      .clients-search { min-width:100%; }
+    }
   </style>
 </head>
 <body>
@@ -300,6 +354,7 @@
     <div id="adminTabs" style="display:flex;gap:0;margin-bottom:24px;border-bottom:2px solid var(--border);">
       <button class="admin-tab active" data-tab="projets" style="padding:12px 24px;border:none;background:transparent;color:var(--white);font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:.95rem;cursor:pointer;border-bottom:2px solid var(--orange);margin-bottom:-2px;transition:all .2s;">Projets</button>
       <button class="admin-tab" data-tab="dashboard" style="padding:12px 24px;border:none;background:transparent;color:var(--text-muted);font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:.95rem;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;">Dashboard</button>
+      <button class="admin-tab" data-tab="clients" style="padding:12px 24px;border:none;background:transparent;color:var(--text-muted);font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:.95rem;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;">Clients</button>
     </div>
 
     <!-- TAB: PROJETS -->
@@ -481,6 +536,107 @@
       </div>
 
     </div><!-- /tabDashboard -->
+
+    <!-- TAB: CLIENTS -->
+    <div id="tabClients" style="display:none;">
+      <div class="stats-row" id="clientsStatsRow">
+        <div class="stat-card"><div class="stat-value" id="cStatTotal">0</div><div class="stat-label">Clients actifs</div></div>
+        <div class="stat-card"><div class="stat-value" id="cStatInProgress" style="color:var(--orange);">0</div><div class="stat-label">En cours</div></div>
+        <div class="stat-card"><div class="stat-value" id="cStatLate" style="color:var(--red);">0</div><div class="stat-label">En retard</div></div>
+        <div class="stat-card"><div class="stat-value" id="cStatDone" style="color:var(--green);">0</div><div class="stat-label">Terminés</div></div>
+      </div>
+
+      <div class="clients-toolbar">
+        <input type="text" id="clientSearch" class="clients-search" placeholder="Rechercher un client...">
+        <button id="addClientBtn" class="btn-add">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Ajouter un client
+        </button>
+      </div>
+
+      <div class="client-filter-btns" id="clientFilterBtns">
+        <button class="filter-btn active" data-cfilter="all">Tous</button>
+        <button class="filter-btn" data-cfilter="in_progress">En cours</button>
+        <button class="filter-btn" data-cfilter="late">En retard</button>
+        <button class="filter-btn" data-cfilter="done">Terminés</button>
+      </div>
+
+      <div class="client-grid" id="clientGrid"></div>
+      <div class="client-empty" id="clientEmpty" style="display:none;">
+        <p>Aucun client pour l'instant</p>
+        <button class="btn-add" onclick="openClientForm()" style="margin:0 auto;">Ajouter votre premier client</button>
+      </div>
+    </div><!-- /tabClients -->
+
+    <!-- ════ CLIENT FORM MODAL ════ -->
+    <div id="clientFormOverlay" class="modal-overlay">
+      <div class="modal" style="max-width:600px;">
+        <div class="modal-header">
+          <span id="clientFormTitle" class="modal-title">Ajouter un client</span>
+          <button class="modal-close" onclick="closeClientForm()">&times;</button>
+        </div>
+        <div style="padding:28px;overflow-y:auto;max-height:75vh;">
+          <input type="hidden" id="cfId">
+
+          <div class="form-section-title" style="margin-top:0;padding-top:0;border-top:none;">Informations client</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Nom du client *</label>
+              <input type="text" id="cfName" class="form-input" placeholder="Prénom Nom">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nom du commerce *</label>
+              <input type="text" id="cfBusiness" class="form-input" placeholder="Nom du commerce">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Téléphone</label>
+              <input type="tel" id="cfPhone" class="form-input" placeholder="0692 00 00 00">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input type="email" id="cfEmail" class="form-input" placeholder="email@exemple.com">
+            </div>
+            <div class="form-group full">
+              <label class="form-label">ID Opportunité GHL</label>
+              <input type="text" id="cfGhlId" class="form-input" placeholder="Optionnel — pour relier à GHL plus tard">
+            </div>
+          </div>
+
+          <div class="form-section-title">Deadlines du projet</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Génération des scripts</label>
+              <input type="date" id="cfDeadlineScripts" class="form-input">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Envoi des scripts</label>
+              <input type="date" id="cfDeadlineScriptsSent" class="form-input">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date de tournage</label>
+              <input type="date" id="cfDeadlineFilming" class="form-input">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date de publication</label>
+              <input type="date" id="cfDeadlinePublication" class="form-input">
+            </div>
+            <div class="form-group full">
+              <label class="form-label">Deadline globale du projet</label>
+              <input type="date" id="cfDeadlineProject" class="form-input">
+            </div>
+          </div>
+
+          <div class="form-section-title">Notes</div>
+          <div class="form-group full">
+            <textarea id="cfNotes" class="form-textarea" rows="3" placeholder="Notes libres sur le projet..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-logout" onclick="closeClientForm()">Annuler</button>
+          <button id="cfSaveBtn" class="btn-add" onclick="saveClient()">Enregistrer</button>
+        </div>
+      </div>
+    </div>
 
     <!-- ════ NOS RÉSEAUX SOCIAUX ════ -->
     <details style="margin-top:32px;" open>
@@ -1844,7 +2000,9 @@ document.getElementById('adminTabs').addEventListener('click', function(e) {
   });
   document.getElementById('tabProjets').style.display = tab === 'projets' ? '' : 'none';
   document.getElementById('tabDashboard').style.display = tab === 'dashboard' ? '' : 'none';
+  document.getElementById('tabClients').style.display = tab === 'clients' ? '' : 'none';
   if (tab === 'dashboard') renderDashboard();
+  if (tab === 'clients') renderClients();
 });
 
 /* ════ DASHBOARD ════ */
@@ -2140,6 +2298,356 @@ renderDashboard = function() {
   origRenderDashboard();
   loadClicksAnalytics();
 };
+
+/* ════ CLIENTS MANAGEMENT ════ */
+var CLIENTS_KEY = 'bbp_clients';
+var clientFilter = 'all';
+var clientSearchQuery = '';
+
+function loadClients() {
+  try { return JSON.parse(localStorage.getItem(CLIENTS_KEY)) || []; } catch(e) { return []; }
+}
+function saveClients(list) {
+  localStorage.setItem(CLIENTS_KEY, JSON.stringify(list));
+}
+
+var CLIENT_STEPS = [
+  { key: 'scripts', label: 'Génération des scripts', icon: '📝' },
+  { key: 'scriptsSent', label: 'Envoi des scripts', icon: '📤' },
+  { key: 'filming', label: 'Tournage', icon: '🎬' },
+  { key: 'filmingValidated', label: 'Validation tournage', icon: '✅' },
+  { key: 'publication', label: 'Publication', icon: '📅' }
+];
+
+function getStepStatus(step, today) {
+  if (step.done) return 'done';
+  if (!step.deadline) return 'pending';
+  var d = new Date(step.deadline);
+  d.setHours(23,59,59);
+  if (d < today) return 'late';
+  var diff = (d - today) / 86400000;
+  if (diff <= 3) return 'upcoming';
+  return 'pending';
+}
+
+function getClientStatus(client) {
+  var today = new Date();
+  today.setHours(0,0,0,0);
+  var steps = client.steps || {};
+  var allDone = CLIENT_STEPS.every(function(s) { return steps[s.key] && steps[s.key].done; });
+  if (allDone) return 'done';
+  var hasLate = CLIENT_STEPS.some(function(s) {
+    var st = steps[s.key];
+    if (!st || st.done || !st.deadline) return false;
+    var d = new Date(st.deadline); d.setHours(23,59,59);
+    return d < today;
+  });
+  if (client.projectDeadline) {
+    var pd = new Date(client.projectDeadline); pd.setHours(23,59,59);
+    if (pd < today && !allDone) hasLate = true;
+  }
+  if (hasLate) return 'late';
+  return 'in_progress';
+}
+
+function getClientProgress(client) {
+  var steps = client.steps || {};
+  var done = CLIENT_STEPS.filter(function(s) { return steps[s.key] && steps[s.key].done; }).length;
+  return Math.round(done / CLIENT_STEPS.length * 100);
+}
+
+function formatDateShort(dateStr) {
+  if (!dateStr) return '—';
+  var d = new Date(dateStr);
+  var months = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+  return d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  var d = new Date(dateStr); d.setHours(23,59,59);
+  var today = new Date(); today.setHours(0,0,0,0);
+  return Math.ceil((d - today) / 86400000);
+}
+
+function renderClients() {
+  var clients = loadClients();
+  var today = new Date(); today.setHours(0,0,0,0);
+
+  var total = clients.length;
+  var inProgress = 0, late = 0, done = 0;
+  clients.forEach(function(c) {
+    var s = getClientStatus(c);
+    if (s === 'in_progress') inProgress++;
+    else if (s === 'late') late++;
+    else if (s === 'done') done++;
+  });
+  document.getElementById('cStatTotal').textContent = total;
+  document.getElementById('cStatInProgress').textContent = inProgress;
+  document.getElementById('cStatLate').textContent = late;
+  document.getElementById('cStatDone').textContent = done;
+
+  var filtered = clients.filter(function(c) {
+    if (clientFilter !== 'all' && getClientStatus(c) !== clientFilter) return false;
+    if (clientSearchQuery) {
+      var q = clientSearchQuery.toLowerCase();
+      return (c.name || '').toLowerCase().indexOf(q) !== -1 ||
+             (c.business || '').toLowerCase().indexOf(q) !== -1;
+    }
+    return true;
+  });
+
+  filtered.sort(function(a, b) {
+    var sa = getClientStatus(a) === 'late' ? 0 : getClientStatus(a) === 'in_progress' ? 1 : 2;
+    var sb = getClientStatus(b) === 'late' ? 0 : getClientStatus(b) === 'in_progress' ? 1 : 2;
+    if (sa !== sb) return sa - sb;
+    return (b.createdAt || 0) - (a.createdAt || 0);
+  });
+
+  var grid = document.getElementById('clientGrid');
+  var empty = document.getElementById('clientEmpty');
+
+  if (!filtered.length) {
+    grid.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  var html = '';
+  filtered.forEach(function(c) {
+    var status = getClientStatus(c);
+    var progress = getClientProgress(c);
+    var steps = c.steps || {};
+
+    var statusBadge = '';
+    if (status === 'late') statusBadge = '<span class="client-deadline-badge late">En retard</span>';
+    else if (status === 'done') statusBadge = '<span class="client-deadline-badge done">Terminé</span>';
+    else statusBadge = '<span class="client-deadline-badge on-track">En cours</span>';
+
+    var projectDeadlineHtml = '';
+    if (c.projectDeadline) {
+      var days = daysUntil(c.projectDeadline);
+      var cls = days < 0 ? 'late' : days <= 7 ? 'upcoming' : 'on-track';
+      var label = days < 0 ? Math.abs(days) + 'j de retard' : days === 0 ? "Aujourd'hui" : days + 'j restants';
+      projectDeadlineHtml = '<span class="client-deadline-badge ' + cls + '" style="margin-left:8px;">' + label + '</span>';
+    }
+
+    html += '<div class="client-card" data-client-id="' + c.id + '">';
+    html += '<div class="client-card-header">';
+    html += '<div class="client-card-info"><h3>' + (c.business || c.name) + '</h3>';
+    html += '<span class="client-sub">' + (c.business ? c.name : '') + (c.phone ? ' — ' + c.phone : '') + '</span></div>';
+    html += '<div style="display:flex;align-items:center;gap:8px;">' + statusBadge + projectDeadlineHtml;
+    html += '<div class="client-card-actions">';
+    html += '<button class="btn-icon edit" onclick="editClient(\'' + c.id + '\')" title="Modifier">&#9998;</button>';
+    html += '<button class="btn-icon del" onclick="deleteClient(\'' + c.id + '\')" title="Supprimer">&times;</button>';
+    html += '</div></div></div>';
+
+    html += '<div class="client-card-body">';
+    html += '<div class="client-timeline">';
+
+    CLIENT_STEPS.forEach(function(stepDef) {
+      var step = steps[stepDef.key] || {};
+      var stepStatus = step.done ? 'done' : 'pending';
+      if (!step.done && step.deadline) {
+        var d = new Date(step.deadline); d.setHours(23,59,59);
+        if (d < today) stepStatus = 'late';
+        else if ((d - today) / 86400000 <= 3) stepStatus = 'upcoming';
+      }
+
+      var isFirst = !step.done && stepStatus !== 'done';
+      var prevAllDone = true;
+      for (var i = 0; i < CLIENT_STEPS.length; i++) {
+        if (CLIENT_STEPS[i].key === stepDef.key) break;
+        var prev = steps[CLIENT_STEPS[i].key];
+        if (!prev || !prev.done) { prevAllDone = false; break; }
+      }
+      var isCurrent = isFirst && prevAllDone && !step.done;
+
+      var stepClass = 'client-step';
+      if (step.done) stepClass += ' step-done';
+      else if (stepStatus === 'late') stepClass += ' step-late';
+      else if (stepStatus === 'upcoming') stepClass += ' step-upcoming';
+      else if (isCurrent) stepClass += ' step-current';
+
+      html += '<div class="' + stepClass + '">';
+      html += '<div class="client-step-dot">' + (step.done ? '✓' : stepDef.icon) + '</div>';
+      html += '<div class="client-step-content">';
+      html += '<div class="client-step-label">' + stepDef.label + '</div>';
+
+      if (step.deadline) {
+        var dateClass = 'client-step-date';
+        if (stepStatus === 'late' && !step.done) dateClass += ' late';
+        html += '<div class="' + dateClass + '">' + formatDateShort(step.deadline);
+        if (!step.done && stepStatus === 'late') {
+          html += ' — ' + Math.abs(daysUntil(step.deadline)) + 'j de retard';
+        } else if (!step.done && stepStatus === 'upcoming') {
+          var dl = daysUntil(step.deadline);
+          html += ' — ' + (dl === 0 ? "aujourd'hui" : 'dans ' + dl + 'j');
+        }
+        html += '</div>';
+      } else {
+        html += '<div class="client-step-date">Pas de date définie</div>';
+      }
+
+      if (!step.done) {
+        html += '<div class="client-step-actions">';
+        html += '<button class="client-step-btn" onclick="toggleStep(\'' + c.id + '\',\'' + stepDef.key + '\')">Valider</button>';
+        html += '</div>';
+      } else {
+        html += '<div class="client-step-actions">';
+        html += '<button class="client-step-btn validated">Validé</button>';
+        html += '<button class="client-step-btn" onclick="toggleStep(\'' + c.id + '\',\'' + stepDef.key + '\')" style="color:var(--text-muted);border-color:var(--border);">Annuler</button>';
+        html += '</div>';
+      }
+
+      html += '</div></div>';
+    });
+
+    html += '</div>';
+
+    html += '<div class="client-progress-bar"><div class="client-progress-fill" style="width:' + progress + '%;"></div></div>';
+
+    if (c.notes) {
+      html += '<div class="client-notes">' + c.notes.replace(/</g,'&lt;').replace(/\n/g,'<br>') + '</div>';
+    }
+
+    html += '</div></div>';
+  });
+
+  grid.innerHTML = html;
+}
+
+function openClientForm(clientId) {
+  var overlay = document.getElementById('clientFormOverlay');
+  var title = document.getElementById('clientFormTitle');
+  document.getElementById('cfId').value = '';
+  document.getElementById('cfName').value = '';
+  document.getElementById('cfBusiness').value = '';
+  document.getElementById('cfPhone').value = '';
+  document.getElementById('cfEmail').value = '';
+  document.getElementById('cfGhlId').value = '';
+  document.getElementById('cfDeadlineScripts').value = '';
+  document.getElementById('cfDeadlineScriptsSent').value = '';
+  document.getElementById('cfDeadlineFilming').value = '';
+  document.getElementById('cfDeadlinePublication').value = '';
+  document.getElementById('cfDeadlineProject').value = '';
+  document.getElementById('cfNotes').value = '';
+
+  if (clientId) {
+    title.textContent = 'Modifier le client';
+    var clients = loadClients();
+    var c = clients.find(function(x) { return x.id === clientId; });
+    if (c) {
+      document.getElementById('cfId').value = c.id;
+      document.getElementById('cfName').value = c.name || '';
+      document.getElementById('cfBusiness').value = c.business || '';
+      document.getElementById('cfPhone').value = c.phone || '';
+      document.getElementById('cfEmail').value = c.email || '';
+      document.getElementById('cfGhlId').value = c.ghlOpportunityId || '';
+      var steps = c.steps || {};
+      document.getElementById('cfDeadlineScripts').value = (steps.scripts && steps.scripts.deadline) || '';
+      document.getElementById('cfDeadlineScriptsSent').value = (steps.scriptsSent && steps.scriptsSent.deadline) || '';
+      document.getElementById('cfDeadlineFilming').value = (steps.filming && steps.filming.deadline) || '';
+      document.getElementById('cfDeadlinePublication').value = (steps.publication && steps.publication.deadline) || '';
+      document.getElementById('cfDeadlineProject').value = c.projectDeadline || '';
+      document.getElementById('cfNotes').value = c.notes || '';
+    }
+  } else {
+    title.textContent = 'Ajouter un client';
+  }
+  overlay.classList.add('open');
+}
+
+function closeClientForm() {
+  document.getElementById('clientFormOverlay').classList.remove('open');
+}
+
+function saveClient() {
+  var name = document.getElementById('cfName').value.trim();
+  var business = document.getElementById('cfBusiness').value.trim();
+  if (!name) { document.getElementById('cfName').classList.add('invalid'); return; }
+  if (!business) { document.getElementById('cfBusiness').classList.add('invalid'); return; }
+
+  var clients = loadClients();
+  var id = document.getElementById('cfId').value;
+  var existing = id ? clients.find(function(c) { return c.id === id; }) : null;
+
+  var client = existing || {
+    id: 'cli_' + Date.now(),
+    steps: {},
+    createdAt: Date.now()
+  };
+
+  client.name = name;
+  client.business = business;
+  client.phone = document.getElementById('cfPhone').value.trim();
+  client.email = document.getElementById('cfEmail').value.trim();
+  client.ghlOpportunityId = document.getElementById('cfGhlId').value.trim();
+  client.projectDeadline = document.getElementById('cfDeadlineProject').value || '';
+  client.notes = document.getElementById('cfNotes').value.trim();
+  client.updatedAt = Date.now();
+
+  if (!client.steps) client.steps = {};
+  var deadlineFields = {
+    scripts: 'cfDeadlineScripts',
+    scriptsSent: 'cfDeadlineScriptsSent',
+    filming: 'cfDeadlineFilming',
+    publication: 'cfDeadlinePublication'
+  };
+  Object.keys(deadlineFields).forEach(function(key) {
+    if (!client.steps[key]) client.steps[key] = { done: false };
+    client.steps[key].deadline = document.getElementById(deadlineFields[key]).value || '';
+  });
+  if (!client.steps.filmingValidated) client.steps.filmingValidated = { done: false };
+
+  if (!existing) clients.push(client);
+  saveClients(clients);
+  closeClientForm();
+  renderClients();
+}
+
+function editClient(id) { openClientForm(id); }
+
+function deleteClient(id) {
+  if (!confirm('Supprimer ce client ?')) return;
+  var clients = loadClients().filter(function(c) { return c.id !== id; });
+  saveClients(clients);
+  renderClients();
+}
+
+function toggleStep(clientId, stepKey) {
+  var clients = loadClients();
+  var c = clients.find(function(x) { return x.id === clientId; });
+  if (!c) return;
+  if (!c.steps) c.steps = {};
+  if (!c.steps[stepKey]) c.steps[stepKey] = { done: false };
+  c.steps[stepKey].done = !c.steps[stepKey].done;
+  c.updatedAt = Date.now();
+  saveClients(clients);
+  renderClients();
+}
+
+document.getElementById('addClientBtn').addEventListener('click', function() { openClientForm(); });
+
+document.getElementById('clientSearch').addEventListener('input', function() {
+  clientSearchQuery = this.value.trim();
+  renderClients();
+});
+
+document.getElementById('clientFilterBtns').addEventListener('click', function(e) {
+  var btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  clientFilter = btn.dataset.cfilter;
+  this.querySelectorAll('.filter-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.cfilter === clientFilter);
+  });
+  renderClients();
+});
+
+document.querySelectorAll('#clientFormOverlay .form-input, #clientFormOverlay .form-textarea').forEach(function(el) {
+  el.addEventListener('focus', function() { this.classList.remove('invalid'); });
+});
 
 /* ════ INIT ════ */
 checkAuth();
