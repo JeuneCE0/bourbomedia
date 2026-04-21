@@ -270,58 +270,145 @@
     .log-action strong { color:var(--white); }
     .log-time { font-size:.72rem; color:var(--text-muted); margin-top:2px; }
 
+    /* ── USERS MANAGEMENT ── */
+    .settings-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:20px; }
+    .settings-tab { padding:10px 18px; border:none; background:transparent; color:var(--text-muted); font-family:'Bricolage Grotesque',sans-serif; font-weight:600; font-size:.82rem; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:all .2s; }
+    .settings-tab.active { color:var(--white); border-bottom-color:var(--orange); }
+    .settings-tab:hover { color:var(--orange-light); }
+    .user-list { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+    .user-item { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--night-mid); border:1px solid var(--border); border-radius:var(--radius-xs); transition:border-color .2s; }
+    .user-item:hover { border-color:var(--border-orange); }
+    .user-avatar-sm { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,var(--orange),var(--orange-dark)); display:flex; align-items:center; justify-content:center; font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:.75rem; color:var(--white); flex-shrink:0; }
+    .user-info { flex:1; min-width:0; }
+    .user-email { font-size:.85rem; font-weight:600; color:var(--white); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .user-role { font-size:.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+    .user-role-badge { display:inline-flex; padding:2px 8px; border-radius:10px; font-size:.62rem; font-weight:700; }
+    .user-role-badge.admin { background:rgba(232,105,43,.12); color:var(--orange); border:1px solid rgba(232,105,43,.2); }
+    .user-role-badge.viewer { background:rgba(255,255,255,.04); color:var(--text-mid); border:1px solid var(--border); }
+    .user-actions { display:flex; gap:4px; }
+    .user-empty { text-align:center; padding:24px; color:var(--text-muted); font-size:.85rem; }
+    .add-user-form { padding:14px; background:var(--night-mid); border:1px solid var(--border); border-radius:var(--radius-xs); }
+    .add-user-form .form-grid { gap:10px; }
+
     /* ── CLIENTS TAB ── */
-    .clients-toolbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:24px; }
+    .clients-toolbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
     .clients-search { flex:1; min-width:200px; padding:12px 16px; border-radius:var(--radius-sm); border:1px solid var(--border-md); background:var(--night-mid); color:var(--text); font-size:.9rem; outline:none; font-family:inherit; }
     .clients-search:focus { border-color:var(--orange); }
     .clients-search::placeholder { color:var(--text-muted); }
-    .client-card { background:var(--night-card); border:1px solid var(--border); border-radius:var(--radius); padding:0; overflow:hidden; transition:border-color .2s; }
-    .client-card:hover { border-color:var(--border-orange); }
-    .client-card-header { padding:20px 24px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--border); }
-    .client-card-info h3 { font-family:'Bricolage Grotesque',sans-serif; font-weight:700; font-size:1rem; color:var(--white); margin-bottom:2px; }
-    .client-card-info .client-sub { font-size:.8rem; color:var(--text-muted); }
-    .client-card-actions { display:flex; gap:6px; }
-    .client-card-body { padding:20px 24px; }
-    .client-deadline-badge { display:inline-flex; align-items:center; gap:4px; font-size:.68rem; font-weight:600; padding:3px 10px; border-radius:12px; }
-    .client-deadline-badge.on-track { color:var(--green); background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.15); }
-    .client-deadline-badge.late { color:var(--red); background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.15); }
-    .client-deadline-badge.upcoming { color:var(--yellow); background:rgba(250,204,21,.08); border:1px solid rgba(250,204,21,.15); }
-    .client-deadline-badge.done { color:var(--text-muted); background:rgba(255,255,255,.03); border:1px solid var(--border); }
-
-    .client-timeline { display:flex; flex-direction:column; gap:0; }
-    .client-step { display:flex; align-items:flex-start; gap:14px; position:relative; padding:12px 0; }
-    .client-step:not(:last-child)::after { content:''; position:absolute; left:15px; top:36px; bottom:0; width:2px; background:var(--border); }
-    .client-step.step-done:not(:last-child)::after { background:var(--green); }
-    .client-step-dot { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:.8rem; border:2px solid var(--border-md); background:var(--night-mid); transition:all .2s; z-index:1; }
-    .client-step.step-done .client-step-dot { background:rgba(34,197,94,.15); border-color:var(--green); color:var(--green); }
-    .client-step.step-late .client-step-dot { background:rgba(239,68,68,.1); border-color:var(--red); color:var(--red); }
-    .client-step.step-upcoming .client-step-dot { background:rgba(250,204,21,.1); border-color:var(--yellow); color:var(--yellow); }
-    .client-step.step-current .client-step-dot { background:rgba(232,105,43,.1); border-color:var(--orange); color:var(--orange); animation:pulse-dot 2s infinite; }
-    @keyframes pulse-dot { 0%,100%{box-shadow:0 0 0 0 rgba(232,105,43,.3)} 50%{box-shadow:0 0 0 6px rgba(232,105,43,0)} }
-    .client-step-content { flex:1; min-width:0; }
-    .client-step-label { font-size:.82rem; font-weight:600; color:var(--text); margin-bottom:2px; }
-    .client-step.step-done .client-step-label { color:var(--text-muted); text-decoration:line-through; }
-    .client-step-date { font-size:.75rem; color:var(--text-muted); }
-    .client-step-date.late { color:var(--red); font-weight:600; }
-    .client-step-actions { display:flex; gap:6px; margin-top:6px; }
-    .client-step-btn { padding:4px 12px; border-radius:var(--radius-xs); border:1px solid var(--border-md); background:transparent; color:var(--text-mid); font-size:.72rem; font-weight:600; cursor:pointer; font-family:inherit; transition:all .2s; }
-    .client-step-btn:hover { border-color:var(--green); color:var(--green); background:rgba(34,197,94,.06); }
-    .client-step-btn.validated { background:rgba(34,197,94,.1); border-color:var(--green); color:var(--green); cursor:default; }
-
-    .client-progress-bar { height:4px; background:var(--night-raised); border-radius:4px; overflow:hidden; margin-top:16px; }
-    .client-progress-fill { height:100%; background:linear-gradient(90deg,var(--orange),var(--green)); border-radius:4px; transition:width .4s ease; }
-    .client-notes { font-size:.8rem; color:var(--text-muted); margin-top:12px; padding:10px 14px; background:var(--night-mid); border-radius:var(--radius-xs); border:1px solid var(--border); line-height:1.5; }
-    .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); gap:16px; }
-    .client-empty { text-align:center; padding:80px 24px; color:var(--text-muted); }
-    .client-empty p { margin-bottom:16px; }
+    .view-toggle { display:inline-flex; background:var(--night-mid); border:1px solid var(--border-md); border-radius:var(--radius-sm); overflow:hidden; }
+    .view-toggle button { padding:8px 16px; border:none; background:transparent; color:var(--text-muted); font-size:.78rem; font-weight:600; cursor:pointer; font-family:inherit; transition:all .2s; display:flex; align-items:center; gap:6px; }
+    .view-toggle button.active { background:var(--orange); color:var(--white); }
+    .view-toggle button:hover:not(.active) { color:var(--orange-light); }
     .client-filter-btns { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+
+    /* Cards */
+    .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(380px,1fr)); gap:16px; }
+    .client-card { background:var(--night-card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; transition:all .25s; }
+    .client-card:hover { border-color:var(--border-orange); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.2); }
+    .client-card-header { padding:18px 20px; display:flex; align-items:center; gap:14px; border-bottom:1px solid var(--border); }
+    .client-avatar { width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:.95rem; color:var(--white); flex-shrink:0; }
+    .client-avatar.status-in_progress { background:linear-gradient(135deg,var(--orange),var(--orange-dark)); }
+    .client-avatar.status-late { background:linear-gradient(135deg,var(--red),#B91C1C); }
+    .client-avatar.status-done { background:linear-gradient(135deg,var(--green),#16A34A); }
+    .client-card-info { flex:1; min-width:0; }
+    .client-card-info h3 { font-family:'Bricolage Grotesque',sans-serif; font-weight:700; font-size:.95rem; color:var(--white); margin-bottom:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .client-card-info .client-sub { font-size:.75rem; color:var(--text-muted); }
+    .client-card-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+    .client-card-actions { display:flex; gap:4px; }
+    .client-badge { display:inline-flex; align-items:center; gap:4px; font-size:.65rem; font-weight:700; padding:3px 10px; border-radius:12px; white-space:nowrap; }
+    .client-badge.b-progress { color:var(--orange); background:rgba(232,105,43,.1); border:1px solid rgba(232,105,43,.2); }
+    .client-badge.b-late { color:var(--red); background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.2); }
+    .client-badge.b-done { color:var(--green); background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.2); }
+    .client-badge.b-days { color:var(--text-mid); background:rgba(255,255,255,.04); border:1px solid var(--border); }
+
+    /* Horizontal stepper */
+    .client-stepper { display:flex; align-items:flex-start; padding:18px 20px 6px; gap:0; }
+    .client-stepper-step { flex:1; display:flex; flex-direction:column; align-items:center; position:relative; }
+    .client-stepper-step:not(:last-child)::after { content:''; position:absolute; top:14px; left:calc(50% + 18px); right:calc(-50% + 18px); height:3px; background:var(--border); border-radius:2px; z-index:0; }
+    .client-stepper-step.s-done:not(:last-child)::after { background:var(--green); }
+    .client-stepper-dot { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.72rem; border:2.5px solid var(--border-md); background:var(--night-mid); position:relative; z-index:1; cursor:pointer; transition:all .25s; }
+    .client-stepper-dot:hover { transform:scale(1.15); }
+    .client-stepper-step.s-done .client-stepper-dot { background:rgba(34,197,94,.15); border-color:var(--green); color:var(--green); }
+    .client-stepper-step.s-late .client-stepper-dot { background:rgba(239,68,68,.12); border-color:var(--red); color:var(--red); animation:pulse-late 2s infinite; }
+    @keyframes pulse-dot { 0%,100%{box-shadow:0 0 0 0 rgba(232,105,43,.3)} 50%{box-shadow:0 0 0 6px rgba(232,105,43,0)} }
+    @keyframes pulse-late { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)} 50%{box-shadow:0 0 0 5px rgba(239,68,68,0)} }
+    .client-stepper-step.s-current .client-stepper-dot { background:rgba(232,105,43,.12); border-color:var(--orange); color:var(--orange); animation:pulse-dot 2s infinite; }
+    .client-stepper-step.s-upcoming .client-stepper-dot { background:rgba(250,204,21,.1); border-color:var(--yellow); color:var(--yellow); }
+    .client-stepper-label { font-size:.58rem; color:var(--text-muted); margin-top:6px; text-align:center; line-height:1.2; max-width:72px; }
+    .client-stepper-step.s-done .client-stepper-label { color:var(--green); }
+    .client-stepper-step.s-late .client-stepper-label { color:var(--red); }
+    .client-stepper-step.s-current .client-stepper-label { color:var(--orange); font-weight:700; }
+    .stepper-tooltip { display:none; position:absolute; bottom:calc(100% + 10px); left:50%; transform:translateX(-50%); background:var(--night-raised); color:var(--text); padding:8px 12px; border-radius:var(--radius-xs); font-size:.72rem; white-space:nowrap; border:1px solid var(--border-md); z-index:10; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,.3); }
+    .stepper-tooltip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:var(--night-raised); }
+    .client-stepper-dot:hover .stepper-tooltip { display:block; }
+
+    /* Next step action */
+    .client-next-step { display:flex; align-items:center; gap:10px; margin:0 20px; padding:10px 14px; background:rgba(232,105,43,.05); border:1px dashed rgba(232,105,43,.2); border-radius:var(--radius-xs); }
+    .client-next-info { flex:1; min-width:0; }
+    .client-next-label { font-size:.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; font-weight:600; }
+    .client-next-name { font-size:.85rem; font-weight:600; color:var(--orange); }
+    .client-next-date { font-size:.72rem; color:var(--text-muted); }
+    .client-next-btn { padding:7px 18px; border-radius:var(--radius-xs); border:none; background:var(--orange); color:var(--white); font-size:.75rem; font-weight:700; cursor:pointer; font-family:inherit; transition:all .2s; white-space:nowrap; }
+    .client-next-btn:hover { background:var(--orange-dark); transform:scale(1.04); }
+
+    /* Card footer */
+    .client-card-footer { padding:12px 20px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--border); }
+    .client-progress-wrap { display:flex; align-items:center; gap:10px; flex:1; }
+    .client-progress-bar { height:5px; background:var(--night-raised); border-radius:5px; overflow:hidden; flex:1; }
+    .client-progress-fill { height:100%; border-radius:5px; transition:width .5s cubic-bezier(.4,0,.2,1); }
+    .client-progress-fill.pf-green { background:linear-gradient(90deg,var(--green),#34D399); }
+    .client-progress-fill.pf-orange { background:linear-gradient(90deg,var(--orange),var(--orange-light)); }
+    .client-progress-fill.pf-red { background:linear-gradient(90deg,var(--red),#F87171); }
+    .client-progress-pct { font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:.85rem; min-width:36px; text-align:right; }
+    .client-notes { font-size:.78rem; color:var(--text-muted); margin:0 20px 14px; padding:8px 12px; background:var(--night-mid); border-radius:var(--radius-xs); border-left:3px solid var(--orange); line-height:1.5; }
+    .client-empty { text-align:center; padding:80px 24px; color:var(--text-muted); }
+    .client-empty svg { margin-bottom:16px; opacity:.4; }
+    .client-empty p { margin-bottom:16px; font-size:.95rem; }
+
+    /* ── CALENDAR ── */
+    .cal-wrap { background:var(--night-card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+    .cal-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); }
+    .cal-header-left { display:flex; align-items:center; gap:12px; }
+    .cal-title { font-family:'Bricolage Grotesque',sans-serif; font-weight:700; font-size:1.05rem; color:var(--white); }
+    .cal-today-btn { padding:5px 12px; border-radius:var(--radius-xs); border:1px solid var(--border-md); background:transparent; color:var(--text-mid); font-size:.72rem; font-weight:600; cursor:pointer; font-family:inherit; transition:all .2s; }
+    .cal-today-btn:hover { border-color:var(--orange); color:var(--orange); }
+    .cal-nav { display:flex; gap:4px; }
+    .cal-nav button { width:32px; height:32px; border-radius:var(--radius-xs); border:1px solid var(--border-md); background:transparent; color:var(--text-mid); cursor:pointer; font-size:1rem; transition:all .2s; display:flex; align-items:center; justify-content:center; font-family:inherit; }
+    .cal-nav button:hover { border-color:var(--orange); color:var(--orange); background:rgba(232,105,43,.06); }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); }
+    .cal-day-header { padding:10px 4px; text-align:center; font-size:.65rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; border-bottom:1px solid var(--border); background:var(--night-mid); }
+    .cal-day { min-height:90px; padding:6px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); position:relative; transition:background .15s; cursor:default; }
+    .cal-day:nth-child(7n+7) { border-right:none; }
+    .cal-day:hover { background:var(--night-card-hover); }
+    .cal-day.today { background:rgba(232,105,43,.06); }
+    .cal-day.today .cal-day-num { background:var(--orange); color:var(--white); width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+    .cal-day.other-month { opacity:.25; }
+    .cal-day-num { font-size:.72rem; font-weight:600; color:var(--text-mid); margin-bottom:4px; }
+    .cal-event { display:flex; align-items:center; gap:3px; padding:2px 6px; border-radius:4px; font-size:.6rem; font-weight:600; margin-bottom:2px; cursor:pointer; transition:all .15s; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cal-event:hover { filter:brightness(1.3); transform:translateX(1px); }
+    .cal-event.ev-done { background:rgba(34,197,94,.15); color:var(--green); }
+    .cal-event.ev-late { background:rgba(239,68,68,.18); color:var(--red); }
+    .cal-event.ev-upcoming { background:rgba(250,204,21,.15); color:var(--yellow); }
+    .cal-event.ev-pending { background:rgba(255,255,255,.05); color:var(--text-mid); }
+    .cal-event.ev-current { background:rgba(232,105,43,.15); color:var(--orange); }
+    .cal-more { font-size:.58rem; color:var(--text-muted); padding:1px 4px; cursor:pointer; }
+    .cal-more:hover { color:var(--orange); }
+    .cal-legend { display:flex; gap:16px; padding:12px 20px; border-top:1px solid var(--border); flex-wrap:wrap; }
+    .cal-legend-item { display:flex; align-items:center; gap:5px; font-size:.65rem; color:var(--text-muted); }
+    .cal-legend-dot { width:8px; height:8px; border-radius:50%; }
 
     @media (max-width:900px) {
       .client-grid { grid-template-columns:1fr; }
-      .client-card-header { padding:16px; }
-      .client-card-body { padding:16px; }
+      .client-card-header { padding:14px 16px; }
+      .client-stepper { padding:14px 12px 4px; }
+      .client-next-step { margin:0 16px; }
+      .client-notes { margin:0 16px 12px; }
+      .client-card-footer { padding:10px 16px; }
       .clients-toolbar { flex-direction:column; }
       .clients-search { min-width:100%; }
+      .cal-day { min-height:60px; padding:4px; }
+      .cal-event { font-size:.55rem; padding:1px 4px; }
+      .cal-day-header { font-size:.55rem; }
     }
   </style>
 </head>
@@ -451,7 +538,7 @@
         <button class="filter-btn" data-period="30">30 jours</button>
         <button class="filter-btn" data-period="365">Année</button>
         <button class="filter-btn" data-period="custom">Personnalisé</button>
-        <div id="customDateRange" style="display:none;margin-left:8px;display:none;align-items:center;gap:6px;">
+        <div id="customDateRange" style="display:none;margin-left:8px;align-items:center;gap:6px;">
           <input type="date" id="dateFrom" class="form-input" style="padding:6px 10px;font-size:.78rem;width:auto;">
           <span style="color:var(--text-muted);font-size:.8rem;">→</span>
           <input type="date" id="dateTo" class="form-input" style="padding:6px 10px;font-size:.78rem;width:auto;">
@@ -540,7 +627,7 @@
     <!-- TAB: CLIENTS -->
     <div id="tabClients" style="display:none;">
       <div class="stats-row" id="clientsStatsRow">
-        <div class="stat-card"><div class="stat-value" id="cStatTotal">0</div><div class="stat-label">Clients actifs</div></div>
+        <div class="stat-card"><div class="stat-value" id="cStatTotal">0</div><div class="stat-label">Clients</div></div>
         <div class="stat-card"><div class="stat-value" id="cStatInProgress" style="color:var(--orange);">0</div><div class="stat-label">En cours</div></div>
         <div class="stat-card"><div class="stat-value" id="cStatLate" style="color:var(--red);">0</div><div class="stat-label">En retard</div></div>
         <div class="stat-card"><div class="stat-value" id="cStatDone" style="color:var(--green);">0</div><div class="stat-label">Terminés</div></div>
@@ -548,31 +635,68 @@
 
       <div class="clients-toolbar">
         <input type="text" id="clientSearch" class="clients-search" placeholder="Rechercher un client...">
+        <div class="view-toggle" id="clientViewToggle">
+          <button class="active" data-view="cards">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Cards
+          </button>
+          <button data-view="calendar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Calendrier
+          </button>
+        </div>
         <button id="addClientBtn" class="btn-add">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Ajouter un client
+          Nouveau client
         </button>
       </div>
 
-      <div class="client-filter-btns" id="clientFilterBtns">
-        <button class="filter-btn active" data-cfilter="all">Tous</button>
-        <button class="filter-btn" data-cfilter="in_progress">En cours</button>
-        <button class="filter-btn" data-cfilter="late">En retard</button>
-        <button class="filter-btn" data-cfilter="done">Terminés</button>
+      <!-- Cards view -->
+      <div id="clientCardsView">
+        <div class="client-filter-btns" id="clientFilterBtns">
+          <button class="filter-btn active" data-cfilter="all">Tous</button>
+          <button class="filter-btn" data-cfilter="in_progress">En cours</button>
+          <button class="filter-btn" data-cfilter="late">En retard</button>
+          <button class="filter-btn" data-cfilter="done">Terminés</button>
+        </div>
+        <div class="client-grid" id="clientGrid"></div>
+        <div class="client-empty" id="clientEmpty" style="display:none;">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <p>Aucun client pour l'instant</p>
+          <button class="btn-add" onclick="openClientForm()" style="margin:0 auto;">Ajouter votre premier client</button>
+        </div>
       </div>
 
-      <div class="client-grid" id="clientGrid"></div>
-      <div class="client-empty" id="clientEmpty" style="display:none;">
-        <p>Aucun client pour l'instant</p>
-        <button class="btn-add" onclick="openClientForm()" style="margin:0 auto;">Ajouter votre premier client</button>
+      <!-- Calendar view -->
+      <div id="clientCalView" style="display:none;">
+        <div class="cal-wrap">
+          <div class="cal-header">
+            <div class="cal-header-left">
+              <span class="cal-title" id="calTitle"></span>
+              <button class="cal-today-btn" onclick="calGoToday()">Aujourd'hui</button>
+            </div>
+            <div class="cal-nav">
+              <button onclick="calPrev()">&#8249;</button>
+              <button onclick="calNext()">&#8250;</button>
+            </div>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+          <div class="cal-legend">
+            <div class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--orange);"></span> En cours</div>
+            <div class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--red);"></span> En retard</div>
+            <div class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--yellow);"></span> Bientôt</div>
+            <div class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--green);"></span> Validé</div>
+            <div class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--text-muted);"></span> Planifié</div>
+          </div>
+        </div>
       </div>
     </div><!-- /tabClients -->
 
     <!-- ════ CLIENT FORM MODAL ════ -->
     <div id="clientFormOverlay" class="modal-overlay">
-      <div class="modal" style="max-width:600px;">
+      <div class="modal" style="max-width:620px;">
         <div class="modal-header">
-          <span id="clientFormTitle" class="modal-title">Ajouter un client</span>
+          <span id="clientFormTitle" class="modal-title">Nouveau client</span>
           <button class="modal-close" onclick="closeClientForm()">&times;</button>
         </div>
         <div style="padding:28px;overflow-y:auto;max-height:75vh;">
@@ -598,11 +722,11 @@
             </div>
             <div class="form-group full">
               <label class="form-label">ID Opportunité GHL</label>
-              <input type="text" id="cfGhlId" class="form-input" placeholder="Optionnel — pour relier à GHL plus tard">
+              <input type="text" id="cfGhlId" class="form-input" placeholder="Optionnel — pour relier à GoHighLevel">
             </div>
           </div>
 
-          <div class="form-section-title">Deadlines du projet</div>
+          <div class="form-section-title">Planning du projet</div>
           <div class="form-grid">
             <div class="form-group">
               <label class="form-label">Génération des scripts</label>
@@ -639,7 +763,7 @@
     </div>
 
     <!-- ════ NOS RÉSEAUX SOCIAUX ════ -->
-    <details style="margin-top:32px;" open>
+    <details id="socialsSection" style="margin-top:32px;" open>
       <summary style="cursor:pointer;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:1rem;color:var(--white);padding:16px 0;list-style:none;display:flex;align-items:center;gap:8px;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         Nos réseaux sociaux
@@ -899,23 +1023,73 @@
 
 <!-- ════ SETTINGS MODAL ════ -->
 <div id="settingsOverlay" class="modal-overlay">
-  <div class="modal" style="max-width:400px;">
+  <div class="modal" style="max-width:520px;">
     <div class="modal-header">
       <span class="modal-title">Paramètres</span>
       <button class="modal-close" onclick="document.getElementById('settingsOverlay').classList.remove('open');document.body.style.overflow='';">&times;</button>
     </div>
-    <div style="padding:28px;">
-      <div class="form-section-title" style="margin-top:0;padding-top:0;border-top:none;">Changer le mot de passe</div>
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label">Mot de passe actuel</label>
-        <input type="password" id="currentPass" class="form-input">
+    <div style="padding:0 28px 28px;">
+      <div class="settings-tabs" id="settingsTabs">
+        <button class="settings-tab active" data-stab="password">Mot de passe</button>
+        <button class="settings-tab" data-stab="users">Utilisateurs</button>
       </div>
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label">Nouveau mot de passe</label>
-        <input type="password" id="newPass" class="form-input">
+
+      <!-- Tab: Mot de passe -->
+      <div id="stabPassword">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Mot de passe actuel</label>
+          <input type="password" id="currentPass" class="form-input">
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Nouveau mot de passe</label>
+          <input type="password" id="newPass" class="form-input">
+        </div>
+        <button id="changePassBtn" class="btn-save" style="width:100%;">Mettre à jour</button>
+        <div id="passMsg" style="margin-top:12px;font-size:.82rem;min-height:20px;"></div>
       </div>
-      <button id="changePassBtn" class="btn-save" style="width:100%;">Mettre à jour</button>
-      <div id="passMsg" style="margin-top:12px;font-size:.82rem;min-height:20px;"></div>
+
+      <!-- Tab: Utilisateurs -->
+      <div id="stabUsers" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <span style="font-size:.82rem;color:var(--text-muted);">Gérez les accès à l'administration</span>
+          <button id="toggleAddUser" class="btn-add" style="padding:8px 16px;font-size:.78rem;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Ajouter
+          </button>
+        </div>
+
+        <div id="addUserForm" class="add-user-form" style="display:none;margin-bottom:16px;">
+          <input type="hidden" id="editUserId">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Email *</label>
+              <input type="email" id="newUserEmail" class="form-input" placeholder="simeon@bourbonmedia.fr">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mot de passe *</label>
+              <input type="password" id="newUserPass" class="form-input" placeholder="Min. 6 caractères">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Rôle</label>
+              <select id="newUserRole" class="form-select">
+                <option value="admin">Admin (accès complet)</option>
+                <option value="viewer">Lecteur (lecture seule)</option>
+              </select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;">
+              <div style="display:flex;gap:8px;width:100%;">
+                <button id="saveUserBtn" class="btn-save" style="flex:1;">Créer l'accès</button>
+                <button class="btn-logout" onclick="document.getElementById('addUserForm').style.display='none';document.getElementById('editUserId').value='';">Annuler</button>
+              </div>
+            </div>
+          </div>
+          <div id="userFormMsg" style="margin-top:10px;font-size:.82rem;min-height:18px;"></div>
+        </div>
+
+        <div id="userList" class="user-list">
+          <div class="user-empty">Chargement...</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1810,11 +1984,121 @@ function stopAutoSave() {
   localStorage.removeItem(DRAFT_KEY);
 }
 
-/* ════ SETTINGS / PASSWORD ════ */
+/* ════ SETTINGS / PASSWORD / USERS ════ */
 document.getElementById('settingsBtn').addEventListener('click', function() {
   document.getElementById('settingsOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 });
+
+document.getElementById('settingsTabs').addEventListener('click', function(e) {
+  var btn = e.target.closest('.settings-tab');
+  if (!btn) return;
+  var tab = btn.dataset.stab;
+  this.querySelectorAll('.settings-tab').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.stab === tab);
+  });
+  document.getElementById('stabPassword').style.display = tab === 'password' ? '' : 'none';
+  document.getElementById('stabUsers').style.display = tab === 'users' ? '' : 'none';
+  if (tab === 'users') loadUsers();
+});
+
+document.getElementById('toggleAddUser').addEventListener('click', function() {
+  var form = document.getElementById('addUserForm');
+  document.getElementById('editUserId').value = '';
+  document.getElementById('newUserEmail').value = '';
+  document.getElementById('newUserPass').value = '';
+  document.getElementById('newUserRole').value = 'admin';
+  document.getElementById('userFormMsg').textContent = '';
+  document.getElementById('saveUserBtn').textContent = "Créer l'accès";
+  form.style.display = form.style.display === 'none' ? '' : 'none';
+});
+
+document.getElementById('saveUserBtn').addEventListener('click', async function() {
+  var email = document.getElementById('newUserEmail').value.trim();
+  var pass = document.getElementById('newUserPass').value;
+  var role = document.getElementById('newUserRole').value;
+  var editId = document.getElementById('editUserId').value;
+  var msg = document.getElementById('userFormMsg');
+
+  if (!email) { document.getElementById('newUserEmail').classList.add('invalid'); return; }
+  if (!editId && (!pass || pass.length < 6)) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'Mot de passe requis (min. 6 caractères)';
+    return;
+  }
+
+  try {
+    var body = { email: email, role: role };
+    if (pass) body.password = pass;
+    var method = editId ? 'PUT' : 'POST';
+    if (editId) body.id = editId;
+
+    var r = await fetch(API + '/api/admin?action=users', {
+      method: method,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(body)
+    });
+    var d = await r.json();
+    if (!r.ok) { msg.style.color = 'var(--red)'; msg.textContent = d.error || 'Erreur'; return; }
+    msg.style.color = 'var(--green)';
+    msg.textContent = editId ? 'Utilisateur modifié' : 'Accès créé avec succès';
+    document.getElementById('newUserEmail').value = '';
+    document.getElementById('newUserPass').value = '';
+    document.getElementById('editUserId').value = '';
+    setTimeout(function() { document.getElementById('addUserForm').style.display = 'none'; }, 1200);
+    loadUsers();
+  } catch(e) { msg.style.color = 'var(--red)'; msg.textContent = 'Erreur réseau'; }
+});
+
+async function loadUsers() {
+  var list = document.getElementById('userList');
+  try {
+    var r = await fetch(API + '/api/admin?action=users', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!r.ok) { list.innerHTML = '<div class="user-empty">Impossible de charger les utilisateurs</div>'; return; }
+    var users = await r.json();
+    if (!users.length) { list.innerHTML = '<div class="user-empty">Aucun utilisateur</div>'; return; }
+
+    list.innerHTML = users.map(function(u) {
+      var initials = (u.email || '?')[0].toUpperCase();
+      var roleBadge = u.role === 'admin'
+        ? '<span class="user-role-badge admin">Admin</span>'
+        : '<span class="user-role-badge viewer">Lecteur</span>';
+      return '<div class="user-item" data-user-id="' + u.id + '">'
+        + '<div class="user-avatar-sm">' + initials + '</div>'
+        + '<div class="user-info"><div class="user-email">' + u.email + '</div>'
+        + '<div class="user-role">' + roleBadge + '</div></div>'
+        + '<div class="user-actions">'
+        + '<button class="btn-icon edit" onclick="editUser(\'' + u.id + '\',\'' + u.email.replace(/'/g,"\\'") + '\',\'' + u.role + '\')" title="Modifier">&#9998;</button>'
+        + '<button class="btn-icon del" onclick="deleteUser(\'' + u.id + '\',\'' + u.email.replace(/'/g,"\\'") + '\')" title="Supprimer">&times;</button>'
+        + '</div></div>';
+    }).join('');
+  } catch(e) { list.innerHTML = '<div class="user-empty">Erreur de connexion au serveur</div>'; }
+}
+
+function editUser(id, email, role) {
+  document.getElementById('addUserForm').style.display = '';
+  document.getElementById('editUserId').value = id;
+  document.getElementById('newUserEmail').value = email;
+  document.getElementById('newUserPass').value = '';
+  document.getElementById('newUserRole').value = role;
+  document.getElementById('saveUserBtn').textContent = 'Modifier';
+  document.getElementById('userFormMsg').textContent = '';
+}
+
+async function deleteUser(id, email) {
+  if (!confirm('Supprimer l\'accès de ' + email + ' ?')) return;
+  try {
+    var r = await fetch(API + '/api/admin?action=users', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ id: id })
+    });
+    if (r.ok) loadUsers();
+    else { var d = await r.json(); showToast(d.error || 'Erreur', 'error'); }
+  } catch(e) { showToast('Erreur réseau', 'error'); }
+}
 
 document.getElementById('changePassBtn').addEventListener('click', async function() {
   var cur = document.getElementById('currentPass').value;
@@ -2001,8 +2285,11 @@ document.getElementById('adminTabs').addEventListener('click', function(e) {
   document.getElementById('tabProjets').style.display = tab === 'projets' ? '' : 'none';
   document.getElementById('tabDashboard').style.display = tab === 'dashboard' ? '' : 'none';
   document.getElementById('tabClients').style.display = tab === 'clients' ? '' : 'none';
+  var showExtras = tab === 'projets';
+  document.getElementById('socialsSection').style.display = showExtras ? '' : 'none';
+  document.getElementById('historySection').style.display = showExtras ? '' : 'none';
   if (tab === 'dashboard') renderDashboard();
-  if (tab === 'clients') renderClients();
+  if (tab === 'clients') renderClientsView();
 });
 
 /* ════ DASHBOARD ════ */
@@ -2303,36 +2590,25 @@ renderDashboard = function() {
 var CLIENTS_KEY = 'bbp_clients';
 var clientFilter = 'all';
 var clientSearchQuery = '';
+var clientViewMode = 'cards';
+var calMonth = new Date().getMonth();
+var calYear = new Date().getFullYear();
 
 function loadClients() {
   try { return JSON.parse(localStorage.getItem(CLIENTS_KEY)) || []; } catch(e) { return []; }
 }
-function saveClients(list) {
-  localStorage.setItem(CLIENTS_KEY, JSON.stringify(list));
-}
+function saveClients(list) { localStorage.setItem(CLIENTS_KEY, JSON.stringify(list)); }
 
 var CLIENT_STEPS = [
-  { key: 'scripts', label: 'Génération des scripts', icon: '📝' },
-  { key: 'scriptsSent', label: 'Envoi des scripts', icon: '📤' },
-  { key: 'filming', label: 'Tournage', icon: '🎬' },
-  { key: 'filmingValidated', label: 'Validation tournage', icon: '✅' },
-  { key: 'publication', label: 'Publication', icon: '📅' }
+  { key: 'scripts', label: 'Scripts', fullLabel: 'Génération des scripts', icon: '📝' },
+  { key: 'scriptsSent', label: 'Envoi', fullLabel: 'Envoi des scripts', icon: '📤' },
+  { key: 'filming', label: 'Tournage', fullLabel: 'Tournage', icon: '🎬' },
+  { key: 'filmingValidated', label: 'Validation', fullLabel: 'Validation tournage', icon: '✅' },
+  { key: 'publication', label: 'Publication', fullLabel: 'Publication', icon: '📅' }
 ];
 
-function getStepStatus(step, today) {
-  if (step.done) return 'done';
-  if (!step.deadline) return 'pending';
-  var d = new Date(step.deadline);
-  d.setHours(23,59,59);
-  if (d < today) return 'late';
-  var diff = (d - today) / 86400000;
-  if (diff <= 3) return 'upcoming';
-  return 'pending';
-}
-
 function getClientStatus(client) {
-  var today = new Date();
-  today.setHours(0,0,0,0);
+  var today = new Date(); today.setHours(0,0,0,0);
   var steps = client.steps || {};
   var allDone = CLIENT_STEPS.every(function(s) { return steps[s.key] && steps[s.key].done; });
   if (allDone) return 'done';
@@ -2346,8 +2622,7 @@ function getClientStatus(client) {
     var pd = new Date(client.projectDeadline); pd.setHours(23,59,59);
     if (pd < today && !allDone) hasLate = true;
   }
-  if (hasLate) return 'late';
-  return 'in_progress';
+  return hasLate ? 'late' : 'in_progress';
 }
 
 function getClientProgress(client) {
@@ -2360,7 +2635,7 @@ function formatDateShort(dateStr) {
   if (!dateStr) return '—';
   var d = new Date(dateStr);
   var months = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
-  return d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+  return d.getDate() + ' ' + months[d.getMonth()];
 }
 
 function daysUntil(dateStr) {
@@ -2370,11 +2645,44 @@ function daysUntil(dateStr) {
   return Math.ceil((d - today) / 86400000);
 }
 
-function renderClients() {
-  var clients = loadClients();
-  var today = new Date(); today.setHours(0,0,0,0);
+function padZ(n) { return n < 10 ? '0' + n : '' + n; }
+function dateKey(d) { return d.getFullYear() + '-' + padZ(d.getMonth()+1) + '-' + padZ(d.getDate()); }
 
-  var total = clients.length;
+function getNextStep(client) {
+  var steps = client.steps || {};
+  for (var i = 0; i < CLIENT_STEPS.length; i++) {
+    var st = steps[CLIENT_STEPS[i].key];
+    if (!st || !st.done) return CLIENT_STEPS[i];
+  }
+  return null;
+}
+
+function getStepClass(step, stepDef, allSteps) {
+  if (step && step.done) return 's-done';
+  var today = new Date(); today.setHours(0,0,0,0);
+  if (step && step.deadline) {
+    var d = new Date(step.deadline); d.setHours(23,59,59);
+    if (d < today) return 's-late';
+    if ((d - today) / 86400000 <= 3) return 's-upcoming';
+  }
+  var prevAllDone = true;
+  for (var i = 0; i < CLIENT_STEPS.length; i++) {
+    if (CLIENT_STEPS[i].key === stepDef.key) break;
+    var prev = allSteps[CLIENT_STEPS[i].key];
+    if (!prev || !prev.done) { prevAllDone = false; break; }
+  }
+  if (prevAllDone && (!step || !step.done)) return 's-current';
+  return '';
+}
+
+function renderClientsView() {
+  renderClientStats();
+  if (clientViewMode === 'cards') renderClientCards();
+  else renderCalendar();
+}
+
+function renderClientStats() {
+  var clients = loadClients();
   var inProgress = 0, late = 0, done = 0;
   clients.forEach(function(c) {
     var s = getClientStatus(c);
@@ -2382,36 +2690,33 @@ function renderClients() {
     else if (s === 'late') late++;
     else if (s === 'done') done++;
   });
-  document.getElementById('cStatTotal').textContent = total;
+  document.getElementById('cStatTotal').textContent = clients.length;
   document.getElementById('cStatInProgress').textContent = inProgress;
   document.getElementById('cStatLate').textContent = late;
   document.getElementById('cStatDone').textContent = done;
+}
+
+function renderClientCards() {
+  var clients = loadClients();
+  var today = new Date(); today.setHours(0,0,0,0);
 
   var filtered = clients.filter(function(c) {
     if (clientFilter !== 'all' && getClientStatus(c) !== clientFilter) return false;
     if (clientSearchQuery) {
       var q = clientSearchQuery.toLowerCase();
-      return (c.name || '').toLowerCase().indexOf(q) !== -1 ||
-             (c.business || '').toLowerCase().indexOf(q) !== -1;
+      return (c.name||'').toLowerCase().indexOf(q) !== -1 || (c.business||'').toLowerCase().indexOf(q) !== -1;
     }
     return true;
   });
-
   filtered.sort(function(a, b) {
     var sa = getClientStatus(a) === 'late' ? 0 : getClientStatus(a) === 'in_progress' ? 1 : 2;
     var sb = getClientStatus(b) === 'late' ? 0 : getClientStatus(b) === 'in_progress' ? 1 : 2;
-    if (sa !== sb) return sa - sb;
-    return (b.createdAt || 0) - (a.createdAt || 0);
+    return sa !== sb ? sa - sb : (b.createdAt||0) - (a.createdAt||0);
   });
 
   var grid = document.getElementById('clientGrid');
   var empty = document.getElementById('clientEmpty');
-
-  if (!filtered.length) {
-    grid.innerHTML = '';
-    empty.style.display = '';
-    return;
-  }
+  if (!filtered.length) { grid.innerHTML = ''; empty.style.display = ''; return; }
   empty.style.display = 'none';
 
   var html = '';
@@ -2419,125 +2724,182 @@ function renderClients() {
     var status = getClientStatus(c);
     var progress = getClientProgress(c);
     var steps = c.steps || {};
+    var initials = ((c.business || c.name || '?')[0] || '?').toUpperCase();
 
-    var statusBadge = '';
-    if (status === 'late') statusBadge = '<span class="client-deadline-badge late">En retard</span>';
-    else if (status === 'done') statusBadge = '<span class="client-deadline-badge done">Terminé</span>';
-    else statusBadge = '<span class="client-deadline-badge on-track">En cours</span>';
-
-    var projectDeadlineHtml = '';
-    if (c.projectDeadline) {
+    var badgeCls = status === 'late' ? 'b-late' : status === 'done' ? 'b-done' : 'b-progress';
+    var badgeText = status === 'late' ? 'En retard' : status === 'done' ? 'Terminé' : 'En cours';
+    var daysBadge = '';
+    if (c.projectDeadline && status !== 'done') {
       var days = daysUntil(c.projectDeadline);
-      var cls = days < 0 ? 'late' : days <= 7 ? 'upcoming' : 'on-track';
-      var label = days < 0 ? Math.abs(days) + 'j de retard' : days === 0 ? "Aujourd'hui" : days + 'j restants';
-      projectDeadlineHtml = '<span class="client-deadline-badge ' + cls + '" style="margin-left:8px;">' + label + '</span>';
+      daysBadge = '<span class="client-badge b-days">' + (days < 0 ? 'J+' + Math.abs(days) : 'J-' + days) + '</span>';
     }
 
-    html += '<div class="client-card" data-client-id="' + c.id + '">';
+    html += '<div class="client-card">';
+
     html += '<div class="client-card-header">';
+    html += '<div class="client-avatar status-' + status + '">' + initials + '</div>';
     html += '<div class="client-card-info"><h3>' + (c.business || c.name) + '</h3>';
-    html += '<span class="client-sub">' + (c.business ? c.name : '') + (c.phone ? ' — ' + c.phone : '') + '</span></div>';
-    html += '<div style="display:flex;align-items:center;gap:8px;">' + statusBadge + projectDeadlineHtml;
+    html += '<span class="client-sub">' + (c.business ? c.name : '') + (c.phone ? ' &middot; ' + c.phone : '') + '</span></div>';
+    html += '<div class="client-card-right">';
+    html += '<span class="client-badge ' + badgeCls + '">' + badgeText + '</span>' + daysBadge;
     html += '<div class="client-card-actions">';
     html += '<button class="btn-icon edit" onclick="editClient(\'' + c.id + '\')" title="Modifier">&#9998;</button>';
     html += '<button class="btn-icon del" onclick="deleteClient(\'' + c.id + '\')" title="Supprimer">&times;</button>';
     html += '</div></div></div>';
 
-    html += '<div class="client-card-body">';
-    html += '<div class="client-timeline">';
-
+    html += '<div class="client-stepper">';
     CLIENT_STEPS.forEach(function(stepDef) {
       var step = steps[stepDef.key] || {};
-      var stepStatus = step.done ? 'done' : 'pending';
-      if (!step.done && step.deadline) {
-        var d = new Date(step.deadline); d.setHours(23,59,59);
-        if (d < today) stepStatus = 'late';
-        else if ((d - today) / 86400000 <= 3) stepStatus = 'upcoming';
-      }
-
-      var isFirst = !step.done && stepStatus !== 'done';
-      var prevAllDone = true;
-      for (var i = 0; i < CLIENT_STEPS.length; i++) {
-        if (CLIENT_STEPS[i].key === stepDef.key) break;
-        var prev = steps[CLIENT_STEPS[i].key];
-        if (!prev || !prev.done) { prevAllDone = false; break; }
-      }
-      var isCurrent = isFirst && prevAllDone && !step.done;
-
-      var stepClass = 'client-step';
-      if (step.done) stepClass += ' step-done';
-      else if (stepStatus === 'late') stepClass += ' step-late';
-      else if (stepStatus === 'upcoming') stepClass += ' step-upcoming';
-      else if (isCurrent) stepClass += ' step-current';
-
-      html += '<div class="' + stepClass + '">';
-      html += '<div class="client-step-dot">' + (step.done ? '✓' : stepDef.icon) + '</div>';
-      html += '<div class="client-step-content">';
-      html += '<div class="client-step-label">' + stepDef.label + '</div>';
-
-      if (step.deadline) {
-        var dateClass = 'client-step-date';
-        if (stepStatus === 'late' && !step.done) dateClass += ' late';
-        html += '<div class="' + dateClass + '">' + formatDateShort(step.deadline);
-        if (!step.done && stepStatus === 'late') {
-          html += ' — ' + Math.abs(daysUntil(step.deadline)) + 'j de retard';
-        } else if (!step.done && stepStatus === 'upcoming') {
-          var dl = daysUntil(step.deadline);
-          html += ' — ' + (dl === 0 ? "aujourd'hui" : 'dans ' + dl + 'j');
-        }
-        html += '</div>';
-      } else {
-        html += '<div class="client-step-date">Pas de date définie</div>';
-      }
-
-      if (!step.done) {
-        html += '<div class="client-step-actions">';
-        html += '<button class="client-step-btn" onclick="toggleStep(\'' + c.id + '\',\'' + stepDef.key + '\')">Valider</button>';
-        html += '</div>';
-      } else {
-        html += '<div class="client-step-actions">';
-        html += '<button class="client-step-btn validated">Validé</button>';
-        html += '<button class="client-step-btn" onclick="toggleStep(\'' + c.id + '\',\'' + stepDef.key + '\')" style="color:var(--text-muted);border-color:var(--border);">Annuler</button>';
-        html += '</div>';
-      }
-
-      html += '</div></div>';
+      var cls = getStepClass(step, stepDef, steps);
+      var tooltipDate = step.deadline ? formatDateShort(step.deadline) : 'Pas de date';
+      var tooltipStatus = step.done ? ' (validé)' : '';
+      html += '<div class="client-stepper-step ' + cls + '">';
+      html += '<div class="client-stepper-dot" onclick="toggleStep(\'' + c.id + '\',\'' + stepDef.key + '\')">';
+      html += (step.done ? '✓' : stepDef.icon);
+      html += '<div class="stepper-tooltip">' + stepDef.fullLabel + ' &middot; ' + tooltipDate + tooltipStatus + '</div>';
+      html += '</div>';
+      html += '<div class="client-stepper-label">' + stepDef.label + '</div>';
+      html += '</div>';
     });
-
     html += '</div>';
 
-    html += '<div class="client-progress-bar"><div class="client-progress-fill" style="width:' + progress + '%;"></div></div>';
+    var nextStep = getNextStep(c);
+    if (nextStep && status !== 'done') {
+      var nst = steps[nextStep.key] || {};
+      var nDate = nst.deadline ? formatDateShort(nst.deadline) : 'Pas de date';
+      var nDays = nst.deadline ? daysUntil(nst.deadline) : null;
+      var nDaysLabel = nDays !== null ? (nDays < 0 ? ' &middot; ' + Math.abs(nDays) + 'j de retard' : nDays === 0 ? " &middot; aujourd'hui" : ' &middot; dans ' + nDays + 'j') : '';
+      html += '<div class="client-next-step">';
+      html += '<div class="client-next-info">';
+      html += '<div class="client-next-label">Prochaine étape</div>';
+      html += '<div class="client-next-name">' + nextStep.icon + ' ' + nextStep.fullLabel + '</div>';
+      html += '<div class="client-next-date">' + nDate + nDaysLabel + '</div>';
+      html += '</div>';
+      html += '<button class="client-next-btn" onclick="toggleStep(\'' + c.id + '\',\'' + nextStep.key + '\')">Valider</button>';
+      html += '</div>';
+    }
 
     if (c.notes) {
       html += '<div class="client-notes">' + c.notes.replace(/</g,'&lt;').replace(/\n/g,'<br>') + '</div>';
     }
 
+    var pctColor = status === 'done' ? 'pf-green' : status === 'late' ? 'pf-red' : 'pf-orange';
+    var pctTextColor = status === 'done' ? 'var(--green)' : status === 'late' ? 'var(--red)' : 'var(--orange)';
+    html += '<div class="client-card-footer">';
+    html += '<div class="client-progress-wrap">';
+    html += '<div class="client-progress-bar"><div class="client-progress-fill ' + pctColor + '" style="width:' + progress + '%;"></div></div>';
+    html += '<span class="client-progress-pct" style="color:' + pctTextColor + ';">' + progress + '%</span>';
     html += '</div></div>';
-  });
 
+    html += '</div>';
+  });
   grid.innerHTML = html;
 }
 
+/* ════ CALENDAR ════ */
+function renderCalendar() {
+  var clients = loadClients();
+  var today = new Date(); today.setHours(0,0,0,0);
+  var todayKey = dateKey(today);
+
+  var events = {};
+  clients.forEach(function(c) {
+    var steps = c.steps || {};
+    CLIENT_STEPS.forEach(function(s) {
+      var st = steps[s.key];
+      if (st && st.deadline) {
+        var k = st.deadline;
+        if (!events[k]) events[k] = [];
+        var cls = getStepClass(st, s, steps);
+        events[k].push({ client: c, step: s, done: st.done, cls: cls });
+      }
+    });
+    if (c.projectDeadline) {
+      if (!events[c.projectDeadline]) events[c.projectDeadline] = [];
+      events[c.projectDeadline].push({
+        client: c,
+        step: { key:'project', label:'Deadline', fullLabel:'Deadline projet', icon:'🏁' },
+        done: getClientStatus(c) === 'done',
+        cls: getClientStatus(c) === 'done' ? 's-done' : (daysUntil(c.projectDeadline) < 0 ? 's-late' : 's-current')
+      });
+    }
+  });
+
+  var MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  document.getElementById('calTitle').textContent = MONTHS[calMonth] + ' ' + calYear;
+
+  var firstDay = new Date(calYear, calMonth, 1);
+  var lastDay = new Date(calYear, calMonth + 1, 0);
+  var startDow = firstDay.getDay() || 7;
+
+  var html = '';
+  ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].forEach(function(d) {
+    html += '<div class="cal-day-header">' + d + '</div>';
+  });
+
+  for (var i = 1; i < startDow; i++) {
+    var d = new Date(calYear, calMonth, 1 - (startDow - 1) + (i - 1));
+    html += renderCalDay(d, events, todayKey, true);
+  }
+  for (var d = 1; d <= lastDay.getDate(); d++) {
+    var dt = new Date(calYear, calMonth, d);
+    html += renderCalDay(dt, events, todayKey, false);
+  }
+  var totalCells = Math.ceil((startDow - 1 + lastDay.getDate()) / 7) * 7;
+  var remaining = totalCells - (startDow - 1 + lastDay.getDate());
+  for (var i = 1; i <= remaining; i++) {
+    var d = new Date(calYear, calMonth + 1, i);
+    html += renderCalDay(d, events, todayKey, true);
+  }
+
+  document.getElementById('calGrid').innerHTML = html;
+}
+
+function renderCalDay(date, events, todayKey, isOther) {
+  var key = dateKey(date);
+  var isToday = key === todayKey;
+  var cls = 'cal-day' + (isToday ? ' today' : '') + (isOther ? ' other-month' : '');
+  var evts = events[key] || [];
+
+  var h = '<div class="' + cls + '">';
+  h += '<div class="cal-day-num">' + date.getDate() + '</div>';
+
+  var maxShow = 3;
+  evts.slice(0, maxShow).forEach(function(ev) {
+    var evCls = 'cal-event ';
+    if (ev.done || ev.cls === 's-done') evCls += 'ev-done';
+    else if (ev.cls === 's-late') evCls += 'ev-late';
+    else if (ev.cls === 's-upcoming') evCls += 'ev-upcoming';
+    else if (ev.cls === 's-current') evCls += 'ev-current';
+    else evCls += 'ev-pending';
+    var initials = ((ev.client.business || ev.client.name || '?')[0] || '').toUpperCase();
+    h += '<div class="' + evCls + '" onclick="editClient(\'' + ev.client.id + '\')" title="' + (ev.client.business || ev.client.name) + ' — ' + ev.step.fullLabel + '">';
+    h += ev.step.icon + ' ' + initials + '. ' + ev.step.label;
+    h += '</div>';
+  });
+  if (evts.length > maxShow) {
+    h += '<div class="cal-more">+' + (evts.length - maxShow) + ' de plus</div>';
+  }
+
+  h += '</div>';
+  return h;
+}
+
+function calPrev() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); }
+function calNext() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); }
+function calGoToday() { var t = new Date(); calMonth = t.getMonth(); calYear = t.getFullYear(); renderCalendar(); }
+
+/* ════ CLIENT FORM ════ */
 function openClientForm(clientId) {
-  var overlay = document.getElementById('clientFormOverlay');
   var title = document.getElementById('clientFormTitle');
-  document.getElementById('cfId').value = '';
-  document.getElementById('cfName').value = '';
-  document.getElementById('cfBusiness').value = '';
-  document.getElementById('cfPhone').value = '';
-  document.getElementById('cfEmail').value = '';
-  document.getElementById('cfGhlId').value = '';
-  document.getElementById('cfDeadlineScripts').value = '';
-  document.getElementById('cfDeadlineScriptsSent').value = '';
-  document.getElementById('cfDeadlineFilming').value = '';
-  document.getElementById('cfDeadlinePublication').value = '';
-  document.getElementById('cfDeadlineProject').value = '';
+  ['cfId','cfName','cfBusiness','cfPhone','cfEmail','cfGhlId','cfDeadlineScripts','cfDeadlineScriptsSent','cfDeadlineFilming','cfDeadlinePublication','cfDeadlineProject'].forEach(function(id) {
+    document.getElementById(id).value = '';
+  });
   document.getElementById('cfNotes').value = '';
 
   if (clientId) {
     title.textContent = 'Modifier le client';
-    var clients = loadClients();
-    var c = clients.find(function(x) { return x.id === clientId; });
+    var c = loadClients().find(function(x) { return x.id === clientId; });
     if (c) {
       document.getElementById('cfId').value = c.id;
       document.getElementById('cfName').value = c.name || '';
@@ -2554,14 +2916,12 @@ function openClientForm(clientId) {
       document.getElementById('cfNotes').value = c.notes || '';
     }
   } else {
-    title.textContent = 'Ajouter un client';
+    title.textContent = 'Nouveau client';
   }
-  overlay.classList.add('open');
+  document.getElementById('clientFormOverlay').classList.add('open');
 }
 
-function closeClientForm() {
-  document.getElementById('clientFormOverlay').classList.remove('open');
-}
+function closeClientForm() { document.getElementById('clientFormOverlay').classList.remove('open'); }
 
 function saveClient() {
   var name = document.getElementById('cfName').value.trim();
@@ -2572,12 +2932,7 @@ function saveClient() {
   var clients = loadClients();
   var id = document.getElementById('cfId').value;
   var existing = id ? clients.find(function(c) { return c.id === id; }) : null;
-
-  var client = existing || {
-    id: 'cli_' + Date.now(),
-    steps: {},
-    createdAt: Date.now()
-  };
+  var client = existing || { id: 'cli_' + Date.now(), steps: {}, createdAt: Date.now() };
 
   client.name = name;
   client.business = business;
@@ -2589,31 +2944,25 @@ function saveClient() {
   client.updatedAt = Date.now();
 
   if (!client.steps) client.steps = {};
-  var deadlineFields = {
-    scripts: 'cfDeadlineScripts',
-    scriptsSent: 'cfDeadlineScriptsSent',
-    filming: 'cfDeadlineFilming',
-    publication: 'cfDeadlinePublication'
-  };
-  Object.keys(deadlineFields).forEach(function(key) {
+  var fields = { scripts:'cfDeadlineScripts', scriptsSent:'cfDeadlineScriptsSent', filming:'cfDeadlineFilming', publication:'cfDeadlinePublication' };
+  Object.keys(fields).forEach(function(key) {
     if (!client.steps[key]) client.steps[key] = { done: false };
-    client.steps[key].deadline = document.getElementById(deadlineFields[key]).value || '';
+    client.steps[key].deadline = document.getElementById(fields[key]).value || '';
   });
   if (!client.steps.filmingValidated) client.steps.filmingValidated = { done: false };
 
   if (!existing) clients.push(client);
   saveClients(clients);
   closeClientForm();
-  renderClients();
+  renderClientsView();
 }
 
 function editClient(id) { openClientForm(id); }
 
 function deleteClient(id) {
   if (!confirm('Supprimer ce client ?')) return;
-  var clients = loadClients().filter(function(c) { return c.id !== id; });
-  saveClients(clients);
-  renderClients();
+  saveClients(loadClients().filter(function(c) { return c.id !== id; }));
+  renderClientsView();
 }
 
 function toggleStep(clientId, stepKey) {
@@ -2625,14 +2974,15 @@ function toggleStep(clientId, stepKey) {
   c.steps[stepKey].done = !c.steps[stepKey].done;
   c.updatedAt = Date.now();
   saveClients(clients);
-  renderClients();
+  renderClientsView();
 }
 
+/* ════ CLIENT EVENT LISTENERS ════ */
 document.getElementById('addClientBtn').addEventListener('click', function() { openClientForm(); });
 
 document.getElementById('clientSearch').addEventListener('input', function() {
   clientSearchQuery = this.value.trim();
-  renderClients();
+  renderClientsView();
 });
 
 document.getElementById('clientFilterBtns').addEventListener('click', function(e) {
@@ -2642,7 +2992,19 @@ document.getElementById('clientFilterBtns').addEventListener('click', function(e
   this.querySelectorAll('.filter-btn').forEach(function(b) {
     b.classList.toggle('active', b.dataset.cfilter === clientFilter);
   });
-  renderClients();
+  renderClientsView();
+});
+
+document.getElementById('clientViewToggle').addEventListener('click', function(e) {
+  var btn = e.target.closest('button');
+  if (!btn || !btn.dataset.view) return;
+  clientViewMode = btn.dataset.view;
+  this.querySelectorAll('button').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.view === clientViewMode);
+  });
+  document.getElementById('clientCardsView').style.display = clientViewMode === 'cards' ? '' : 'none';
+  document.getElementById('clientCalView').style.display = clientViewMode === 'calendar' ? '' : 'none';
+  renderClientsView();
 });
 
 document.querySelectorAll('#clientFormOverlay .form-input, #clientFormOverlay .form-textarea').forEach(function(el) {
