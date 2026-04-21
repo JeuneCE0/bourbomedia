@@ -270,6 +270,26 @@
     .log-action strong { color:var(--white); }
     .log-time { font-size:.72rem; color:var(--text-muted); margin-top:2px; }
 
+    /* ── USERS MANAGEMENT ── */
+    .settings-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:20px; }
+    .settings-tab { padding:10px 18px; border:none; background:transparent; color:var(--text-muted); font-family:'Bricolage Grotesque',sans-serif; font-weight:600; font-size:.82rem; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:all .2s; }
+    .settings-tab.active { color:var(--white); border-bottom-color:var(--orange); }
+    .settings-tab:hover { color:var(--orange-light); }
+    .user-list { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+    .user-item { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--night-mid); border:1px solid var(--border); border-radius:var(--radius-xs); transition:border-color .2s; }
+    .user-item:hover { border-color:var(--border-orange); }
+    .user-avatar-sm { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,var(--orange),var(--orange-dark)); display:flex; align-items:center; justify-content:center; font-family:'Bricolage Grotesque',sans-serif; font-weight:800; font-size:.75rem; color:var(--white); flex-shrink:0; }
+    .user-info { flex:1; min-width:0; }
+    .user-email { font-size:.85rem; font-weight:600; color:var(--white); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .user-role { font-size:.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+    .user-role-badge { display:inline-flex; padding:2px 8px; border-radius:10px; font-size:.62rem; font-weight:700; }
+    .user-role-badge.admin { background:rgba(232,105,43,.12); color:var(--orange); border:1px solid rgba(232,105,43,.2); }
+    .user-role-badge.viewer { background:rgba(255,255,255,.04); color:var(--text-mid); border:1px solid var(--border); }
+    .user-actions { display:flex; gap:4px; }
+    .user-empty { text-align:center; padding:24px; color:var(--text-muted); font-size:.85rem; }
+    .add-user-form { padding:14px; background:var(--night-mid); border:1px solid var(--border); border-radius:var(--radius-xs); }
+    .add-user-form .form-grid { gap:10px; }
+
     /* ── CLIENTS TAB ── */
     .clients-toolbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
     .clients-search { flex:1; min-width:200px; padding:12px 16px; border-radius:var(--radius-sm); border:1px solid var(--border-md); background:var(--night-mid); color:var(--text); font-size:.9rem; outline:none; font-family:inherit; }
@@ -1003,23 +1023,73 @@
 
 <!-- ════ SETTINGS MODAL ════ -->
 <div id="settingsOverlay" class="modal-overlay">
-  <div class="modal" style="max-width:400px;">
+  <div class="modal" style="max-width:520px;">
     <div class="modal-header">
       <span class="modal-title">Paramètres</span>
       <button class="modal-close" onclick="document.getElementById('settingsOverlay').classList.remove('open');document.body.style.overflow='';">&times;</button>
     </div>
-    <div style="padding:28px;">
-      <div class="form-section-title" style="margin-top:0;padding-top:0;border-top:none;">Changer le mot de passe</div>
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label">Mot de passe actuel</label>
-        <input type="password" id="currentPass" class="form-input">
+    <div style="padding:0 28px 28px;">
+      <div class="settings-tabs" id="settingsTabs">
+        <button class="settings-tab active" data-stab="password">Mot de passe</button>
+        <button class="settings-tab" data-stab="users">Utilisateurs</button>
       </div>
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label">Nouveau mot de passe</label>
-        <input type="password" id="newPass" class="form-input">
+
+      <!-- Tab: Mot de passe -->
+      <div id="stabPassword">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Mot de passe actuel</label>
+          <input type="password" id="currentPass" class="form-input">
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Nouveau mot de passe</label>
+          <input type="password" id="newPass" class="form-input">
+        </div>
+        <button id="changePassBtn" class="btn-save" style="width:100%;">Mettre à jour</button>
+        <div id="passMsg" style="margin-top:12px;font-size:.82rem;min-height:20px;"></div>
       </div>
-      <button id="changePassBtn" class="btn-save" style="width:100%;">Mettre à jour</button>
-      <div id="passMsg" style="margin-top:12px;font-size:.82rem;min-height:20px;"></div>
+
+      <!-- Tab: Utilisateurs -->
+      <div id="stabUsers" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <span style="font-size:.82rem;color:var(--text-muted);">Gérez les accès à l'administration</span>
+          <button id="toggleAddUser" class="btn-add" style="padding:8px 16px;font-size:.78rem;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Ajouter
+          </button>
+        </div>
+
+        <div id="addUserForm" class="add-user-form" style="display:none;margin-bottom:16px;">
+          <input type="hidden" id="editUserId">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Email *</label>
+              <input type="email" id="newUserEmail" class="form-input" placeholder="simeon@bourbonmedia.fr">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mot de passe *</label>
+              <input type="password" id="newUserPass" class="form-input" placeholder="Min. 6 caractères">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Rôle</label>
+              <select id="newUserRole" class="form-select">
+                <option value="admin">Admin (accès complet)</option>
+                <option value="viewer">Lecteur (lecture seule)</option>
+              </select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;">
+              <div style="display:flex;gap:8px;width:100%;">
+                <button id="saveUserBtn" class="btn-save" style="flex:1;">Créer l'accès</button>
+                <button class="btn-logout" onclick="document.getElementById('addUserForm').style.display='none';document.getElementById('editUserId').value='';">Annuler</button>
+              </div>
+            </div>
+          </div>
+          <div id="userFormMsg" style="margin-top:10px;font-size:.82rem;min-height:18px;"></div>
+        </div>
+
+        <div id="userList" class="user-list">
+          <div class="user-empty">Chargement...</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1914,11 +1984,121 @@ function stopAutoSave() {
   localStorage.removeItem(DRAFT_KEY);
 }
 
-/* ════ SETTINGS / PASSWORD ════ */
+/* ════ SETTINGS / PASSWORD / USERS ════ */
 document.getElementById('settingsBtn').addEventListener('click', function() {
   document.getElementById('settingsOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 });
+
+document.getElementById('settingsTabs').addEventListener('click', function(e) {
+  var btn = e.target.closest('.settings-tab');
+  if (!btn) return;
+  var tab = btn.dataset.stab;
+  this.querySelectorAll('.settings-tab').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.stab === tab);
+  });
+  document.getElementById('stabPassword').style.display = tab === 'password' ? '' : 'none';
+  document.getElementById('stabUsers').style.display = tab === 'users' ? '' : 'none';
+  if (tab === 'users') loadUsers();
+});
+
+document.getElementById('toggleAddUser').addEventListener('click', function() {
+  var form = document.getElementById('addUserForm');
+  document.getElementById('editUserId').value = '';
+  document.getElementById('newUserEmail').value = '';
+  document.getElementById('newUserPass').value = '';
+  document.getElementById('newUserRole').value = 'admin';
+  document.getElementById('userFormMsg').textContent = '';
+  document.getElementById('saveUserBtn').textContent = "Créer l'accès";
+  form.style.display = form.style.display === 'none' ? '' : 'none';
+});
+
+document.getElementById('saveUserBtn').addEventListener('click', async function() {
+  var email = document.getElementById('newUserEmail').value.trim();
+  var pass = document.getElementById('newUserPass').value;
+  var role = document.getElementById('newUserRole').value;
+  var editId = document.getElementById('editUserId').value;
+  var msg = document.getElementById('userFormMsg');
+
+  if (!email) { document.getElementById('newUserEmail').classList.add('invalid'); return; }
+  if (!editId && (!pass || pass.length < 6)) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'Mot de passe requis (min. 6 caractères)';
+    return;
+  }
+
+  try {
+    var body = { email: email, role: role };
+    if (pass) body.password = pass;
+    var method = editId ? 'PUT' : 'POST';
+    if (editId) body.id = editId;
+
+    var r = await fetch(API + '/api/admin?action=users', {
+      method: method,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(body)
+    });
+    var d = await r.json();
+    if (!r.ok) { msg.style.color = 'var(--red)'; msg.textContent = d.error || 'Erreur'; return; }
+    msg.style.color = 'var(--green)';
+    msg.textContent = editId ? 'Utilisateur modifié' : 'Accès créé avec succès';
+    document.getElementById('newUserEmail').value = '';
+    document.getElementById('newUserPass').value = '';
+    document.getElementById('editUserId').value = '';
+    setTimeout(function() { document.getElementById('addUserForm').style.display = 'none'; }, 1200);
+    loadUsers();
+  } catch(e) { msg.style.color = 'var(--red)'; msg.textContent = 'Erreur réseau'; }
+});
+
+async function loadUsers() {
+  var list = document.getElementById('userList');
+  try {
+    var r = await fetch(API + '/api/admin?action=users', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!r.ok) { list.innerHTML = '<div class="user-empty">Impossible de charger les utilisateurs</div>'; return; }
+    var users = await r.json();
+    if (!users.length) { list.innerHTML = '<div class="user-empty">Aucun utilisateur</div>'; return; }
+
+    list.innerHTML = users.map(function(u) {
+      var initials = (u.email || '?')[0].toUpperCase();
+      var roleBadge = u.role === 'admin'
+        ? '<span class="user-role-badge admin">Admin</span>'
+        : '<span class="user-role-badge viewer">Lecteur</span>';
+      return '<div class="user-item" data-user-id="' + u.id + '">'
+        + '<div class="user-avatar-sm">' + initials + '</div>'
+        + '<div class="user-info"><div class="user-email">' + u.email + '</div>'
+        + '<div class="user-role">' + roleBadge + '</div></div>'
+        + '<div class="user-actions">'
+        + '<button class="btn-icon edit" onclick="editUser(\'' + u.id + '\',\'' + u.email.replace(/'/g,"\\'") + '\',\'' + u.role + '\')" title="Modifier">&#9998;</button>'
+        + '<button class="btn-icon del" onclick="deleteUser(\'' + u.id + '\',\'' + u.email.replace(/'/g,"\\'") + '\')" title="Supprimer">&times;</button>'
+        + '</div></div>';
+    }).join('');
+  } catch(e) { list.innerHTML = '<div class="user-empty">Erreur de connexion au serveur</div>'; }
+}
+
+function editUser(id, email, role) {
+  document.getElementById('addUserForm').style.display = '';
+  document.getElementById('editUserId').value = id;
+  document.getElementById('newUserEmail').value = email;
+  document.getElementById('newUserPass').value = '';
+  document.getElementById('newUserRole').value = role;
+  document.getElementById('saveUserBtn').textContent = 'Modifier';
+  document.getElementById('userFormMsg').textContent = '';
+}
+
+async function deleteUser(id, email) {
+  if (!confirm('Supprimer l\'accès de ' + email + ' ?')) return;
+  try {
+    var r = await fetch(API + '/api/admin?action=users', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ id: id })
+    });
+    if (r.ok) loadUsers();
+    else { var d = await r.json(); showToast(d.error || 'Erreur', 'error'); }
+  } catch(e) { showToast('Erreur réseau', 'error'); }
+}
 
 document.getElementById('changePassBtn').addEventListener('click', async function() {
   var cur = document.getElementById('currentPass').value;
