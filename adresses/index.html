@@ -2190,6 +2190,7 @@
     modalOverlay.classList.remove('open');
     document.body.style.overflow = '';
     history.replaceState({}, '', window.location.pathname);
+    map.flyTo(initialCenter, initialZoom, { duration: .8 });
     setTimeout(function () {
       document.getElementById('modalEmbed').innerHTML = '';
     }, 350);
