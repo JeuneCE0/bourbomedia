@@ -16,7 +16,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [collapsed, setCollapsed] = useState(false);
   const [checking, setChecking] = useState(true);
 
-  const isLoginPage = pathname === '/dashboard/login';
+  const isLoginPage = pathname === '/dashboard/login' || pathname === '/dashboard/login/';
 
   useEffect(() => {
     if (isLoginPage) { setChecking(false); return; }
