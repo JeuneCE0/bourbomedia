@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
+import { findNextAvailableSlot, bookFilmingSlot, computePublicationDeadline } from '@/lib/filming';
+import { notifyScriptValidated, notifyFilmingScheduled } from '@/lib/slack';
+import { sendWhatsAppMessage, sendEmailMessage } from '@/lib/ghl';
 
 export async function GET(req: NextRequest) {
   const clientId = req.nextUrl.searchParams.get('client_id');
@@ -73,10 +76,53 @@ export async function PUT(req: NextRequest) {
         }, true);
         if (!sr.ok) return NextResponse.json({ error: await sr.text() }, { status: sr.status });
 
+        // Fetch client info for notifications
+        const clientR = await supaFetch(`clients?id=eq.${cid}&select=*`, {}, true);
+        const clientData = clientR.ok ? await clientR.json() : [];
+        const client = clientData[0] || {};
+
+        // Auto-book first available filming slot
+        const filmingDate = await findNextAvailableSlot();
+        const updateFields: Record<string, unknown> = { status: 'script_validated', updated_at: new Date().toISOString() };
+
+        if (filmingDate) {
+          await bookFilmingSlot(filmingDate, cid);
+          updateFields.status = 'filming_scheduled';
+          updateFields.filming_date = filmingDate;
+          updateFields.publication_deadline = computePublicationDeadline(filmingDate);
+        }
+
         await supaFetch(`clients?id=eq.${cid}`, {
           method: 'PATCH',
-          body: JSON.stringify({ status: 'script_validated', updated_at: new Date().toISOString() }),
+          body: JSON.stringify(updateFields),
         }, true);
+
+        // Slack notification
+        notifyScriptValidated(client.business_name || 'Client', client.contact_name || '');
+        if (filmingDate) {
+          notifyFilmingScheduled(client.business_name || 'Client', filmingDate);
+        }
+
+        // GHL WhatsApp + Email notifications
+        if (client.ghl_contact_id) {
+          const dateFormatted = filmingDate
+            ? new Date(filmingDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+            : '';
+
+          sendWhatsAppMessage(client.ghl_contact_id,
+            filmingDate
+              ? `Bonjour ${client.contact_name} ! Votre script a été validé. Votre tournage est prévu le ${dateFormatted}. L'équipe BourbonMédia vous contactera pour les détails. À bientôt !`
+              : `Bonjour ${client.contact_name} ! Votre script a été validé. Nous allons planifier votre tournage très prochainement. À bientôt !`
+          );
+
+          sendEmailMessage(client.ghl_contact_id,
+            'Script validé — BourbonMédia',
+            `<p>Bonjour ${client.contact_name},</p>
+            <p>Votre script vidéo a été <strong>validé avec succès</strong> !</p>
+            ${filmingDate ? `<p>Votre tournage est prévu le <strong>${dateFormatted}</strong>.</p>` : '<p>Nous planifions votre tournage et reviendrons vers vous rapidement.</p>'}
+            <p>L'équipe BourbonMédia</p>`
+          );
+        }
 
         const data = await sr.json();
         return NextResponse.json(data[0]);

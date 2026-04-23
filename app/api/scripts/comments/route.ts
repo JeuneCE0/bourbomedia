@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
+import { notifyNewComment } from '@/lib/slack';
 
 export async function POST(req: NextRequest) {
   const portalToken = req.nextUrl.searchParams.get('token');
@@ -8,7 +9,7 @@ export async function POST(req: NextRequest) {
 
   if (portalToken) {
     try {
-      const cr = await supaFetch(`clients?portal_token=eq.${portalToken}&select=id,contact_name`, {}, true);
+      const cr = await supaFetch(`clients?portal_token=eq.${portalToken}&select=id,contact_name,business_name`, {}, true);
       if (!cr.ok) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
       const clients = await cr.json();
       if (!clients.length) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
       }, true);
       if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
       const data = await r.json();
+      notifyNewComment(clients[0].business_name || 'Client', clients[0].contact_name, 'client', body.content);
       return NextResponse.json(data[0], { status: 201 });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
