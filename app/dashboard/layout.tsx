@@ -68,7 +68,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   );
 
-  const isActive = (href: string) => href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(href);
+  const p = pathname?.replace(/\/$/, '') || '';
+  const isActive = (href: string) => href === '/dashboard' ? p === '/dashboard' : p.startsWith(href);
 
   const closeMobileSidebar = useCallback(() => setMobileOpen(false), []);
 
