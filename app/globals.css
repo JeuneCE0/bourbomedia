@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+:root {
+  --orange: #E8692B;
+  --orange-dark: #C9541E;
+  --orange-light: #F28C55;
+  --night: #1A1008;
+  --night-mid: #1E1309;
+  --night-card: #251B0D;
+  --night-card-hover: #2D2010;
+  --night-raised: #312213;
+  --border: rgba(255,255,255,.07);
+  --border-md: rgba(255,255,255,.12);
+  --border-orange: rgba(232,105,43,.35);
+  --text: #F5EBE0;
+  --text-mid: #C4A98A;
+  --text-muted: #8A7060;
+  --white: #FFFFFF;
+  --green: #22C55E;
+  --red: #EF4444;
+  --yellow: #FACC15;
+}
+
+body {
+  font-family: 'Instrument Sans', -apple-system, sans-serif;
+  background: var(--night);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--night-mid); }
+::-webkit-scrollbar-thumb { background: var(--orange); border-radius: 10px; }
+
+.tiptap {
+  outline: none;
+  min-height: 300px;
+  padding: 20px;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+.tiptap p { margin-bottom: 0.75em; }
+.tiptap h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5em; color: var(--white); }
+.tiptap h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5em; color: var(--white); }
+.tiptap h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5em; color: var(--white); }
+.tiptap ul, .tiptap ol { padding-left: 1.5em; margin-bottom: 0.75em; }
+.tiptap li { margin-bottom: 0.25em; }
+.tiptap blockquote { border-left: 3px solid var(--orange); padding-left: 1em; color: var(--text-mid); font-style: italic; margin-bottom: 0.75em; }
+.tiptap mark { background: rgba(232,105,43,.25); color: var(--white); padding: 0 4px; border-radius: 2px; }
+.tiptap strong { color: var(--white); }
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-muted);
+  pointer-events: none;
+  height: 0;
+}
