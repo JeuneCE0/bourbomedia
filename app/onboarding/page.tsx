@@ -227,44 +227,66 @@ function OnboardingContent() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '12px 16px',
-    background: 'var(--night-mid)',
-    border: '1px solid var(--border-md)',
-    borderRadius: 10,
+    padding: '14px 18px',
+    background: 'rgba(255,255,255,.04)',
+    border: '1px solid rgba(255,255,255,.08)',
+    borderRadius: 12,
     color: 'var(--text)',
-    fontSize: '0.9rem',
+    fontSize: '0.92rem',
     outline: 'none',
-    transition: 'border-color .2s',
+    transition: 'all .2s ease',
+    fontFamily: 'inherit',
   };
 
   const btnPrimary: React.CSSProperties = {
     width: '100%',
     padding: '14px 24px',
-    background: 'var(--orange)',
+    background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
     color: '#fff',
     border: 'none',
-    borderRadius: 10,
+    borderRadius: 12,
     fontSize: '0.95rem',
     fontWeight: 600,
     cursor: 'pointer',
-    transition: 'all .2s',
+    transition: 'all .2s ease',
+    boxShadow: '0 4px 14px rgba(249,115,22,.3), inset 0 1px 0 rgba(255,255,255,.15)',
+    letterSpacing: '.2px',
   };
 
   const btnSecondary: React.CSSProperties = {
-    ...btnPrimary,
-    background: 'transparent',
-    border: '1px solid var(--border-md)',
+    width: '100%',
+    padding: '14px 24px',
+    background: 'rgba(255,255,255,.04)',
     color: 'var(--text-mid)',
+    border: '1px solid rgba(255,255,255,.1)',
+    borderRadius: 12,
+    fontSize: '0.95rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all .2s ease',
   };
 
   const cardStyle: React.CSSProperties = {
-    background: 'var(--night-card)',
-    border: '1px solid var(--border)',
-    borderRadius: 16,
-    padding: '32px',
-    maxWidth: 520,
+    background: 'rgba(15,15,25,.7)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255,255,255,.08)',
+    borderRadius: 20,
+    padding: '36px',
+    maxWidth: 560,
     width: '100%',
     margin: '0 auto',
+    boxShadow: '0 1px 0 0 rgba(251,146,60,.12) inset, 0 8px 32px rgba(0,0,0,.3)',
+    animation: 'slideUp .5s cubic-bezier(.16,1,.3,1)',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '0.78rem',
+    color: 'var(--text-mid)',
+    marginBottom: 6,
+    display: 'block',
+    fontWeight: 500,
+    letterSpacing: '.3px',
   };
 
   // Render stepper
@@ -291,42 +313,56 @@ function OnboardingContent() {
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 6,
-              minWidth: 56,
+              gap: 8,
+              minWidth: 62,
             }}>
               <div style={{
-                width: 36,
-                height: 36,
+                width: 42,
+                height: 42,
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: isDone ? '1rem' : '0.8rem',
+                fontSize: isDone ? '1.1rem' : '0.9rem',
                 fontWeight: 700,
-                background: isDone ? 'var(--green)' : isActive ? 'var(--orange)' : 'var(--night-mid)',
+                background: isDone
+                  ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+                  : isActive
+                    ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)'
+                    : 'rgba(255,255,255,.04)',
                 color: isDone || isActive ? '#fff' : 'var(--text-muted)',
-                border: isFuture ? '2px solid var(--border-md)' : 'none',
+                border: isFuture ? '1px solid rgba(255,255,255,.08)' : 'none',
+                boxShadow: isActive
+                  ? '0 0 0 4px rgba(249,115,22,.12), 0 4px 14px rgba(249,115,22,.35)'
+                  : isDone
+                    ? '0 4px 14px rgba(34,197,94,.25)'
+                    : 'none',
+                animation: isActive ? 'pulse 2.5s ease-in-out infinite' : 'none',
                 transition: 'all .3s',
               }}>
                 {isDone ? '✓' : step.icon}
               </div>
               <span style={{
-                fontSize: '0.65rem',
+                fontSize: '0.7rem',
                 fontWeight: isActive ? 600 : 400,
                 color: isDone ? 'var(--green)' : isActive ? 'var(--orange)' : 'var(--text-muted)',
                 textAlign: 'center',
                 whiteSpace: 'nowrap',
+                letterSpacing: '.2px',
               }}>
                 {step.label}
               </span>
             </div>
             {step.num < STEPS.length && (
               <div style={{
-                width: 24,
+                width: 32,
                 height: 2,
-                background: isDone ? 'var(--green)' : 'var(--border-md)',
-                marginBottom: 20,
+                background: isDone
+                  ? 'linear-gradient(90deg, #22c55e, #16a34a)'
+                  : 'rgba(255,255,255,.08)',
+                marginBottom: 26,
                 borderRadius: 1,
+                transition: 'all .3s',
               }} />
             )}
           </div>
@@ -1033,35 +1069,85 @@ function OnboardingContent() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'var(--night)',
+      background: 'linear-gradient(135deg, #0a0a0f 0%, #0d1117 50%, #0a0f1a 100%)',
       display: 'flex',
       flexDirection: 'column',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
+      {/* Background orbs */}
+      <div style={{
+        position: 'fixed',
+        top: '-20%',
+        right: '-15%',
+        width: 600,
+        height: 600,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(249,115,22,.12) 0%, transparent 60%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
+      <div style={{
+        position: 'fixed',
+        bottom: '-20%',
+        left: '-15%',
+        width: 600,
+        height: 600,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(59,130,246,.08) 0%, transparent 60%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
+
       {/* Header */}
       <header style={{
-        padding: '20px 24px',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        padding: '24px',
+        position: 'relative',
+        zIndex: 1,
+        borderBottom: '1px solid rgba(255,255,255,.06)',
+        background: 'rgba(10,10,15,.5)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
       }}>
-        <span style={{
-          fontFamily: "'Bricolage Grotesque', sans-serif",
-          fontWeight: 700,
-          fontSize: '1.2rem',
-          color: 'var(--orange)',
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 4,
         }}>
-          BourbonMédia
-        </span>
+          <span style={{
+            fontFamily: "'Bricolage Grotesque', sans-serif",
+            fontWeight: 800,
+            fontSize: '1.45rem',
+            background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            letterSpacing: '-.5px',
+          }}>
+            BourbonM&eacute;dia
+          </span>
+          <span style={{
+            fontSize: '0.7rem',
+            color: 'var(--text-muted)',
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase',
+            fontWeight: 500,
+          }}>
+            Production vid&eacute;o professionnelle
+          </span>
+        </div>
       </header>
 
       {/* Main content */}
       <main style={{
         flex: 1,
-        padding: '32px 16px',
-        maxWidth: 640,
+        padding: '40px 16px',
+        maxWidth: 720,
         width: '100%',
         margin: '0 auto',
+        position: 'relative',
+        zIndex: 1,
       }}>
         {currentStep >= 1 && currentStep <= 7 && renderStepper()}
         {renderCurrentStep()}
@@ -1069,12 +1155,17 @@ function OnboardingContent() {
 
       {/* Footer */}
       <footer style={{
-        padding: '16px 24px',
-        borderTop: '1px solid var(--border)',
+        padding: '24px',
+        borderTop: '1px solid rgba(255,255,255,.06)',
         textAlign: 'center',
+        position: 'relative',
+        zIndex: 1,
+        background: 'rgba(10,10,15,.5)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
       }}>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0 }}>
-          BourbonMédia — Production vidéo à La Réunion
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0, letterSpacing: '.3px' }}>
+          BourbonM&eacute;dia &mdash; Production vid&eacute;o &agrave; La R&eacute;union
         </p>
       </footer>
 
@@ -1086,6 +1177,29 @@ function OnboardingContent() {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+          0%, 100% { box-shadow: 0 0 0 4px rgba(249,115,22,.12), 0 4px 14px rgba(249,115,22,.35); }
+          50% { box-shadow: 0 0 0 8px rgba(249,115,22,.08), 0 6px 20px rgba(249,115,22,.5); }
+        }
+        input:focus, select:focus, textarea:focus {
+          border-color: rgba(249,115,22,.5) !important;
+          background: rgba(255,255,255,.06) !important;
+          box-shadow: 0 0 0 3px rgba(249,115,22,.1);
+        }
+        button:hover:not(:disabled) {
+          transform: translateY(-1px);
+          filter: brightness(1.05);
+        }
+        button:active:not(:disabled) {
+          transform: translateY(0);
+        }
+        a:hover {
+          filter: brightness(1.05);
+        }
       `}</style>
     </div>
   );
@@ -1096,7 +1210,7 @@ export default function OnboardingPage() {
     <Suspense fallback={
       <div style={{
         minHeight: '100vh',
-        background: 'var(--night)',
+        background: 'linear-gradient(135deg, #0a0a0f 0%, #0d1117 50%, #0a0f1a 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
