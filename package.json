@@ -16,6 +16,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.2.0",
+    "@stripe/stripe-js": "^9.3.1",
     "@supabase/supabase-js": "^2.104.1",
     "@tailwindcss/postcss": "^4.2.4",
     "@tiptap/extension-color": "^3.22.4",

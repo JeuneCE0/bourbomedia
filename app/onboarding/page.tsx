@@ -2,6 +2,12 @@
 
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { loadStripe } from '@stripe/stripe-js';
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js';
+
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : null;
 
 const STEPS = [
   { num: 1, label: 'Compte', icon: '◉' },
@@ -49,11 +55,7 @@ function OnboardingContent() {
   const [form, setForm] = useState({ business_name: '', contact_name: '', email: '', phone: '', password: '', passwordConfirm: '' });
 
   // Step 2 state
-  const [signingUrl, setSigningUrl] = useState('');
   const [checkingContract, setCheckingContract] = useState(false);
-
-  // Step 3 state
-  const [creatingPayment, setCreatingPayment] = useState(false);
 
   // Step 4 state
   const [calBooking, setCalBooking] = useState(false);
@@ -133,22 +135,6 @@ function OnboardingContent() {
     }
   };
 
-  // Step 2: Init contract signing
-  const handleInitContract = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const r = await api('init_contract');
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error);
-      setSigningUrl(data.signatureLink);
-    } catch (e: unknown) {
-      setError((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Step 2: Confirm contract signed
   const handleCheckContract = async () => {
     setCheckingContract(true);
@@ -165,22 +151,6 @@ function OnboardingContent() {
       setError('Erreur de confirmation');
     } finally {
       setCheckingContract(false);
-    }
-  };
-
-  // Step 3: Create payment
-  const handlePayment = async () => {
-    setCreatingPayment(true);
-    setError('');
-    try {
-      const r = await api('create_payment');
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error);
-      window.location.href = data.checkoutUrl;
-    } catch (e: unknown) {
-      setError((e as Error).message);
-    } finally {
-      setCreatingPayment(false);
     }
   };
 
@@ -526,18 +496,40 @@ function OnboardingContent() {
     </div>
   );
 
-  // Step 3: Payment
+  // Step 3: Payment (Embedded Stripe Checkout)
+  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (currentStep === 3 && token && !client?.paid_at && !stripeClientSecret && paymentStatus !== 'success') {
+      (async () => {
+        setError('');
+        try {
+          const r = await fetch(`/api/onboarding?token=${token}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'create_payment' }),
+          });
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.error);
+          setStripeClientSecret(data.clientSecret);
+        } catch (e: unknown) {
+          setError((e as Error).message);
+        }
+      })();
+    }
+  }, [currentStep, token, client?.paid_at, stripeClientSecret, paymentStatus]);
+
   const renderStep3 = () => {
     const isPaid = !!client?.paid_at;
     return (
-      <div style={cardStyle}>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: '2rem', marginBottom: 8 }}>€</div>
+      <div style={{ ...cardStyle, maxWidth: isPaid || paymentStatus === 'success' ? 520 : 640 }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#8364;</div>
           <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
             Paiement
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-            {isPaid ? 'Votre paiement a été confirmé !' : 'Réglez votre prestation de manière sécurisée via Stripe.'}
+            {isPaid ? 'Votre paiement a été confirmé !' : 'Réglez votre prestation de manière sécurisée.'}
           </p>
         </div>
 
@@ -549,10 +541,10 @@ function OnboardingContent() {
             borderRadius: 12,
             textAlign: 'center',
           }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>✓</div>
-            <p style={{ color: 'var(--green)', fontWeight: 600, margin: 0 }}>Paiement reçu</p>
+            <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#10003;</div>
+            <p style={{ color: 'var(--green)', fontWeight: 600, margin: 0 }}>Paiement re&ccedil;u</p>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 4 }}>
-              Payé le {new Date(client!.paid_at!).toLocaleDateString('fr-FR')}
+              Pay&eacute; le {new Date(client!.paid_at!).toLocaleDateString('fr-FR')}
             </p>
           </div>
         ) : paymentStatus === 'success' ? (
@@ -563,35 +555,30 @@ function OnboardingContent() {
             borderRadius: 12,
             textAlign: 'center',
           }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>✓</div>
+            <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#10003;</div>
             <p style={{ color: 'var(--green)', fontWeight: 600, margin: 0 }}>Paiement en cours de traitement</p>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 4 }}>
-              Votre paiement est en cours de vérification. Cette page se mettra à jour automatiquement.
+              Votre paiement est en cours de v&eacute;rification. Cette page se mettra &agrave; jour automatiquement.
             </p>
           </div>
+        ) : stripeClientSecret && stripePromise ? (
+          <div style={{ borderRadius: 12, overflow: 'hidden' }}>
+            <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret: stripeClientSecret }}>
+              <EmbeddedCheckout />
+            </EmbeddedCheckoutProvider>
+          </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ textAlign: 'center', padding: '32px 0' }}>
             <div style={{
-              padding: '20px',
-              background: 'var(--night-mid)',
-              borderRadius: 12,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--text-mid)', fontSize: '0.9rem' }}>Production vidéo</span>
-                <span style={{ color: 'var(--white)', fontSize: '1.1rem', fontWeight: 700 }}>499,00 €</span>
-              </div>
-            </div>
-            <button
-              onClick={handlePayment}
-              disabled={creatingPayment}
-              style={{ ...btnPrimary, opacity: creatingPayment ? 0.6 : 1 }}
-            >
-              {creatingPayment ? 'Redirection…' : 'Payer par carte bancaire'}
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-              <span>🔒</span>
-              <span>Paiement sécurisé par Stripe</span>
-            </div>
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              border: '3px solid var(--border-md)',
+              borderTopColor: 'var(--orange)',
+              margin: '0 auto 16px',
+              animation: 'spin 1s linear infinite',
+            }} />
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Chargement du paiement&hellip;</p>
           </div>
         )}
 
