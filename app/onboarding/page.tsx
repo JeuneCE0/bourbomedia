@@ -56,6 +56,7 @@ function OnboardingContent() {
 
   // Step 2 state
   const [checkingContract, setCheckingContract] = useState(false);
+  const [showSignedBtn, setShowSignedBtn] = useState(false);
 
   // Step 4 state
   const [calBooking, setCalBooking] = useState(false);
@@ -434,10 +435,17 @@ function OnboardingContent() {
     return base + sep + params.toString();
   })();
 
+  useEffect(() => {
+    if (currentStep === 2 && !showSignedBtn) {
+      const timer = setTimeout(() => setShowSignedBtn(true), 30000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, showSignedBtn]);
+
   const renderStep2 = () => (
-    <div style={{ ...cardStyle, maxWidth: 720 }}>
+    <div style={{ ...cardStyle, maxWidth: 900 }}>
       <div style={{ textAlign: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>✎</div>
+        <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#9998;</div>
         <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
           Signature du contrat
         </h2>
@@ -457,8 +465,8 @@ function OnboardingContent() {
             src={contractPublicUrl}
             style={{
               width: '100%',
-              height: '70vh',
-              minHeight: 500,
+              height: '80vh',
+              minHeight: 600,
               border: 'none',
               display: 'block',
             }}
@@ -467,17 +475,24 @@ function OnboardingContent() {
           />
         </div>
 
-        <button
-          onClick={handleCheckContract}
-          disabled={checkingContract}
-          style={{ ...btnPrimary, opacity: checkingContract ? 0.6 : 1 }}
-        >
-          {checkingContract ? 'Vérification…' : 'J\'ai signé mon contrat — vérifier'}
-        </button>
-
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
-          Remplissez et signez dans le formulaire ci-dessus, puis cliquez sur &laquo; J&apos;ai sign&eacute; &raquo;
-        </p>
+        {showSignedBtn ? (
+          <>
+            <button
+              onClick={handleCheckContract}
+              disabled={checkingContract}
+              style={{ ...btnPrimary, opacity: checkingContract ? 0.6 : 1, animation: 'fadeIn .4s ease' }}
+            >
+              {checkingContract ? 'Confirmation...' : 'J\'ai signé mon contrat'}
+            </button>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
+              Remplissez et signez dans le formulaire ci-dessus, puis cliquez sur le bouton
+            </p>
+          </>
+        ) : (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
+            Prenez le temps de lire et signer le contrat ci-dessus
+          </p>
+        )}
       </div>
 
       {error && (
@@ -1036,6 +1051,10 @@ function OnboardingContent() {
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
