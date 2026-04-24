@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
@@ -86,6 +86,17 @@ const STATUS_LABELS_PORTAL: Record<string, string> = {
   published: 'Vidéo publiée',
 };
 
+const PROJECT_STAGES = [
+  { key: 'onboarding', label: 'Inscription', icon: '◎' },
+  { key: 'script_writing', label: 'Script', icon: '✎' },
+  { key: 'script_review', label: 'Relecture', icon: '◉' },
+  { key: 'script_validated', label: 'Validé', icon: '✓' },
+  { key: 'filming_scheduled', label: 'Tournage', icon: '▶' },
+  { key: 'filming_done', label: 'Tourné', icon: '●' },
+  { key: 'editing', label: 'Montage', icon: '◈' },
+  { key: 'published', label: 'Livré', icon: '★' },
+];
+
 const SCRIPT_STEPS = [
   { key: 'draft', label: 'Préparation', color: '#8A7060' },
   { key: 'proposition', label: 'Proposition', color: '#F28C55' },
@@ -126,6 +137,16 @@ function PortalContent() {
   const [actionLoading, setActionLoading] = useState(false);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [tab, setTab] = useState<'script' | 'comments' | 'video' | 'documents' | 'feedback'>('script');
+  const bellRef = useRef<HTMLDivElement>(null);
+
+  // Close bell dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const loadScript = useCallback(() => {
     if (!token) return;
@@ -346,22 +367,27 @@ function PortalContent() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Header with bell */}
+      {/* Header */}
       <header style={{
-        padding: '14px 20px', borderBottom: '1px solid var(--border)',
+        padding: '12px 20px', borderBottom: '1px solid var(--border)',
         background: 'var(--night-mid)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         position: 'sticky', top: 0, zIndex: 10,
       }}>
-        <div style={{ flex: 1 }} />
+        <div style={{ flex: 1 }}>
+          {clientInfo?.contact_name && (
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-mid)', fontWeight: 500 }}>
+              {clientInfo.contact_name}
+            </span>
+          )}
+        </div>
         <div style={{ textAlign: 'center' }}>
           <h1 style={{
             fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
-            fontSize: '1.15rem', color: 'var(--orange)', margin: 0,
+            fontSize: '1.1rem', color: 'var(--orange)', margin: 0,
           }}>BourbonMédia</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.72rem', margin: '2px 0 0' }}>Espace client</p>
         </div>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', position: 'relative' }}>
+        <div ref={bellRef} style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', position: 'relative' }}>
           <button onClick={() => { setBellOpen(!bellOpen); if (!bellOpen) handleMarkAllRead(); }} style={{
             position: 'relative', background: 'transparent', border: 'none',
             color: 'var(--text)', cursor: 'pointer', padding: 6, borderRadius: 8,
@@ -383,9 +409,14 @@ function PortalContent() {
             <div style={{
               position: 'absolute', top: '100%', right: 0, marginTop: 8, width: 320,
               background: 'var(--night-card)', border: '1px solid var(--border-md)',
-              borderRadius: 10, maxHeight: 400, overflowY: 'auto',
-              boxShadow: '0 8px 24px rgba(0,0,0,.5)', zIndex: 1000,
+              borderRadius: 12, maxHeight: 400, overflowY: 'auto',
+              boxShadow: '0 12px 32px rgba(0,0,0,.5)', zIndex: 1000,
             }}>
+              <div style={{
+                padding: '10px 14px', borderBottom: '1px solid var(--border)',
+                fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-mid)',
+                textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}>Notifications</div>
               {notifications.length === 0 ? (
                 <p style={{ padding: 20, textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                   Aucune notification
@@ -416,68 +447,117 @@ function PortalContent() {
       </header>
 
       <main style={{ flex: 1, maxWidth: 800, width: '100%', margin: '0 auto', padding: 'clamp(16px, 4vw, 32px)' }}>
-        {/* Project status banner */}
-        {clientStatus && clientStatus !== 'published' && (
-          <div style={{
-            marginBottom: 20, padding: '12px 16px', borderRadius: 10,
-            background: 'var(--night-card)', border: '1px solid var(--border)',
-            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-          }}>
-            <span style={{
-              fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase',
-              letterSpacing: '0.04em', fontWeight: 600,
-            }}>Statut projet</span>
-            <span style={{ fontSize: '0.88rem', color: 'var(--text)', fontWeight: 600 }}>
-              {STATUS_LABELS_PORTAL[clientStatus] || clientStatus}
-            </span>
-            {clientInfo?.filming_date && (clientStatus === 'filming_scheduled' || clientStatus === 'script_validated') && (
-              <span style={{
-                marginLeft: 'auto', fontSize: '0.78rem',
-                padding: '4px 10px', borderRadius: 14,
-                background: 'rgba(59,130,246,.1)', color: '#60A5FA',
+        {/* Welcome + project progress */}
+        <div style={{
+          marginBottom: 22, padding: '18px 20px', borderRadius: 14,
+          background: 'var(--night-card)', border: '1px solid var(--border)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+            <div>
+              <h2 style={{
+                fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+                fontSize: '1.15rem', color: 'var(--text)', margin: 0,
               }}>
-                🎥 Tournage le {new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </span>
-            )}
+                {clientInfo?.business_name || 'Votre projet'}
+              </h2>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
+                {STATUS_LABELS_PORTAL[clientStatus] || 'En cours'}
+                {clientInfo?.filming_date && (clientStatus === 'filming_scheduled' || clientStatus === 'script_validated') && (
+                  <span style={{ color: '#60A5FA' }}>
+                    {' '}— Tournage le {new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
+                  </span>
+                )}
+              </p>
+            </div>
             {clientInfo?.publication_deadline && (
               <span style={{
-                fontSize: '0.72rem', color: 'var(--text-muted)',
+                fontSize: '0.68rem', padding: '4px 10px', borderRadius: 12,
+                background: 'rgba(59,130,246,.08)', color: '#60A5FA', fontWeight: 600,
               }}>
-                Publication prévue le {new Date(clientInfo.publication_deadline).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                Publication {new Date(clientInfo.publication_deadline).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
               </span>
             )}
           </div>
-        )}
-        {/* Progress stepper */}
+
+          {/* Project progress bar */}
+          {(() => {
+            const stageIdx = PROJECT_STAGES.findIndex(s => s.key === clientStatus);
+            const progress = stageIdx >= 0 ? Math.round(((stageIdx + 1) / PROJECT_STAGES.length) * 100) : 0;
+            return (
+              <div>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  marginBottom: 6,
+                }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>Progression du projet</span>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--orange)', fontWeight: 700 }}>{progress}%</span>
+                </div>
+                <div style={{
+                  height: 6, borderRadius: 3, background: 'var(--night-mid)',
+                  overflow: 'hidden',
+                }}>
+                  <div style={{
+                    height: '100%', borderRadius: 3,
+                    background: progress >= 100 ? 'var(--green)' : 'linear-gradient(90deg, var(--orange), #F28C55)',
+                    width: `${progress}%`, transition: 'width .5s ease',
+                  }} />
+                </div>
+                {/* Mini milestone dots */}
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', marginTop: 6,
+                  padding: '0 2px',
+                }}>
+                  {PROJECT_STAGES.map((stage, i) => {
+                    const done = i <= stageIdx;
+                    const isCurrent = i === stageIdx;
+                    return (
+                      <div key={stage.key} style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                        opacity: done ? 1 : 0.35,
+                      }}>
+                        <span style={{
+                          fontSize: '0.55rem', color: isCurrent ? 'var(--orange)' : done ? 'var(--green)' : 'var(--text-muted)',
+                          fontWeight: isCurrent ? 700 : 500,
+                        }}>{stage.icon}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Script progress stepper */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: 0, marginBottom: 24, padding: '0 8px', overflowX: 'auto',
+          gap: 0, marginBottom: 22, padding: '0 8px', overflowX: 'auto',
         }}>
           {SCRIPT_STEPS.map((step, i) => {
             const done = i <= currentStepIdx;
             const isCurrent = i === currentStepIdx;
             return (
               <div key={step.key} style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 60 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 56 }}>
                   <div style={{
                     width: isCurrent ? 28 : 20, height: isCurrent ? 28 : 20,
                     borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: done ? step.color : 'var(--night-mid)',
                     border: `2px solid ${done ? step.color : 'var(--border-md)'}`,
-                    boxShadow: isCurrent ? `0 0 12px ${step.color}50` : 'none',
+                    boxShadow: isCurrent ? `0 0 10px ${step.color}40` : 'none',
                     transition: 'all .3s',
                     fontSize: '0.6rem', color: done ? '#fff' : 'var(--text-muted)', fontWeight: 700,
                   }}>{done ? '✓' : i + 1}</div>
                   <span style={{
-                    fontSize: '0.6rem', color: isCurrent ? statusInfo.color : 'var(--text-muted)',
+                    fontSize: '0.58rem', color: isCurrent ? statusInfo.color : 'var(--text-muted)',
                     fontWeight: isCurrent ? 600 : 400, marginTop: 4, textAlign: 'center',
                     whiteSpace: 'nowrap',
                   }}>{step.label}</span>
                 </div>
                 {i < SCRIPT_STEPS.length - 1 && (
                   <div style={{
-                    width: 24, height: 2, background: i < currentStepIdx ? SCRIPT_STEPS[i + 1].color : 'var(--border-md)',
-                    margin: '0 2px', marginBottom: 18, borderRadius: 1,
+                    width: 20, height: 2, background: i < currentStepIdx ? SCRIPT_STEPS[i + 1].color : 'var(--border-md)',
+                    margin: '0 2px', marginBottom: 16, borderRadius: 1,
                   }} />
                 )}
               </div>
@@ -836,11 +916,18 @@ function PortalContent() {
 
       {/* Footer */}
       <footer style={{
-        padding: '16px 20px', borderTop: '1px solid var(--border)',
+        padding: '18px 20px', borderTop: '1px solid var(--border)',
         textAlign: 'center', background: 'var(--night-mid)',
       }}>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.7rem', margin: 0 }}>
-          BourbonMédia — Votre partenaire vidéo à La Réunion
+        <p style={{
+          color: 'var(--orange)', fontSize: '0.72rem', margin: 0,
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 600,
+          letterSpacing: '0.02em',
+        }}>
+          BourbonMédia
+        </p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.62rem', margin: '3px 0 0' }}>
+          Votre partenaire vidéo à La Réunion
         </p>
       </footer>
 

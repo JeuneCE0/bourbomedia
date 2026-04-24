@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 
 interface Client {
   id: string;
@@ -53,6 +54,7 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
   const loadClients = useCallback(() => {
     fetch('/api/clients', { headers: authHeaders() })
@@ -67,7 +69,6 @@ export default function CalendarPage() {
 
   useEffect(() => { loadClients(); }, [loadClients]);
 
-  // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') {
@@ -87,14 +88,30 @@ export default function CalendarPage() {
   const startPad = (firstDay.getDay() + 6) % 7;
   const totalDays = lastDay.getDate();
 
+  const filteredClients = useMemo(() => {
+    if (statusFilter.length === 0) return clients;
+    return clients.filter(c => statusFilter.includes(c.status));
+  }, [clients, statusFilter]);
+
   const filmingByDate: Record<string, Client[]> = {};
-  clients.forEach(c => {
+  filteredClients.forEach(c => {
     if (c.filming_date) {
       const key = c.filming_date.slice(0, 10);
       if (!filmingByDate[key]) filmingByDate[key] = [];
       filmingByDate[key].push(c);
     }
   });
+
+  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const monthFilmings = useMemo(() => {
+    return filteredClients.filter(c => c.filming_date && c.filming_date.startsWith(monthKey));
+  }, [filteredClients, monthKey]);
+
+  const activeStatuses = useMemo(() => {
+    const s = new Set<string>();
+    clients.forEach(c => { if (c.filming_date) s.add(c.status); });
+    return Array.from(s);
+  }, [clients]);
 
   const days: (number | null)[] = [];
   for (let i = 0; i < startPad; i++) days.push(null);
@@ -103,14 +120,15 @@ export default function CalendarPage() {
 
   const prev = () => setCurrentDate(new Date(year, month - 1, 1));
   const next = () => setCurrentDate(new Date(year, month + 1, 1));
-  const goToday = () => {
-    setCurrentDate(new Date());
-    setExpandedDay(null);
-  };
+  const goToday = () => { setCurrentDate(new Date()); setExpandedDay(null); };
 
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const isCurrentMonth = now.getFullYear() === year && now.getMonth() === month;
+
+  function toggleStatus(s: string) {
+    setStatusFilter(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  }
 
   const cssVars = {
     '--cal-cell-min': '88px',
@@ -121,10 +139,7 @@ export default function CalendarPage() {
   } as React.CSSProperties;
 
   return (
-    <div style={{
-      padding: '28px 32px',
-      ...cssVars,
-    }}>
+    <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto', ...cssVars }}>
       <style>{`
         @media (max-width: 768px) {
           .cal-root {
@@ -148,147 +163,155 @@ export default function CalendarPage() {
         }
       `}</style>
 
-      <h1 style={{
-        fontFamily: "'Bricolage Grotesque', sans-serif",
-        fontWeight: 700,
-        fontSize: '1.5rem',
-        marginBottom: 24,
-      }}>
-        Calendrier
-      </h1>
+      {/* Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif",
+          fontWeight: 800, fontSize: '1.6rem', color: 'var(--text)',
+          margin: 0, lineHeight: 1.3,
+        }}>
+          Calendrier
+        </h1>
+        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+          Tournages planifiés et timeline de production
+        </p>
+      </div>
+
+      {/* Month summary strip */}
+      {!loading && (
+        <div style={{
+          display: 'flex', gap: 0,
+          background: 'var(--night-card)', borderRadius: 10,
+          border: '1px solid var(--border)',
+          marginBottom: 16, overflow: 'hidden',
+        }}>
+          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>
+              Ce mois
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--orange)', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+              {monthFilmings.length}
+            </div>
+          </div>
+          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>
+              À venir
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#3B82F6', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+              {monthFilmings.filter(c => c.filming_date! >= today).length}
+            </div>
+          </div>
+          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>
+              Passés
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-muted)', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+              {monthFilmings.filter(c => c.filming_date! < today).length}
+            </div>
+          </div>
+          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>
+              Total clients
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--green)', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+              {clients.filter(c => c.filming_date).length}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status filter chips */}
+      {!loading && activeStatuses.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginRight: 4 }}>Filtrer :</span>
+          {activeStatuses.map(s => {
+            const active = statusFilter.includes(s);
+            const color = STATUS_COLORS[s] || '#8A7060';
+            return (
+              <button key={s} onClick={() => toggleStatus(s)} style={{
+                padding: '4px 10px', borderRadius: 14, border: 'none',
+                background: active ? color + '25' : 'var(--night-mid)',
+                color: active ? color : 'var(--text-muted)',
+                fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
+                transition: 'all .15s',
+              }}>
+                {STATUS_LABELS[s] || s}
+              </button>
+            );
+          })}
+          {statusFilter.length > 0 && (
+            <button onClick={() => setStatusFilter([])} style={{
+              padding: '4px 8px', borderRadius: 14, border: 'none',
+              background: 'transparent', color: 'var(--orange)',
+              fontSize: '0.68rem', fontWeight: 500, cursor: 'pointer',
+            }}>
+              Tout afficher
+            </button>
+          )}
+        </div>
+      )}
 
       {loading ? (
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Chargement...</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '40px 0', textAlign: 'center' }}>Chargement...</div>
       ) : (
         <div className="cal-root" style={{
-          background: 'var(--night-card)',
-          borderRadius: 14,
-          border: '1px solid var(--border)',
-          padding: 22,
-          overflowX: 'auto',
-          ...cssVars,
+          background: 'var(--night-card)', borderRadius: 14,
+          border: '1px solid var(--border)', padding: 22,
+          overflowX: 'auto', ...cssVars,
         }}>
           {/* Month navigation */}
           <div className="cal-header-row" style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 20,
-            gap: 12,
+            display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center', marginBottom: 20, gap: 12,
           }}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <button onClick={prev} style={{
-                background: 'var(--night-mid)',
-                border: '1px solid var(--border-md)',
-                borderRadius: 8,
-                color: 'var(--text-mid)',
-                cursor: 'pointer',
-                padding: '7px 14px',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                transition: 'background .15s, border-color .15s',
-                lineHeight: 1,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--border-md)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'var(--night-mid)'; }}
-              title="Mois précédent (flèche gauche)"
-              >
-                &#8592;
-              </button>
-              <button onClick={next} style={{
-                background: 'var(--night-mid)',
-                border: '1px solid var(--border-md)',
-                borderRadius: 8,
-                color: 'var(--text-mid)',
-                cursor: 'pointer',
-                padding: '7px 14px',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                transition: 'background .15s, border-color .15s',
-                lineHeight: 1,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--border-md)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'var(--night-mid)'; }}
-              title="Mois suivant (flèche droite)"
-              >
-                &#8594;
-              </button>
+              <NavBtn onClick={prev} label="←" title="Mois précédent" />
+              <NavBtn onClick={next} label="→" title="Mois suivant" />
             </div>
-
             <span className="cal-title" style={{
-              fontWeight: 700,
-              fontSize: '1.15rem',
+              fontWeight: 700, fontSize: '1.15rem',
               fontFamily: "'Bricolage Grotesque', sans-serif",
-              letterSpacing: '-0.01em',
             }}>
               {MONTHS[month]} {year}
             </span>
-
             <button onClick={goToday} style={{
               background: isCurrentMonth ? 'rgba(232,105,43,.12)' : 'var(--night-mid)',
               border: isCurrentMonth ? '1px solid var(--border-orange)' : '1px solid var(--border-md)',
-              borderRadius: 8,
-              color: isCurrentMonth ? 'var(--orange)' : 'var(--text-mid)',
-              cursor: 'pointer',
-              padding: '7px 14px',
-              fontSize: '0.78rem',
-              fontWeight: 600,
+              borderRadius: 8, color: isCurrentMonth ? 'var(--orange)' : 'var(--text-mid)',
+              cursor: 'pointer', padding: '7px 14px', fontSize: '0.78rem', fontWeight: 600,
               transition: 'all .15s',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(232,105,43,.18)';
-              e.currentTarget.style.borderColor = 'var(--border-orange)';
-              e.currentTarget.style.color = 'var(--orange)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = isCurrentMonth ? 'rgba(232,105,43,.12)' : 'var(--night-mid)';
-              e.currentTarget.style.borderColor = isCurrentMonth ? 'var(--border-orange)' : 'var(--border-md)';
-              e.currentTarget.style.color = isCurrentMonth ? 'var(--orange)' : 'var(--text-mid)';
-            }}
-            >
+            }}>
               Aujourd&apos;hui
             </button>
           </div>
 
           {/* Day headers */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            gap: 'var(--cal-gap)',
-            marginBottom: 4,
+            display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
+            gap: 'var(--cal-gap)', marginBottom: 4,
             minWidth: 'calc(7 * var(--cal-cell-min))',
           }}>
             {DAYS.map((d, i) => (
               <div key={d} style={{
-                textAlign: 'center',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
+                textAlign: 'center', fontSize: '0.72rem', fontWeight: 700,
+                textTransform: 'uppercase', letterSpacing: '0.04em',
                 color: i >= 5 ? 'var(--text-muted)' : 'var(--text-mid)',
-                opacity: i >= 5 ? 0.5 : 0.7,
-                padding: '6px 0',
+                opacity: i >= 5 ? 0.5 : 0.7, padding: '6px 0',
               }}>{d}</div>
             ))}
           </div>
 
           {/* Calendar grid */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            gap: 'var(--cal-gap)',
-            minWidth: 'calc(7 * var(--cal-cell-min))',
+            display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
+            gap: 'var(--cal-gap)', minWidth: 'calc(7 * var(--cal-cell-min))',
           }}>
             {days.map((day, i) => {
               if (day === null) {
-                return (
-                  <div key={`empty-${i}`} style={{
-                    minHeight: 'var(--cal-cell-min)',
-                    borderRadius: 8,
-                    background: 'rgba(0,0,0,.06)',
-                    border: '1px solid transparent',
-                  }} />
-                );
+                return <div key={`empty-${i}`} style={{
+                  minHeight: 'var(--cal-cell-min)', borderRadius: 8,
+                  background: 'rgba(0,0,0,.06)', border: '1px solid transparent',
+                }} />;
               }
 
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -304,24 +327,13 @@ export default function CalendarPage() {
                   <div
                     onClick={() => setExpandedDay(isExpanded ? null : dateStr)}
                     style={{
-                      minHeight: 'var(--cal-cell-min)',
-                      borderRadius: 8,
-                      padding: 'var(--cal-cell-pad)',
-                      cursor: 'pointer',
+                      minHeight: 'var(--cal-cell-min)', borderRadius: 8,
+                      padding: 'var(--cal-cell-pad)', cursor: 'pointer',
                       transition: 'all .15s',
-                      background: isToday
-                        ? 'rgba(232,105,43,.07)'
-                        : isWeekend
-                          ? 'rgba(0,0,0,.12)'
-                          : 'var(--night-mid)',
-                      border: isToday
-                        ? '2px solid var(--orange)'
-                        : '1px solid rgba(255,255,255,.04)',
-                      boxShadow: isToday
-                        ? '0 0 0 3px rgba(232,105,43,.15), inset 0 0 0 1px rgba(232,105,43,.1)'
-                        : 'none',
+                      background: isToday ? 'rgba(232,105,43,.07)' : isWeekend ? 'rgba(0,0,0,.12)' : 'var(--night-mid)',
+                      border: isToday ? '2px solid var(--orange)' : '1px solid rgba(255,255,255,.04)',
+                      boxShadow: isToday ? '0 0 0 3px rgba(232,105,43,.15)' : 'none',
                       opacity: isPast && !isToday ? 0.55 : isWeekend ? 0.7 : 1,
-                      position: 'relative',
                     }}
                     onMouseEnter={e => {
                       if (!isToday) {
@@ -336,51 +348,31 @@ export default function CalendarPage() {
                       }
                     }}
                   >
-                    {/* Day number */}
                     <div style={{
                       fontSize: 'var(--cal-font-day)',
                       fontWeight: isToday ? 800 : hasSlots ? 600 : 400,
                       color: isToday ? 'var(--orange)' : hasSlots ? 'var(--text)' : 'var(--text-muted)',
-                      marginBottom: 3,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
+                      marginBottom: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     }}>
                       <span>{day}</span>
-                      {hasSlots && (
-                        <span style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: 'var(--orange)',
-                          display: 'inline-block',
-                          opacity: 0.7,
-                        }} />
-                      )}
+                      {hasSlots && <span style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: 'var(--orange)', display: 'inline-block', opacity: 0.7,
+                      }} />}
                     </div>
 
-                    {/* Filming slots preview */}
                     {dayClients.slice(0, 2).map(c => {
                       const color = STATUS_COLORS[c.status] || '#8A7060';
                       const time = c.filming_date ? formatTime(c.filming_date) : '';
                       return (
                         <div key={c.id} style={{
-                          fontSize: 'var(--cal-font-slot)',
-                          padding: '2px 5px',
-                          borderRadius: 4,
-                          marginBottom: 2,
-                          background: color + '18',
-                          borderLeft: `2px solid ${color}`,
-                          color: color,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          fontWeight: 500,
-                          lineHeight: 1.4,
+                          fontSize: 'var(--cal-font-slot)', padding: '2px 5px',
+                          borderRadius: 4, marginBottom: 2,
+                          background: color + '18', borderLeft: `2px solid ${color}`,
+                          color, overflow: 'hidden', textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap', fontWeight: 500, lineHeight: 1.4,
                         }}>
-                          <span className="cal-slot-dot" style={{ display: 'none' }}>
-                            &#9679;
-                          </span>
+                          <span className="cal-slot-dot" style={{ display: 'none' }}>&#9679;</span>
                           <span className="cal-slot-label">
                             {time ? `${time} ` : ''}{c.business_name}
                           </span>
@@ -389,12 +381,10 @@ export default function CalendarPage() {
                     })}
                     {dayClients.length > 2 && (
                       <div style={{
-                        fontSize: 'var(--cal-font-slot)',
-                        color: 'var(--text-muted)',
-                        fontWeight: 500,
-                        paddingLeft: 5,
+                        fontSize: 'var(--cal-font-slot)', color: 'var(--text-muted)',
+                        fontWeight: 500, paddingLeft: 5,
                       }}>
-                        +{dayClients.length - 2} de plus
+                        +{dayClients.length - 2}
                       </div>
                     )}
                   </div>
@@ -402,39 +392,22 @@ export default function CalendarPage() {
                   {/* Expanded day detail */}
                   {isExpanded && (
                     <div style={{
-                      marginTop: 4,
-                      background: 'var(--night-card)',
-                      border: '1px solid var(--border-md)',
-                      borderRadius: 10,
+                      marginTop: 4, background: 'var(--night-card)',
+                      border: '1px solid var(--border-md)', borderRadius: 10,
                       padding: '10px 12px',
-                      animation: 'fadeIn .15s ease-out',
                     }}>
                       <div style={{
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        color: 'var(--text-mid)',
-                        marginBottom: 8,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
+                        fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-mid)',
+                        marginBottom: 8, display: 'flex', justifyContent: 'space-between',
                       }}>
                         <span>{day} {MONTHS[month]} {year}</span>
-                        <span style={{
-                          fontSize: '0.65rem',
-                          color: 'var(--text-muted)',
-                          fontWeight: 400,
-                        }}>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>
                           {dayClients.length} tournage{dayClients.length !== 1 ? 's' : ''}
                         </span>
                       </div>
                       {dayClients.length === 0 ? (
-                        <div style={{
-                          fontSize: '0.75rem',
-                          color: 'var(--text-muted)',
-                          fontStyle: 'italic',
-                          padding: '6px 0',
-                        }}>
-                          Aucun tournage planifie
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '6px 0' }}>
+                          Aucun tournage
                         </div>
                       ) : (
                         dayClients.map(c => {
@@ -442,54 +415,28 @@ export default function CalendarPage() {
                           const label = STATUS_LABELS[c.status] || c.status;
                           const time = c.filming_date ? formatTime(c.filming_date) : '';
                           return (
-                            <div key={c.id} style={{
-                              padding: '8px 10px',
-                              borderRadius: 8,
-                              background: color + '10',
-                              borderLeft: `3px solid ${color}`,
-                              marginBottom: 6,
+                            <Link key={c.id} href={`/dashboard/clients/${c.id}`} style={{
+                              display: 'block', padding: '8px 10px', borderRadius: 8,
+                              background: color + '10', borderLeft: `3px solid ${color}`,
+                              marginBottom: 6, textDecoration: 'none',
+                              transition: 'background .15s',
                             }}>
-                              <div style={{
-                                fontSize: '0.8rem',
-                                fontWeight: 600,
-                                color: 'var(--text)',
-                                marginBottom: 2,
-                              }}>
+                              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
                                 {c.business_name}
                               </div>
-                              <div style={{
-                                fontSize: '0.7rem',
-                                color: 'var(--text-muted)',
-                              }}>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                                 {c.contact_name}
                               </div>
-                              <div style={{
-                                display: 'flex',
-                                gap: 8,
-                                marginTop: 4,
-                                alignItems: 'center',
-                              }}>
-                                {time && (
-                                  <span style={{
-                                    fontSize: '0.68rem',
-                                    color: 'var(--text-mid)',
-                                    fontWeight: 500,
-                                  }}>
-                                    &#128337; {time}
-                                  </span>
-                                )}
+                              <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
+                                {time && <span style={{ fontSize: '0.68rem', color: 'var(--text-mid)', fontWeight: 500 }}>
+                                  &#128337; {time}
+                                </span>}
                                 <span style={{
-                                  fontSize: '0.65rem',
-                                  padding: '1px 7px',
-                                  borderRadius: 20,
-                                  background: color + '20',
-                                  color: color,
-                                  fontWeight: 600,
-                                }}>
-                                  {label}
-                                </span>
+                                  fontSize: '0.65rem', padding: '1px 7px', borderRadius: 20,
+                                  background: color + '20', color, fontWeight: 600,
+                                }}>{label}</span>
                               </div>
-                            </div>
+                            </Link>
                           );
                         })
                       )}
@@ -502,28 +449,15 @@ export default function CalendarPage() {
 
           {/* Legend */}
           <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 10,
-            marginTop: 18,
-            paddingTop: 14,
-            borderTop: '1px solid var(--border)',
+            display: 'flex', flexWrap: 'wrap', gap: 10,
+            marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border)',
           }}>
             {Object.entries(STATUS_COLORS).map(([key, color]) => (
               <div key={key} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                fontSize: '0.65rem',
-                color: 'var(--text-muted)',
+                display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: '0.65rem', color: 'var(--text-muted)',
               }}>
-                <span style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: color,
-                  display: 'inline-block',
-                }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
                 {STATUS_LABELS[key] || key}
               </div>
             ))}
@@ -531,5 +465,21 @@ export default function CalendarPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function NavBtn({ onClick, label, title }: { onClick: () => void; label: string; title: string }) {
+  return (
+    <button onClick={onClick} title={title} style={{
+      background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+      borderRadius: 8, color: 'var(--text-mid)', cursor: 'pointer',
+      padding: '7px 14px', fontSize: '0.9rem', fontWeight: 600,
+      transition: 'background .15s', lineHeight: 1,
+    }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'var(--border-md)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'var(--night-mid)'; }}
+    >
+      {label}
+    </button>
   );
 }

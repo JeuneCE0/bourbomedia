@@ -113,20 +113,50 @@ export default function ScriptsPage() {
       .slice(0, 20);
   }, [clients]);
 
+  const needsAction = useMemo(() => {
+    return scripts.filter(s => s.status === 'awaiting_changes' || s.status === 'draft');
+  }, [scripts]);
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 20 }}>
         <h1 style={{
           fontFamily: "'Bricolage Grotesque', sans-serif",
-          fontWeight: 800, fontSize: '1.75rem', color: 'var(--text)',
-          margin: 0, lineHeight: 1.2,
+          fontWeight: 800, fontSize: '1.6rem', color: 'var(--text)',
+          margin: 0, lineHeight: 1.3,
         }}>
           Scripts &amp; Tournages
         </h1>
-        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: '6px 0 0' }}>
+        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
           Rédaction, validation, planning des tournages
         </p>
       </div>
+
+      {/* Stats strip */}
+      {!loading && (
+        <div style={{
+          display: 'flex', gap: 0, background: 'var(--night-card)',
+          borderRadius: 10, border: '1px solid var(--border)',
+          marginBottom: 16, overflow: 'hidden',
+        }}>
+          <div style={{ flex: 1, padding: '12px 14px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>Scripts</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text)', fontFamily: "'Bricolage Grotesque', sans-serif" }}>{scripts.length}</div>
+          </div>
+          <div style={{ flex: 1, padding: '12px 14px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>Validés</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--green)', fontFamily: "'Bricolage Grotesque', sans-serif" }}>{scriptCounts.confirmed || 0}</div>
+          </div>
+          <div style={{ flex: 1, padding: '12px 14px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>À traiter</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: needsAction.length > 0 ? 'var(--orange)' : 'var(--text-muted)', fontFamily: "'Bricolage Grotesque', sans-serif" }}>{needsAction.length}</div>
+          </div>
+          <div style={{ flex: 1, padding: '12px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>Tournages</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#3B82F6', fontFamily: "'Bricolage Grotesque', sans-serif" }}>{upcomingShoots.length}</div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
