@@ -178,6 +178,46 @@ export default function DashboardPage() {
   const last30Delivered = last30.filter(c => c.delivered_at).length;
   const conversionRate = last30.length > 0 ? Math.round((last30Delivered / last30.length) * 100) : 0;
 
+  // --- KPI top cards ---
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const leadsToday = clients.filter(c => c.created_at?.slice(0, 10) === todayKey);
+
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const monthlyRevenueCents = clients
+    .filter(c => c.paid_at && new Date(c.paid_at).getTime() >= monthStart)
+    .reduce((s, c) => s + (c.payment_amount || 0), 0);
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+  const lastMonthEnd = monthStart;
+  const lastMonthRevenueCents = clients
+    .filter(c => c.paid_at && new Date(c.paid_at).getTime() >= lastMonthStart && new Date(c.paid_at).getTime() < lastMonthEnd)
+    .reduce((s, c) => s + (c.payment_amount || 0), 0);
+  const revenueDelta = lastMonthRevenueCents > 0
+    ? Math.round(((monthlyRevenueCents - lastMonthRevenueCents) / lastMonthRevenueCents) * 100)
+    : null;
+
+  const pendingPayment = clients.filter(c => !c.paid_at && c.status !== 'published');
+
+  // Next action: takes the most urgent thing to do today
+  const nextActions: { client: Client; label: string; type: 'script' | 'filming' | 'recontact' }[] = [];
+  clients.forEach(c => {
+    if (c.status === 'published') return;
+    if (c.status === 'script_writing') {
+      const idleDays = Math.floor((nowMs - new Date(c.updated_at || c.created_at).getTime()) / 86400000);
+      if (idleDays >= 2) nextActions.push({ client: c, label: `Script à finaliser (${idleDays} j)`, type: 'script' });
+    }
+    if (c.filming_date) {
+      const days = Math.ceil((new Date(c.filming_date).getTime() - nowMs) / 86400000);
+      if (days >= 0 && days <= 1 && c.status === 'filming_scheduled') {
+        nextActions.push({ client: c, label: days === 0 ? "Tournage aujourd'hui" : 'Tournage demain', type: 'filming' });
+      }
+    }
+    if (c.status === 'script_review') {
+      const idle = Math.floor((nowMs - new Date(c.updated_at || c.created_at).getTime()) / 86400000);
+      if (idle >= 5) nextActions.push({ client: c, label: `Relancer (script en attente ${idle} j)`, type: 'recontact' });
+    }
+  });
+  nextActions.sort((a, b) => (a.type === 'filming' ? 0 : 1) - (b.type === 'filming' ? 0 : 1));
+
   const totalRevenue = clients.reduce((sum, c) => sum + (c.payment_amount || 0), 0) / 100; // cents → €
   const last30Revenue = last30.reduce((sum, c) => sum + (c.payment_amount || 0), 0) / 100;
 
@@ -264,6 +304,95 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
+          {/* KPI Top Cards */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 14,
+            marginBottom: 28,
+          }}>
+            {/* Leads du jour */}
+            <KpiCard
+              title="Leads du jour"
+              value={leadsToday.length.toString()}
+              accent="var(--orange)"
+              icon="◎"
+              cta={leadsToday.length > 0 ? 'Voir →' : undefined}
+              ctaHref="/dashboard/clients"
+            >
+              {leadsToday.length === 0 ? (
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Aucun nouveau lead aujourd&apos;hui</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {leadsToday.slice(0, 3).map(c => (
+                    <Link key={c.id} href={`/dashboard/clients/${c.id}`} style={{
+                      fontSize: '0.78rem', color: 'var(--text-mid)', textDecoration: 'none',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      • {c.business_name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </KpiCard>
+
+            {/* Encaissé ce mois */}
+            <KpiCard
+              title="Encaissé ce mois"
+              value={`${(monthlyRevenueCents / 100).toLocaleString('fr-FR')} €`}
+              accent="var(--green)"
+              icon="€"
+            >
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                {revenueDelta === null ? (
+                  'Premier mois actif'
+                ) : revenueDelta > 0 ? (
+                  <span style={{ color: 'var(--green)' }}>↑ +{revenueDelta}% vs mois dernier</span>
+                ) : revenueDelta < 0 ? (
+                  <span style={{ color: 'var(--red)' }}>↓ {revenueDelta}% vs mois dernier</span>
+                ) : (
+                  '= mois dernier'
+                )}
+              </div>
+            </KpiCard>
+
+            {/* En attente de paiement */}
+            <KpiCard
+              title="En attente"
+              value={pendingPayment.length.toString()}
+              accent="var(--yellow)"
+              icon="⏳"
+              cta={pendingPayment.length > 0 ? 'Voir →' : undefined}
+              ctaHref="/dashboard/clients?paid=unpaid"
+            >
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                {pendingPayment.length === 0 ? 'Tout est encaissé' : `${pendingPayment.length} client${pendingPayment.length > 1 ? 's' : ''} sans paiement enregistré`}
+              </div>
+            </KpiCard>
+
+            {/* Prochaine action */}
+            <KpiCard
+              title="Prochaine action"
+              value={nextActions.length === 0 ? 'RAS' : nextActions.length.toString()}
+              accent={nextActions.length > 0 ? 'var(--red)' : 'var(--green)'}
+              icon="!"
+              cta={nextActions.length > 0 ? 'Voir tout →' : undefined}
+              ctaHref="/dashboard/tasks"
+            >
+              {nextActions.length === 0 ? (
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Tout est sous contrôle ✓</div>
+              ) : (
+                <Link href={`/dashboard/clients/${nextActions[0].client.id}`} style={{
+                  fontSize: '0.78rem', color: 'var(--text)', fontWeight: 500, textDecoration: 'none',
+                  display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {nextActions[0].client.business_name}
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>{nextActions[0].label}</div>
+                </Link>
+              )}
+            </KpiCard>
+          </div>
+
           {/* Stats cards */}
           <div style={{
             display: 'grid',
@@ -685,6 +814,51 @@ function relativeTime(dateStr: string): string {
 }
 
 /* ---------- Sub-components ---------- */
+
+function KpiCard({ title, value, accent, icon, cta, ctaHref, children }: {
+  title: string;
+  value: string;
+  accent: string;
+  icon: string;
+  cta?: string;
+  ctaHref?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div style={{
+      background: 'var(--night-card)',
+      borderRadius: 12,
+      border: '1px solid var(--border)',
+      padding: '18px 20px',
+      display: 'flex', flexDirection: 'column', gap: 12,
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{
+          fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600,
+          textTransform: 'uppercase', letterSpacing: '0.06em',
+        }}>{title}</div>
+        <div style={{
+          width: 28, height: 28, borderRadius: 8,
+          background: `${accent}15`, color: accent,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '0.85rem', fontWeight: 700,
+        }}>{icon}</div>
+      </div>
+      <div style={{
+        fontSize: '1.75rem', fontWeight: 800, color: accent,
+        fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1,
+      }}>{value}</div>
+      <div style={{ flex: 1 }}>{children}</div>
+      {cta && ctaHref && (
+        <Link href={ctaHref} style={{
+          fontSize: '0.74rem', color: accent, textDecoration: 'none', fontWeight: 600,
+        }}>{cta}</Link>
+      )}
+    </div>
+  );
+}
 
 function PerfCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
