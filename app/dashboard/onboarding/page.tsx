@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, CSSProperties } from 'react';
+import { useEffect, useState, useMemo, useCallback, CSSProperties } from 'react';
 import Link from 'next/link';
 
 interface OnboardingClient {
@@ -54,6 +54,9 @@ export default function OnboardingDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [search, setSearch] = useState('');
+  const [dragClientId, setDragClientId] = useState<string | null>(null);
+  const [dragSourceStep, setDragSourceStep] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<number | null>(null);
 
   useEffect(() => {
     fetch('/api/onboarding', { headers: authHeaders() })
@@ -100,6 +103,74 @@ export default function OnboardingDashboardPage() {
     }).length;
     return { total, active, completed, stuck };
   }, [clients]);
+
+  // --- Drag & Drop handlers ---
+
+  const moveClient = useCallback(async (clientId: string, newStep: number) => {
+    // Optimistic update: immediately move the card
+    const previousClients = clients;
+    setClients(prev =>
+      prev.map(c => c.id === clientId ? { ...c, onboarding_step: newStep } : c)
+    );
+
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ id: clientId, onboarding_step: newStep }),
+      });
+      if (!r.ok) throw new Error('Erreur API');
+    } catch {
+      // Revert on failure
+      setClients(previousClients);
+      console.error('Erreur lors du déplacement du client, changement annulé.');
+    }
+  }, [clients]);
+
+  function onDragStart(e: React.DragEvent, clientId: string, currentStep: number) {
+    setDragClientId(clientId);
+    setDragSourceStep(currentStep);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', clientId);
+    e.dataTransfer.setData('application/x-step', String(currentStep));
+    // Set opacity on the dragged element
+    if (e.currentTarget instanceof HTMLElement) {
+      requestAnimationFrame(() => {
+        (e.currentTarget as HTMLElement).style.opacity = '0.4';
+      });
+    }
+  }
+
+  function onDragEnd(e: React.DragEvent) {
+    setDragClientId(null);
+    setDragSourceStep(null);
+    setDropTarget(null);
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1';
+    }
+  }
+
+  function onColumnDragOver(e: React.DragEvent, stepNum: number) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDropTarget(stepNum);
+  }
+
+  function onColumnDragLeave() {
+    setDropTarget(null);
+  }
+
+  function onColumnDrop(e: React.DragEvent, stepNum: number) {
+    e.preventDefault();
+    setDropTarget(null);
+    const id = e.dataTransfer.getData('text/plain');
+    if (id) {
+      const c = clients.find(x => x.id === id);
+      if (c && (c.onboarding_step || 1) !== stepNum) {
+        moveClient(id, stepNum);
+      }
+    }
+  }
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1400, margin: '0 auto' }}>
@@ -181,7 +252,17 @@ export default function OnboardingDashboardPage() {
           Chargement...
         </div>
       ) : viewMode === 'kanban' ? (
-        <KanbanView byStep={byStep} />
+        <KanbanView
+          byStep={byStep}
+          dragClientId={dragClientId}
+          dragSourceStep={dragSourceStep}
+          dropTarget={dropTarget}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onColumnDragOver={onColumnDragOver}
+          onColumnDragLeave={onColumnDragLeave}
+          onColumnDrop={onColumnDrop}
+        />
       ) : (
         <ListView clients={filtered} />
       )}
@@ -234,7 +315,29 @@ function ViewToggle({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-function KanbanView({ byStep }: { byStep: Record<number, OnboardingClient[]> }) {
+interface KanbanViewProps {
+  byStep: Record<number, OnboardingClient[]>;
+  dragClientId: string | null;
+  dragSourceStep: number | null;
+  dropTarget: number | null;
+  onDragStart: (e: React.DragEvent, clientId: string, currentStep: number) => void;
+  onDragEnd: (e: React.DragEvent) => void;
+  onColumnDragOver: (e: React.DragEvent, stepNum: number) => void;
+  onColumnDragLeave: () => void;
+  onColumnDrop: (e: React.DragEvent, stepNum: number) => void;
+}
+
+function KanbanView({
+  byStep,
+  dragClientId,
+  dragSourceStep,
+  dropTarget,
+  onDragStart,
+  onDragEnd,
+  onColumnDragOver,
+  onColumnDragLeave,
+  onColumnDrop,
+}: KanbanViewProps) {
   return (
     <div style={{
       display: 'grid',
@@ -245,17 +348,32 @@ function KanbanView({ byStep }: { byStep: Record<number, OnboardingClient[]> }) 
     }}>
       {STEPS.map(step => {
         const list = byStep[step.num] || [];
+        const isDragging = dragClientId !== null;
+        const isOver = dropTarget === step.num && isDragging;
+        const isSourceColumn = dragSourceStep === step.num;
         return (
-          <div key={step.num} style={{
-            background: 'var(--night-mid)',
-            border: '1px solid var(--border)',
-            borderRadius: 12,
-            padding: 12,
-            minWidth: 220,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-          }}>
+          <div
+            key={step.num}
+            onDragOver={e => onColumnDragOver(e, step.num)}
+            onDragLeave={onColumnDragLeave}
+            onDrop={e => onColumnDrop(e, step.num)}
+            style={{
+              background: isOver && !isSourceColumn
+                ? `${step.color}0D`
+                : 'var(--night-mid)',
+              border: '1.5px solid',
+              borderColor: isOver && !isSourceColumn
+                ? step.color
+                : 'var(--border)',
+              borderRadius: 12,
+              padding: 12,
+              minWidth: 220,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              transition: 'border-color .15s, background .15s',
+            }}
+          >
             {/* Column header */}
             <div style={{
               display: 'flex',
@@ -313,7 +431,16 @@ function KanbanView({ byStep }: { byStep: Record<number, OnboardingClient[]> }) 
                 Vide
               </div>
             ) : (
-              list.map(c => <KanbanCard key={c.id} client={c} color={step.color} />)
+              list.map(c => (
+                <KanbanCard
+                  key={c.id}
+                  client={c}
+                  color={step.color}
+                  isDragging={dragClientId === c.id}
+                  onDragStart={onDragStart}
+                  onDragEnd={onDragEnd}
+                />
+              ))
             )}
           </div>
         );
@@ -322,7 +449,19 @@ function KanbanView({ byStep }: { byStep: Record<number, OnboardingClient[]> }) 
   );
 }
 
-function KanbanCard({ client, color }: { client: OnboardingClient; color: string }) {
+function KanbanCard({
+  client,
+  color,
+  isDragging,
+  onDragStart,
+  onDragEnd,
+}: {
+  client: OnboardingClient;
+  color: string;
+  isDragging: boolean;
+  onDragStart: (e: React.DragEvent, clientId: string, currentStep: number) => void;
+  onDragEnd: (e: React.DragEvent) => void;
+}) {
   const [hovered, setHovered] = useState(false);
   const initials = getInitials(client.business_name);
   const daysSinceCreation = Math.floor((Date.now() - new Date(client.created_at).getTime()) / 86400000);
@@ -337,83 +476,97 @@ function KanbanCard({ client, color }: { client: OnboardingClient; color: string
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
-    cursor: 'pointer',
+    cursor: 'grab',
     textDecoration: 'none',
     transition: 'all .15s ease',
-    transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
-    boxShadow: hovered ? '0 4px 12px rgba(0,0,0,.3)' : 'none',
+    transform: hovered && !isDragging ? 'translateY(-1px)' : 'translateY(0)',
+    boxShadow: hovered && !isDragging ? '0 4px 12px rgba(0,0,0,.3)' : 'none',
+    opacity: isDragging ? 0.4 : 1,
   };
 
   return (
-    <Link
-      href={`/dashboard/clients/${client.id}`}
-      style={cardStyle}
+    <div
+      draggable
+      onDragStart={e => {
+        onDragStart(e, client.id, client.onboarding_step || 1);
+      }}
+      onDragEnd={onDragEnd}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      style={cardStyle}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{
-          width: 32,
-          height: 32,
-          borderRadius: '50%',
-          background: color + '20',
-          color,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '0.7rem',
-          fontWeight: 700,
-          flexShrink: 0,
-          fontFamily: "'Bricolage Grotesque', sans-serif",
-        }}>
-          {initials}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <Link
+        href={`/dashboard/clients/${client.id}`}
+        style={{ textDecoration: 'none', color: 'inherit', display: 'contents' }}
+        onClick={e => {
+          // Prevent navigation if we just finished dragging
+          if (isDragging) e.preventDefault();
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
-            fontSize: '0.82rem',
-            color: 'var(--text)',
-            fontWeight: 600,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            marginBottom: 2,
-          }}>
-            {client.business_name}
-          </div>
-          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: color + '20',
+            color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             fontSize: '0.7rem',
-            color: 'var(--text-muted)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            fontWeight: 700,
+            flexShrink: 0,
+            fontFamily: "'Bricolage Grotesque', sans-serif",
           }}>
-            {client.contact_name}
+            {initials}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: '0.82rem',
+              color: 'var(--text)',
+              fontWeight: 600,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              marginBottom: 2,
+            }}>
+              {client.business_name}
+            </div>
+            <div style={{
+              fontSize: '0.7rem',
+              color: 'var(--text-muted)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {client.contact_name}
+            </div>
           </div>
         </div>
-      </div>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        fontSize: '0.7rem',
-      }}>
-        <span style={{ color: 'var(--text-muted)' }}>
-          {relativeTime(client.created_at)}
-        </span>
-        {isStuck && (
-          <span style={{
-            color: 'var(--red)',
-            background: 'rgba(239,68,68,.1)',
-            padding: '2px 8px',
-            borderRadius: 10,
-            fontWeight: 600,
-            fontSize: '0.65rem',
-          }}>
-            Bloqu&eacute;
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: '0.7rem',
+        }}>
+          <span style={{ color: 'var(--text-muted)' }}>
+            {relativeTime(client.created_at)}
           </span>
-        )}
-      </div>
-    </Link>
+          {isStuck && (
+            <span style={{
+              color: 'var(--red)',
+              background: 'rgba(239,68,68,.1)',
+              padding: '2px 8px',
+              borderRadius: 10,
+              fontWeight: 600,
+              fontSize: '0.65rem',
+            }}>
+              Bloqu&eacute;
+            </span>
+          )}
+        </div>
+      </Link>
+    </div>
   );
 }
 
