@@ -227,83 +227,76 @@ function OnboardingContent() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '14px 18px',
-    background: 'rgba(255,255,255,.04)',
-    border: '1px solid rgba(255,255,255,.08)',
-    borderRadius: 12,
+    padding: '11px 14px',
+    background: 'var(--night-mid)',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
     color: 'var(--text)',
-    fontSize: '0.92rem',
+    fontSize: '0.9rem',
     outline: 'none',
-    transition: 'all .2s ease',
+    transition: 'border-color .15s, background .15s',
     fontFamily: 'inherit',
   };
 
   const btnPrimary: React.CSSProperties = {
     width: '100%',
-    padding: '14px 24px',
-    background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+    padding: '12px 20px',
+    background: 'var(--orange)',
     color: '#fff',
     border: 'none',
-    borderRadius: 12,
-    fontSize: '0.95rem',
+    borderRadius: 8,
+    fontSize: '0.92rem',
     fontWeight: 600,
     cursor: 'pointer',
-    transition: 'all .2s ease',
-    boxShadow: '0 4px 14px rgba(249,115,22,.3), inset 0 1px 0 rgba(255,255,255,.15)',
-    letterSpacing: '.2px',
+    transition: 'background .15s',
   };
 
   const btnSecondary: React.CSSProperties = {
     width: '100%',
-    padding: '14px 24px',
-    background: 'rgba(255,255,255,.04)',
+    padding: '12px 20px',
+    background: 'transparent',
     color: 'var(--text-mid)',
-    border: '1px solid rgba(255,255,255,.1)',
-    borderRadius: 12,
-    fontSize: '0.95rem',
-    fontWeight: 600,
+    border: '1px solid var(--border-md)',
+    borderRadius: 8,
+    fontSize: '0.92rem',
+    fontWeight: 500,
     cursor: 'pointer',
-    transition: 'all .2s ease',
+    transition: 'all .15s',
   };
 
   const cardStyle: React.CSSProperties = {
-    background: 'rgba(15,15,25,.7)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    border: '1px solid rgba(255,255,255,.08)',
-    borderRadius: 20,
-    padding: '36px',
-    maxWidth: 560,
+    background: 'var(--night-card)',
+    border: '1px solid var(--border)',
+    borderRadius: 12,
+    padding: '28px',
+    maxWidth: 520,
     width: '100%',
     margin: '0 auto',
-    boxShadow: '0 1px 0 0 rgba(251,146,60,.12) inset, 0 8px 32px rgba(0,0,0,.3)',
-    animation: 'slideUp .5s cubic-bezier(.16,1,.3,1)',
   };
 
   const SuccessBox = ({ title, subtitle }: { title: string; subtitle?: string }) => (
     <div style={{
-      padding: '28px 24px',
-      background: 'rgba(34,197,94,.06)',
-      border: '1px solid rgba(34,197,94,.2)',
-      borderRadius: 14,
+      padding: '22px 20px',
+      background: 'rgba(34,197,94,.08)',
+      border: '1px solid rgba(34,197,94,.25)',
+      borderRadius: 10,
       textAlign: 'center',
     }}>
       <div style={{
-        width: 56,
-        height: 56,
+        width: 40,
+        height: 40,
         borderRadius: '50%',
-        background: 'linear-gradient(135deg, rgba(34,197,94,.2), rgba(22,163,74,.3))',
-        border: '1px solid rgba(34,197,94,.4)',
+        background: 'rgba(34,197,94,.15)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        margin: '0 auto 14px',
-        fontSize: '1.6rem',
+        margin: '0 auto 12px',
+        fontSize: '1.1rem',
         color: 'var(--green)',
       }}>
         ✓
       </div>
-      <p style={{ color: 'var(--green)', fontWeight: 700, margin: 0, fontSize: '1rem' }}>{title}</p>
+      <p style={{ color: 'var(--green)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{title}</p>
       {subtitle && (
         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: 6, lineHeight: 1.5 }}>
           {subtitle}
@@ -318,7 +311,6 @@ function OnboardingContent() {
     marginBottom: 6,
     display: 'block',
     fontWeight: 500,
-    letterSpacing: '.3px',
   };
 
   // Render stepper
@@ -326,53 +318,49 @@ function OnboardingContent() {
     <div style={{
       display: 'flex',
       justifyContent: 'center',
-      gap: 4,
-      marginBottom: 40,
+      gap: 2,
+      marginBottom: 32,
       flexWrap: 'wrap',
-      padding: '0 16px',
+      padding: '0 8px',
     }}>
       {STEPS.map((step) => {
         const isActive = step.num === currentStep;
         const isDone = step.num < currentStep;
-        const isFuture = step.num > currentStep;
         return (
           <div key={step.num} style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
+            gap: 2,
           }}>
             <div style={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 8,
-              minWidth: 62,
+              gap: 6,
+              minWidth: 56,
             }}>
               <div style={{
-                width: 42,
-                height: 42,
+                width: 32,
+                height: 32,
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: isDone ? '1.1rem' : '0.9rem',
+                fontSize: '0.8rem',
                 fontWeight: 700,
                 background: isDone
-                  ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+                  ? 'var(--green)'
                   : isActive
-                    ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)'
-                    : 'rgba(255,255,255,.04)',
+                    ? 'var(--orange)'
+                    : 'var(--night-mid)',
                 color: isDone || isActive ? '#fff' : 'var(--text-muted)',
-                border: isFuture ? '1px solid rgba(255,255,255,.08)' : 'none',
-                boxShadow: isActive
-                  ? '0 0 0 4px rgba(249,115,22,.12), 0 4px 14px rgba(249,115,22,.35)'
-                  : isDone
-                    ? '0 4px 14px rgba(34,197,94,.25)'
-                    : 'none',
-                animation: isActive ? 'pulse 2.5s ease-in-out infinite' : 'none',
-                transition: 'all .3s',
+                border: isActive
+                  ? '2px solid rgba(232,105,43,.3)'
+                  : '1px solid var(--border)',
+                transition: 'all .2s',
+                fontFamily: "'Bricolage Grotesque', sans-serif",
               }}>
-                {isDone ? '✓' : step.icon}
+                {isDone ? '✓' : step.num}
               </div>
               <span style={{
                 fontSize: '0.7rem',
@@ -387,14 +375,12 @@ function OnboardingContent() {
             </div>
             {step.num < STEPS.length && (
               <div style={{
-                width: 32,
+                width: 20,
                 height: 2,
-                background: isDone
-                  ? 'linear-gradient(90deg, #22c55e, #16a34a)'
-                  : 'rgba(255,255,255,.08)',
-                marginBottom: 26,
+                background: isDone ? 'var(--green)' : 'var(--border)',
+                marginBottom: 22,
                 borderRadius: 1,
-                transition: 'all .3s',
+                transition: 'background .3s',
               }} />
             )}
           </div>
@@ -438,27 +424,34 @@ function OnboardingContent() {
     <div style={cardStyle}>
       {mode === 'signup' ? (
         <>
-          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ textAlign: 'center', marginBottom: 26 }}>
             <div style={{
-              width: 56,
-              height: 56,
+              width: 44,
+              height: 44,
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(234,88,12,.25))',
-              border: '1px solid rgba(249,115,22,.3)',
+              background: 'rgba(232,105,43,.12)',
+              border: '1px solid var(--border-orange)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 16px',
-              fontSize: '1.5rem',
+              margin: '0 auto 14px',
+              fontSize: '1.2rem',
               color: 'var(--orange)',
             }}>
               &#9993;
             </div>
-            <h2 style={{ color: 'var(--white)', fontSize: '1.6rem', fontWeight: 800, margin: 0, letterSpacing: '-.3px' }}>
-              Bienvenue
+            <h2 style={{
+              color: 'var(--text)',
+              fontSize: '1.4rem',
+              fontWeight: 700,
+              margin: 0,
+              letterSpacing: '-.2px',
+              fontFamily: "'Bricolage Grotesque', sans-serif",
+            }}>
+              Bienvenue chez BourbonM&eacute;dia
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 10, lineHeight: 1.5 }}>
-              Cr&eacute;ons votre espace client en quelques &eacute;tapes simples
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', marginTop: 8, lineHeight: 1.5, margin: '8px 0 0' }}>
+              Cr&eacute;ons votre espace client en quelques &eacute;tapes
             </p>
           </div>
 
@@ -573,27 +566,34 @@ function OnboardingContent() {
         </>
       ) : (
         <>
-          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ textAlign: 'center', marginBottom: 26 }}>
             <div style={{
-              width: 56,
-              height: 56,
+              width: 44,
+              height: 44,
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(234,88,12,.25))',
-              border: '1px solid rgba(249,115,22,.3)',
+              background: 'rgba(232,105,43,.12)',
+              border: '1px solid var(--border-orange)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 16px',
-              fontSize: '1.5rem',
+              margin: '0 auto 14px',
+              fontSize: '1.2rem',
               color: 'var(--orange)',
             }}>
               &#8618;
             </div>
-            <h2 style={{ color: 'var(--white)', fontSize: '1.6rem', fontWeight: 800, margin: 0, letterSpacing: '-.3px' }}>
-              Reprendre
+            <h2 style={{
+              color: 'var(--text)',
+              fontSize: '1.4rem',
+              fontWeight: 700,
+              margin: 0,
+              letterSpacing: '-.2px',
+              fontFamily: "'Bricolage Grotesque', sans-serif",
+            }}>
+              Reprendre mon onboarding
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 10, lineHeight: 1.5 }}>
-              Connectez-vous pour reprendre votre onboarding l&agrave; o&ugrave; vous en &eacute;tiez
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', marginTop: 8, lineHeight: 1.5, margin: '8px 0 0' }}>
+              Connectez-vous pour reprendre l&agrave; o&ugrave; vous en &eacute;tiez
             </p>
           </div>
 
@@ -695,24 +695,31 @@ function OnboardingContent() {
   const stepHeaderStyle = (icon: string, title: string, subtitle: string) => (
     <div style={{ textAlign: 'center', marginBottom: 24 }}>
       <div style={{
-        width: 56,
-        height: 56,
+        width: 44,
+        height: 44,
         borderRadius: '50%',
-        background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(234,88,12,.25))',
-        border: '1px solid rgba(249,115,22,.3)',
+        background: 'rgba(232,105,43,.12)',
+        border: '1px solid var(--border-orange)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         margin: '0 auto 14px',
-        fontSize: '1.4rem',
+        fontSize: '1.2rem',
         color: 'var(--orange)',
       }}>
         {icon}
       </div>
-      <h2 style={{ color: 'var(--white)', fontSize: '1.4rem', fontWeight: 800, margin: 0, letterSpacing: '-.3px' }}>
+      <h2 style={{
+        color: 'var(--text)',
+        fontSize: '1.35rem',
+        fontWeight: 700,
+        margin: 0,
+        letterSpacing: '-.2px',
+        fontFamily: "'Bricolage Grotesque', sans-serif",
+      }}>
         {title}
       </h2>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: 8, lineHeight: 1.5 }}>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', marginTop: 8, lineHeight: 1.5, margin: '8px 0 0' }}>
         {subtitle}
       </p>
     </div>
@@ -720,13 +727,13 @@ function OnboardingContent() {
 
   const errorBox = (msg: string) => (
     <div style={{
-      marginTop: 18,
-      padding: '12px 16px',
+      marginTop: 14,
+      padding: '10px 14px',
       background: 'rgba(239,68,68,.08)',
       borderLeft: '3px solid var(--red)',
-      borderRadius: 8,
+      borderRadius: 6,
       color: '#fca5a5',
-      fontSize: '0.85rem',
+      fontSize: '0.84rem',
       lineHeight: 1.5,
     }}>
       {msg}
@@ -1163,85 +1170,36 @@ function OnboardingContent() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #0a0a0f 0%, #0d1117 50%, #0a0f1a 100%)',
+      background: 'var(--night)',
       display: 'flex',
       flexDirection: 'column',
-      position: 'relative',
-      overflow: 'hidden',
     }}>
-      {/* Background orbs */}
-      <div style={{
-        position: 'fixed',
-        top: '-20%',
-        right: '-15%',
-        width: 600,
-        height: 600,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(249,115,22,.12) 0%, transparent 60%)',
-        pointerEvents: 'none',
-        zIndex: 0,
-      }} />
-      <div style={{
-        position: 'fixed',
-        bottom: '-20%',
-        left: '-15%',
-        width: 600,
-        height: 600,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(59,130,246,.08) 0%, transparent 60%)',
-        pointerEvents: 'none',
-        zIndex: 0,
-      }} />
-
       {/* Header */}
       <header style={{
-        padding: '24px',
-        position: 'relative',
-        zIndex: 1,
-        borderBottom: '1px solid rgba(255,255,255,.06)',
-        background: 'rgba(10,10,15,.5)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
+        padding: '20px 24px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 4,
+        <span style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif",
+          fontWeight: 700,
+          fontSize: '1.15rem',
+          color: 'var(--orange)',
+          letterSpacing: '-.2px',
         }}>
-          <span style={{
-            fontFamily: "'Bricolage Grotesque', sans-serif",
-            fontWeight: 800,
-            fontSize: '1.45rem',
-            background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            letterSpacing: '-.5px',
-          }}>
-            BourbonM&eacute;dia
-          </span>
-          <span style={{
-            fontSize: '0.7rem',
-            color: 'var(--text-muted)',
-            letterSpacing: '1.5px',
-            textTransform: 'uppercase',
-            fontWeight: 500,
-          }}>
-            Production vid&eacute;o professionnelle
-          </span>
-        </div>
+          BourbonM&eacute;dia
+        </span>
       </header>
 
       {/* Main content */}
       <main style={{
         flex: 1,
-        padding: '40px 16px',
+        padding: '32px 16px',
         maxWidth: 720,
         width: '100%',
         margin: '0 auto',
-        position: 'relative',
-        zIndex: 1,
       }}>
         {currentStep >= 1 && currentStep <= 7 && renderStepper()}
         {renderCurrentStep()}
@@ -1249,16 +1207,11 @@ function OnboardingContent() {
 
       {/* Footer */}
       <footer style={{
-        padding: '24px',
-        borderTop: '1px solid rgba(255,255,255,.06)',
+        padding: '16px 24px',
+        borderTop: '1px solid var(--border)',
         textAlign: 'center',
-        position: 'relative',
-        zIndex: 1,
-        background: 'rgba(10,10,15,.5)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
       }}>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0, letterSpacing: '.3px' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0 }}>
           BourbonM&eacute;dia &mdash; Production vid&eacute;o &agrave; La R&eacute;union
         </p>
       </footer>
@@ -1268,31 +1221,12 @@ function OnboardingContent() {
           to { transform: rotate(360deg); }
         }
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(8px); }
+          from { opacity: 0; transform: translateY(6px); }
           to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulse {
-          0%, 100% { box-shadow: 0 0 0 4px rgba(249,115,22,.12), 0 4px 14px rgba(249,115,22,.35); }
-          50% { box-shadow: 0 0 0 8px rgba(249,115,22,.08), 0 6px 20px rgba(249,115,22,.5); }
         }
         input:focus, select:focus, textarea:focus {
-          border-color: rgba(249,115,22,.5) !important;
-          background: rgba(255,255,255,.06) !important;
-          box-shadow: 0 0 0 3px rgba(249,115,22,.1);
-        }
-        button:hover:not(:disabled) {
-          transform: translateY(-1px);
-          filter: brightness(1.05);
-        }
-        button:active:not(:disabled) {
-          transform: translateY(0);
-        }
-        a:hover {
-          filter: brightness(1.05);
+          border-color: var(--border-orange) !important;
+          background: var(--night-raised) !important;
         }
       `}</style>
     </div>
@@ -1304,7 +1238,7 @@ export default function OnboardingPage() {
     <Suspense fallback={
       <div style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0a0a0f 0%, #0d1117 50%, #0a0f1a 100%)',
+        background: 'var(--night)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
