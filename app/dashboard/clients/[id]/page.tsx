@@ -52,6 +52,24 @@ interface ScriptVersion {
   created_at: string;
 }
 
+interface ClientEvent {
+  id: string;
+  type: string;
+  payload: Record<string, unknown> | null;
+  actor: string;
+  created_at: string;
+}
+
+const EVENT_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+  status_changed: { label: 'Changement de statut', icon: '→', color: 'var(--text-mid)' },
+  script_sent_to_client: { label: 'Script envoyé au client', icon: '✉', color: 'var(--orange)' },
+  video_delivered: { label: 'Vidéo livrée', icon: '🎬', color: 'var(--green)' },
+  script_created: { label: 'Script créé', icon: '✍', color: 'var(--text-mid)' },
+  contract_signed: { label: 'Contrat signé', icon: '✓', color: 'var(--green)' },
+  payment_received: { label: 'Paiement reçu', icon: '💳', color: 'var(--green)' },
+  call_booked: { label: 'Call onboarding réservé', icon: '📅', color: 'var(--orange)' },
+};
+
 const STATUS_LABELS: Record<string, string> = {
   onboarding: 'Onboarding',
   script_writing: 'Écriture script',
@@ -96,7 +114,8 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<Client | null>(null);
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'info' | 'script' | 'comments' | 'delivery'>('info');
+  const [tab, setTab] = useState<'info' | 'script' | 'comments' | 'delivery' | 'timeline'>('info');
+  const [events, setEvents] = useState<ClientEvent[]>([]);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
@@ -142,6 +161,20 @@ export default function ClientDetailPage() {
   }, [id]);
 
   useEffect(() => { loadClient(); }, [loadClient]);
+
+  const loadEvents = useCallback(() => {
+    fetch(`/api/clients/events?client_id=${id}`, { headers: authHeaders() })
+      .then(async r => {
+        if (!r.ok) return;
+        const d = await r.json();
+        if (Array.isArray(d)) setEvents(d);
+      })
+      .catch(() => {});
+  }, [id]);
+
+  useEffect(() => {
+    if (tab === 'timeline') loadEvents();
+  }, [tab, loadEvents]);
 
   async function loadVersions() {
     if (!script) return;
@@ -367,7 +400,7 @@ export default function ClientDetailPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 2, flexWrap: 'wrap' }}>
-        {(['info', 'script', 'comments', 'delivery'] as const).map(t => (
+        {(['info', 'script', 'comments', 'delivery', 'timeline'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '8px 16px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer',
             fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
@@ -375,7 +408,7 @@ export default function ClientDetailPage() {
             color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
             borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
           }}>
-            {t === 'info' ? 'Informations' : t === 'script' ? 'Script' : t === 'comments' ? 'Commentaires' : 'Livraison'}
+            {t === 'info' ? 'Informations' : t === 'script' ? 'Script' : t === 'comments' ? 'Commentaires' : t === 'delivery' ? 'Livraison' : 'Historique'}
             {t === 'comments' && script?.script_comments?.length ? ` (${script.script_comments.length})` : ''}
             {t === 'delivery' && client.delivered_at ? ' ✓' : ''}
           </button>
@@ -695,6 +728,69 @@ export default function ClientDetailPage() {
               )}
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Timeline tab */}
+      {tab === 'timeline' && (
+        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>
+            Historique des événements
+          </h3>
+          {events.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: 20 }}>
+              Aucun événement enregistré pour ce client
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative' }}>
+              <div style={{
+                position: 'absolute', left: 16, top: 18, bottom: 18, width: 1,
+                background: 'var(--border-md)', opacity: 0.5,
+              }} />
+              {events.map(ev => {
+                const meta = EVENT_LABELS[ev.type] || { label: ev.type, icon: '•', color: 'var(--text-muted)' };
+                const payloadStr = ev.payload ? Object.entries(ev.payload)
+                  .map(([k, v]) => `${k}: ${String(v).slice(0, 40)}`)
+                  .join(' · ') : null;
+                return (
+                  <div key={ev.id} style={{
+                    display: 'flex', gap: 14, alignItems: 'flex-start',
+                    padding: '10px 0', position: 'relative',
+                  }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: '50%', flexShrink: 0, zIndex: 1,
+                      background: 'var(--night-mid)', border: `2px solid ${meta.color}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '0.9rem', color: meta.color,
+                    }}>{meta.icon}</div>
+                    <div style={{ flex: 1, paddingTop: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text)', fontWeight: 500 }}>
+                          {meta.label}
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          {new Date(ev.created_at).toLocaleDateString('fr-FR', {
+                            day: 'numeric', month: 'short', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      {payloadStr && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                          {payloadStr}
+                        </div>
+                      )}
+                      {ev.actor && (
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2, opacity: 0.7 }}>
+                          Par {ev.actor}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
