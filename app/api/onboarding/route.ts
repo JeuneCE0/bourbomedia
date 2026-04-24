@@ -164,23 +164,24 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ signed: true });
         }
       }
-      // Search by GHL contact ID (public link flow)
-      if (client.ghl_contact_id) {
-        const result = await findSignedDocumentByContact(client.ghl_contact_id);
-        if (result.signed) {
-          await supaFetch(`clients?id=eq.${client.id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              contract_signed_at: result.signedAt || new Date().toISOString(),
-              contract_yousign_id: result.documentId || '',
-              onboarding_step: 3,
-            }),
-          }, true);
-          notifyClientStatusChange(client.business_name, 'Étape 2', 'Contrat signé');
-          return NextResponse.json({ signed: true });
-        }
+      // Search by GHL contact ID + email (public link flow)
+      const result = await findSignedDocumentByContact(
+        client.ghl_contact_id || '',
+        client.email,
+      );
+      if (result.signed) {
+        await supaFetch(`clients?id=eq.${client.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            contract_signed_at: result.signedAt || new Date().toISOString(),
+            contract_yousign_id: result.documentId || '',
+            onboarding_step: 3,
+          }),
+        }, true);
+        notifyClientStatusChange(client.business_name, 'Étape 2', 'Contrat signé');
+        return NextResponse.json({ signed: true });
       }
-      return NextResponse.json({ signed: false });
+      return NextResponse.json({ signed: false, debug: result.debug });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
     }

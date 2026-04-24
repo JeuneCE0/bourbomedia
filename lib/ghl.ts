@@ -121,18 +121,36 @@ export async function getDocumentStatus(documentId: string): Promise<{ status: s
   }
 }
 
-export async function findSignedDocumentByContact(contactId: string): Promise<{ signed: boolean; documentId?: string; signedAt?: string }> {
+export async function findSignedDocumentByContact(contactId: string, email?: string): Promise<{ signed: boolean; documentId?: string; signedAt?: string; debug?: unknown }> {
   if (!GHL_API_KEY || !LOCATION_ID) return { signed: false };
-  try {
-    const data = await ghlRequest('GET', `/proposals/document?locationId=${LOCATION_ID}&query=${contactId}&limit=5`);
-    const docs = data?.data || [];
-    for (const doc of docs) {
-      const status = Array.isArray(doc.status) ? doc.status[0] : doc.status;
-      if (status === 'completed' || status === 'accepted' || status === 'signed') {
-        return { signed: true, documentId: doc.id || doc._id, signedAt: doc.updatedAt };
+  const queries = [contactId];
+  if (email) queries.push(email);
+
+  for (const q of queries) {
+    try {
+      const data = await ghlRequest('GET', `/proposals/document?locationId=${LOCATION_ID}&query=${encodeURIComponent(q)}&limit=10`);
+      const docs = data?.data || [];
+      for (const doc of docs) {
+        const status = Array.isArray(doc.status) ? doc.status[0] : doc.status;
+        if (status === 'completed' || status === 'accepted' || status === 'signed') {
+          return { signed: true, documentId: doc.id || doc._id, signedAt: doc.updatedAt };
+        }
       }
-    }
-    return { signed: false };
+    } catch { /* try next query */ }
+  }
+
+  // Debug: return what GHL sees for the first query
+  try {
+    const data = await ghlRequest('GET', `/proposals/document?locationId=${LOCATION_ID}&limit=5`);
+    const docs = (data?.data || []).map((d: Record<string, unknown>) => ({
+      id: d.id || d._id,
+      name: d.name,
+      status: d.status,
+      email: d.email,
+      contactId: d.contactId,
+      updatedAt: d.updatedAt,
+    }));
+    return { signed: false, debug: docs };
   } catch {
     return { signed: false };
   }

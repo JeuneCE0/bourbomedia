@@ -172,13 +172,15 @@ function OnboardingContent() {
   // Step 2: Check contract status
   const handleCheckContract = async () => {
     setCheckingContract(true);
+    setError('');
     try {
       const r = await api('check_contract');
       const data = await r.json();
       if (data.signed) {
         await fetchClient(token);
       } else {
-        setError('Le contrat n\'a pas encore été signé. Veuillez signer le contrat puis revenir ici.');
+        const debugInfo = data.debug ? '\n\nDebug GHL: ' + JSON.stringify(data.debug, null, 2) : '';
+        setError('Le contrat n\'a pas encore été détecté. Si vous venez de signer, attendez quelques secondes — la vérification est automatique.' + debugInfo);
       }
     } catch {
       setError('Erreur de vérification');
