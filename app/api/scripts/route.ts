@@ -157,24 +157,33 @@ export async function PUT(req: NextRequest) {
 
     // Save version before updating
     const currentR = await supaFetch(`scripts?id=eq.${id}&select=*`, {}, true);
+    let prev: { status?: string; version?: number; content?: unknown; created_by?: string } | null = null;
     if (currentR.ok) {
       const current = await currentR.json();
       if (current.length) {
+        prev = current[0];
         await supaFetch('script_versions', {
           method: 'POST',
           body: JSON.stringify({
             script_id: id,
-            version: current[0].version,
-            content: current[0].content,
-            status: current[0].status,
-            created_by: current[0].created_by,
+            version: prev?.version,
+            content: prev?.content,
+            status: prev?.status,
+            created_by: prev?.created_by,
           }),
         }, true);
       }
     }
 
     fields.updated_at = new Date().toISOString();
-    if (fields.content) fields.version = (fields.version || 1) + 1;
+    if (fields.content) {
+      fields.version = (prev?.version || 1) + 1;
+      // If client had asked for changes and admin didn't pass explicit status,
+      // mark as 'modified' automatically
+      if (!fields.status && prev?.status === 'awaiting_changes') {
+        fields.status = 'modified';
+      }
+    }
 
     const r = await supaFetch(`scripts?id=eq.${id}`, {
       method: 'PATCH',
