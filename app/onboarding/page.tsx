@@ -280,6 +280,38 @@ function OnboardingContent() {
     animation: 'slideUp .5s cubic-bezier(.16,1,.3,1)',
   };
 
+  const SuccessBox = ({ title, subtitle }: { title: string; subtitle?: string }) => (
+    <div style={{
+      padding: '28px 24px',
+      background: 'rgba(34,197,94,.06)',
+      border: '1px solid rgba(34,197,94,.2)',
+      borderRadius: 14,
+      textAlign: 'center',
+    }}>
+      <div style={{
+        width: 56,
+        height: 56,
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, rgba(34,197,94,.2), rgba(22,163,74,.3))',
+        border: '1px solid rgba(34,197,94,.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '0 auto 14px',
+        fontSize: '1.6rem',
+        color: 'var(--green)',
+      }}>
+        ✓
+      </div>
+      <p style={{ color: 'var(--green)', fontWeight: 700, margin: 0, fontSize: '1rem' }}>{title}</p>
+      {subtitle && (
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: 6, lineHeight: 1.5 }}>
+          {subtitle}
+        </p>
+      )}
+    </div>
+  );
+
   const labelStyle: React.CSSProperties = {
     fontSize: '0.78rem',
     color: 'var(--text-mid)',
@@ -660,17 +692,50 @@ function OnboardingContent() {
     }
   }, [currentStep, showSignedBtn]);
 
+  const stepHeaderStyle = (icon: string, title: string, subtitle: string) => (
+    <div style={{ textAlign: 'center', marginBottom: 24 }}>
+      <div style={{
+        width: 56,
+        height: 56,
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(234,88,12,.25))',
+        border: '1px solid rgba(249,115,22,.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '0 auto 14px',
+        fontSize: '1.4rem',
+        color: 'var(--orange)',
+      }}>
+        {icon}
+      </div>
+      <h2 style={{ color: 'var(--white)', fontSize: '1.4rem', fontWeight: 800, margin: 0, letterSpacing: '-.3px' }}>
+        {title}
+      </h2>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: 8, lineHeight: 1.5 }}>
+        {subtitle}
+      </p>
+    </div>
+  );
+
+  const errorBox = (msg: string) => (
+    <div style={{
+      marginTop: 18,
+      padding: '12px 16px',
+      background: 'rgba(239,68,68,.08)',
+      borderLeft: '3px solid var(--red)',
+      borderRadius: 8,
+      color: '#fca5a5',
+      fontSize: '0.85rem',
+      lineHeight: 1.5,
+    }}>
+      {msg}
+    </div>
+  );
+
   const renderStep2 = () => (
     <div style={{ ...cardStyle, maxWidth: 900 }}>
-      <div style={{ textAlign: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#9998;</div>
-        <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-          Signature du contrat
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-          Lisez, remplissez et signez votre contrat de prestation ci-dessous.
-        </p>
-      </div>
+      {stepHeaderStyle('✎', 'Signature du contrat', 'Lisez, remplissez et signez votre contrat de prestation ci-dessous')}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{
@@ -713,19 +778,7 @@ function OnboardingContent() {
         )}
       </div>
 
-      {error && (
-        <div style={{
-          marginTop: 16,
-          padding: '10px 14px',
-          background: 'rgba(239,68,68,.1)',
-          border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 8,
-          color: 'var(--red)',
-          fontSize: '0.85rem',
-        }}>
-          {error}
-        </div>
-      )}
+      {error && errorBox(error)}
     </div>
   );
 
@@ -755,45 +808,19 @@ function OnboardingContent() {
   const renderStep3 = () => {
     const isPaid = !!client?.paid_at;
     return (
-      <div style={{ ...cardStyle, maxWidth: isPaid || paymentStatus === 'success' ? 520 : 640 }}>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#8364;</div>
-          <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-            Paiement
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-            {isPaid ? 'Votre paiement a été confirmé !' : 'Réglez votre prestation de manière sécurisée.'}
-          </p>
-        </div>
+      <div style={{ ...cardStyle, maxWidth: isPaid || paymentStatus === 'success' ? 520 : 700 }}>
+        {stepHeaderStyle('€', 'Paiement', isPaid ? 'Votre paiement a été confirmé' : 'Réglez votre prestation de manière sécurisée')}
 
         {isPaid ? (
-          <div style={{
-            padding: '24px',
-            background: 'rgba(34,197,94,.1)',
-            border: '1px solid rgba(34,197,94,.3)',
-            borderRadius: 12,
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#10003;</div>
-            <p style={{ color: 'var(--green)', fontWeight: 600, margin: 0 }}>Paiement re&ccedil;u</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 4 }}>
-              Pay&eacute; le {new Date(client!.paid_at!).toLocaleDateString('fr-FR')}
-            </p>
-          </div>
+          <SuccessBox
+            title="Paiement reçu"
+            subtitle={`Payé le ${new Date(client!.paid_at!).toLocaleDateString('fr-FR')}`}
+          />
         ) : paymentStatus === 'success' ? (
-          <div style={{
-            padding: '24px',
-            background: 'rgba(34,197,94,.1)',
-            border: '1px solid rgba(34,197,94,.3)',
-            borderRadius: 12,
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#10003;</div>
-            <p style={{ color: 'var(--green)', fontWeight: 600, margin: 0 }}>Paiement en cours de traitement</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 4 }}>
-              Votre paiement est en cours de v&eacute;rification. Cette page se mettra &agrave; jour automatiquement.
-            </p>
-          </div>
+          <SuccessBox
+            title="Paiement en cours de traitement"
+            subtitle="Votre paiement est en cours de vérification. Cette page se mettra à jour automatiquement."
+          />
         ) : stripeClientSecret && stripePromise ? (
           <div style={{ borderRadius: 12, overflow: 'hidden' }}>
             <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret: stripeClientSecret }}>
@@ -815,19 +842,7 @@ function OnboardingContent() {
           </div>
         )}
 
-        {error && (
-          <div style={{
-            marginTop: 16,
-            padding: '10px 14px',
-            background: 'rgba(239,68,68,.1)',
-            border: '1px solid rgba(239,68,68,.3)',
-            borderRadius: 8,
-            color: 'var(--red)',
-            fontSize: '0.85rem',
-          }}>
-            {error}
-          </div>
-        )}
+        {error && errorBox(error)}
       </div>
     );
   };
@@ -845,15 +860,7 @@ function OnboardingContent() {
 
   const renderStep4 = () => (
     <div style={{ ...cardStyle, maxWidth: 900 }}>
-      <div style={{ textAlign: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#9742;</div>
-        <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-          Appel de lancement
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-          R&eacute;servez un cr&eacute;neau pour votre appel de lancement avec notre &eacute;quipe.
-        </p>
-      </div>
+      {stepHeaderStyle('☎', 'Appel de lancement', 'Réservez un créneau de 30 minutes avec notre équipe')}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{
@@ -890,19 +897,7 @@ function OnboardingContent() {
         )}
       </div>
 
-      {error && (
-        <div style={{
-          marginTop: 16,
-          padding: '10px 14px',
-          background: 'rgba(239,68,68,.1)',
-          border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 8,
-          color: 'var(--red)',
-          fontSize: '0.85rem',
-        }}>
-          {error}
-        </div>
-      )}
+      {error && errorBox(error)}
     </div>
   );
 
@@ -914,32 +909,14 @@ function OnboardingContent() {
 
     return (
       <div style={cardStyle}>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: '2rem', marginBottom: 8 }}>▤</div>
-          <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-            Script vidéo
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-            {scriptConfirmed
-              ? 'Votre script a été validé !'
-              : hasScript
-                ? 'Votre script est en cours de préparation. Consultez-le et donnez votre avis.'
-                : 'Notre équipe prépare votre script. Vous serez notifié dès qu\'il sera prêt.'
-            }
-          </p>
-        </div>
-
+        {stepHeaderStyle('▤', 'Script vidéo', scriptConfirmed
+          ? 'Votre script a été validé !'
+          : hasScript
+            ? 'Votre script est prêt. Consultez-le dans votre portail.'
+            : 'Notre équipe prépare votre script. Vous serez notifié dès qu\'il sera prêt.'
+        )}
         {scriptConfirmed ? (
-          <div style={{
-            padding: '24px',
-            background: 'rgba(34,197,94,.1)',
-            border: '1px solid rgba(34,197,94,.3)',
-            borderRadius: 12,
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>✓</div>
-            <p style={{ color: 'var(--green)', fontWeight: 600, margin: 0 }}>Script validé</p>
-          </div>
+          <SuccessBox title="Script validé" />
         ) : hasScript ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{
@@ -1004,15 +981,7 @@ function OnboardingContent() {
   // Step 6: Confirm filming date
   const renderStep6 = () => (
     <div style={cardStyle}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>▶</div>
-        <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-          Date de tournage
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-          Confirmez la date de tournage proposée par notre équipe.
-        </p>
-      </div>
+      {stepHeaderStyle('▶', 'Date de tournage', 'Confirmez la date de tournage proposée par notre équipe')}
 
       {client?.filming_date ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1054,34 +1023,14 @@ function OnboardingContent() {
         </div>
       )}
 
-      {error && (
-        <div style={{
-          marginTop: 16,
-          padding: '10px 14px',
-          background: 'rgba(239,68,68,.1)',
-          border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 8,
-          color: 'var(--red)',
-          fontSize: '0.85rem',
-        }}>
-          {error}
-        </div>
-      )}
+      {error && errorBox(error)}
     </div>
   );
 
   // Step 7: Confirm publication date
   const renderStep7 = () => (
     <div style={cardStyle}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>◈</div>
-        <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-          Date de publication
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-          Confirmez la date de publication de votre vidéo.
-        </p>
-      </div>
+      {stepHeaderStyle('◈', 'Date de publication', 'Confirmez la date de publication de votre vidéo')}
 
       {client?.publication_date ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1120,19 +1069,7 @@ function OnboardingContent() {
         </div>
       )}
 
-      {error && (
-        <div style={{
-          marginTop: 16,
-          padding: '10px 14px',
-          background: 'rgba(239,68,68,.1)',
-          border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 8,
-          color: 'var(--red)',
-          fontSize: '0.85rem',
-        }}>
-          {error}
-        </div>
-      )}
+      {error && errorBox(error)}
     </div>
   );
 
