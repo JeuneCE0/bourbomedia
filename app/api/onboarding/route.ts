@@ -120,14 +120,11 @@ export async function POST(req: NextRequest) {
           phone: client.phone || undefined,
           companyName: client.business_name,
         });
-        if (ghlContactId) {
-          await supaFetch(`clients?id=eq.${client.id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ ghl_contact_id: ghlContactId }),
-          }, true);
-        }
+        await supaFetch(`clients?id=eq.${client.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ ghl_contact_id: ghlContactId }),
+        }, true);
       }
-      if (!ghlContactId) return NextResponse.json({ error: 'Erreur création contact GHL' }, { status: 500 });
 
       const ghlUserId = process.env.GHL_USER_ID || '';
       const result = await sendDocumentFromTemplate(templateId, ghlContactId, ghlUserId);

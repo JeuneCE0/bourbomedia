@@ -16,7 +16,12 @@ export async function ghlRequest(method: string, endpoint: string, body?: Record
     headers: headers(),
     body: body ? JSON.stringify(body) : undefined,
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data?.message || data?.error || JSON.stringify(data);
+    throw new Error(`GHL ${res.status}: ${msg}`);
+  }
+  return data;
 }
 
 export async function sendWhatsAppMessage(contactId: string, message: string) {
@@ -118,15 +123,14 @@ export async function getDocumentStatus(documentId: string): Promise<{ status: s
   }
 }
 
-export async function createGhlContact(contactData: { firstName: string; lastName: string; email: string; phone?: string; companyName?: string }): Promise<string | null> {
-  if (!GHL_API_KEY || !LOCATION_ID) return null;
-  try {
-    const data = await ghlRequest('POST', '/contacts/', {
-      locationId: LOCATION_ID,
-      ...contactData,
-    });
-    return data?.contact?.id || data?.id || null;
-  } catch {
-    return null;
-  }
+export async function createGhlContact(contactData: { firstName: string; lastName: string; email: string; phone?: string; companyName?: string }): Promise<string> {
+  if (!GHL_API_KEY) throw new Error('GHL_API_KEY manquant');
+  if (!LOCATION_ID) throw new Error('GHL_LOCATION_ID manquant');
+  const data = await ghlRequest('POST', '/contacts/', {
+    locationId: LOCATION_ID,
+    ...contactData,
+  });
+  const id = data?.contact?.id || data?.id;
+  if (!id) throw new Error('Réponse GHL inattendue: ' + JSON.stringify(data).slice(0, 200));
+  return id;
 }
