@@ -156,7 +156,7 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<Client | null>(null);
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'info' | 'script' | 'comments' | 'filming' | 'delivery' | 'payments' | 'timeline'>('info');
+  const [tab, setTab] = useState<'info' | 'script' | 'filming' | 'delivery' | 'payments'>('info');
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [events, setEvents] = useState<ClientEvent[]>([]);
@@ -190,19 +190,19 @@ export default function ClientDetailPage() {
     }
   }
 
-  const loadClient = useCallback(() => {
-    fetch(`/api/clients?id=${id}`, { headers: authHeaders() })
-      .then(async r => {
-        if (!r.ok) throw new Error(await parseErr(r));
-        return r.json();
-      })
-      .then(d => {
-        setClient(d);
-        if (d?.scripts?.length) setScript(d.scripts[0]);
-        else setScript(null);
-      })
-      .catch(e => notify('error', e.message))
-      .finally(() => setLoading(false));
+  const loadClient = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/clients?id=${id}`, { headers: authHeaders() });
+      if (!r.ok) throw new Error(await parseErr(r));
+      const d = await r.json();
+      setClient(d);
+      if (d?.scripts?.length) setScript(d.scripts[0]);
+      else setScript(null);
+    } catch (e: unknown) {
+      notify('error', (e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
   useEffect(() => { loadClient(); }, [loadClient]);
@@ -228,7 +228,7 @@ export default function ClientDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    if (tab === 'timeline') loadEvents();
+    if (tab === 'info') loadEvents();
     if (tab === 'payments') loadPayments();
   }, [tab, loadEvents, loadPayments]);
 
@@ -268,14 +268,15 @@ export default function ClientDetailPage() {
         body: JSON.stringify({ client_id: id, title: `Script — ${client?.business_name}` }),
       });
       if (!r.ok) throw new Error(await parseErr(r));
-      const r2 = await fetch('/api/clients', {
+      const created = await r.json();
+      setScript({ ...created, script_comments: [] });
+      await fetch('/api/clients', {
         method: 'PUT', headers: authHeaders(),
         body: JSON.stringify({ id, status: 'script_writing' }),
       });
-      if (!r2.ok) throw new Error(await parseErr(r2));
-      notify('success', 'Script créé');
-      loadClient();
       setTab('script');
+      notify('success', 'Script créé — commencez à rédiger');
+      await loadClient();
     } catch (e: unknown) {
       notify('error', (e as Error).message);
     } finally { setSaving(false); }
@@ -607,49 +608,26 @@ export default function ClientDetailPage() {
   if (loading) return <div style={{ padding: 32, color: 'var(--text-muted)' }}>Chargement…</div>;
   if (!client) return <div style={{ padding: 32, color: 'var(--red)' }}>Client introuvable</div>;
 
-  const currentStep = STEPS.indexOf(client.status);
   const portalUrl = client.portal_token ? `${typeof window !== 'undefined' ? window.location.origin : ''}/portal?token=${client.portal_token}` : null;
 
-  return (
-    <div style={{ padding: '28px 32px', maxWidth: 900 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <div>
-          <button onClick={() => router.push('/dashboard/clients')} style={{
-            background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
-            fontSize: '0.8rem', padding: 0, marginBottom: 8,
-          }}>← Retour</button>
-          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '1.4rem' }}>
-            {client.business_name}
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 2 }}>
-            {client.contact_name}{client.city ? ` — ${client.city}` : ''}
-          </p>
-        </div>
-        <span style={{
-          fontSize: '0.75rem', padding: '5px 14px', borderRadius: 20,
-          background: STATUS_COLORS[client.status] + '20',
-          color: STATUS_COLORS[client.status], fontWeight: 600,
-        }}>{STATUS_LABELS[client.status]}</span>
-      </div>
+  const TAB_LIST: { key: typeof tab; label: string; badge?: string }[] = [
+    { key: 'info', label: 'Aperçu' },
+    { key: 'script', label: 'Script', badge: script?.script_comments?.length ? `${script.script_comments.length}` : undefined },
+    { key: 'filming', label: 'Tournage' },
+    { key: 'delivery', label: 'Livraison', badge: client.delivered_at ? '✓' : undefined },
+    { key: 'payments', label: 'Paiements', badge: payments.length > 0 ? `${payments.length}` : undefined },
+  ];
 
-      {/* Stepper */}
-      <div style={{ display: 'flex', gap: 3, margin: '20px 0 24px' }}>
-        {STEPS.map((step, i) => (
-          <button key={step} onClick={() => handleUpdateStatus(step)} title={STATUS_LABELS[step]} style={{
-            flex: 1, height: 6, borderRadius: 3, border: 'none', cursor: 'pointer',
-            background: i <= currentStep ? STATUS_COLORS[step] : 'var(--border-md)',
-          }} />
-        ))}
-      </div>
+  return (
+    <div style={{ padding: '24px 28px 40px', maxWidth: 960, margin: '0 auto' }}>
 
       {/* Toast */}
       {toast && (
         <div style={{
-          position: 'fixed', top: 24, right: 24, zIndex: 1000,
-          padding: '12px 18px', borderRadius: 10, maxWidth: 420,
+          position: 'fixed', top: 20, right: 20, zIndex: 1000,
+          padding: '10px 16px', borderRadius: 10, maxWidth: 380,
           background: toast.type === 'error' ? 'rgba(239,68,68,.95)' : 'rgba(34,197,94,.95)',
-          color: '#fff', fontSize: '0.85rem', fontWeight: 500,
+          color: '#fff', fontSize: '0.82rem', fontWeight: 500,
           boxShadow: '0 8px 24px rgba(0,0,0,.4)',
           animation: 'slideIn .2s ease-out',
         }}>
@@ -658,26 +636,110 @@ export default function ClientDetailPage() {
         </div>
       )}
 
+      {/* Header */}
+      <div style={{ marginBottom: 24 }}>
+        <button onClick={() => router.push('/dashboard/clients')} style={{
+          background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+          fontSize: '0.78rem', padding: 0, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          <span style={{ fontSize: '0.9rem' }}>‹</span> Clients
+        </button>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+              <h1 style={{
+                fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+                fontSize: '1.6rem', color: 'var(--text)', margin: 0, lineHeight: 1.2,
+              }}>
+                {client.business_name}
+              </h1>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                {client.contact_name}
+              </span>
+              {client.city && (
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', opacity: 0.7 }}>
+                  · {client.city}
+                </span>
+              )}
+              {client.category && (
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', opacity: 0.7 }}>
+                  · {client.category}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Right: status + actions */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
+            <select
+              value={client.status}
+              onChange={e => handleUpdateStatus(e.target.value)}
+              style={{
+                padding: '6px 28px 6px 12px', borderRadius: 20,
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                background: `${STATUS_COLORS[client.status]}20 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E") no-repeat right 10px center`,
+                color: STATUS_COLORS[client.status], border: 'none',
+                fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              {STEPS.map(s => (
+                <option key={s} value={s} style={{ background: 'var(--night)', color: 'var(--text)' }}>
+                  {STATUS_LABELS[s]}
+                </option>
+              ))}
+            </select>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {client.phone && (
+                <a href={`https://wa.me/${client.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer"
+                  title="WhatsApp" style={miniActionStyle}>💬</a>
+              )}
+              {client.phone && (
+                <a href={`tel:${client.phone}`} title="Appeler" style={miniActionStyle}>📞</a>
+              )}
+              {client.email && (
+                <a href={`mailto:${client.email}`} title="Email" style={miniActionStyle}>✉</a>
+              )}
+              {portalUrl && (
+                <button onClick={() => { navigator.clipboard.writeText(portalUrl); notify('success', 'Lien portail copié'); }}
+                  title="Copier lien portail" style={{ ...miniActionStyle, cursor: 'pointer' }}>🔗</button>
+              )}
+              <button onClick={handleDelete} title="Supprimer le client"
+                style={{ ...miniActionStyle, cursor: 'pointer', color: 'var(--red)', opacity: 0.6 }}>✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 2, flexWrap: 'wrap' }}>
-        {(['info', 'script', 'comments', 'filming', 'delivery', 'payments', 'timeline'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: '8px 16px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer',
-            fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
-            background: tab === t ? 'var(--night-card)' : 'transparent',
-            color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
-            borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
+      <div style={{
+        display: 'flex', gap: 2, marginBottom: 24,
+        borderBottom: '1px solid var(--border)',
+      }}>
+        {TAB_LIST.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} style={{
+            padding: '10px 18px', border: 'none', cursor: 'pointer',
+            fontSize: '0.82rem', fontWeight: tab === t.key ? 600 : 400,
+            background: 'transparent',
+            color: tab === t.key ? 'var(--orange)' : 'var(--text-muted)',
+            borderBottom: tab === t.key ? '2px solid var(--orange)' : '2px solid transparent',
+            marginBottom: -1,
+            display: 'flex', alignItems: 'center', gap: 6,
+            transition: 'color .15s',
           }}>
-            {t === 'info' ? 'Informations'
-              : t === 'script' ? 'Script'
-              : t === 'comments' ? 'Commentaires'
-              : t === 'filming' ? 'Tournage'
-              : t === 'delivery' ? 'Livraison'
-              : t === 'payments' ? 'Paiements'
-              : 'Historique'}
-            {t === 'comments' && script?.script_comments?.length ? ` (${script.script_comments.length})` : ''}
-            {t === 'delivery' && client.delivered_at ? ' ✓' : ''}
-            {t === 'payments' && payments.length > 0 ? ` (${payments.length})` : ''}
+            {t.label}
+            {t.badge && (
+              <span style={{
+                fontSize: '0.62rem', padding: '1px 6px', borderRadius: 8,
+                background: tab === t.key ? 'rgba(232,105,43,.15)' : 'var(--night-mid)',
+                color: tab === t.key ? 'var(--orange)' : 'var(--text-muted)',
+                fontWeight: 600,
+              }}>{t.badge}</span>
+            )}
           </button>
         ))}
       </div>
@@ -698,40 +760,19 @@ export default function ClientDetailPage() {
                 <InfoField label="Deadline publication" value={client.publication_deadline ? new Date(client.publication_deadline).toLocaleDateString('fr-FR') : '—'} />
               </div>
 
-              {/* Quick contact actions */}
-              {(client.phone || client.email) && (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-                  {client.phone && (
-                    <>
-                      <a href={`tel:${client.phone}`} style={quickContactStyle('var(--text-mid)')}>
-                        📞 Appeler
-                      </a>
-                      <a href={`https://wa.me/${client.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer"
-                        style={quickContactStyle('#25D366')}>
-                        💬 WhatsApp
-                      </a>
-                    </>
-                  )}
-                  {client.email && (
-                    <a href={`mailto:${client.email}`} style={quickContactStyle('var(--text-mid)')}>
-                      ✉ Email
-                    </a>
-                  )}
-                </div>
-              )}
-
               {portalUrl && (
                 <div style={{ marginBottom: 16 }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Lien portail client</span>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Portail client</span>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <code style={{
-                      flex: 1, fontSize: '0.72rem', padding: '6px 10px', borderRadius: 6,
+                      flex: 1, fontSize: '0.68rem', padding: '5px 8px', borderRadius: 6,
                       background: 'var(--night-mid)', color: 'var(--orange)', wordBreak: 'break-all',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>{portalUrl}</code>
                     <button onClick={() => { navigator.clipboard.writeText(portalUrl); notify('success', 'Lien copié'); }} style={{
-                      padding: '6px 12px', borderRadius: 6, background: 'var(--night-mid)',
+                      padding: '5px 10px', borderRadius: 6, background: 'var(--night-mid)',
                       border: '1px solid var(--border-md)', color: 'var(--text-mid)',
-                      cursor: 'pointer', fontSize: '0.75rem',
+                      cursor: 'pointer', fontSize: '0.72rem', whiteSpace: 'nowrap',
                     }}>Copier</button>
                   </div>
                 </div>
@@ -897,6 +938,55 @@ export default function ClientDetailPage() {
               </div>
             </form>
           )}
+
+          {/* Timeline — inline in Aperçu */}
+          <div style={{
+            marginTop: 20, paddingTop: 16,
+            borderTop: '1px solid var(--border)',
+          }}>
+            <h4 style={{
+              fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)',
+              margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.05em',
+            }}>Historique</h4>
+            {events.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Aucun événement enregistré</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative' }}>
+                <div style={{
+                  position: 'absolute', left: 12, top: 14, bottom: 14, width: 1,
+                  background: 'var(--border-md)', opacity: 0.4,
+                }} />
+                {events.slice(0, 10).map(ev => {
+                  const meta = EVENT_LABELS[ev.type] || { label: ev.type, icon: '•', color: 'var(--text-muted)' };
+                  return (
+                    <div key={ev.id} style={{
+                      display: 'flex', gap: 10, alignItems: 'flex-start',
+                      padding: '6px 0', position: 'relative',
+                    }}>
+                      <div style={{
+                        width: 24, height: 24, borderRadius: '50%', flexShrink: 0, zIndex: 1,
+                        background: 'var(--night-mid)', border: `1.5px solid ${meta.color}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.7rem', color: meta.color,
+                      }}>{meta.icon}</div>
+                      <div style={{ flex: 1, paddingTop: 2 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text)', fontWeight: 500 }}>
+                            {meta.label}
+                          </span>
+                          <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                            {new Date(ev.created_at).toLocaleDateString('fr-FR', {
+                              day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -963,55 +1053,47 @@ export default function ClientDetailPage() {
                 </div>
               )}
               <ScriptEditor content={script.content} onSave={handleSaveScript} saving={saving} />
-            </>
-          ) : (
-            <div style={{ textAlign: 'center', padding: 40 }}>
-              <p style={{ color: 'var(--text-muted)', marginBottom: 16, fontSize: '0.9rem' }}>Aucun script créé pour ce client</p>
-              <button onClick={handleCreateScript} disabled={saving} style={{
-                padding: '10px 20px', borderRadius: 8, background: 'var(--orange)',
-                color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
-              }}>{saving ? 'Création…' : 'Créer le script'}</button>
-            </div>
-          )}
-        </div>
-      )}
 
-      {/* Comments tab */}
-      {tab === 'comments' && (
-        <div>
-          {script ? (
-            <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-                {script.script_comments && script.script_comments.length > 0 ? (
-                  script.script_comments.map(c => (
-                    <div key={c.id} style={{
-                      padding: '12px 16px', borderRadius: 10,
-                      background: c.author_type === 'admin' ? 'var(--night-card)' : 'rgba(232,105,43,.08)',
-                      border: `1px solid ${c.author_type === 'admin' ? 'var(--border)' : 'var(--border-orange)'}`,
-                      marginLeft: c.author_type === 'admin' ? 0 : 24,
-                      marginRight: c.author_type === 'client' ? 0 : 24,
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{
-                          fontSize: '0.75rem', fontWeight: 600,
-                          color: c.author_type === 'admin' ? 'var(--text-mid)' : 'var(--orange)',
-                        }}>{c.author_name}</span>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                          {new Date(c.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </span>
+              {/* Comments (inline, below editor) */}
+              <div style={{
+                marginTop: 24, paddingTop: 20,
+                borderTop: '1px solid var(--border)',
+              }}>
+                <h4 style={{
+                  fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-mid)',
+                  margin: '0 0 12px',
+                }}>
+                  Commentaires {script.script_comments?.length ? `(${script.script_comments.length})` : ''}
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+                  {script.script_comments && script.script_comments.length > 0 ? (
+                    script.script_comments.map(c => (
+                      <div key={c.id} style={{
+                        padding: '10px 14px', borderRadius: 8,
+                        background: c.author_type === 'admin' ? 'var(--night-mid)' : 'rgba(232,105,43,.06)',
+                        border: `1px solid ${c.author_type === 'admin' ? 'var(--border)' : 'rgba(232,105,43,.15)'}`,
+                        marginLeft: c.author_type === 'client' ? 20 : 0,
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, gap: 8 }}>
+                          <span style={{
+                            fontSize: '0.72rem', fontWeight: 600,
+                            color: c.author_type === 'admin' ? 'var(--text-mid)' : 'var(--orange)',
+                          }}>{c.author_name}</span>
+                          <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                            {new Date(c.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.82rem', color: 'var(--text)', lineHeight: 1.5, margin: 0 }}>{c.content}</p>
                       </div>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text)', lineHeight: 1.5, margin: 0 }}>{c.content}</p>
-                    </div>
-                  ))
-                ) : (
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: 20 }}>Aucun commentaire</p>
-                )}
-              </div>
-
-              <form onSubmit={handleSendComment} style={{ display: 'flex', gap: 8 }}>
-                <input
-                  value={comment} onChange={e => setComment(e.target.value)}
-                  placeholder="Écrire un commentaire…"
+                    ))
+                  ) : (
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: 0 }}>Aucun commentaire</p>
+                  )}
+                </div>
+                <form onSubmit={handleSendComment} style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={comment} onChange={e => setComment(e.target.value)}
+                    placeholder="Écrire un commentaire…"
                   style={{
                     flex: 1, padding: '10px 14px', borderRadius: 8,
                     background: 'var(--night-card)', border: '1px solid var(--border-md)',
@@ -1019,16 +1101,22 @@ export default function ClientDetailPage() {
                   }}
                 />
                 <button type="submit" disabled={sendingComment || !comment.trim()} style={{
-                  padding: '10px 18px', borderRadius: 8, background: 'var(--orange)',
-                  color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.8rem',
+                  padding: '9px 16px', borderRadius: 8, background: 'var(--orange)',
+                  color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.78rem',
                   cursor: 'pointer', opacity: sendingComment || !comment.trim() ? 0.5 : 1,
                 }}>{sendingComment ? '…' : 'Envoyer'}</button>
-              </form>
+                </form>
+              </div>
             </>
           ) : (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: 40 }}>
-              Créez d&#39;abord un script pour pouvoir commenter
-            </p>
+            <div style={{ textAlign: 'center', padding: '48px 20px' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: 12, opacity: 0.2 }}>✎</div>
+              <p style={{ color: 'var(--text-muted)', marginBottom: 16, fontSize: '0.88rem' }}>Aucun script pour ce client</p>
+              <button onClick={handleCreateScript} disabled={saving} style={{
+                padding: '10px 22px', borderRadius: 10, background: 'var(--orange)',
+                color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
+              }}>{saving ? 'Création…' : 'Créer le script'}</button>
+            </div>
           )}
         </div>
       )}
@@ -1365,68 +1453,6 @@ export default function ClientDetailPage() {
         </div>
       )}
 
-      {/* Timeline tab */}
-      {tab === 'timeline' && (
-        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>
-            Historique des événements
-          </h3>
-          {events.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: 20 }}>
-              Aucun événement enregistré pour ce client
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative' }}>
-              <div style={{
-                position: 'absolute', left: 16, top: 18, bottom: 18, width: 1,
-                background: 'var(--border-md)', opacity: 0.5,
-              }} />
-              {events.map(ev => {
-                const meta = EVENT_LABELS[ev.type] || { label: ev.type, icon: '•', color: 'var(--text-muted)' };
-                const payloadStr = ev.payload ? Object.entries(ev.payload)
-                  .map(([k, v]) => `${k}: ${String(v).slice(0, 40)}`)
-                  .join(' · ') : null;
-                return (
-                  <div key={ev.id} style={{
-                    display: 'flex', gap: 14, alignItems: 'flex-start',
-                    padding: '10px 0', position: 'relative',
-                  }}>
-                    <div style={{
-                      width: 32, height: 32, borderRadius: '50%', flexShrink: 0, zIndex: 1,
-                      background: 'var(--night-mid)', border: `2px solid ${meta.color}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '0.9rem', color: meta.color,
-                    }}>{meta.icon}</div>
-                    <div style={{ flex: 1, paddingTop: 4 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text)', fontWeight: 500 }}>
-                          {meta.label}
-                        </span>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          {new Date(ev.created_at).toLocaleDateString('fr-FR', {
-                            day: 'numeric', month: 'short', year: 'numeric',
-                            hour: '2-digit', minute: '2-digit',
-                          })}
-                        </span>
-                      </div>
-                      {payloadStr && (
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                          {payloadStr}
-                        </div>
-                      )}
-                      {ev.actor && (
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2, opacity: 0.7 }}>
-                          Par {ev.actor}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Version history modal */}
       {showVersions && (
@@ -1484,14 +1510,12 @@ const videoInputStyle: React.CSSProperties = {
   color: 'var(--text)', fontSize: '0.82rem', boxSizing: 'border-box', outline: 'none',
 };
 
-function quickContactStyle(color: string): React.CSSProperties {
-  return {
-    padding: '8px 14px', borderRadius: 8, background: 'var(--night-mid)',
-    border: '1px solid var(--border-md)', color,
-    cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'none',
-    display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 500,
-  };
-}
+const miniActionStyle: React.CSSProperties = {
+  width: 32, height: 32, borderRadius: 8,
+  background: 'var(--night-mid)', border: '1px solid var(--border)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontSize: '0.85rem', textDecoration: 'none', color: 'var(--text-mid)',
+};
 
 function InfoField({ label, value }: { label: string; value?: string | null }) {
   return (

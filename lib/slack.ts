@@ -83,6 +83,21 @@ export function notifyClientStatusChange(clientName: string, oldStatus: string, 
   });
 }
 
+export function notifyTaskDeadline(clientName: string, taskText: string, dueDate: string) {
+  const formatted = new Date(dueDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return sendSlackNotification({
+    text: `⏰ Tâche en retard — ${clientName}: ${taskText}`,
+    blocks: [
+      { type: 'header', text: { type: 'plain_text', text: '⏰ Rappel tâche', emoji: true } },
+      { type: 'section', fields: [
+        { type: 'mrkdwn', text: `*Commerce:*\n${clientName}` },
+        { type: 'mrkdwn', text: `*Deadline:*\n${formatted}` },
+      ]},
+      { type: 'section', text: { type: 'mrkdwn', text: `> ${taskText.slice(0, 300)}` } },
+    ],
+  });
+}
+
 export function notifyPublished(clientName: string) {
   return sendSlackNotification({
     text: `Vidéo publiée — ${clientName}`,

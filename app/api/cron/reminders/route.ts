@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
-import { notifyClientStatusChange } from '@/lib/slack';
+import { notifyClientStatusChange, notifyTaskDeadline } from '@/lib/slack';
+
+interface TodoItem {
+  id: string;
+  text: string;
+  done: boolean;
+  due_date?: string;
+}
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
@@ -34,6 +41,23 @@ export async function GET(req: NextRequest) {
           const label = daysToFilming === 0 ? "aujourd'hui" : daysToFilming === 1 ? 'demain' : `dans ${daysToFilming} j`;
           alerts.push(`🎬 ${c.business_name} — tournage ${label}`);
           notifyClientStatusChange(c.business_name, c.status, `Tournage ${label}`);
+        }
+      }
+    }
+
+    // Task deadline reminders
+    const tr = await supaFetch('clients?select=id,business_name,todos&todos=not.eq.[]', {}, true);
+    if (tr.ok) {
+      const clientsWithTodos = await tr.json();
+      const todayStr = new Date().toISOString().slice(0, 10);
+      for (const ct of clientsWithTodos) {
+        const todos: TodoItem[] = Array.isArray(ct.todos) ? ct.todos : [];
+        for (const t of todos) {
+          if (t.done || !t.due_date) continue;
+          if (t.due_date <= todayStr) {
+            alerts.push(`⏰ ${ct.business_name} — tâche en retard: ${t.text.slice(0, 60)}`);
+            notifyTaskDeadline(ct.business_name, t.text, t.due_date);
+          }
         }
       }
     }
