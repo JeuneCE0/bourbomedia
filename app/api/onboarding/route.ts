@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { requireAuth } from '@/lib/auth';
-import { createCheckoutSession } from '@/lib/stripe';
+import { createEmbeddedCheckoutSession } from '@/lib/stripe';
 import { findContractTemplateId, sendDocumentFromTemplate, getDocumentStatus, createGhlContact, findGhlContactByEmailOrPhone, findSignedDocumentByContact } from '@/lib/ghl';
 import { notifyClientStatusChange } from '@/lib/slack';
 import crypto from 'crypto';
@@ -163,22 +163,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Step 3: Create Stripe checkout
+  // Step 3: Create embedded Stripe checkout
   if (action === 'create_payment') {
     try {
-      const amount = body.amount || 49900; // default 499€ in cents
+      const amount = body.amount || 50000; // 500€ HT in cents
       const baseUrl = req.nextUrl.origin;
-      const url = await createCheckoutSession({
+      const clientSecret = await createEmbeddedCheckoutSession({
         clientId: client.id,
         clientEmail: client.email,
         clientName: client.business_name,
         amount,
         description: 'Production vidéo BourbonMédia',
-        successUrl: `${baseUrl}/onboarding?token=${token}&payment=success`,
-        cancelUrl: `${baseUrl}/onboarding?token=${token}&payment=cancel`,
+        returnUrl: `${baseUrl}/onboarding?token=${token}&payment=success`,
+        productId: process.env.STRIPE_PRODUCT_ID || undefined,
       });
-      if (!url) return NextResponse.json({ error: 'Erreur Stripe' }, { status: 500 });
-      return NextResponse.json({ checkoutUrl: url });
+      if (!clientSecret) return NextResponse.json({ error: 'Erreur Stripe' }, { status: 500 });
+      return NextResponse.json({ clientSecret });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
     }

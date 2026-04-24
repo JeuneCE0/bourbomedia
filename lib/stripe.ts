@@ -48,6 +48,47 @@ export async function createCheckoutSession(params: {
   }
 }
 
+export async function createEmbeddedCheckoutSession(params: {
+  clientId: string;
+  clientEmail: string;
+  clientName: string;
+  amount: number;
+  description: string;
+  returnUrl: string;
+  productId?: string;
+}): Promise<string | null> {
+  if (!STRIPE_SECRET_KEY) return null;
+  try {
+    const priceData: Record<string, unknown> = {
+      currency: 'eur',
+      unit_amount: params.amount,
+    };
+    if (params.productId) {
+      priceData.product = params.productId;
+    } else {
+      priceData.product_data = {
+        name: params.description,
+        description: `BourbonMédia — ${params.clientName}`,
+      };
+    }
+    const lineItem = { price_data: priceData, quantity: 1 };
+    const session = await getStripe().checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      ui_mode: 'embedded',
+      customer_email: params.clientEmail,
+      line_items: [lineItem],
+      metadata: {
+        client_id: params.clientId,
+      },
+      return_url: params.returnUrl,
+    });
+    return session.client_secret;
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyWebhookSignature(body: string, signature: string): Promise<Stripe.Event | null> {
   if (!STRIPE_WEBHOOK_SECRET) return null;
   try {
