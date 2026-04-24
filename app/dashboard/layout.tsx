@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from 'react';
 
 const NAV = [
   { href: '/dashboard', label: 'Tableau de bord', icon: '▣' },
+  { href: '/dashboard/onboarding', label: 'Onboarding', icon: '◎' },
   { href: '/dashboard/clients', label: 'Clients', icon: '◉' },
   { href: '/dashboard/calendar', label: 'Calendrier', icon: '▦' },
 ];

@@ -81,7 +81,14 @@ function OnboardingContent() {
   useEffect(() => {
     if (tokenParam) {
       setToken(tokenParam);
+      localStorage.setItem('ob_token', tokenParam);
       fetchClient(tokenParam);
+    } else {
+      const saved = localStorage.getItem('ob_token');
+      if (saved) {
+        setToken(saved);
+        fetchClient(saved);
+      }
     }
   }, [tokenParam, fetchClient]);
 
@@ -91,6 +98,23 @@ function OnboardingContent() {
       fetchClient(tokenParam);
     }
   }, [paymentStatus, tokenParam, fetchClient]);
+
+  // Handle call booked redirect from GHL Calendar
+  const callBookedParam = searchParams.get('call_booked');
+  useEffect(() => {
+    if (callBookedParam === 'true' && token && currentStep === 4) {
+      (async () => {
+        try {
+          await fetch(`/api/onboarding?token=${token}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'call_booked', date: new Date().toISOString() }),
+          });
+          await fetchClient(token);
+        } catch { /* ignore */ }
+      })();
+    }
+  }, [callBookedParam, token, currentStep, fetchClient]);
 
   const api = async (action: string, extra: Record<string, unknown> = {}) => {
     const r = await fetch(`/api/onboarding?token=${token}`, {
@@ -128,6 +152,7 @@ function OnboardingContent() {
       setToken(data.token);
       setClient(data.client);
       setCurrentStep(2);
+      localStorage.setItem('ob_token', data.token);
       router.replace(`/onboarding?token=${data.token}`);
     } catch (e: unknown) {
       setError((e as Error).message);
@@ -202,44 +227,98 @@ function OnboardingContent() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '12px 16px',
-    background: 'var(--night-mid)',
-    border: '1px solid var(--border-md)',
-    borderRadius: 10,
+    padding: '14px 18px',
+    background: 'rgba(255,255,255,.04)',
+    border: '1px solid rgba(255,255,255,.08)',
+    borderRadius: 12,
     color: 'var(--text)',
-    fontSize: '0.9rem',
+    fontSize: '0.92rem',
     outline: 'none',
-    transition: 'border-color .2s',
+    transition: 'all .2s ease',
+    fontFamily: 'inherit',
   };
 
   const btnPrimary: React.CSSProperties = {
     width: '100%',
     padding: '14px 24px',
-    background: 'var(--orange)',
+    background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
     color: '#fff',
     border: 'none',
-    borderRadius: 10,
+    borderRadius: 12,
     fontSize: '0.95rem',
     fontWeight: 600,
     cursor: 'pointer',
-    transition: 'all .2s',
+    transition: 'all .2s ease',
+    boxShadow: '0 4px 14px rgba(249,115,22,.3), inset 0 1px 0 rgba(255,255,255,.15)',
+    letterSpacing: '.2px',
   };
 
   const btnSecondary: React.CSSProperties = {
-    ...btnPrimary,
-    background: 'transparent',
-    border: '1px solid var(--border-md)',
+    width: '100%',
+    padding: '14px 24px',
+    background: 'rgba(255,255,255,.04)',
     color: 'var(--text-mid)',
+    border: '1px solid rgba(255,255,255,.1)',
+    borderRadius: 12,
+    fontSize: '0.95rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all .2s ease',
   };
 
   const cardStyle: React.CSSProperties = {
-    background: 'var(--night-card)',
-    border: '1px solid var(--border)',
-    borderRadius: 16,
-    padding: '32px',
-    maxWidth: 520,
+    background: 'rgba(15,15,25,.7)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255,255,255,.08)',
+    borderRadius: 20,
+    padding: '36px',
+    maxWidth: 560,
     width: '100%',
     margin: '0 auto',
+    boxShadow: '0 1px 0 0 rgba(251,146,60,.12) inset, 0 8px 32px rgba(0,0,0,.3)',
+    animation: 'slideUp .5s cubic-bezier(.16,1,.3,1)',
+  };
+
+  const SuccessBox = ({ title, subtitle }: { title: string; subtitle?: string }) => (
+    <div style={{
+      padding: '28px 24px',
+      background: 'rgba(34,197,94,.06)',
+      border: '1px solid rgba(34,197,94,.2)',
+      borderRadius: 14,
+      textAlign: 'center',
+    }}>
+      <div style={{
+        width: 56,
+        height: 56,
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, rgba(34,197,94,.2), rgba(22,163,74,.3))',
+        border: '1px solid rgba(34,197,94,.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '0 auto 14px',
+        fontSize: '1.6rem',
+        color: 'var(--green)',
+      }}>
+        ✓
+      </div>
+      <p style={{ color: 'var(--green)', fontWeight: 700, margin: 0, fontSize: '1rem' }}>{title}</p>
+      {subtitle && (
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: 6, lineHeight: 1.5 }}>
+          {subtitle}
+        </p>
+      )}
+    </div>
+  );
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '0.78rem',
+    color: 'var(--text-mid)',
+    marginBottom: 6,
+    display: 'block',
+    fontWeight: 500,
+    letterSpacing: '.3px',
   };
 
   // Render stepper
@@ -266,42 +345,56 @@ function OnboardingContent() {
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 6,
-              minWidth: 56,
+              gap: 8,
+              minWidth: 62,
             }}>
               <div style={{
-                width: 36,
-                height: 36,
+                width: 42,
+                height: 42,
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: isDone ? '1rem' : '0.8rem',
+                fontSize: isDone ? '1.1rem' : '0.9rem',
                 fontWeight: 700,
-                background: isDone ? 'var(--green)' : isActive ? 'var(--orange)' : 'var(--night-mid)',
+                background: isDone
+                  ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+                  : isActive
+                    ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)'
+                    : 'rgba(255,255,255,.04)',
                 color: isDone || isActive ? '#fff' : 'var(--text-muted)',
-                border: isFuture ? '2px solid var(--border-md)' : 'none',
+                border: isFuture ? '1px solid rgba(255,255,255,.08)' : 'none',
+                boxShadow: isActive
+                  ? '0 0 0 4px rgba(249,115,22,.12), 0 4px 14px rgba(249,115,22,.35)'
+                  : isDone
+                    ? '0 4px 14px rgba(34,197,94,.25)'
+                    : 'none',
+                animation: isActive ? 'pulse 2.5s ease-in-out infinite' : 'none',
                 transition: 'all .3s',
               }}>
                 {isDone ? '✓' : step.icon}
               </div>
               <span style={{
-                fontSize: '0.65rem',
+                fontSize: '0.7rem',
                 fontWeight: isActive ? 600 : 400,
                 color: isDone ? 'var(--green)' : isActive ? 'var(--orange)' : 'var(--text-muted)',
                 textAlign: 'center',
                 whiteSpace: 'nowrap',
+                letterSpacing: '.2px',
               }}>
                 {step.label}
               </span>
             </div>
             {step.num < STEPS.length && (
               <div style={{
-                width: 24,
+                width: 32,
                 height: 2,
-                background: isDone ? 'var(--green)' : 'var(--border-md)',
-                marginBottom: 20,
+                background: isDone
+                  ? 'linear-gradient(90deg, #22c55e, #16a34a)'
+                  : 'rgba(255,255,255,.08)',
+                marginBottom: 26,
                 borderRadius: 1,
+                transition: 'all .3s',
               }} />
             )}
           </div>
@@ -310,113 +403,270 @@ function OnboardingContent() {
     </div>
   );
 
-  // Step 1: Account creation form
+  // Step 1: Account creation + login/resume
+  const [mode, setMode] = useState<'signup' | 'login'>('signup');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
+  const handleLogin = async () => {
+    setError('');
+    if (!loginEmail || !loginPassword) {
+      setError('Email et mot de passe requis');
+      return;
+    }
+    setLoading(true);
+    try {
+      const r = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', email: loginEmail, password: loginPassword }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error);
+      localStorage.setItem('ob_token', data.token);
+      setToken(data.token);
+      router.replace(`/onboarding?token=${data.token}`);
+      await fetchClient(data.token);
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderStep1 = () => (
     <div style={cardStyle}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>◉</div>
-        <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-          Créez votre compte
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-          Bienvenue chez BourbonMédia ! Commencez par créer votre espace client.
-        </p>
-      </div>
+      {mode === 'signup' ? (
+        <>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(234,88,12,.25))',
+              border: '1px solid rgba(249,115,22,.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              fontSize: '1.5rem',
+              color: 'var(--orange)',
+            }}>
+              &#9993;
+            </div>
+            <h2 style={{ color: 'var(--white)', fontSize: '1.6rem', fontWeight: 800, margin: 0, letterSpacing: '-.3px' }}>
+              Bienvenue
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 10, lineHeight: 1.5 }}>
+              Cr&eacute;ons votre espace client en quelques &eacute;tapes simples
+            </p>
+          </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Nom de l&apos;entreprise *
-          </label>
-          <input
-            style={inputStyle}
-            placeholder="Ex: Ma Super Entreprise"
-            value={form.business_name}
-            onChange={e => setForm({ ...form, business_name: e.target.value })}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Nom du contact *
-          </label>
-          <input
-            style={inputStyle}
-            placeholder="Prénom Nom"
-            value={form.contact_name}
-            onChange={e => setForm({ ...form, contact_name: e.target.value })}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Email *
-          </label>
-          <input
-            type="email"
-            style={inputStyle}
-            placeholder="email@entreprise.re"
-            value={form.email}
-            onChange={e => setForm({ ...form, email: e.target.value })}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Téléphone
-          </label>
-          <input
-            type="tel"
-            style={inputStyle}
-            placeholder="0692 XX XX XX"
-            value={form.phone}
-            onChange={e => setForm({ ...form, phone: e.target.value })}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Mot de passe *
-          </label>
-          <input
-            type="password"
-            style={inputStyle}
-            placeholder="6 caractères minimum"
-            value={form.password}
-            onChange={e => setForm({ ...form, password: e.target.value })}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Confirmer le mot de passe *
-          </label>
-          <input
-            type="password"
-            style={inputStyle}
-            placeholder="Répétez le mot de passe"
-            value={form.passwordConfirm}
-            onChange={e => setForm({ ...form, passwordConfirm: e.target.value })}
-          />
-        </div>
-      </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Entreprise</label>
+              <input
+                style={inputStyle}
+                placeholder="Nom de votre entreprise"
+                value={form.business_name}
+                onChange={e => setForm({ ...form, business_name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Votre nom</label>
+              <input
+                style={inputStyle}
+                placeholder="Pr&eacute;nom Nom"
+                value={form.contact_name}
+                onChange={e => setForm({ ...form, contact_name: e.target.value })}
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Email</label>
+                <input
+                  type="email"
+                  style={inputStyle}
+                  placeholder="email@pro.re"
+                  value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>T&eacute;l&eacute;phone</label>
+                <input
+                  type="tel"
+                  style={inputStyle}
+                  placeholder="0692..."
+                  value={form.phone}
+                  onChange={e => setForm({ ...form, phone: e.target.value })}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Mot de passe</label>
+                <input
+                  type="password"
+                  style={inputStyle}
+                  placeholder="6+ caract&egrave;res"
+                  value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Confirmer</label>
+                <input
+                  type="password"
+                  style={inputStyle}
+                  placeholder="R&eacute;p&eacute;ter"
+                  value={form.passwordConfirm}
+                  onChange={e => setForm({ ...form, passwordConfirm: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
 
-      {error && (
-        <div style={{
-          marginTop: 16,
-          padding: '10px 14px',
-          background: 'rgba(239,68,68,.1)',
-          border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 8,
-          color: 'var(--red)',
-          fontSize: '0.85rem',
-        }}>
-          {error}
-        </div>
+          {error && (
+            <div style={{
+              marginTop: 18,
+              padding: '12px 16px',
+              background: 'rgba(239,68,68,.08)',
+              borderLeft: '3px solid var(--red)',
+              borderRadius: 8,
+              color: '#fca5a5',
+              fontSize: '0.85rem',
+              lineHeight: 1.5,
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleCreateAccount}
+            disabled={loading}
+            style={{ ...btnPrimary, marginTop: 24, opacity: loading ? 0.6 : 1 }}
+          >
+            {loading ? 'Cr&eacute;ation en cours...' : 'Cr&eacute;er mon compte'}
+          </button>
+
+          <div style={{
+            marginTop: 24,
+            paddingTop: 20,
+            borderTop: '1px solid rgba(255,255,255,.06)',
+            textAlign: 'center',
+          }}>
+            <button
+              onClick={() => { setMode('login'); setError(''); }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                padding: 4,
+              }}
+            >
+              D&eacute;j&agrave; un compte ? <span style={{ color: 'var(--orange)', fontWeight: 600 }}>Reprendre mon onboarding</span>
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(234,88,12,.25))',
+              border: '1px solid rgba(249,115,22,.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              fontSize: '1.5rem',
+              color: 'var(--orange)',
+            }}>
+              &#8618;
+            </div>
+            <h2 style={{ color: 'var(--white)', fontSize: '1.6rem', fontWeight: 800, margin: 0, letterSpacing: '-.3px' }}>
+              Reprendre
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 10, lineHeight: 1.5 }}>
+              Connectez-vous pour reprendre votre onboarding l&agrave; o&ugrave; vous en &eacute;tiez
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input
+                type="email"
+                style={inputStyle}
+                placeholder="email@pro.re"
+                value={loginEmail}
+                onChange={e => setLoginEmail(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleLogin(); }}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Mot de passe</label>
+              <input
+                type="password"
+                style={inputStyle}
+                placeholder="Votre mot de passe"
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleLogin(); }}
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div style={{
+              marginTop: 18,
+              padding: '12px 16px',
+              background: 'rgba(239,68,68,.08)',
+              borderLeft: '3px solid var(--red)',
+              borderRadius: 8,
+              color: '#fca5a5',
+              fontSize: '0.85rem',
+              lineHeight: 1.5,
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleLogin}
+            disabled={loading}
+            style={{ ...btnPrimary, marginTop: 24, opacity: loading ? 0.6 : 1 }}
+          >
+            {loading ? 'Connexion...' : 'Me connecter'}
+          </button>
+
+          <div style={{
+            marginTop: 24,
+            paddingTop: 20,
+            borderTop: '1px solid rgba(255,255,255,.06)',
+            textAlign: 'center',
+          }}>
+            <button
+              onClick={() => { setMode('signup'); setError(''); }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                padding: 4,
+              }}
+            >
+              Pas encore de compte ? <span style={{ color: 'var(--orange)', fontWeight: 600 }}>Cr&eacute;er mon compte</span>
+            </button>
+          </div>
+        </>
       )}
-
-      <button
-        onClick={handleCreateAccount}
-        disabled={loading}
-        style={{ ...btnPrimary, marginTop: 24, opacity: loading ? 0.6 : 1 }}
-      >
-        {loading ? 'Création en cours…' : 'Créer mon compte'}
-      </button>
     </div>
   );
 
@@ -442,17 +692,50 @@ function OnboardingContent() {
     }
   }, [currentStep, showSignedBtn]);
 
+  const stepHeaderStyle = (icon: string, title: string, subtitle: string) => (
+    <div style={{ textAlign: 'center', marginBottom: 24 }}>
+      <div style={{
+        width: 56,
+        height: 56,
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(234,88,12,.25))',
+        border: '1px solid rgba(249,115,22,.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '0 auto 14px',
+        fontSize: '1.4rem',
+        color: 'var(--orange)',
+      }}>
+        {icon}
+      </div>
+      <h2 style={{ color: 'var(--white)', fontSize: '1.4rem', fontWeight: 800, margin: 0, letterSpacing: '-.3px' }}>
+        {title}
+      </h2>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: 8, lineHeight: 1.5 }}>
+        {subtitle}
+      </p>
+    </div>
+  );
+
+  const errorBox = (msg: string) => (
+    <div style={{
+      marginTop: 18,
+      padding: '12px 16px',
+      background: 'rgba(239,68,68,.08)',
+      borderLeft: '3px solid var(--red)',
+      borderRadius: 8,
+      color: '#fca5a5',
+      fontSize: '0.85rem',
+      lineHeight: 1.5,
+    }}>
+      {msg}
+    </div>
+  );
+
   const renderStep2 = () => (
     <div style={{ ...cardStyle, maxWidth: 900 }}>
-      <div style={{ textAlign: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#9998;</div>
-        <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-          Signature du contrat
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-          Lisez, remplissez et signez votre contrat de prestation ci-dessous.
-        </p>
-      </div>
+      {stepHeaderStyle('✎', 'Signature du contrat', 'Lisez, remplissez et signez votre contrat de prestation ci-dessous')}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{
@@ -495,19 +778,7 @@ function OnboardingContent() {
         )}
       </div>
 
-      {error && (
-        <div style={{
-          marginTop: 16,
-          padding: '10px 14px',
-          background: 'rgba(239,68,68,.1)',
-          border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 8,
-          color: 'var(--red)',
-          fontSize: '0.85rem',
-        }}>
-          {error}
-        </div>
-      )}
+      {error && errorBox(error)}
     </div>
   );
 
@@ -537,45 +808,19 @@ function OnboardingContent() {
   const renderStep3 = () => {
     const isPaid = !!client?.paid_at;
     return (
-      <div style={{ ...cardStyle, maxWidth: isPaid || paymentStatus === 'success' ? 520 : 640 }}>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#8364;</div>
-          <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-            Paiement
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-            {isPaid ? 'Votre paiement a été confirmé !' : 'Réglez votre prestation de manière sécurisée.'}
-          </p>
-        </div>
+      <div style={{ ...cardStyle, maxWidth: isPaid || paymentStatus === 'success' ? 520 : 700 }}>
+        {stepHeaderStyle('€', 'Paiement', isPaid ? 'Votre paiement a été confirmé' : 'Réglez votre prestation de manière sécurisée')}
 
         {isPaid ? (
-          <div style={{
-            padding: '24px',
-            background: 'rgba(34,197,94,.1)',
-            border: '1px solid rgba(34,197,94,.3)',
-            borderRadius: 12,
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#10003;</div>
-            <p style={{ color: 'var(--green)', fontWeight: 600, margin: 0 }}>Paiement re&ccedil;u</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 4 }}>
-              Pay&eacute; le {new Date(client!.paid_at!).toLocaleDateString('fr-FR')}
-            </p>
-          </div>
+          <SuccessBox
+            title="Paiement reçu"
+            subtitle={`Payé le ${new Date(client!.paid_at!).toLocaleDateString('fr-FR')}`}
+          />
         ) : paymentStatus === 'success' ? (
-          <div style={{
-            padding: '24px',
-            background: 'rgba(34,197,94,.1)',
-            border: '1px solid rgba(34,197,94,.3)',
-            borderRadius: 12,
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#10003;</div>
-            <p style={{ color: 'var(--green)', fontWeight: 600, margin: 0 }}>Paiement en cours de traitement</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 4 }}>
-              Votre paiement est en cours de v&eacute;rification. Cette page se mettra &agrave; jour automatiquement.
-            </p>
-          </div>
+          <SuccessBox
+            title="Paiement en cours de traitement"
+            subtitle="Votre paiement est en cours de vérification. Cette page se mettra à jour automatiquement."
+          />
         ) : stripeClientSecret && stripePromise ? (
           <div style={{ borderRadius: 12, overflow: 'hidden' }}>
             <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret: stripeClientSecret }}>
@@ -597,89 +842,62 @@ function OnboardingContent() {
           </div>
         )}
 
-        {error && (
-          <div style={{
-            marginTop: 16,
-            padding: '10px 14px',
-            background: 'rgba(239,68,68,.1)',
-            border: '1px solid rgba(239,68,68,.3)',
-            borderRadius: 8,
-            color: 'var(--red)',
-            fontSize: '0.85rem',
-          }}>
-            {error}
-          </div>
-        )}
+        {error && errorBox(error)}
       </div>
     );
   };
 
-  // Step 4: Onboarding call
+  // Step 4: Onboarding call (embedded GHL Calendar)
+  const [showCallBookedBtn, setShowCallBookedBtn] = useState(false);
+  const calendarUrl = process.env.NEXT_PUBLIC_GHL_CALENDAR_URL || '';
+
+  useEffect(() => {
+    if (currentStep === 4 && !showCallBookedBtn) {
+      const timer = setTimeout(() => setShowCallBookedBtn(true), 30000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, showCallBookedBtn]);
+
   const renderStep4 = () => (
-    <div style={cardStyle}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>☎</div>
-        <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-          Appel de lancement
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-          Réservez un créneau pour votre appel de lancement avec notre équipe.
-        </p>
-      </div>
+    <div style={{ ...cardStyle, maxWidth: 900 }}>
+      {stepHeaderStyle('☎', 'Appel de lancement', 'Réservez un créneau de 30 minutes avec notre équipe')}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{
-          padding: '20px',
-          background: 'var(--night-mid)',
           borderRadius: 12,
+          overflow: 'hidden',
+          border: '1px solid var(--border-md)',
+          background: '#fff',
         }}>
-          <p style={{ color: 'var(--text-mid)', fontSize: '0.85rem', margin: 0, lineHeight: 1.6 }}>
-            Durant cet appel de 30 minutes, nous allons :
-          </p>
-          <ul style={{ color: 'var(--text)', fontSize: '0.85rem', margin: '12px 0 0', paddingLeft: 20, lineHeight: 1.8 }}>
-            <li>Discuter de vos objectifs vidéo</li>
-            <li>Définir le ton et le style souhaité</li>
-            <li>Planifier le tournage</li>
-            <li>Répondre à toutes vos questions</li>
-          </ul>
+          <iframe
+            src={calendarUrl}
+            style={{
+              width: '100%',
+              height: '70vh',
+              minHeight: 550,
+              border: 'none',
+              display: 'block',
+            }}
+            title="Réservation appel onboarding"
+          />
         </div>
 
-        <a
-          href={process.env.NEXT_PUBLIC_GHL_CALENDAR_URL || '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            ...btnPrimary,
-            textDecoration: 'none',
-            textAlign: 'center',
-            display: 'block',
-          }}
-        >
-          Réserver mon créneau ↗
-        </a>
-
-        <button
-          onClick={handleCallBooked}
-          disabled={calBooking}
-          style={{ ...btnSecondary, opacity: calBooking ? 0.6 : 1 }}
-        >
-          {calBooking ? 'Confirmation…' : 'J\'ai réservé mon créneau'}
-        </button>
+        {showCallBookedBtn ? (
+          <button
+            onClick={handleCallBooked}
+            disabled={calBooking}
+            style={{ ...btnPrimary, opacity: calBooking ? 0.6 : 1, animation: 'fadeIn .4s ease' }}
+          >
+            {calBooking ? 'Confirmation...' : 'J\'ai réservé mon créneau'}
+          </button>
+        ) : (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
+            S&eacute;lectionnez un cr&eacute;neau dans le calendrier ci-dessus
+          </p>
+        )}
       </div>
 
-      {error && (
-        <div style={{
-          marginTop: 16,
-          padding: '10px 14px',
-          background: 'rgba(239,68,68,.1)',
-          border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 8,
-          color: 'var(--red)',
-          fontSize: '0.85rem',
-        }}>
-          {error}
-        </div>
-      )}
+      {error && errorBox(error)}
     </div>
   );
 
@@ -691,32 +909,14 @@ function OnboardingContent() {
 
     return (
       <div style={cardStyle}>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: '2rem', marginBottom: 8 }}>▤</div>
-          <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-            Script vidéo
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-            {scriptConfirmed
-              ? 'Votre script a été validé !'
-              : hasScript
-                ? 'Votre script est en cours de préparation. Consultez-le et donnez votre avis.'
-                : 'Notre équipe prépare votre script. Vous serez notifié dès qu\'il sera prêt.'
-            }
-          </p>
-        </div>
-
+        {stepHeaderStyle('▤', 'Script vidéo', scriptConfirmed
+          ? 'Votre script a été validé !'
+          : hasScript
+            ? 'Votre script est prêt. Consultez-le dans votre portail.'
+            : 'Notre équipe prépare votre script. Vous serez notifié dès qu\'il sera prêt.'
+        )}
         {scriptConfirmed ? (
-          <div style={{
-            padding: '24px',
-            background: 'rgba(34,197,94,.1)',
-            border: '1px solid rgba(34,197,94,.3)',
-            borderRadius: 12,
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>✓</div>
-            <p style={{ color: 'var(--green)', fontWeight: 600, margin: 0 }}>Script validé</p>
-          </div>
+          <SuccessBox title="Script validé" />
         ) : hasScript ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{
@@ -781,15 +981,7 @@ function OnboardingContent() {
   // Step 6: Confirm filming date
   const renderStep6 = () => (
     <div style={cardStyle}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>▶</div>
-        <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-          Date de tournage
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-          Confirmez la date de tournage proposée par notre équipe.
-        </p>
-      </div>
+      {stepHeaderStyle('▶', 'Date de tournage', 'Confirmez la date de tournage proposée par notre équipe')}
 
       {client?.filming_date ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -831,34 +1023,14 @@ function OnboardingContent() {
         </div>
       )}
 
-      {error && (
-        <div style={{
-          marginTop: 16,
-          padding: '10px 14px',
-          background: 'rgba(239,68,68,.1)',
-          border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 8,
-          color: 'var(--red)',
-          fontSize: '0.85rem',
-        }}>
-          {error}
-        </div>
-      )}
+      {error && errorBox(error)}
     </div>
   );
 
   // Step 7: Confirm publication date
   const renderStep7 = () => (
     <div style={cardStyle}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>◈</div>
-        <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-          Date de publication
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-          Confirmez la date de publication de votre vidéo.
-        </p>
-      </div>
+      {stepHeaderStyle('◈', 'Date de publication', 'Confirmez la date de publication de votre vidéo')}
 
       {client?.publication_date ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -897,19 +1069,7 @@ function OnboardingContent() {
         </div>
       )}
 
-      {error && (
-        <div style={{
-          marginTop: 16,
-          padding: '10px 14px',
-          background: 'rgba(239,68,68,.1)',
-          border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 8,
-          color: 'var(--red)',
-          fontSize: '0.85rem',
-        }}>
-          {error}
-        </div>
-      )}
+      {error && errorBox(error)}
     </div>
   );
 
@@ -1003,35 +1163,85 @@ function OnboardingContent() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'var(--night)',
+      background: 'linear-gradient(135deg, #0a0a0f 0%, #0d1117 50%, #0a0f1a 100%)',
       display: 'flex',
       flexDirection: 'column',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
+      {/* Background orbs */}
+      <div style={{
+        position: 'fixed',
+        top: '-20%',
+        right: '-15%',
+        width: 600,
+        height: 600,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(249,115,22,.12) 0%, transparent 60%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
+      <div style={{
+        position: 'fixed',
+        bottom: '-20%',
+        left: '-15%',
+        width: 600,
+        height: 600,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(59,130,246,.08) 0%, transparent 60%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
+
       {/* Header */}
       <header style={{
-        padding: '20px 24px',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        padding: '24px',
+        position: 'relative',
+        zIndex: 1,
+        borderBottom: '1px solid rgba(255,255,255,.06)',
+        background: 'rgba(10,10,15,.5)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
       }}>
-        <span style={{
-          fontFamily: "'Bricolage Grotesque', sans-serif",
-          fontWeight: 700,
-          fontSize: '1.2rem',
-          color: 'var(--orange)',
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 4,
         }}>
-          BourbonMédia
-        </span>
+          <span style={{
+            fontFamily: "'Bricolage Grotesque', sans-serif",
+            fontWeight: 800,
+            fontSize: '1.45rem',
+            background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            letterSpacing: '-.5px',
+          }}>
+            BourbonM&eacute;dia
+          </span>
+          <span style={{
+            fontSize: '0.7rem',
+            color: 'var(--text-muted)',
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase',
+            fontWeight: 500,
+          }}>
+            Production vid&eacute;o professionnelle
+          </span>
+        </div>
       </header>
 
       {/* Main content */}
       <main style={{
         flex: 1,
-        padding: '32px 16px',
-        maxWidth: 640,
+        padding: '40px 16px',
+        maxWidth: 720,
         width: '100%',
         margin: '0 auto',
+        position: 'relative',
+        zIndex: 1,
       }}>
         {currentStep >= 1 && currentStep <= 7 && renderStepper()}
         {renderCurrentStep()}
@@ -1039,12 +1249,17 @@ function OnboardingContent() {
 
       {/* Footer */}
       <footer style={{
-        padding: '16px 24px',
-        borderTop: '1px solid var(--border)',
+        padding: '24px',
+        borderTop: '1px solid rgba(255,255,255,.06)',
         textAlign: 'center',
+        position: 'relative',
+        zIndex: 1,
+        background: 'rgba(10,10,15,.5)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
       }}>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0 }}>
-          BourbonMédia — Production vidéo à La Réunion
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0, letterSpacing: '.3px' }}>
+          BourbonM&eacute;dia &mdash; Production vid&eacute;o &agrave; La R&eacute;union
         </p>
       </footer>
 
@@ -1056,6 +1271,29 @@ function OnboardingContent() {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+          0%, 100% { box-shadow: 0 0 0 4px rgba(249,115,22,.12), 0 4px 14px rgba(249,115,22,.35); }
+          50% { box-shadow: 0 0 0 8px rgba(249,115,22,.08), 0 6px 20px rgba(249,115,22,.5); }
+        }
+        input:focus, select:focus, textarea:focus {
+          border-color: rgba(249,115,22,.5) !important;
+          background: rgba(255,255,255,.06) !important;
+          box-shadow: 0 0 0 3px rgba(249,115,22,.1);
+        }
+        button:hover:not(:disabled) {
+          transform: translateY(-1px);
+          filter: brightness(1.05);
+        }
+        button:active:not(:disabled) {
+          transform: translateY(0);
+        }
+        a:hover {
+          filter: brightness(1.05);
+        }
       `}</style>
     </div>
   );
@@ -1066,7 +1304,7 @@ export default function OnboardingPage() {
     <Suspense fallback={
       <div style={{
         minHeight: '100vh',
-        background: 'var(--night)',
+        background: 'linear-gradient(135deg, #0a0a0f 0%, #0d1117 50%, #0a0f1a 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
