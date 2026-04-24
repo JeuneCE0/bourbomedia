@@ -449,7 +449,19 @@ function OnboardingContent() {
   );
 
   // Step 2: Contract signing (embedded public GHL link)
-  const contractPublicUrl = process.env.NEXT_PUBLIC_GHL_CONTRACT_URL || '';
+  const contractPublicUrl = (() => {
+    const base = process.env.NEXT_PUBLIC_GHL_CONTRACT_URL || '';
+    if (!base || !client) return base;
+    const nameParts = client.contact_name?.trim().split(' ') || [];
+    const params = new URLSearchParams();
+    if (nameParts[0]) params.set('first_name', nameParts[0]);
+    if (nameParts.length > 1) params.set('last_name', nameParts.slice(1).join(' '));
+    if (client.email) params.set('email', client.email);
+    if (client.phone) params.set('phone', client.phone);
+    if (client.business_name) params.set('companyName', client.business_name);
+    const sep = base.includes('?') ? '&' : '?';
+    return base + sep + params.toString();
+  })();
 
   const renderStep2 = () => (
     <div style={{ ...cardStyle, maxWidth: 720 }}>
