@@ -196,8 +196,9 @@ export default function ClientDetailPage() {
       if (!r.ok) throw new Error(await parseErr(r));
       const d = await r.json();
       setClient(d);
-      if (d?.scripts?.length) setScript(d.scripts[0]);
-      else setScript(null);
+      if (d?.scripts?.length) {
+        setScript(d.scripts[0]);
+      }
     } catch (e: unknown) {
       notify('error', (e as Error).message);
     } finally {
