@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { requireAuth } from '@/lib/auth';
 import { createCheckoutSession } from '@/lib/stripe';
-import { findContractTemplateId, sendDocumentFromTemplate, getDocumentStatus, createGhlContact } from '@/lib/ghl';
+import { findContractTemplateId, sendDocumentFromTemplate, getDocumentStatus, createGhlContact, findGhlContactByEmailOrPhone } from '@/lib/ghl';
 import { notifyClientStatusChange } from '@/lib/slack';
 import crypto from 'crypto';
 
@@ -49,6 +49,11 @@ export async function POST(req: NextRequest) {
       }
       if (password.length < 6) return NextResponse.json({ error: 'Mot de passe : 6 caractères minimum' }, { status: 400 });
 
+      const ghlContactId = await findGhlContactByEmailOrPhone(email, phone);
+      if (!ghlContactId) {
+        return NextResponse.json({ error: 'Aucun prospect trouvé avec cet email ou téléphone. Contactez BourbonMédia pour commencer.' }, { status: 403 });
+      }
+
       const onboardingToken = crypto.randomBytes(24).toString('hex');
       const portalToken = crypto.randomBytes(24).toString('hex');
 
@@ -61,6 +66,7 @@ export async function POST(req: NextRequest) {
           portal_token: portalToken,
           onboarding_step: 2,
           status: 'onboarding',
+          ghl_contact_id: ghlContactId,
         }),
       }, true);
 

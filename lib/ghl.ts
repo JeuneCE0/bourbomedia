@@ -128,6 +128,21 @@ export async function findGhlContactByEmail(email: string): Promise<string | nul
   return contact?.id || null;
 }
 
+export async function findGhlContactByEmailOrPhone(email: string, phone?: string): Promise<string | null> {
+  if (!GHL_API_KEY || !LOCATION_ID) return null;
+  try {
+    const byEmail = await ghlRequest('GET', `/contacts/?locationId=${LOCATION_ID}&query=${encodeURIComponent(email)}&limit=1`);
+    if (byEmail?.contacts?.[0]?.id) return byEmail.contacts[0].id;
+    if (phone) {
+      const byPhone = await ghlRequest('GET', `/contacts/?locationId=${LOCATION_ID}&query=${encodeURIComponent(phone)}&limit=1`);
+      if (byPhone?.contacts?.[0]?.id) return byPhone.contacts[0].id;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function createGhlContact(contactData: { firstName: string; lastName: string; email: string; phone?: string; companyName?: string }): Promise<string> {
   if (!GHL_API_KEY) throw new Error('GHL_API_KEY manquant');
   if (!LOCATION_ID) throw new Error('GHL_LOCATION_ID manquant');

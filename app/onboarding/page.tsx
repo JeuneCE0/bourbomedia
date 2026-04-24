@@ -448,9 +448,11 @@ function OnboardingContent() {
     </div>
   );
 
-  // Step 2: Contract signing (opens in new tab)
+  // Step 2: Contract signing (sent by email via GHL)
+  const [contractSent, setContractSent] = useState(false);
+
   const renderStep2 = () => {
-    const contractUrl = signingUrl || client?.contract_signature_link;
+    const alreadySent = contractSent || !!client?.contract_signature_link;
     return (
       <div style={cardStyle}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -459,42 +461,29 @@ function OnboardingContent() {
             Signature du contrat
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-            {contractUrl
-              ? 'Votre contrat est prêt. Ouvrez-le, signez-le, puis revenez ici pour confirmer.'
-              : 'Cliquez ci-dessous pour générer votre contrat de prestation.'}
+            {alreadySent
+              ? 'Votre contrat vous a été envoyé par email. Signez-le puis revenez ici.'
+              : 'Cliquez ci-dessous pour recevoir votre contrat par email.'}
           </p>
         </div>
 
-        {contractUrl ? (
+        {alreadySent ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{
-              padding: '24px',
-              background: 'var(--night-mid)',
+              padding: '28px 24px',
+              background: 'rgba(34,197,94,.06)',
+              border: '1px solid rgba(34,197,94,.2)',
               borderRadius: 12,
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 12, opacity: 0.6 }}>&#128196;</div>
-              <p style={{ color: 'var(--text)', fontSize: '0.9rem', fontWeight: 600, margin: '0 0 4px' }}>
-                Contrat de prestation
+              <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>&#9993;</div>
+              <p style={{ color: 'var(--green)', fontSize: '0.95rem', fontWeight: 600, margin: '0 0 8px' }}>
+                Contrat envoy&eacute; !
               </p>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
-                Le contrat s&apos;ouvrira dans un nouvel onglet
+              <p style={{ color: 'var(--text-mid)', fontSize: '0.85rem', margin: 0 }}>
+                V&eacute;rifiez votre bo&icirc;te mail <strong>{client?.email}</strong>
               </p>
             </div>
-
-            <a
-              href={contractUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                ...btnPrimary,
-                textDecoration: 'none',
-                textAlign: 'center',
-                display: 'block',
-              }}
-            >
-              Ouvrir et signer le contrat &#8599;
-            </a>
 
             <div style={{
               padding: '16px',
@@ -503,9 +492,9 @@ function OnboardingContent() {
               borderRadius: 10,
               textAlign: 'center',
             }}>
-              <p style={{ color: 'var(--text-mid)', fontSize: '0.8rem', margin: 0, lineHeight: 1.5 }}>
-                1. Ouvrez le contrat ci-dessus<br />
-                2. Lisez et signez le document<br />
+              <p style={{ color: 'var(--text-mid)', fontSize: '0.8rem', margin: 0, lineHeight: 1.6 }}>
+                1. Ouvrez l&apos;email de BourbonM&eacute;dia<br />
+                2. Cliquez sur le lien pour signer votre contrat<br />
                 3. Revenez ici et cliquez sur le bouton ci-dessous
               </p>
             </div>
@@ -513,29 +502,34 @@ function OnboardingContent() {
             <button
               onClick={handleCheckContract}
               disabled={checkingContract}
-              style={{ ...btnSecondary, opacity: checkingContract ? 0.6 : 1 }}
+              style={{ ...btnPrimary, opacity: checkingContract ? 0.6 : 1 }}
             >
               {checkingContract ? 'Vérification…' : 'J\'ai signé mon contrat — vérifier'}
             </button>
+
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textAlign: 'center' }}>
+              Pas re&ccedil;u ? V&eacute;rifiez vos spams ou attendez quelques minutes.
+            </p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{
-              padding: '20px',
+              padding: '24px',
               background: 'var(--night-mid)',
               borderRadius: 12,
               textAlign: 'center',
             }}>
-              <p style={{ color: 'var(--text-mid)', fontSize: '0.85rem', margin: 0 }}>
-                Cliquez ci-dessous pour générer votre contrat et le signer électroniquement.
+              <div style={{ fontSize: '2.5rem', marginBottom: 12, opacity: 0.6 }}>&#128196;</div>
+              <p style={{ color: 'var(--text-mid)', fontSize: '0.85rem', margin: 0, lineHeight: 1.5 }}>
+                Votre contrat de prestation sera g&eacute;n&eacute;r&eacute; et envoy&eacute; &agrave; votre adresse email pour signature &eacute;lectronique.
               </p>
             </div>
             <button
-              onClick={handleInitContract}
+              onClick={async () => { await handleInitContract(); setContractSent(true); }}
               disabled={loading}
               style={{ ...btnPrimary, opacity: loading ? 0.6 : 1 }}
             >
-              {loading ? 'Préparation du contrat…' : 'Préparer mon contrat'}
+              {loading ? 'Envoi du contrat…' : 'Envoyer mon contrat par email'}
             </button>
           </div>
         )}
