@@ -32,6 +32,19 @@ export async function POST(req: NextRequest) {
       }),
     }, true);
 
+    await supaFetch('payments', {
+      method: 'POST',
+      body: JSON.stringify({
+        client_id: clientId,
+        stripe_session_id: session.id,
+        stripe_payment_intent: session.payment_intent,
+        amount: session.amount_total || 0,
+        currency: 'eur',
+        status: 'completed',
+        description: 'Production vidéo BourbonMédia',
+      }),
+    }, true);
+
     const cr = await supaFetch(`clients?id=eq.${clientId}&select=business_name`, {}, true);
     if (cr.ok) {
       const clients = await cr.json();

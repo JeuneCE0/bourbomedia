@@ -61,6 +61,18 @@ interface ScriptVersion {
   created_at: string;
 }
 
+interface Payment {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  description: string;
+  stripe_session_id?: string;
+  stripe_payment_intent?: string;
+  receipt_url?: string;
+  created_at: string;
+}
+
 interface ClientEvent {
   id: string;
   type: string;
@@ -123,7 +135,7 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<Client | null>(null);
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'info' | 'script' | 'comments' | 'filming' | 'delivery' | 'timeline'>('info');
+  const [tab, setTab] = useState<'info' | 'script' | 'comments' | 'filming' | 'delivery' | 'payments' | 'timeline'>('info');
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [events, setEvents] = useState<ClientEvent[]>([]);
@@ -136,6 +148,9 @@ export default function ClientDetailPage() {
   const [versions, setVersions] = useState<ScriptVersion[]>([]);
   const [showVersions, setShowVersions] = useState(false);
   const [deliveryForm, setDeliveryForm] = useState<{ video_url: string; video_thumbnail_url: string; delivery_notes: string }>({ video_url: '', video_thumbnail_url: '', delivery_notes: '' });
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [paymentForm, setPaymentForm] = useState({ amount: '', description: '' });
+  const [addingPayment, setAddingPayment] = useState(false);
 
   function notify(type: 'error' | 'success', msg: string) {
     setToast({ type, msg });
@@ -183,9 +198,20 @@ export default function ClientDetailPage() {
       .catch(() => {});
   }, [id]);
 
+  const loadPayments = useCallback(() => {
+    fetch(`/api/payments?client_id=${id}`, { headers: authHeaders() })
+      .then(async r => {
+        if (!r.ok) return;
+        const d = await r.json();
+        if (Array.isArray(d)) setPayments(d);
+      })
+      .catch(() => {});
+  }, [id]);
+
   useEffect(() => {
     if (tab === 'timeline') loadEvents();
-  }, [tab, loadEvents]);
+    if (tab === 'payments') loadPayments();
+  }, [tab, loadEvents, loadPayments]);
 
   async function loadVersions() {
     if (!script) return;
@@ -441,6 +467,29 @@ export default function ClientDetailPage() {
     } catch (e: unknown) { notify('error', (e as Error).message); }
   }
 
+  async function handleAddPayment(e: React.FormEvent) {
+    e.preventDefault();
+    const amountNum = parseFloat(paymentForm.amount);
+    if (!amountNum || amountNum <= 0) { notify('error', 'Montant invalide'); return; }
+    setAddingPayment(true);
+    try {
+      const r = await fetch('/api/payments', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          client_id: id,
+          amount: Math.round(amountNum * 100),
+          description: paymentForm.description || 'Paiement manuel',
+        }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      notify('success', 'Paiement ajouté');
+      setPaymentForm({ amount: '', description: '' });
+      loadPayments();
+    } catch (err: unknown) {
+      notify('error', (err as Error).message);
+    } finally { setAddingPayment(false); }
+  }
+
   async function handleMarkFilmingDone() {
     if (!confirm('Marquer le tournage comme terminé ?')) return;
     await handleUpdateStatus('filming_done');
@@ -513,7 +562,7 @@ export default function ClientDetailPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 2, flexWrap: 'wrap' }}>
-        {(['info', 'script', 'comments', 'filming', 'delivery', 'timeline'] as const).map(t => (
+        {(['info', 'script', 'comments', 'filming', 'delivery', 'payments', 'timeline'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '8px 16px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer',
             fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
@@ -526,9 +575,11 @@ export default function ClientDetailPage() {
               : t === 'comments' ? 'Commentaires'
               : t === 'filming' ? 'Tournage'
               : t === 'delivery' ? 'Livraison'
+              : t === 'payments' ? 'Paiements'
               : 'Historique'}
             {t === 'comments' && script?.script_comments?.length ? ` (${script.script_comments.length})` : ''}
             {t === 'delivery' && client.delivered_at ? ' ✓' : ''}
+            {t === 'payments' && payments.length > 0 ? ` (${payments.length})` : ''}
           </button>
         ))}
       </div>
@@ -1045,6 +1096,101 @@ export default function ClientDetailPage() {
               )}
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Payments tab */}
+      {tab === 'payments' && (
+        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+          <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>Paiements</h3>
+              <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                Total : {(payments.reduce((s, p) => s + p.amount, 0) / 100).toLocaleString('fr-FR')} €
+              </p>
+            </div>
+          </div>
+
+          {payments.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+              {payments.map(p => (
+                <div key={p.id} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '12px 16px', borderRadius: 10,
+                  background: 'var(--night-mid)', border: '1px solid var(--border)',
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text)', fontWeight: 500 }}>
+                      {(p.amount / 100).toLocaleString('fr-FR')} €
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                      {p.description || 'Paiement'} · {new Date(p.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {p.stripe_payment_intent && (
+                      <span style={{
+                        fontSize: '0.65rem', padding: '3px 8px', borderRadius: 12,
+                        background: 'rgba(99,102,241,.1)', color: '#6366f1',
+                      }}>Stripe</span>
+                    )}
+                    <span style={{
+                      fontSize: '0.7rem', padding: '3px 10px', borderRadius: 12, fontWeight: 600,
+                      background: p.status === 'completed' ? 'rgba(34,197,94,.12)' : 'rgba(250,204,21,.12)',
+                      color: p.status === 'completed' ? 'var(--green)' : 'var(--yellow)',
+                    }}>
+                      {p.status === 'completed' ? 'Payé' : p.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: 20, marginBottom: 16 }}>
+              Aucun paiement enregistré
+            </p>
+          )}
+
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+            <h4 style={{ margin: '0 0 12px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)' }}>
+              Ajouter un paiement manuel
+            </h4>
+            <form onSubmit={handleAddPayment} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <label style={{ flex: '0 0 140px' }}>
+                <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Montant (€)</span>
+                <input
+                  type="number" step="0.01" min="0"
+                  value={paymentForm.amount}
+                  onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                  placeholder="500.00"
+                  style={{
+                    width: '100%', padding: '8px 10px', borderRadius: 6,
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', fontSize: '0.85rem', boxSizing: 'border-box',
+                  }}
+                />
+              </label>
+              <label style={{ flex: 1, minWidth: 160 }}>
+                <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Description</span>
+                <input
+                  type="text"
+                  value={paymentForm.description}
+                  onChange={e => setPaymentForm({ ...paymentForm, description: e.target.value })}
+                  placeholder="Acompte, solde, option…"
+                  style={{
+                    width: '100%', padding: '8px 10px', borderRadius: 6,
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', fontSize: '0.85rem', boxSizing: 'border-box',
+                  }}
+                />
+              </label>
+              <button type="submit" disabled={addingPayment || !paymentForm.amount} style={{
+                padding: '8px 16px', borderRadius: 8, background: 'var(--orange)',
+                color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem',
+                opacity: addingPayment || !paymentForm.amount ? 0.5 : 1,
+              }}>{addingPayment ? 'Ajout…' : '+ Ajouter'}</button>
+            </form>
+          </div>
         </div>
       )}
 

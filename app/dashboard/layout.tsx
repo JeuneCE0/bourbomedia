@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 const NAV = [
   { href: '/dashboard', label: 'Tableau de bord', icon: '▣' },
@@ -11,6 +11,15 @@ const NAV = [
   { href: '/dashboard/calendar', label: 'Calendrier', icon: '▦' },
   { href: '/dashboard/team', label: 'Équipe', icon: '◐' },
 ];
+
+interface SearchResult {
+  type: 'client' | 'script' | 'comment';
+  id: string;
+  client_id: string;
+  title: string;
+  subtitle: string;
+  status?: string;
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -21,9 +30,50 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isMobile, setIsMobile] = useState(false);
   const [hoveredNav, setHoveredNav] = useState<string | null>(null);
   const [hoveredLogout, setHoveredLogout] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   const isLoginPage = pathname === '/dashboard/login' || pathname === '/dashboard/login/';
   const closeMobileSidebar = useCallback(() => setMobileOpen(false), []);
+
+  const handleSearch = useCallback((q: string) => {
+    setSearchQuery(q);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (q.trim().length < 2) { setSearchResults([]); setSearchOpen(false); return; }
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('bbp_token');
+        const r = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`, {
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        });
+        if (r.ok) {
+          const data = await r.json();
+          setSearchResults(data);
+          setSearchOpen(true);
+        }
+      } catch { /* */ }
+    }, 300);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        const input = document.getElementById('global-search') as HTMLInputElement;
+        input?.focus();
+      }
+      if (e.key === 'Escape') setSearchOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => { document.removeEventListener('mousedown', handleClickOutside); document.removeEventListener('keydown', handleKeyDown); };
+  }, []);
 
   // Responsive breakpoint detection
   useEffect(() => {
@@ -141,6 +191,64 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         )}
       </div>
+
+      {/* Search */}
+      {(!(collapsed && !isMobile)) && (
+        <div ref={searchRef} style={{ padding: '10px 12px 0', position: 'relative' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '7px 10px', borderRadius: 8,
+            background: 'var(--night)', border: '1px solid var(--border-md)',
+          }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1 }}>⌕</span>
+            <input
+              id="global-search"
+              type="text"
+              value={searchQuery}
+              onChange={e => handleSearch(e.target.value)}
+              onFocus={() => { if (searchResults.length) setSearchOpen(true); }}
+              placeholder="Rechercher… ⌘K"
+              style={{
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                color: 'var(--text)', fontSize: '0.78rem', padding: 0,
+              }}
+            />
+          </div>
+          {searchOpen && searchResults.length > 0 && (
+            <div style={{
+              position: 'absolute', top: '100%', left: 12, right: 12, zIndex: 999,
+              background: 'var(--night-card)', border: '1px solid var(--border-md)',
+              borderRadius: 10, marginTop: 4, maxHeight: 320, overflowY: 'auto',
+              boxShadow: '0 8px 24px rgba(0,0,0,.5)',
+            }}>
+              {searchResults.map(r => (
+                <Link
+                  key={`${r.type}-${r.id}`}
+                  href={`/dashboard/clients/${r.client_id}`}
+                  onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px', textDecoration: 'none',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
+                  <span style={{
+                    width: 24, height: 24, borderRadius: 6, flexShrink: 0,
+                    background: r.type === 'client' ? 'rgba(232,105,43,.12)' : r.type === 'script' ? 'rgba(250,204,21,.12)' : 'rgba(139,92,246,.12)',
+                    color: r.type === 'client' ? 'var(--orange)' : r.type === 'script' ? 'var(--yellow)' : '#8B5CF6',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '0.7rem', fontWeight: 700,
+                  }}>{r.type === 'client' ? '◉' : r.type === 'script' ? '✎' : '💬'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Navigation */}
       <nav style={{ padding: '12px 8px', flex: 1 }}>
@@ -327,7 +435,64 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           flex: 1,
           overflow: 'auto',
           minWidth: 0,
+          position: 'relative',
         }}>
+          {/* Mobile search bar */}
+          {isMobile && (
+            <div ref={!isMobile ? undefined : searchRef} style={{ padding: '12px 16px 0', position: 'relative' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 12px', borderRadius: 8,
+                background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+              }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1 }}>⌕</span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => handleSearch(e.target.value)}
+                  onFocus={() => { if (searchResults.length) setSearchOpen(true); }}
+                  placeholder="Rechercher…"
+                  style={{
+                    flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                    color: 'var(--text)', fontSize: '0.82rem', padding: 0,
+                  }}
+                />
+              </div>
+              {searchOpen && searchResults.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 16, right: 16, zIndex: 999,
+                  background: 'var(--night-card)', border: '1px solid var(--border-md)',
+                  borderRadius: 10, marginTop: 4, maxHeight: 320, overflowY: 'auto',
+                  boxShadow: '0 8px 24px rgba(0,0,0,.5)',
+                }}>
+                  {searchResults.map(r => (
+                    <Link
+                      key={`m-${r.type}-${r.id}`}
+                      href={`/dashboard/clients/${r.client_id}`}
+                      onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 14px', textDecoration: 'none',
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                    >
+                      <span style={{
+                        width: 24, height: 24, borderRadius: 6, flexShrink: 0,
+                        background: r.type === 'client' ? 'rgba(232,105,43,.12)' : r.type === 'script' ? 'rgba(250,204,21,.12)' : 'rgba(139,92,246,.12)',
+                        color: r.type === 'client' ? 'var(--orange)' : r.type === 'script' ? 'var(--yellow)' : '#8B5CF6',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.7rem', fontWeight: 700,
+                      }}>{r.type === 'client' ? '◉' : r.type === 'script' ? '✎' : '💬'}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {children}
         </main>
       </div>
