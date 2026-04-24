@@ -549,6 +549,28 @@ export default function ClientDetailPage() {
                 <InfoField label="Deadline publication" value={client.publication_deadline ? new Date(client.publication_deadline).toLocaleDateString('fr-FR') : '—'} />
               </div>
 
+              {/* Quick contact actions */}
+              {(client.phone || client.email) && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                  {client.phone && (
+                    <>
+                      <a href={`tel:${client.phone}`} style={quickContactStyle('var(--text-mid)')}>
+                        📞 Appeler
+                      </a>
+                      <a href={`https://wa.me/${client.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer"
+                        style={quickContactStyle('#25D366')}>
+                        💬 WhatsApp
+                      </a>
+                    </>
+                  )}
+                  {client.email && (
+                    <a href={`mailto:${client.email}`} style={quickContactStyle('var(--text-mid)')}>
+                      ✉ Email
+                    </a>
+                  )}
+                </div>
+              )}
+
               {portalUrl && (
                 <div style={{ marginBottom: 16 }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Lien portail client</span>
@@ -557,7 +579,7 @@ export default function ClientDetailPage() {
                       flex: 1, fontSize: '0.72rem', padding: '6px 10px', borderRadius: 6,
                       background: 'var(--night-mid)', color: 'var(--orange)', wordBreak: 'break-all',
                     }}>{portalUrl}</code>
-                    <button onClick={() => navigator.clipboard.writeText(portalUrl)} style={{
+                    <button onClick={() => { navigator.clipboard.writeText(portalUrl); notify('success', 'Lien copié'); }} style={{
                       padding: '6px 12px', borderRadius: 6, background: 'var(--night-mid)',
                       border: '1px solid var(--border-md)', color: 'var(--text-mid)',
                       cursor: 'pointer', fontSize: '0.75rem',
@@ -565,6 +587,36 @@ export default function ClientDetailPage() {
                   </div>
                 </div>
               )}
+
+              {/* Internal admin notes */}
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                  Notes internes (invisibles pour le client)
+                </span>
+                <textarea
+                  defaultValue={client.notes || ''}
+                  onBlur={e => {
+                    const v = e.target.value;
+                    if (v !== (client.notes || '')) {
+                      fetch('/api/clients', {
+                        method: 'PUT', headers: authHeaders(),
+                        body: JSON.stringify({ id, notes: v }),
+                      }).then(async r => {
+                        if (!r.ok) notify('error', await parseErr(r));
+                        else { notify('success', 'Notes enregistrées'); loadClient(); }
+                      });
+                    }
+                  }}
+                  placeholder="Contexte, préférences client, rappels pour l'équipe…"
+                  rows={3}
+                  style={{
+                    width: '100%', padding: '9px 12px', borderRadius: 6,
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', fontSize: '0.85rem', boxSizing: 'border-box',
+                    fontFamily: 'inherit', resize: 'vertical',
+                  }}
+                />
+              </div>
 
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => { setEditing(true); setEditForm(client); }} style={{
@@ -1107,6 +1159,15 @@ export default function ClientDetailPage() {
       )}
     </div>
   );
+}
+
+function quickContactStyle(color: string): React.CSSProperties {
+  return {
+    padding: '8px 14px', borderRadius: 8, background: 'var(--night-mid)',
+    border: '1px solid var(--border-md)', color,
+    cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'none',
+    display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 500,
+  };
 }
 
 function InfoField({ label, value }: { label: string; value?: string | null }) {

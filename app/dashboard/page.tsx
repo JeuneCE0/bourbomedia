@@ -137,6 +137,27 @@ export default function DashboardPage() {
     return nowMs - last > 7 * 86400000;
   }).length;
 
+  // Needs attention: combines stuck + upcoming filming + script_review (waiting on us)
+  const needsAttention: { client: Client; reason: string; urgency: 'high' | 'medium' }[] = [];
+  clients.forEach(c => {
+    if (c.status === 'published') return;
+    const lastMs = c.updated_at ? new Date(c.updated_at).getTime() : new Date(c.created_at).getTime();
+    const daysIdle = Math.floor((nowMs - lastMs) / 86400000);
+    if (c.status === 'script_review' && daysIdle > 3) {
+      needsAttention.push({ client: c, reason: `Script en relecture depuis ${daysIdle} j`, urgency: daysIdle > 7 ? 'high' : 'medium' });
+    } else if (daysIdle > 14) {
+      needsAttention.push({ client: c, reason: `Aucune activité depuis ${daysIdle} j`, urgency: 'high' });
+    } else if (c.filming_date) {
+      const d = new Date(c.filming_date);
+      const daysToFilming = Math.ceil((d.getTime() - nowMs) / 86400000);
+      if (daysToFilming >= 0 && daysToFilming <= 2 && c.status !== 'filming_done' && c.status !== 'editing') {
+        needsAttention.push({ client: c, reason: daysToFilming === 0 ? "Tournage aujourd'hui" : daysToFilming === 1 ? 'Tournage demain' : `Tournage dans ${daysToFilming} j`, urgency: 'high' });
+      }
+    }
+  });
+  // Sort: high urgency first
+  needsAttention.sort((a, b) => (a.urgency === 'high' ? 0 : 1) - (b.urgency === 'high' ? 0 : 1));
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
       {/* Welcome header */}
@@ -254,6 +275,47 @@ export default function DashboardPage() {
               color={stuckClients > 0 ? 'var(--red)' : 'var(--green)'}
             />
           </div>
+
+          {/* Needs attention */}
+          {needsAttention.length > 0 && (
+            <div style={{
+              background: 'var(--night-card)',
+              borderRadius: 12,
+              border: '1px solid var(--border-orange)',
+              padding: '20px 24px',
+              marginBottom: 24,
+            }}>
+              <h2 style={{
+                fontSize: '0.95rem', fontWeight: 600,
+                color: 'var(--orange)', margin: '0 0 14px 0',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span>⚠</span> À traiter — {needsAttention.length}
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {needsAttention.slice(0, 5).map(a => (
+                  <Link key={a.client.id} href={`/dashboard/clients/${a.client.id}`} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14,
+                    padding: '10px 14px', borderRadius: 10,
+                    background: 'var(--night-mid)', textDecoration: 'none',
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {a.client.business_name}
+                      </div>
+                      <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{a.reason}</div>
+                    </div>
+                    <span style={{
+                      fontSize: '0.7rem', padding: '3px 10px', borderRadius: 20,
+                      background: a.urgency === 'high' ? 'rgba(239,68,68,.15)' : 'rgba(250,204,21,.12)',
+                      color: a.urgency === 'high' ? 'var(--red)' : 'var(--yellow)',
+                      fontWeight: 600, whiteSpace: 'nowrap',
+                    }}>{a.urgency === 'high' ? 'Urgent' : 'À voir'}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Pipeline overview */}
           <div style={{
