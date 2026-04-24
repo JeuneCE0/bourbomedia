@@ -89,26 +89,6 @@ function OnboardingContent() {
     }
   }, [paymentStatus, tokenParam, fetchClient]);
 
-  // Auto-poll contract signature status during step 2
-  useEffect(() => {
-    if (currentStep !== 2 || !token) return;
-    const poll = async () => {
-      try {
-        const r = await fetch(`/api/onboarding?token=${token}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'check_contract' }),
-        });
-        const data = await r.json();
-        if (data.signed) {
-          await fetchClient(token);
-        }
-      } catch { /* ignore */ }
-    };
-    const interval = setInterval(poll, 8000);
-    return () => clearInterval(interval);
-  }, [currentStep, token, fetchClient]);
-
   const api = async (action: string, extra: Record<string, unknown> = {}) => {
     const r = await fetch(`/api/onboarding?token=${token}`, {
       method: 'POST',
@@ -169,7 +149,7 @@ function OnboardingContent() {
     }
   };
 
-  // Step 2: Check contract status
+  // Step 2: Confirm contract signed
   const handleCheckContract = async () => {
     setCheckingContract(true);
     setError('');
@@ -179,11 +159,10 @@ function OnboardingContent() {
       if (data.signed) {
         await fetchClient(token);
       } else {
-        const debugInfo = data.debug ? '\n\nDebug GHL: ' + JSON.stringify(data.debug, null, 2) : '';
-        setError('Le contrat n\'a pas encore été détecté. Si vous venez de signer, attendez quelques secondes — la vérification est automatique.' + debugInfo);
+        setError(data.error || 'Erreur de confirmation');
       }
     } catch {
-      setError('Erreur de vérification');
+      setError('Erreur de confirmation');
     } finally {
       setCheckingContract(false);
     }
