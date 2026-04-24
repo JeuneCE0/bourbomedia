@@ -24,6 +24,16 @@ interface Comment {
   created_at: string;
 }
 
+interface ClientDelivery {
+  business_name?: string;
+  contact_name?: string;
+  status?: string;
+  video_url?: string;
+  video_thumbnail_url?: string;
+  delivery_notes?: string;
+  delivered_at?: string;
+}
+
 const SCRIPT_STEPS = [
   { key: 'draft', label: 'Préparation', color: '#8A7060' },
   { key: 'proposition', label: 'Proposition', color: '#F28C55' },
@@ -51,23 +61,39 @@ function PortalContent() {
   const token = searchParams.get('token');
 
   const [script, setScript] = useState<Script | null>(null);
+  const [clientInfo, setClientInfo] = useState<ClientDelivery | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [comment, setComment] = useState('');
   const [sending, setSending] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [tab, setTab] = useState<'script' | 'comments'>('script');
+  const [tab, setTab] = useState<'script' | 'comments' | 'video'>('script');
 
   const loadScript = useCallback(() => {
     if (!token) return;
     fetch(`/api/scripts?token=${token}`)
       .then(r => { if (!r.ok) throw new Error('Lien invalide ou expiré'); return r.json(); })
-      .then(d => setScript(d))
+      .then(d => {
+        // API returns { script, client } - handle both shapes for back-compat
+        if (d && typeof d === 'object' && 'script' in d) {
+          setScript(d.script);
+          setClientInfo(d.client || null);
+        } else {
+          setScript(d);
+        }
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [token]);
 
   useEffect(() => { loadScript(); }, [loadScript]);
+
+  // Auto-switch to video tab when delivery becomes available
+  useEffect(() => {
+    if (clientInfo?.delivered_at && clientInfo.video_url) {
+      setTab('video');
+    }
+  }, [clientInfo?.delivered_at, clientInfo?.video_url]);
 
   async function handleValidate() {
     if (!confirm('Confirmer et valider ce script ? Le tournage sera planifié.')) return;
@@ -141,20 +167,67 @@ function PortalContent() {
     </div>
   );
 
-  if (!script) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ textAlign: 'center', maxWidth: 440 }}>
-        <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: 'var(--orange)', marginBottom: 8 }}>
-          BourbonMédia
-        </h1>
-        <div style={{ fontSize: '2.5rem', margin: '20px 0' }}>✍</div>
-        <h2 style={{ fontSize: '1rem', color: 'var(--text)', marginBottom: 8 }}>Votre script est en préparation</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6 }}>
-          Notre équipe travaille sur votre script vidéo. Vous recevrez une notification dès qu&#39;il sera prêt pour votre relecture.
-        </p>
+  if (!script) {
+    // If video already delivered, show it even without a script
+    if (clientInfo?.video_url) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+          <header style={{
+            padding: '16px 20px', borderBottom: '1px solid var(--border)',
+            background: 'var(--night-mid)', textAlign: 'center',
+          }}>
+            <h1 style={{
+              fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+              fontSize: '1.2rem', color: 'var(--orange)', margin: 0,
+            }}>BourbonMédia</h1>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '4px 0 0' }}>Espace client</p>
+          </header>
+          <main style={{ flex: 1, maxWidth: 800, width: '100%', margin: '0 auto', padding: 'clamp(16px, 4vw, 32px)' }}>
+            <div style={{ marginBottom: 18, textAlign: 'center' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🎉</div>
+              <h2 style={{
+                fontSize: '1.2rem', color: 'var(--orange)', margin: 0, fontWeight: 700,
+                fontFamily: "'Bricolage Grotesque', sans-serif",
+              }}>Votre vidéo est prête !</h2>
+              {clientInfo.delivered_at && (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                  Livrée le {new Date(clientInfo.delivered_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+            <VideoEmbed url={clientInfo.video_url} thumbnail={clientInfo.video_thumbnail_url} />
+            {clientInfo.delivery_notes && (
+              <div style={{
+                marginTop: 16, padding: '14px 16px', borderRadius: 10,
+                background: 'var(--night-card)', border: '1px solid var(--border)',
+              }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>
+                  Message de l&#39;équipe
+                </div>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text)', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>
+                  {clientInfo.delivery_notes}
+                </p>
+              </div>
+            )}
+          </main>
+        </div>
+      );
+    }
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ textAlign: 'center', maxWidth: 440 }}>
+          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: 'var(--orange)', marginBottom: 8 }}>
+            BourbonMédia
+          </h1>
+          <div style={{ fontSize: '2.5rem', margin: '20px 0' }}>✍</div>
+          <h2 style={{ fontSize: '1rem', color: 'var(--text)', marginBottom: 8 }}>Votre script est en préparation</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6 }}>
+            Notre équipe travaille sur votre script vidéo. Vous recevrez une notification dès qu&#39;il sera prêt pour votre relecture.
+          </p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   const currentStepIdx = SCRIPT_STEPS.findIndex(s => s.key === script.status);
   const statusInfo = SCRIPT_STEPS[currentStepIdx] || SCRIPT_STEPS[0];
@@ -261,8 +334,12 @@ function PortalContent() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
-          {(['script', 'comments'] as const).map(t => (
+        <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+          {([
+            ...(clientInfo?.video_url ? ['video' as const] : []),
+            'script' as const,
+            'comments' as const,
+          ]).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: '10px 20px', border: 'none', cursor: 'pointer',
               fontSize: '0.82rem', fontWeight: tab === t ? 600 : 400,
@@ -270,11 +347,56 @@ function PortalContent() {
               color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
               borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
               transition: 'all .15s',
+              whiteSpace: 'nowrap',
             }}>
-              {t === 'script' ? '📄 Script' : `💬 Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`}
+              {t === 'video' ? '🎬 Votre vidéo' : t === 'script' ? '📄 Script' : `💬 Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`}
             </button>
           ))}
         </div>
+
+        {/* Video delivery view */}
+        {tab === 'video' && clientInfo?.video_url && (
+          <div style={{
+            background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
+            padding: 'clamp(16px, 3vw, 24px)',
+          }}>
+            <div style={{ marginBottom: 18, textAlign: 'center' }}>
+              <div style={{ fontSize: '2rem', marginBottom: 8 }}>🎉</div>
+              <h2 style={{
+                fontSize: '1.1rem', color: 'var(--orange)', margin: 0, fontWeight: 700,
+                fontFamily: "'Bricolage Grotesque', sans-serif",
+              }}>Votre vidéo est prête !</h2>
+              {clientInfo.delivered_at && (
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                  Livrée le {new Date(clientInfo.delivered_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+
+            <VideoEmbed url={clientInfo.video_url} thumbnail={clientInfo.video_thumbnail_url} />
+
+            {clientInfo.delivery_notes && (
+              <div style={{
+                marginTop: 16, padding: '14px 16px', borderRadius: 10,
+                background: 'var(--night-mid)', border: '1px solid var(--border)',
+              }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>
+                  Message de l&#39;équipe
+                </div>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text)', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>
+                  {clientInfo.delivery_notes}
+                </p>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <a href={clientInfo.video_url} target="_blank" rel="noreferrer" style={{
+                padding: '10px 20px', borderRadius: 10, background: 'var(--orange)',
+                color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem',
+              }}>Ouvrir dans un nouvel onglet ↗</a>
+            </div>
+          </div>
+        )}
 
         {/* Script view */}
         {tab === 'script' && (
@@ -358,6 +480,83 @@ function PortalContent() {
         </p>
       </footer>
     </div>
+  );
+}
+
+function VideoEmbed({ url, thumbnail }: { url: string; thumbnail?: string }) {
+  // YouTube
+  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
+  if (ytMatch) {
+    return (
+      <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, borderRadius: 12, overflow: 'hidden', background: '#000' }}>
+        <iframe
+          src={`https://www.youtube.com/embed/${ytMatch[1]}`}
+          title="Votre vidéo"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+        />
+      </div>
+    );
+  }
+  // Vimeo
+  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+  if (vimeoMatch) {
+    return (
+      <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, borderRadius: 12, overflow: 'hidden', background: '#000' }}>
+        <iframe
+          src={`https://player.vimeo.com/video/${vimeoMatch[1]}`}
+          title="Votre vidéo"
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+        />
+      </div>
+    );
+  }
+  // Direct video file (mp4/webm/mov)
+  if (/\.(mp4|webm|mov)(\?|$)/i.test(url)) {
+    return (
+      <video
+        src={url}
+        controls
+        poster={thumbnail}
+        style={{ width: '100%', borderRadius: 12, background: '#000', display: 'block' }}
+      />
+    );
+  }
+  // Fallback: link card with thumbnail
+  return (
+    <a href={url} target="_blank" rel="noreferrer" style={{
+      display: 'block', textDecoration: 'none', borderRadius: 12, overflow: 'hidden',
+      border: '1px solid var(--border)', background: 'var(--night-mid)',
+    }}>
+      {thumbnail && (
+        <div style={{
+          position: 'relative', paddingBottom: '56.25%', height: 0,
+          backgroundImage: `url(${thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'center',
+        }}>
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,.3)',
+          }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%', background: 'var(--orange)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '1.5rem', color: '#fff',
+            }}>▶</div>
+          </div>
+        </div>
+      )}
+      <div style={{ padding: 14 }}>
+        <div style={{ fontSize: '0.82rem', color: 'var(--orange)', fontWeight: 600 }}>
+          Cliquez pour visionner votre vidéo ↗
+        </div>
+        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4, wordBreak: 'break-all' }}>
+          {url}
+        </div>
+      </div>
+    </a>
   );
 }
 
