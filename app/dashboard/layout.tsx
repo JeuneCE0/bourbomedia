@@ -9,6 +9,7 @@ const NAV = [
   { href: '/dashboard/onboarding', label: 'Onboarding', icon: '◎' },
   { href: '/dashboard/clients', label: 'Clients', icon: '◉' },
   { href: '/dashboard/calendar', label: 'Calendrier', icon: '▦' },
+  { href: '/dashboard/team', label: 'Équipe', icon: '◐' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

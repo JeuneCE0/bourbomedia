@@ -121,10 +121,41 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
+  function exportCSV() {
+    const header = ['Commerce', 'Contact', 'Email', 'Téléphone', 'Ville', 'Catégorie', 'Statut', 'Date tournage', 'Deadline publication', 'Créé le'];
+    const rows = clients.map(c => [
+      c.business_name,
+      c.contact_name,
+      c.email || '',
+      c.phone || '',
+      c.city || '',
+      c.category || '',
+      STATUS_LABELS[c.status] || c.status,
+      c.filming_date ? new Date(c.filming_date).toLocaleDateString('fr-FR') : '',
+      c.publication_deadline ? new Date(c.publication_deadline).toLocaleDateString('fr-FR') : '',
+      new Date(c.created_at).toLocaleDateString('fr-FR'),
+    ]);
+    const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [header, ...rows].map(r => r.map(escape).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `clients-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function loadClients() {
     fetch('/api/clients', { headers: authHeaders() })
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({ error: r.statusText }))).error || 'Erreur');
+        return r.json();
+      })
       .then(d => { if (Array.isArray(d)) setClients(d); })
+      .catch(e => console.error('Erreur chargement clients:', e))
       .finally(() => setLoading(false));
   }
 
@@ -209,22 +240,30 @@ export default function ClientsPage() {
             {clients.length} client{clients.length !== 1 ? 's' : ''} au total
           </p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} style={{
-          padding: '10px 20px', borderRadius: 10, background: 'var(--orange)', color: '#fff',
-          border: 'none', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', gap: 6,
-          transition: 'background var(--transition-fast)',
-          boxShadow: '0 2px 8px rgba(232,105,43,.25)',
-        }}>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 18, height: 18, borderRadius: '50%',
-            background: 'rgba(255,255,255,.2)', fontSize: '0.85rem', lineHeight: 1,
-            transform: showForm ? 'rotate(45deg)' : 'rotate(0deg)',
-            transition: 'transform var(--transition-med)',
-          }}>+</span>
-          Nouveau client
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={exportCSV} disabled={clients.length === 0} style={{
+            padding: '10px 16px', borderRadius: 10, background: 'var(--night-card)',
+            border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+            fontSize: '0.82rem', cursor: clients.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: clients.length === 0 ? 0.5 : 1,
+          }}>⇩ Export CSV</button>
+          <button onClick={() => setShowForm(!showForm)} style={{
+            padding: '10px 20px', borderRadius: 10, background: 'var(--orange)', color: '#fff',
+            border: 'none', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            transition: 'background var(--transition-fast)',
+            boxShadow: '0 2px 8px rgba(232,105,43,.25)',
+          }}>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 18, height: 18, borderRadius: '50%',
+              background: 'rgba(255,255,255,.2)', fontSize: '0.85rem', lineHeight: 1,
+              transform: showForm ? 'rotate(45deg)' : 'rotate(0deg)',
+              transition: 'transform var(--transition-med)',
+            }}>+</span>
+            Nouveau client
+          </button>
+        </div>
       </div>
 
       {/* Create form - slide down panel */}

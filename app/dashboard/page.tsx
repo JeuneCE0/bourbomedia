@@ -11,7 +11,11 @@ interface Client {
   city?: string;
   category?: string;
   created_at: string;
+  updated_at?: string;
   filming_date?: string;
+  paid_at?: string;
+  payment_amount?: number;
+  delivered_at?: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -85,11 +89,16 @@ function getInitials(name: string): string {
 export default function DashboardPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetch('/api/clients', { headers: authHeaders() })
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({ error: r.statusText }))).error || 'Erreur de chargement');
+        return r.json();
+      })
       .then(d => { if (Array.isArray(d)) setClients(d); })
+      .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -102,6 +111,52 @@ export default function DashboardPage() {
     .slice(0, 5);
 
   const totalInPipeline = clients.length || 1;
+
+  // --- Advanced stats ---
+  const nowMs = Date.now();
+  const last30 = clients.filter(c => nowMs - new Date(c.created_at).getTime() < 30 * 86400000);
+  const last30Delivered = last30.filter(c => c.delivered_at).length;
+  const conversionRate = last30.length > 0 ? Math.round((last30Delivered / last30.length) * 100) : 0;
+
+  const totalRevenue = clients.reduce((sum, c) => sum + (c.payment_amount || 0), 0) / 100; // cents → €
+  const last30Revenue = last30.reduce((sum, c) => sum + (c.payment_amount || 0), 0) / 100;
+
+  // Avg time from creation to delivery (days)
+  const deliveredClients = clients.filter(c => c.delivered_at);
+  const avgDeliveryDays = deliveredClients.length > 0
+    ? Math.round(deliveredClients.reduce((sum, c) => {
+      const days = (new Date(c.delivered_at!).getTime() - new Date(c.created_at).getTime()) / 86400000;
+      return sum + days;
+    }, 0) / deliveredClients.length)
+    : 0;
+
+  // Stuck clients: in same status > 7 days
+  const stuckClients = clients.filter(c => {
+    if (c.status === 'published') return false;
+    const last = c.updated_at ? new Date(c.updated_at).getTime() : new Date(c.created_at).getTime();
+    return nowMs - last > 7 * 86400000;
+  }).length;
+
+  // Needs attention: combines stuck + upcoming filming + script_review (waiting on us)
+  const needsAttention: { client: Client; reason: string; urgency: 'high' | 'medium' }[] = [];
+  clients.forEach(c => {
+    if (c.status === 'published') return;
+    const lastMs = c.updated_at ? new Date(c.updated_at).getTime() : new Date(c.created_at).getTime();
+    const daysIdle = Math.floor((nowMs - lastMs) / 86400000);
+    if (c.status === 'script_review' && daysIdle > 3) {
+      needsAttention.push({ client: c, reason: `Script en relecture depuis ${daysIdle} j`, urgency: daysIdle > 7 ? 'high' : 'medium' });
+    } else if (daysIdle > 14) {
+      needsAttention.push({ client: c, reason: `Aucune activité depuis ${daysIdle} j`, urgency: 'high' });
+    } else if (c.filming_date) {
+      const d = new Date(c.filming_date);
+      const daysToFilming = Math.ceil((d.getTime() - nowMs) / 86400000);
+      if (daysToFilming >= 0 && daysToFilming <= 2 && c.status !== 'filming_done' && c.status !== 'editing') {
+        needsAttention.push({ client: c, reason: daysToFilming === 0 ? "Tournage aujourd'hui" : daysToFilming === 1 ? 'Tournage demain' : `Tournage dans ${daysToFilming} j`, urgency: 'high' });
+      }
+    }
+  });
+  // Sort: high urgency first
+  needsAttention.sort((a, b) => (a.urgency === 'high' ? 0 : 1) - (b.urgency === 'high' ? 0 : 1));
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
@@ -135,6 +190,17 @@ export default function DashboardPage() {
           textAlign: 'center',
         }}>
           Chargement...
+        </div>
+      ) : error ? (
+        <div style={{
+          padding: '14px 18px',
+          borderRadius: 10,
+          background: 'rgba(239,68,68,.08)',
+          border: '1px solid rgba(239,68,68,.25)',
+          color: 'var(--red)',
+          fontSize: '0.85rem',
+        }}>
+          {error}
         </div>
       ) : (
         <>
@@ -176,6 +242,80 @@ export default function DashboardPage() {
               color="var(--green)"
             />
           </div>
+
+          {/* Advanced performance stats */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: 14,
+            marginBottom: 28,
+          }}>
+            <PerfCard
+              label="Revenus totaux"
+              value={`${totalRevenue.toLocaleString('fr-FR')} €`}
+              sub={last30Revenue > 0 ? `+${last30Revenue.toLocaleString('fr-FR')} € ces 30 j` : '—'}
+              color="var(--green)"
+            />
+            <PerfCard
+              label="Taux de livraison (30 j)"
+              value={`${conversionRate}%`}
+              sub={`${last30Delivered} sur ${last30.length} clients`}
+              color="var(--orange)"
+            />
+            <PerfCard
+              label="Délai moyen de livraison"
+              value={avgDeliveryDays > 0 ? `${avgDeliveryDays} j` : '—'}
+              sub={deliveredClients.length > 0 ? `sur ${deliveredClients.length} vidéos livrées` : 'Aucune livraison'}
+              color="#3B82F6"
+            />
+            <PerfCard
+              label="Clients bloqués"
+              value={`${stuckClients}`}
+              sub={stuckClients > 0 ? 'sans activité > 7 j' : 'Tout roule !'}
+              color={stuckClients > 0 ? 'var(--red)' : 'var(--green)'}
+            />
+          </div>
+
+          {/* Needs attention */}
+          {needsAttention.length > 0 && (
+            <div style={{
+              background: 'var(--night-card)',
+              borderRadius: 12,
+              border: '1px solid var(--border-orange)',
+              padding: '20px 24px',
+              marginBottom: 24,
+            }}>
+              <h2 style={{
+                fontSize: '0.95rem', fontWeight: 600,
+                color: 'var(--orange)', margin: '0 0 14px 0',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span>⚠</span> À traiter — {needsAttention.length}
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {needsAttention.slice(0, 5).map(a => (
+                  <Link key={a.client.id} href={`/dashboard/clients/${a.client.id}`} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14,
+                    padding: '10px 14px', borderRadius: 10,
+                    background: 'var(--night-mid)', textDecoration: 'none',
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {a.client.business_name}
+                      </div>
+                      <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{a.reason}</div>
+                    </div>
+                    <span style={{
+                      fontSize: '0.7rem', padding: '3px 10px', borderRadius: 20,
+                      background: a.urgency === 'high' ? 'rgba(239,68,68,.15)' : 'rgba(250,204,21,.12)',
+                      color: a.urgency === 'high' ? 'var(--red)' : 'var(--yellow)',
+                      fontWeight: 600, whiteSpace: 'nowrap',
+                    }}>{a.urgency === 'high' ? 'Urgent' : 'À voir'}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Pipeline overview */}
           <div style={{
@@ -393,6 +533,27 @@ export default function DashboardPage() {
 }
 
 /* ---------- Sub-components ---------- */
+
+function PerfCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
+  return (
+    <div style={{
+      background: 'var(--night-card)',
+      borderRadius: 12,
+      border: '1px solid var(--border)',
+      padding: '16px 20px',
+    }}>
+      <div style={{
+        fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500,
+        letterSpacing: '0.02em', marginBottom: 8,
+      }}>{label}</div>
+      <div style={{
+        fontSize: '1.5rem', fontWeight: 700, color,
+        fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1, marginBottom: 6,
+      }}>{value}</div>
+      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{sub}</div>
+    </div>
+  );
+}
 
 function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
   const [hovered, setHovered] = useState(false);

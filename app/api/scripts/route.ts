@@ -11,15 +11,30 @@ export async function GET(req: NextRequest) {
 
   if (portalToken) {
     try {
-      const cr = await supaFetch(`clients?portal_token=eq.${portalToken}&select=id`, {}, true);
+      const cr = await supaFetch(
+        `clients?portal_token=eq.${portalToken}&select=id,business_name,contact_name,video_url,video_thumbnail_url,delivery_notes,delivered_at,status`,
+        {},
+        true
+      );
       if (!cr.ok) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
       const clients = await cr.json();
       if (!clients.length) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
-      const cid = clients[0].id;
-      const r = await supaFetch(`scripts?client_id=eq.${cid}&select=*,script_comments(*)`, {}, true);
+      const c = clients[0];
+      const r = await supaFetch(`scripts?client_id=eq.${c.id}&select=*,script_comments(*)`, {}, true);
       if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
       const data = await r.json();
-      return NextResponse.json(data[0] || null);
+      return NextResponse.json({
+        script: data[0] || null,
+        client: {
+          business_name: c.business_name,
+          contact_name: c.contact_name,
+          status: c.status,
+          video_url: c.video_url,
+          video_thumbnail_url: c.video_thumbnail_url,
+          delivery_notes: c.delivery_notes,
+          delivered_at: c.delivered_at,
+        },
+      });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
     }

@@ -56,8 +56,12 @@ export default function CalendarPage() {
 
   const loadClients = useCallback(() => {
     fetch('/api/clients', { headers: authHeaders() })
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({ error: r.statusText }))).error || 'Erreur');
+        return r.json();
+      })
       .then(d => { if (Array.isArray(d)) setClients(d); })
+      .catch(e => console.error('Erreur chargement calendrier:', e))
       .finally(() => setLoading(false));
   }, []);
 
