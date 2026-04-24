@@ -81,7 +81,14 @@ function OnboardingContent() {
   useEffect(() => {
     if (tokenParam) {
       setToken(tokenParam);
+      localStorage.setItem('ob_token', tokenParam);
       fetchClient(tokenParam);
+    } else {
+      const saved = localStorage.getItem('ob_token');
+      if (saved) {
+        setToken(saved);
+        fetchClient(saved);
+      }
     }
   }, [tokenParam, fetchClient]);
 
@@ -91,6 +98,23 @@ function OnboardingContent() {
       fetchClient(tokenParam);
     }
   }, [paymentStatus, tokenParam, fetchClient]);
+
+  // Handle call booked redirect from GHL Calendar
+  const callBookedParam = searchParams.get('call_booked');
+  useEffect(() => {
+    if (callBookedParam === 'true' && token && currentStep === 4) {
+      (async () => {
+        try {
+          await fetch(`/api/onboarding?token=${token}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'call_booked', date: new Date().toISOString() }),
+          });
+          await fetchClient(token);
+        } catch { /* ignore */ }
+      })();
+    }
+  }, [callBookedParam, token, currentStep, fetchClient]);
 
   const api = async (action: string, extra: Record<string, unknown> = {}) => {
     const r = await fetch(`/api/onboarding?token=${token}`, {
@@ -128,6 +152,7 @@ function OnboardingContent() {
       setToken(data.token);
       setClient(data.client);
       setCurrentStep(2);
+      localStorage.setItem('ob_token', data.token);
       router.replace(`/onboarding?token=${data.token}`);
     } catch (e: unknown) {
       setError((e as Error).message);
@@ -614,57 +639,62 @@ function OnboardingContent() {
     );
   };
 
-  // Step 4: Onboarding call
+  // Step 4: Onboarding call (embedded GHL Calendar)
+  const [showCallBookedBtn, setShowCallBookedBtn] = useState(false);
+  const calendarUrl = process.env.NEXT_PUBLIC_GHL_CALENDAR_URL || '';
+
+  useEffect(() => {
+    if (currentStep === 4 && !showCallBookedBtn) {
+      const timer = setTimeout(() => setShowCallBookedBtn(true), 30000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, showCallBookedBtn]);
+
   const renderStep4 = () => (
-    <div style={cardStyle}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>☎</div>
+    <div style={{ ...cardStyle, maxWidth: 900 }}>
+      <div style={{ textAlign: 'center', marginBottom: 20 }}>
+        <div style={{ fontSize: '2rem', marginBottom: 8 }}>&#9742;</div>
         <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
           Appel de lancement
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-          Réservez un créneau pour votre appel de lancement avec notre équipe.
+          R&eacute;servez un cr&eacute;neau pour votre appel de lancement avec notre &eacute;quipe.
         </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{
-          padding: '20px',
-          background: 'var(--night-mid)',
           borderRadius: 12,
+          overflow: 'hidden',
+          border: '1px solid var(--border-md)',
+          background: '#fff',
         }}>
-          <p style={{ color: 'var(--text-mid)', fontSize: '0.85rem', margin: 0, lineHeight: 1.6 }}>
-            Durant cet appel de 30 minutes, nous allons :
-          </p>
-          <ul style={{ color: 'var(--text)', fontSize: '0.85rem', margin: '12px 0 0', paddingLeft: 20, lineHeight: 1.8 }}>
-            <li>Discuter de vos objectifs vidéo</li>
-            <li>Définir le ton et le style souhaité</li>
-            <li>Planifier le tournage</li>
-            <li>Répondre à toutes vos questions</li>
-          </ul>
+          <iframe
+            src={calendarUrl}
+            style={{
+              width: '100%',
+              height: '70vh',
+              minHeight: 550,
+              border: 'none',
+              display: 'block',
+            }}
+            title="Réservation appel onboarding"
+          />
         </div>
 
-        <a
-          href={process.env.NEXT_PUBLIC_GHL_CALENDAR_URL || '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            ...btnPrimary,
-            textDecoration: 'none',
-            textAlign: 'center',
-            display: 'block',
-          }}
-        >
-          Réserver mon créneau ↗
-        </a>
-
-        <button
-          onClick={handleCallBooked}
-          disabled={calBooking}
-          style={{ ...btnSecondary, opacity: calBooking ? 0.6 : 1 }}
-        >
-          {calBooking ? 'Confirmation…' : 'J\'ai réservé mon créneau'}
-        </button>
+        {showCallBookedBtn ? (
+          <button
+            onClick={handleCallBooked}
+            disabled={calBooking}
+            style={{ ...btnPrimary, opacity: calBooking ? 0.6 : 1, animation: 'fadeIn .4s ease' }}
+          >
+            {calBooking ? 'Confirmation...' : 'J\'ai réservé mon créneau'}
+          </button>
+        ) : (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
+            S&eacute;lectionnez un cr&eacute;neau dans le calendrier ci-dessus
+          </p>
+        )}
       </div>
 
       {error && (
