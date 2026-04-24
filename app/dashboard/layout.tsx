@@ -4,12 +4,25 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 
-const NAV = [
-  { href: '/dashboard', label: 'Tableau de bord', icon: '▣' },
-  { href: '/dashboard/onboarding', label: 'Onboarding', icon: '◎' },
-  { href: '/dashboard/clients', label: 'Clients', icon: '◉' },
-  { href: '/dashboard/calendar', label: 'Calendrier', icon: '▦' },
-  { href: '/dashboard/team', label: 'Équipe', icon: '◐' },
+const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
+  {
+    title: 'Pilotage',
+    items: [
+      { href: '/dashboard', label: 'Dashboard', icon: '▣' },
+      { href: '/dashboard/pipeline', label: 'Pipeline', icon: '▤' },
+      { href: '/dashboard/tasks', label: 'Tâches', icon: '☑' },
+      { href: '/dashboard/scripts', label: 'Scripts / Tournages', icon: '✎' },
+    ],
+  },
+  {
+    title: 'Données',
+    items: [
+      { href: '/dashboard/clients', label: 'Clients', icon: '◉' },
+      { href: '/dashboard/calendar', label: 'Calendrier', icon: '▦' },
+      { href: '/dashboard/onboarding', label: 'Onboarding', icon: '◎' },
+      { href: '/dashboard/team', label: 'Équipe', icon: '◐' },
+    ],
+  },
 ];
 
 interface SearchResult {
@@ -252,41 +265,60 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Navigation */}
       <nav style={{ padding: '12px 8px', flex: 1 }}>
-        {NAV.map(item => {
-          const active = isActive(item.href);
-          const hovered = hoveredNav === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onMouseEnter={() => setHoveredNav(item.href)}
-              onMouseLeave={() => setHoveredNav(null)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: collapsed && !isMobile ? '10px 0' : '10px 12px',
-                justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
-                borderRadius: 8,
-                marginBottom: 4,
-                textDecoration: 'none',
-                fontSize: '0.85rem',
-                fontWeight: active ? 600 : 400,
-                color: active ? 'var(--orange)' : hovered ? 'var(--text)' : 'var(--text-mid)',
-                background: active
-                  ? 'rgba(232,105,43,.1)'
-                  : hovered
-                    ? 'rgba(255,255,255,.04)'
-                    : 'transparent',
-                transition: 'all .15s ease',
-                borderLeft: active ? '3px solid var(--orange)' : '3px solid transparent',
-              }}
-            >
-              <span style={{ fontSize: '1rem', lineHeight: 1 }}>{item.icon}</span>
-              {(!(collapsed && !isMobile)) && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
+        {NAV_SECTIONS.map((section, sIdx) => (
+          <div key={section.title} style={{ marginBottom: sIdx === NAV_SECTIONS.length - 1 ? 0 : 14 }}>
+            {(!(collapsed && !isMobile)) && (
+              <div style={{
+                fontSize: '0.62rem',
+                fontWeight: 700,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                padding: '0 12px 6px',
+              }}>
+                {section.title}
+              </div>
+            )}
+            {collapsed && !isMobile && sIdx > 0 && (
+              <div style={{ height: 1, background: 'var(--border)', margin: '8px 12px 8px' }} />
+            )}
+            {section.items.map(item => {
+              const active = isActive(item.href);
+              const hovered = hoveredNav === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onMouseEnter={() => setHoveredNav(item.href)}
+                  onMouseLeave={() => setHoveredNav(null)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: collapsed && !isMobile ? '10px 0' : '10px 12px',
+                    justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
+                    borderRadius: 8,
+                    marginBottom: 2,
+                    textDecoration: 'none',
+                    fontSize: '0.85rem',
+                    fontWeight: active ? 600 : 400,
+                    color: active ? 'var(--orange)' : hovered ? 'var(--text)' : 'var(--text-mid)',
+                    background: active
+                      ? 'rgba(232,105,43,.1)'
+                      : hovered
+                        ? 'rgba(255,255,255,.04)'
+                        : 'transparent',
+                    transition: 'all .15s ease',
+                    borderLeft: active ? '3px solid var(--orange)' : '3px solid transparent',
+                  }}
+                >
+                  <span style={{ fontSize: '1rem', lineHeight: 1 }}>{item.icon}</span>
+                  {(!(collapsed && !isMobile)) && <span>{item.label}</span>}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Logout */}

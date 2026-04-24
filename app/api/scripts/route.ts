@@ -73,6 +73,22 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     if (!body.client_id) return NextResponse.json({ error: 'client_id requis' }, { status: 400 });
+
+    const existingR = await supaFetch(`scripts?client_id=eq.${body.client_id}&select=id`, {}, true);
+    const existing = existingR.ok ? await existingR.json() : [];
+
+    if (existing.length) {
+      const { client_id: _cid, ...fields } = body;
+      fields.updated_at = new Date().toISOString();
+      const r = await supaFetch(`scripts?id=eq.${existing[0].id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(fields),
+      }, true);
+      if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
+      const data = await r.json();
+      return NextResponse.json(data[0]);
+    }
+
     const r = await supaFetch('scripts', {
       method: 'POST',
       body: JSON.stringify(body),
