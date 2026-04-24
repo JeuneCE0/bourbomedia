@@ -66,7 +66,7 @@ export async function createEmbeddedCheckoutSession(params: {
     const session = await getStripe().checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
-      ui_mode: 'embedded',
+      ui_mode: 'embedded_page',
       customer_email: params.clientEmail,
       line_items: [{ price_data: priceData, quantity: 1 }],
       metadata: { client_id: params.clientId },
