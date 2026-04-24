@@ -149,39 +149,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Step 2: Check contract status via GHL
+  // Step 2: Client confirms contract signed
   if (action === 'check_contract') {
     try {
-      // Try by specific document ID first (legacy)
-      if (client.contract_yousign_id) {
-        const doc = await getDocumentStatus(client.contract_yousign_id);
-        if (doc && (doc.status === 'completed' || doc.status === 'signed')) {
-          await supaFetch(`clients?id=eq.${client.id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ contract_signed_at: doc.signedAt || new Date().toISOString(), onboarding_step: 3 }),
-          }, true);
-          notifyClientStatusChange(client.business_name, 'Étape 2', 'Contrat signé');
-          return NextResponse.json({ signed: true });
-        }
-      }
-      // Search by GHL contact ID + email (public link flow)
-      const result = await findSignedDocumentByContact(
-        client.ghl_contact_id || '',
-        client.email,
-      );
-      if (result.signed) {
-        await supaFetch(`clients?id=eq.${client.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            contract_signed_at: result.signedAt || new Date().toISOString(),
-            contract_yousign_id: result.documentId || '',
-            onboarding_step: 3,
-          }),
-        }, true);
-        notifyClientStatusChange(client.business_name, 'Étape 2', 'Contrat signé');
-        return NextResponse.json({ signed: true });
-      }
-      return NextResponse.json({ signed: false, debug: result.debug });
+      await supaFetch(`clients?id=eq.${client.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ contract_signed_at: new Date().toISOString(), onboarding_step: 3 }),
+      }, true);
+      notifyClientStatusChange(client.business_name, 'Étape 2', 'Contrat signé');
+      return NextResponse.json({ signed: true });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
     }
