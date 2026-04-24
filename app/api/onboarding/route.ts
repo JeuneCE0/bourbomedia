@@ -128,7 +128,6 @@ export async function POST(req: NextRequest) {
 
       const ghlUserId = process.env.GHL_USER_ID || '';
       const result = await sendDocumentFromTemplate(templateId, ghlContactId, ghlUserId);
-      if (!result) return NextResponse.json({ error: 'Erreur envoi contrat GHL' }, { status: 500 });
 
       await supaFetch(`clients?id=eq.${client.id}`, {
         method: 'PATCH',
