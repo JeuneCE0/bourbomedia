@@ -11,6 +11,7 @@ interface Task {
   client_status: string | null;
   text: string;
   done: boolean;
+  due_date?: string;
   created_at: string;
 }
 
@@ -54,6 +55,7 @@ export default function TasksPage() {
   const [search, setSearch] = useState('');
   const [newText, setNewText] = useState('');
   const [newClient, setNewClient] = useState('');
+  const [newDueDate, setNewDueDate] = useState('');
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -139,7 +141,7 @@ export default function TasksPage() {
       const r = await fetch('/api/tasks', {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ client_id: newClient, text: newText.trim() }),
+        body: JSON.stringify({ client_id: newClient, text: newText.trim(), due_date: newDueDate || undefined }),
       });
       if (r.ok) {
         const data = await r.json();
@@ -152,9 +154,11 @@ export default function TasksPage() {
           client_status: null,
           text: data.task.text,
           done: false,
+          due_date: data.task.due_date || undefined,
           created_at: data.task.created_at,
         }, ...prev]);
         setNewText('');
+        setNewDueDate('');
       }
     } catch { /* */ } finally {
       setAdding(false);
@@ -205,6 +209,18 @@ export default function TasksPage() {
             flex: 1, minWidth: 200, padding: '9px 12px', borderRadius: 8,
             background: 'var(--night-mid)', border: '1px solid var(--border-md)',
             color: 'var(--text)', fontSize: '0.85rem', outline: 'none',
+          }}
+        />
+        <input
+          type="date"
+          value={newDueDate}
+          onChange={e => setNewDueDate(e.target.value)}
+          title="Deadline (optionnel)"
+          style={{
+            padding: '9px 12px', borderRadius: 8,
+            background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+            color: 'var(--text)', fontSize: '0.82rem', outline: 'none',
+            colorScheme: 'dark',
           }}
         />
         <button
@@ -343,9 +359,33 @@ export default function TasksPage() {
                     }}>
                       {t.text}
                     </span>
-                    <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-                      {relativeDate(t.created_at)}
-                    </span>
+                    {t.due_date && !t.done && (() => {
+                      const today = new Date().toISOString().slice(0, 10);
+                      const isOverdue = t.due_date! < today;
+                      const isToday = t.due_date === today;
+                      const isSoon = !isOverdue && !isToday &&
+                        (new Date(t.due_date!).getTime() - Date.now()) < 3 * 86400000;
+                      return (
+                        <span style={{
+                          fontSize: '0.66rem', padding: '2px 7px', borderRadius: 8,
+                          fontWeight: 600, whiteSpace: 'nowrap',
+                          background: isOverdue ? 'rgba(239,68,68,.12)' : isToday ? 'rgba(250,204,21,.12)' : isSoon ? 'rgba(59,130,246,.1)' : 'var(--night-mid)',
+                          color: isOverdue ? 'var(--red)' : isToday ? 'var(--yellow)' : isSoon ? '#3B82F6' : 'var(--text-muted)',
+                        }}>
+                          {isOverdue ? '⚠ ' : ''}{new Date(t.due_date!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                        </span>
+                      );
+                    })()}
+                    {t.due_date && t.done && (
+                      <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                        {new Date(t.due_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                      </span>
+                    )}
+                    {!t.due_date && (
+                      <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                        {relativeDate(t.created_at)}
+                      </span>
+                    )}
                     <button
                       onClick={() => deleteTask(t)}
                       style={{

@@ -6,6 +6,7 @@ interface TodoItem {
   id: string;
   text: string;
   done: boolean;
+  due_date?: string;
   created_at: string;
 }
 
@@ -36,6 +37,7 @@ export async function GET(req: NextRequest) {
       client_status: string | null;
       text: string;
       done: boolean;
+      due_date?: string;
       created_at: string;
     }> = [];
 
@@ -51,6 +53,7 @@ export async function GET(req: NextRequest) {
           client_status: c.status,
           text: t.text,
           done: !!t.done,
+          due_date: t.due_date || undefined,
           created_at: t.created_at,
         });
       }
@@ -70,7 +73,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   try {
-    const { client_id, text } = await req.json();
+    const { client_id, text, due_date } = await req.json();
     if (!client_id || !text) return NextResponse.json({ error: 'client_id et text requis' }, { status: 400 });
 
     const cr = await supaFetch(`clients?id=eq.${client_id}&select=todos`, {}, true);
@@ -83,6 +86,7 @@ export async function POST(req: NextRequest) {
       id: crypto.randomUUID(),
       text: String(text).slice(0, 500),
       done: false,
+      due_date: due_date || undefined,
       created_at: new Date().toISOString(),
     };
     todos.unshift(newTodo);

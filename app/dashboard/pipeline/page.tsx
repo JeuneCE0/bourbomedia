@@ -1,34 +1,53 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 
 interface Client {
   id: string;
   business_name: string;
   contact_name: string;
+  email?: string;
+  phone?: string;
   status: string;
   city?: string;
   category?: string;
   filming_date?: string;
   publication_deadline?: string;
   paid_at?: string;
+  payment_amount?: number;
   delivered_at?: string;
   created_at: string;
   updated_at?: string;
   tags?: string[];
 }
 
-const STAGES: { key: string; label: string; color: string; description: string }[] = [
-  { key: 'onboarding', label: 'Onboarding', color: '#8A7060', description: 'Lead à qualifier' },
-  { key: 'script_writing', label: 'Script', color: '#FACC15', description: 'En rédaction' },
-  { key: 'script_review', label: 'Relecture', color: '#F28C55', description: 'Côté client' },
-  { key: 'script_validated', label: 'Validé', color: '#22C55E', description: 'Prêt à tourner' },
-  { key: 'filming_scheduled', label: 'Tournage', color: '#3B82F6', description: 'Planifié' },
-  { key: 'filming_done', label: 'Tourné', color: '#8B5CF6', description: 'À monter' },
-  { key: 'editing', label: 'Montage', color: '#EC4899', description: 'En cours' },
-  { key: 'published', label: 'Livré', color: '#22C55E', description: 'Publié' },
+const STAGES: { key: string; label: string; color: string }[] = [
+  { key: 'onboarding', label: 'Onboarding', color: '#8A7060' },
+  { key: 'script_writing', label: 'Script', color: '#FACC15' },
+  { key: 'script_review', label: 'Relecture', color: '#F28C55' },
+  { key: 'script_validated', label: 'Validé', color: '#22C55E' },
+  { key: 'filming_scheduled', label: 'Tournage', color: '#3B82F6' },
+  { key: 'filming_done', label: 'Tourné', color: '#8B5CF6' },
+  { key: 'editing', label: 'Montage', color: '#EC4899' },
+  { key: 'published', label: 'Livré', color: '#22C55E' },
 ];
+
+type CardField = 'contact' | 'city' | 'category' | 'email' | 'phone' | 'filming_date' | 'payment' | 'tags' | 'days';
+
+const FIELD_OPTIONS: { key: CardField; label: string }[] = [
+  { key: 'contact', label: 'Contact' },
+  { key: 'city', label: 'Ville' },
+  { key: 'category', label: 'Catégorie' },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Téléphone' },
+  { key: 'filming_date', label: 'Date tournage' },
+  { key: 'payment', label: 'Paiement' },
+  { key: 'tags', label: 'Tags' },
+  { key: 'days', label: 'Jours dans étape' },
+];
+
+const DEFAULT_FIELDS: CardField[] = ['contact', 'city', 'filming_date', 'days'];
 
 function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('bbp_token')}`, 'Content-Type': 'application/json' };
@@ -44,8 +63,23 @@ export default function PipelinePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [movingId, setMovingId] = useState<string | null>(null);
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [view, setView] = useState<'kanban' | 'list'>('kanban');
+  const [visibleFields, setVisibleFields] = useState<CardField[]>(DEFAULT_FIELDS);
+  const [showSettings, setShowSettings] = useState(false);
+  const [dragClientId, setDragClientId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('pipeline_fields');
+      if (saved) setVisibleFields(JSON.parse(saved));
+      const savedView = localStorage.getItem('pipeline_view');
+      if (savedView === 'list' || savedView === 'kanban') setView(savedView);
+    } catch { /* */ }
+  }, []);
 
   useEffect(() => {
     fetch('/api/clients', { headers: authHeaders() })
@@ -56,6 +90,14 @@ export default function PipelinePage() {
       .then((d: Client[]) => setClients(Array.isArray(d) ? d : []))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setShowSettings(false);
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
   }, []);
 
   const filtered = useMemo(() => {
@@ -71,64 +113,164 @@ export default function PipelinePage() {
   const grouped = useMemo(() => {
     const g: Record<string, Client[]> = {};
     STAGES.forEach(s => { g[s.key] = []; });
-    filtered.forEach(c => {
-      if (g[c.status]) g[c.status].push(c);
-    });
+    filtered.forEach(c => { if (g[c.status]) g[c.status].push(c); });
     Object.values(g).forEach(arr => arr.sort((a, b) => daysIn(b) - daysIn(a)));
     return g;
   }, [filtered]);
 
-  async function moveClient(c: Client, newStatus: string) {
-    setMovingId(c.id);
-    setOpenMenu(null);
+  const moveClient = useCallback(async (clientId: string, newStatus: string) => {
+    setMovingId(clientId);
     try {
       const r = await fetch('/api/clients', {
-        method: 'PUT',
-        headers: authHeaders(),
-        body: JSON.stringify({ id: c.id, status: newStatus }),
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id: clientId, status: newStatus }),
       });
       if (r.ok) {
-        setClients(prev => prev.map(x => x.id === c.id ? { ...x, status: newStatus, updated_at: new Date().toISOString() } : x));
+        setClients(prev => prev.map(x => x.id === clientId ? { ...x, status: newStatus, updated_at: new Date().toISOString() } : x));
       }
     } catch { /* */ } finally {
       setMovingId(null);
     }
+  }, []);
+
+  function toggleField(f: CardField) {
+    setVisibleFields(prev => {
+      const next = prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f];
+      localStorage.setItem('pipeline_fields', JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function toggleView(v: 'kanban' | 'list') {
+    setView(v);
+    localStorage.setItem('pipeline_view', v);
+  }
+
+  // Drag handlers
+  function onDragStart(e: React.DragEvent, clientId: string) {
+    setDragClientId(clientId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', clientId);
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.4';
+    }
+  }
+
+  function onDragEnd(e: React.DragEvent) {
+    setDragClientId(null);
+    setDropTarget(null);
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1';
+    }
+  }
+
+  function onDragOver(e: React.DragEvent, stageKey: string) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDropTarget(stageKey);
+  }
+
+  function onDragLeave() {
+    setDropTarget(null);
+  }
+
+  function onDrop(e: React.DragEvent, stageKey: string) {
+    e.preventDefault();
+    setDropTarget(null);
+    const id = e.dataTransfer.getData('text/plain');
+    if (id && id !== stageKey) {
+      const c = clients.find(x => x.id === id);
+      if (c && c.status !== stageKey) moveClient(id, stageKey);
+    }
   }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1600, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
+    <div style={{ padding: '24px 28px', maxWidth: 1600, margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{
             fontFamily: "'Bricolage Grotesque', sans-serif",
-            fontWeight: 800, fontSize: '1.75rem', color: 'var(--text)',
+            fontWeight: 800, fontSize: '1.6rem', color: 'var(--text)',
             margin: 0, lineHeight: 1.2,
-          }}>
-            Pipeline
-          </h1>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: '6px 0 0' }}>
-            Suivi visuel — du lead à la livraison
+          }}>Pipeline</h1>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            {clients.length} client{clients.length > 1 ? 's' : ''} — glisser-déposer pour changer de statut
           </p>
         </div>
-        <input
-          type="text"
-          placeholder="Rechercher un client…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            padding: '10px 14px', borderRadius: 10,
-            background: 'var(--night-card)', border: '1px solid var(--border-md)',
-            color: 'var(--text)', fontSize: '0.85rem', outline: 'none',
-            minWidth: 240,
-          }}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="text"
+            placeholder="Rechercher…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              padding: '8px 12px', borderRadius: 8,
+              background: 'var(--night-card)', border: '1px solid var(--border-md)',
+              color: 'var(--text)', fontSize: '0.8rem', outline: 'none', minWidth: 180,
+            }}
+          />
+          {/* View toggle */}
+          <div style={{
+            display: 'flex', borderRadius: 8, overflow: 'hidden',
+            border: '1px solid var(--border-md)',
+          }}>
+            {(['kanban', 'list'] as const).map(v => (
+              <button key={v} onClick={() => toggleView(v)} style={{
+                padding: '7px 12px', border: 'none', cursor: 'pointer',
+                background: view === v ? 'var(--orange)' : 'var(--night-card)',
+                color: view === v ? '#000' : 'var(--text-muted)',
+                fontSize: '0.75rem', fontWeight: 600,
+              }}>
+                {v === 'kanban' ? '▤ Kanban' : '☰ Liste'}
+              </button>
+            ))}
+          </div>
+          {/* Settings */}
+          <div ref={settingsRef} style={{ position: 'relative' }}>
+            <button onClick={() => setShowSettings(!showSettings)} style={{
+              padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border-md)',
+              background: showSettings ? 'var(--orange)' : 'var(--night-card)',
+              color: showSettings ? '#000' : 'var(--text-muted)',
+              cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
+            }}>
+              ⚙ Affichage
+            </button>
+            {showSettings && (
+              <div style={{
+                position: 'absolute', top: '110%', right: 0, zIndex: 50,
+                background: 'var(--night-card)', border: '1px solid var(--border-md)',
+                borderRadius: 10, padding: 12, minWidth: 200,
+                boxShadow: '0 8px 24px rgba(0,0,0,.4)',
+              }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Champs visibles
+                </div>
+                {FIELD_OPTIONS.map(f => (
+                  <label key={f.key} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '4px 0', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text)',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={visibleFields.includes(f.key)}
+                      onChange={() => toggleField(f.key)}
+                      style={{ accentColor: 'var(--orange)' }}
+                    />
+                    {f.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {error && (
         <div style={{
-          padding: '14px 18px', borderRadius: 10,
+          padding: '12px 16px', borderRadius: 10,
           background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)',
-          color: 'var(--red)', fontSize: '0.85rem', marginBottom: 16,
+          color: 'var(--red)', fontSize: '0.82rem', marginBottom: 14,
         }}>{error}</div>
       )}
 
@@ -136,149 +278,199 @@ export default function PipelinePage() {
         <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '40px 0', textAlign: 'center' }}>
           Chargement…
         </div>
-      ) : (
+      ) : view === 'kanban' ? (
+        /* KANBAN VIEW */
         <div style={{
-          display: 'flex',
-          gap: 14,
-          overflowX: 'auto',
-          paddingBottom: 12,
-          minHeight: 400,
+          display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12, minHeight: 400,
         }}>
           {STAGES.map(stage => {
             const items = grouped[stage.key] || [];
+            const isOver = dropTarget === stage.key && dragClientId !== null;
             return (
               <div
                 key={stage.key}
+                onDragOver={e => onDragOver(e, stage.key)}
+                onDragLeave={onDragLeave}
+                onDrop={e => onDrop(e, stage.key)}
                 style={{
-                  flex: '0 0 280px',
-                  background: 'var(--night-card)',
+                  flex: '0 0 260px',
+                  background: isOver ? `${stage.color}08` : 'var(--night-card)',
                   borderRadius: 12,
-                  border: '1px solid var(--border)',
+                  border: `1.5px solid ${isOver ? stage.color : 'var(--border)'}`,
                   display: 'flex', flexDirection: 'column',
                   maxHeight: 'calc(100vh - 200px)',
+                  transition: 'border-color .15s, background .15s',
                 }}
               >
+                {/* Column header */}
                 <div style={{
-                  padding: '14px 16px',
-                  borderBottom: '1px solid var(--border)',
+                  padding: '12px 14px', borderBottom: '1px solid var(--border)',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  gap: 10,
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                    <div style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: stage.color, flexShrink: 0,
-                    }} />
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{
-                        fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>{stage.label}</div>
-                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>{stage.description}</div>
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: stage.color }} />
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)' }}>{stage.label}</span>
                   </div>
-                  <div style={{
-                    fontSize: '0.7rem', fontWeight: 700, color: stage.color,
-                    background: `${stage.color}15`, padding: '3px 8px', borderRadius: 12,
-                    minWidth: 24, textAlign: 'center',
-                  }}>{items.length}</div>
+                  <span style={{
+                    fontSize: '0.66rem', fontWeight: 700, color: stage.color,
+                    background: `${stage.color}15`, padding: '2px 7px', borderRadius: 10,
+                  }}>{items.length}</span>
                 </div>
-                <div style={{
-                  padding: 10,
-                  display: 'flex', flexDirection: 'column', gap: 8,
-                  overflowY: 'auto', flex: 1,
-                }}>
+                {/* Cards */}
+                <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', flex: 1 }}>
                   {items.length === 0 ? (
-                    <div style={{
-                      padding: '24px 8px', textAlign: 'center',
-                      color: 'var(--text-muted)', fontSize: '0.75rem',
-                    }}>—</div>
-                  ) : items.map(c => {
-                    const days = daysIn(c);
-                    const stale = days > 7;
-                    return (
-                      <div
-                        key={c.id}
-                        style={{
-                          background: 'var(--night-mid)',
-                          borderRadius: 10,
-                          border: `1px solid ${stale ? 'rgba(239,68,68,.3)' : 'var(--border)'}`,
-                          padding: '10px 12px',
-                          opacity: movingId === c.id ? 0.5 : 1,
-                          transition: 'opacity .15s',
-                          position: 'relative',
-                        }}
-                      >
-                        <Link href={`/dashboard/clients/${c.id}`} style={{
-                          textDecoration: 'none', color: 'var(--text)',
-                          display: 'block', marginBottom: 4,
-                          fontSize: '0.82rem', fontWeight: 600,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          {c.business_name}
-                        </Link>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 6 }}>
-                          {c.contact_name}{c.city ? ` · ${c.city}` : ''}
-                        </div>
-                        {c.filming_date && (
-                          <div style={{ fontSize: '0.68rem', color: '#3B82F6', marginBottom: 4 }}>
-                            🎬 {new Date(c.filming_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                          </div>
-                        )}
-                        <div style={{
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          marginTop: 8, fontSize: '0.66rem',
-                        }}>
-                          <span style={{ color: stale ? 'var(--red)' : 'var(--text-muted)' }}>
-                            {days === 0 ? "Aujourd'hui" : `${days} j`}
-                          </span>
-                          <button
-                            onClick={() => setOpenMenu(openMenu === c.id ? null : c.id)}
-                            style={{
-                              background: 'none', border: 'none', color: 'var(--text-muted)',
-                              cursor: 'pointer', padding: '2px 6px', borderRadius: 4,
-                              fontSize: '0.7rem',
-                            }}
-                          >
-                            Déplacer ▾
-                          </button>
-                        </div>
-                        {openMenu === c.id && (
-                          <div style={{
-                            position: 'absolute', top: '100%', right: 8, zIndex: 50,
-                            background: 'var(--night-card)', border: '1px solid var(--border-md)',
-                            borderRadius: 8, padding: 4, minWidth: 160,
-                            boxShadow: '0 8px 24px rgba(0,0,0,.4)',
-                            marginTop: 4,
-                          }}>
-                            {STAGES.filter(s => s.key !== c.status).map(s => (
-                              <button
-                                key={s.key}
-                                onClick={() => moveClient(c, s.key)}
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: 8,
-                                  width: '100%', padding: '6px 10px',
-                                  background: 'none', border: 'none',
-                                  color: 'var(--text)', fontSize: '0.75rem',
-                                  cursor: 'pointer', textAlign: 'left',
-                                  borderRadius: 6,
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,.05)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
-                              >
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.color }} />
-                                {s.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                    <div style={{ padding: '20px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.72rem' }}>—</div>
+                  ) : items.map(c => (
+                    <PipelineCard
+                      key={c.id}
+                      client={c}
+                      fields={visibleFields}
+                      moving={movingId === c.id}
+                      dragging={dragClientId === c.id}
+                      onDragStart={onDragStart}
+                      onDragEnd={onDragEnd}
+                    />
+                  ))}
                 </div>
               </div>
             );
           })}
+        </div>
+      ) : (
+        /* LIST VIEW */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {STAGES.map(stage => {
+            const items = grouped[stage.key] || [];
+            if (items.length === 0) return null;
+            return (
+              <div key={stage.key} style={{ marginBottom: 8 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '0 4px',
+                }}>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: stage.color }} />
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)' }}>{stage.label}</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>({items.length})</span>
+                </div>
+                {items.map(c => {
+                  const days = daysIn(c);
+                  return (
+                    <Link key={c.id} href={`/dashboard/clients/${c.id}`} style={{
+                      display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px',
+                      background: 'var(--night-card)', borderRadius: 8, border: '1px solid var(--border)',
+                      textDecoration: 'none', marginBottom: 4,
+                    }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.business_name}
+                      </span>
+                      {visibleFields.includes('contact') && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: 100 }}>{c.contact_name}</span>
+                      )}
+                      {visibleFields.includes('city') && c.city && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: 80 }}>{c.city}</span>
+                      )}
+                      {visibleFields.includes('filming_date') && c.filming_date && (
+                        <span style={{ fontSize: '0.7rem', color: '#3B82F6', minWidth: 70 }}>
+                          {new Date(c.filming_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                        </span>
+                      )}
+                      {visibleFields.includes('days') && (
+                        <span style={{ fontSize: '0.66rem', color: days > 7 ? 'var(--red)' : 'var(--text-muted)', minWidth: 40, textAlign: 'right' }}>
+                          {days} j
+                        </span>
+                      )}
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>›</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Card component */
+function PipelineCard({
+  client: c, fields, moving, dragging, onDragStart, onDragEnd,
+}: {
+  client: Client;
+  fields: CardField[];
+  moving: boolean;
+  dragging: boolean;
+  onDragStart: (e: React.DragEvent, id: string) => void;
+  onDragEnd: (e: React.DragEvent) => void;
+}) {
+  const days = daysIn(c);
+  const stale = days > 7;
+
+  return (
+    <div
+      draggable
+      onDragStart={e => onDragStart(e, c.id)}
+      onDragEnd={onDragEnd}
+      style={{
+        background: 'var(--night-mid)',
+        borderRadius: 8,
+        border: `1px solid ${stale ? 'rgba(239,68,68,.25)' : 'var(--border)'}`,
+        padding: '9px 11px',
+        opacity: moving ? 0.4 : dragging ? 0.5 : 1,
+        cursor: 'grab',
+        transition: 'opacity .15s, box-shadow .15s',
+      }}
+    >
+      <Link href={`/dashboard/clients/${c.id}`} style={{
+        textDecoration: 'none', color: 'var(--text)',
+        display: 'block', marginBottom: 3,
+        fontSize: '0.8rem', fontWeight: 600,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
+        {c.business_name}
+      </Link>
+
+      {fields.includes('contact') && (
+        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+          {c.contact_name}{fields.includes('city') && c.city ? ` · ${c.city}` : ''}
+        </div>
+      )}
+      {!fields.includes('contact') && fields.includes('city') && c.city && (
+        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{c.city}</div>
+      )}
+      {fields.includes('category') && c.category && (
+        <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', opacity: 0.8 }}>{c.category}</div>
+      )}
+      {fields.includes('email') && c.email && (
+        <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.email}</div>
+      )}
+      {fields.includes('phone') && c.phone && (
+        <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>{c.phone}</div>
+      )}
+      {fields.includes('filming_date') && c.filming_date && (
+        <div style={{ fontSize: '0.66rem', color: '#3B82F6', marginTop: 3 }}>
+          🎬 {new Date(c.filming_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+        </div>
+      )}
+      {fields.includes('payment') && (
+        <div style={{ fontSize: '0.66rem', color: c.paid_at ? 'var(--green)' : 'var(--text-muted)', marginTop: 2 }}>
+          {c.paid_at
+            ? `✓ ${c.payment_amount ? (c.payment_amount / 100).toLocaleString('fr-FR') + ' €' : 'Payé'}`
+            : 'Non payé'}
+        </div>
+      )}
+      {fields.includes('tags') && c.tags && c.tags.length > 0 && (
+        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 3 }}>
+          {c.tags.slice(0, 3).map(t => (
+            <span key={t} style={{
+              fontSize: '0.6rem', padding: '1px 5px', borderRadius: 6,
+              background: 'rgba(232,105,43,.1)', color: 'var(--orange)',
+            }}>#{t}</span>
+          ))}
+        </div>
+      )}
+      {fields.includes('days') && (
+        <div style={{ fontSize: '0.62rem', color: stale ? 'var(--red)' : 'var(--text-muted)', marginTop: 4, textAlign: 'right' }}>
+          {days === 0 ? "Aujourd'hui" : `${days} j`}
         </div>
       )}
     </div>
