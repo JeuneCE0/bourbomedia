@@ -93,12 +93,16 @@ export default function ClientDetailPage() {
 
   const loadClient = useCallback(() => {
     fetch(`/api/clients?id=${id}`, { headers: authHeaders() })
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({ error: r.statusText }))).error || 'Erreur');
+        return r.json();
+      })
       .then(d => {
         setClient(d);
         if (d?.scripts?.length) setScript(d.scripts[0]);
         else setScript(null);
       })
+      .catch(e => console.error('Erreur chargement client:', e))
       .finally(() => setLoading(false));
   }, [id]);
 

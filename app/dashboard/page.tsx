@@ -85,11 +85,16 @@ function getInitials(name: string): string {
 export default function DashboardPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetch('/api/clients', { headers: authHeaders() })
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({ error: r.statusText }))).error || 'Erreur de chargement');
+        return r.json();
+      })
       .then(d => { if (Array.isArray(d)) setClients(d); })
+      .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -135,6 +140,17 @@ export default function DashboardPage() {
           textAlign: 'center',
         }}>
           Chargement...
+        </div>
+      ) : error ? (
+        <div style={{
+          padding: '14px 18px',
+          borderRadius: 10,
+          background: 'rgba(239,68,68,.08)',
+          border: '1px solid rgba(239,68,68,.25)',
+          color: 'var(--red)',
+          fontSize: '0.85rem',
+        }}>
+          {error}
         </div>
       ) : (
         <>
