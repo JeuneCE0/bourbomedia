@@ -86,24 +86,22 @@ export async function findContractTemplateId(): Promise<string | null> {
   return tpl?.id || tpl?._id || null;
 }
 
-export async function sendDocumentFromTemplate(templateId: string, contactId: string, userId: string): Promise<{ documentId: string; signingUrl: string } | null> {
-  if (!GHL_API_KEY || !LOCATION_ID) return null;
-  try {
-    const data = await ghlRequest('POST', '/proposals/templates/send', {
-      locationId: LOCATION_ID,
-      templateId,
-      contactId,
-      userId,
-      sendDocument: true,
-    });
-    const link = data?.links?.[0];
-    return {
-      documentId: link?.documentId || data?.documentId || '',
-      signingUrl: link?.referenceId ? `https://app.gohighlevel.com/v2/preview/${link.documentId}?referenceId=${link.referenceId}` : '',
-    };
-  } catch {
-    return null;
-  }
+export async function sendDocumentFromTemplate(templateId: string, contactId: string, userId: string): Promise<{ documentId: string; signingUrl: string }> {
+  if (!GHL_API_KEY) throw new Error('GHL_API_KEY manquant');
+  if (!LOCATION_ID) throw new Error('GHL_LOCATION_ID manquant');
+  if (!userId) throw new Error('GHL_USER_ID manquant — ajoute-le dans les variables Vercel');
+  const data = await ghlRequest('POST', '/proposals/templates/send', {
+    locationId: LOCATION_ID,
+    templateId,
+    contactId,
+    userId,
+    sendDocument: true,
+  });
+  const link = data?.links?.[0];
+  return {
+    documentId: link?.documentId || data?.documentId || '',
+    signingUrl: link?.referenceId ? `https://app.gohighlevel.com/v2/preview/${link.documentId}?referenceId=${link.referenceId}` : '',
+  };
 }
 
 export async function getDocumentStatus(documentId: string): Promise<{ status: string; signedAt?: string } | null> {
@@ -123,14 +121,30 @@ export async function getDocumentStatus(documentId: string): Promise<{ status: s
   }
 }
 
+export async function findGhlContactByEmail(email: string): Promise<string | null> {
+  if (!GHL_API_KEY || !LOCATION_ID) return null;
+  const data = await ghlRequest('GET', `/contacts/?locationId=${LOCATION_ID}&query=${encodeURIComponent(email)}&limit=1`);
+  const contact = data?.contacts?.[0];
+  return contact?.id || null;
+}
+
 export async function createGhlContact(contactData: { firstName: string; lastName: string; email: string; phone?: string; companyName?: string }): Promise<string> {
   if (!GHL_API_KEY) throw new Error('GHL_API_KEY manquant');
   if (!LOCATION_ID) throw new Error('GHL_LOCATION_ID manquant');
-  const data = await ghlRequest('POST', '/contacts/', {
-    locationId: LOCATION_ID,
-    ...contactData,
-  });
-  const id = data?.contact?.id || data?.id;
-  if (!id) throw new Error('Réponse GHL inattendue: ' + JSON.stringify(data).slice(0, 200));
-  return id;
+  try {
+    const data = await ghlRequest('POST', '/contacts/', {
+      locationId: LOCATION_ID,
+      ...contactData,
+    });
+    const id = data?.contact?.id || data?.id;
+    if (!id) throw new Error('Réponse GHL inattendue: ' + JSON.stringify(data).slice(0, 200));
+    return id;
+  } catch (e: unknown) {
+    const msg = (e as Error).message || '';
+    if (msg.includes('duplicate') || msg.includes('Duplicate') || msg.includes('409') || msg.includes('400')) {
+      const existing = await findGhlContactByEmail(contactData.email);
+      if (existing) return existing;
+    }
+    throw e;
+  }
 }
