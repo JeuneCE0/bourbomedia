@@ -121,6 +121,23 @@ export async function getDocumentStatus(documentId: string): Promise<{ status: s
   }
 }
 
+export async function findSignedDocumentByContact(contactId: string): Promise<{ signed: boolean; documentId?: string; signedAt?: string }> {
+  if (!GHL_API_KEY || !LOCATION_ID) return { signed: false };
+  try {
+    const data = await ghlRequest('GET', `/proposals/document?locationId=${LOCATION_ID}&query=${contactId}&limit=5`);
+    const docs = data?.data || [];
+    for (const doc of docs) {
+      const status = Array.isArray(doc.status) ? doc.status[0] : doc.status;
+      if (status === 'completed' || status === 'accepted' || status === 'signed') {
+        return { signed: true, documentId: doc.id || doc._id, signedAt: doc.updatedAt };
+      }
+    }
+    return { signed: false };
+  } catch {
+    return { signed: false };
+  }
+}
+
 export async function findGhlContactByEmail(email: string): Promise<string | null> {
   if (!GHL_API_KEY || !LOCATION_ID) return null;
   const data = await ghlRequest('GET', `/contacts/?locationId=${LOCATION_ID}&query=${encodeURIComponent(email)}&limit=1`);
