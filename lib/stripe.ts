@@ -59,30 +59,19 @@ export async function createEmbeddedCheckoutSession(params: {
 }): Promise<string | null> {
   if (!STRIPE_SECRET_KEY) return null;
   try {
-    const priceData: Record<string, unknown> = {
-      currency: 'eur',
-      unit_amount: params.amount,
-    };
-    if (params.productId) {
-      priceData.product = params.productId;
-    } else {
-      priceData.product_data = {
-        name: params.description,
-        description: `BourbonMédia — ${params.clientName}`,
-      };
-    }
-    const lineItem = { price_data: priceData, quantity: 1 };
+    const priceData = params.productId
+      ? { currency: 'eur' as const, unit_amount: params.amount, product: params.productId }
+      : { currency: 'eur' as const, unit_amount: params.amount, product_data: { name: params.description, description: `BourbonMédia — ${params.clientName}` } };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const session = await getStripe().checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
       ui_mode: 'embedded',
       customer_email: params.clientEmail,
-      line_items: [lineItem],
-      metadata: {
-        client_id: params.clientId,
-      },
+      line_items: [{ price_data: priceData, quantity: 1 }],
+      metadata: { client_id: params.clientId },
       return_url: params.returnUrl,
-    });
+    } as any);
     return session.client_secret;
   } catch {
     return null;
