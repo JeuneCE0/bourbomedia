@@ -400,7 +400,18 @@ function PortalContent() {
 
         {/* Script view */}
         {tab === 'script' && (
-          <ScriptEditor content={script.content} onSave={() => {}} readOnly />
+          <>
+            <ScriptEditor content={script.content} onSave={() => {}} readOnly />
+            {script.status === 'confirmed' && (
+              <div style={{ marginTop: 12, textAlign: 'center' }}>
+                <a href={`/portal/print?token=${token}`} target="_blank" rel="noreferrer" style={{
+                  display: 'inline-block', padding: '9px 18px', borderRadius: 8,
+                  background: 'var(--night-card)', border: '1px solid var(--border-md)',
+                  color: 'var(--text)', textDecoration: 'none', fontSize: '0.82rem',
+                }}>⇩ Télécharger le script (PDF)</a>
+              </div>
+            )}
+          </>
         )}
 
         {/* Comments */}

@@ -25,6 +25,15 @@ interface Client {
   video_thumbnail_url?: string;
   delivery_notes?: string;
   delivered_at?: string;
+  filming_checklist?: ChecklistItem[];
+  filming_photos?: string[];
+  filming_notes?: string;
+}
+
+interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
 }
 
 interface Script {
@@ -114,7 +123,9 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<Client | null>(null);
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'info' | 'script' | 'comments' | 'delivery' | 'timeline'>('info');
+  const [tab, setTab] = useState<'info' | 'script' | 'comments' | 'filming' | 'delivery' | 'timeline'>('info');
+  const [newChecklistItem, setNewChecklistItem] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [events, setEvents] = useState<ClientEvent[]>([]);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -333,6 +344,108 @@ export default function ClientDetailPage() {
     } finally { setSaving(false); }
   }
 
+  async function handleAddChecklistItem() {
+    if (!newChecklistItem.trim() || !client) return;
+    const next = [...(client.filming_checklist || []), {
+      id: crypto.randomUUID(),
+      text: newChecklistItem.trim(),
+      done: false,
+    }];
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, filming_checklist: next }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      setNewChecklistItem('');
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleToggleChecklist(itemId: string) {
+    if (!client) return;
+    const next = (client.filming_checklist || []).map(i => i.id === itemId ? { ...i, done: !i.done } : i);
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, filming_checklist: next }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleRemoveChecklist(itemId: string) {
+    if (!client) return;
+    const next = (client.filming_checklist || []).filter(i => i.id !== itemId);
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, filming_checklist: next }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleSaveFilmingNotes(notes: string) {
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, filming_notes: notes }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleUploadPhoto(file: File) {
+    setUploadingPhoto(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const r = await fetch('/api/upload', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ file: base64, filename: file.name, contentType: file.type }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      const { url } = await r.json();
+      const next = [...(client?.filming_photos || []), url];
+      const r2 = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, filming_photos: next }),
+      });
+      if (!r2.ok) throw new Error(await parseErr(r2));
+      notify('success', 'Photo ajoutée');
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+    finally { setUploadingPhoto(false); }
+  }
+
+  async function handleRemovePhoto(url: string) {
+    if (!client) return;
+    const next = (client.filming_photos || []).filter(p => p !== url);
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, filming_photos: next }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleMarkFilmingDone() {
+    if (!confirm('Marquer le tournage comme terminé ?')) return;
+    await handleUpdateStatus('filming_done');
+  }
+
   async function handleDelete() {
     if (!confirm('Supprimer ce client ? Cette action est irréversible.')) return;
     try {
@@ -400,7 +513,7 @@ export default function ClientDetailPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 2, flexWrap: 'wrap' }}>
-        {(['info', 'script', 'comments', 'delivery', 'timeline'] as const).map(t => (
+        {(['info', 'script', 'comments', 'filming', 'delivery', 'timeline'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '8px 16px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer',
             fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
@@ -408,7 +521,12 @@ export default function ClientDetailPage() {
             color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
             borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
           }}>
-            {t === 'info' ? 'Informations' : t === 'script' ? 'Script' : t === 'comments' ? 'Commentaires' : t === 'delivery' ? 'Livraison' : 'Historique'}
+            {t === 'info' ? 'Informations'
+              : t === 'script' ? 'Script'
+              : t === 'comments' ? 'Commentaires'
+              : t === 'filming' ? 'Tournage'
+              : t === 'delivery' ? 'Livraison'
+              : 'Historique'}
             {t === 'comments' && script?.script_comments?.length ? ` (${script.script_comments.length})` : ''}
             {t === 'delivery' && client.delivered_at ? ' ✓' : ''}
           </button>
@@ -528,7 +646,14 @@ export default function ClientDetailPage() {
                     cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'underline', padding: 0,
                   }}>Historique</button>
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {client.portal_token && (
+                    <a href={`/portal/print?token=${client.portal_token}`} target="_blank" rel="noreferrer" style={{
+                      padding: '7px 14px', borderRadius: 8, background: 'var(--night-mid)',
+                      border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+                      fontSize: '0.78rem', cursor: 'pointer', textDecoration: 'none',
+                    }}>⇩ PDF</a>
+                  )}
                   {(script.status === 'draft' || script.status === 'modified' || script.status === 'awaiting_changes') && (
                     <button onClick={handleSendToClient} disabled={saving} style={{
                       padding: '7px 14px', borderRadius: 8, background: 'var(--orange)',
@@ -625,6 +750,146 @@ export default function ClientDetailPage() {
               Créez d&#39;abord un script pour pouvoir commenter
             </p>
           )}
+        </div>
+      )}
+
+      {/* Filming tab */}
+      {tab === 'filming' && (
+        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+          <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>Jour de tournage</h3>
+              <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                {client.filming_date
+                  ? `Prévu le ${new Date(client.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}`
+                  : 'Aucune date planifiée'}
+              </p>
+            </div>
+            {client.status !== 'filming_done' && client.status !== 'editing' && client.status !== 'published' && (
+              <button onClick={handleMarkFilmingDone} style={{
+                padding: '8px 16px', borderRadius: 8, background: 'var(--green)',
+                color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem',
+              }}>✓ Marquer tournage terminé</button>
+            )}
+          </div>
+
+          {/* Shot list / checklist */}
+          <div style={{ marginBottom: 24 }}>
+            <h4 style={{ margin: '0 0 10px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)' }}>Shot list / checklist</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+              {(client.filming_checklist || []).length === 0 ? (
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>Aucun item. Ajoutez des plans/prises à filmer ci-dessous.</p>
+              ) : (
+                (client.filming_checklist || []).map(item => (
+                  <div key={item.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 12px', borderRadius: 8,
+                    background: item.done ? 'rgba(34,197,94,.06)' : 'var(--night-mid)',
+                    border: `1px solid ${item.done ? 'rgba(34,197,94,.2)' : 'var(--border)'}`,
+                  }}>
+                    <button onClick={() => handleToggleChecklist(item.id)} style={{
+                      width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+                      background: item.done ? 'var(--green)' : 'transparent',
+                      border: `1.5px solid ${item.done ? 'var(--green)' : 'var(--border-md)'}`,
+                      color: '#fff', cursor: 'pointer', fontSize: '0.7rem',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>{item.done ? '✓' : ''}</button>
+                    <span style={{
+                      flex: 1, fontSize: '0.85rem',
+                      color: item.done ? 'var(--text-muted)' : 'var(--text)',
+                      textDecoration: item.done ? 'line-through' : 'none',
+                    }}>{item.text}</span>
+                    <button onClick={() => handleRemoveChecklist(item.id)} style={{
+                      background: 'none', border: 'none', color: 'var(--text-muted)',
+                      cursor: 'pointer', fontSize: '0.9rem', padding: 4,
+                    }}>✕</button>
+                  </div>
+                ))
+              )}
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleAddChecklistItem(); }} style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={newChecklistItem}
+                onChange={e => setNewChecklistItem(e.target.value)}
+                placeholder="Ajouter un plan / prise…"
+                style={{
+                  flex: 1, padding: '9px 12px', borderRadius: 6,
+                  background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                  color: 'var(--text)', fontSize: '0.85rem',
+                }}
+              />
+              <button type="submit" disabled={!newChecklistItem.trim()} style={{
+                padding: '9px 14px', borderRadius: 6, background: 'var(--orange)',
+                color: '#fff', border: 'none', fontSize: '0.82rem', cursor: 'pointer', fontWeight: 600,
+                opacity: newChecklistItem.trim() ? 1 : 0.5,
+              }}>+ Ajouter</button>
+            </form>
+          </div>
+
+          {/* Filming photos */}
+          <div style={{ marginBottom: 24 }}>
+            <h4 style={{ margin: '0 0 10px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)' }}>Photos du tournage</h4>
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+              gap: 8, marginBottom: 12,
+            }}>
+              {(client.filming_photos || []).map(url => (
+                <div key={url} style={{
+                  position: 'relative', borderRadius: 8, overflow: 'hidden',
+                  aspectRatio: '4/3', background: 'var(--night-mid)',
+                }}>
+                  <a href={url} target="_blank" rel="noreferrer">
+                    <img src={url} alt="" style={{
+                      width: '100%', height: '100%', objectFit: 'cover', display: 'block',
+                    }} />
+                  </a>
+                  <button onClick={() => handleRemovePhoto(url)} style={{
+                    position: 'absolute', top: 4, right: 4,
+                    background: 'rgba(0,0,0,.7)', border: 'none', color: '#fff',
+                    width: 22, height: 22, borderRadius: 4, cursor: 'pointer', fontSize: '0.7rem',
+                  }}>✕</button>
+                </div>
+              ))}
+              <label style={{
+                aspectRatio: '4/3', borderRadius: 8,
+                border: '2px dashed var(--border-md)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.75rem',
+                background: 'var(--night-mid)',
+              }}>
+                <input type="file" accept="image/*" style={{ display: 'none' }}
+                  disabled={uploadingPhoto}
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUploadPhoto(f);
+                    e.target.value = '';
+                  }}
+                />
+                <span style={{ fontSize: '1.4rem', marginBottom: 4 }}>{uploadingPhoto ? '⟳' : '+'}</span>
+                <span>{uploadingPhoto ? 'Upload…' : 'Ajouter photo'}</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Filming notes */}
+          <div>
+            <h4 style={{ margin: '0 0 10px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)' }}>Notes du tournage</h4>
+            <textarea
+              defaultValue={client.filming_notes || ''}
+              onBlur={e => handleSaveFilmingNotes(e.target.value)}
+              placeholder="Notes, observations, ajustements à prendre en compte…"
+              rows={4}
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: 6,
+                background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                color: 'var(--text)', fontSize: '0.85rem', boxSizing: 'border-box',
+                fontFamily: 'inherit', resize: 'vertical',
+              }}
+            />
+            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+              Enregistrement auto quand vous cliquez ailleurs
+            </p>
+          </div>
         </div>
       )}
 

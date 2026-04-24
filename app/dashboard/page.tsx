@@ -11,7 +11,11 @@ interface Client {
   city?: string;
   category?: string;
   created_at: string;
+  updated_at?: string;
   filming_date?: string;
+  paid_at?: string;
+  payment_amount?: number;
+  delivered_at?: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -108,6 +112,31 @@ export default function DashboardPage() {
 
   const totalInPipeline = clients.length || 1;
 
+  // --- Advanced stats ---
+  const nowMs = Date.now();
+  const last30 = clients.filter(c => nowMs - new Date(c.created_at).getTime() < 30 * 86400000);
+  const last30Delivered = last30.filter(c => c.delivered_at).length;
+  const conversionRate = last30.length > 0 ? Math.round((last30Delivered / last30.length) * 100) : 0;
+
+  const totalRevenue = clients.reduce((sum, c) => sum + (c.payment_amount || 0), 0) / 100; // cents → €
+  const last30Revenue = last30.reduce((sum, c) => sum + (c.payment_amount || 0), 0) / 100;
+
+  // Avg time from creation to delivery (days)
+  const deliveredClients = clients.filter(c => c.delivered_at);
+  const avgDeliveryDays = deliveredClients.length > 0
+    ? Math.round(deliveredClients.reduce((sum, c) => {
+      const days = (new Date(c.delivered_at!).getTime() - new Date(c.created_at).getTime()) / 86400000;
+      return sum + days;
+    }, 0) / deliveredClients.length)
+    : 0;
+
+  // Stuck clients: in same status > 7 days
+  const stuckClients = clients.filter(c => {
+    if (c.status === 'published') return false;
+    const last = c.updated_at ? new Date(c.updated_at).getTime() : new Date(c.created_at).getTime();
+    return nowMs - last > 7 * 86400000;
+  }).length;
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
       {/* Welcome header */}
@@ -190,6 +219,39 @@ export default function DashboardPage() {
               label="Publiés"
               value={statusCounts.published || 0}
               color="var(--green)"
+            />
+          </div>
+
+          {/* Advanced performance stats */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: 14,
+            marginBottom: 28,
+          }}>
+            <PerfCard
+              label="Revenus totaux"
+              value={`${totalRevenue.toLocaleString('fr-FR')} €`}
+              sub={last30Revenue > 0 ? `+${last30Revenue.toLocaleString('fr-FR')} € ces 30 j` : '—'}
+              color="var(--green)"
+            />
+            <PerfCard
+              label="Taux de livraison (30 j)"
+              value={`${conversionRate}%`}
+              sub={`${last30Delivered} sur ${last30.length} clients`}
+              color="var(--orange)"
+            />
+            <PerfCard
+              label="Délai moyen de livraison"
+              value={avgDeliveryDays > 0 ? `${avgDeliveryDays} j` : '—'}
+              sub={deliveredClients.length > 0 ? `sur ${deliveredClients.length} vidéos livrées` : 'Aucune livraison'}
+              color="#3B82F6"
+            />
+            <PerfCard
+              label="Clients bloqués"
+              value={`${stuckClients}`}
+              sub={stuckClients > 0 ? 'sans activité > 7 j' : 'Tout roule !'}
+              color={stuckClients > 0 ? 'var(--red)' : 'var(--green)'}
             />
           </div>
 
@@ -409,6 +471,27 @@ export default function DashboardPage() {
 }
 
 /* ---------- Sub-components ---------- */
+
+function PerfCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
+  return (
+    <div style={{
+      background: 'var(--night-card)',
+      borderRadius: 12,
+      border: '1px solid var(--border)',
+      padding: '16px 20px',
+    }}>
+      <div style={{
+        fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500,
+        letterSpacing: '0.02em', marginBottom: 8,
+      }}>{label}</div>
+      <div style={{
+        fontSize: '1.5rem', fontWeight: 700, color,
+        fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1, marginBottom: 6,
+      }}>{value}</div>
+      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{sub}</div>
+    </div>
+  );
+}
 
 function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
   const [hovered, setHovered] = useState(false);
