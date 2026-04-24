@@ -448,114 +448,82 @@ function OnboardingContent() {
     </div>
   );
 
-  // Step 2: Contract signing (opens in new tab)
-  const renderStep2 = () => {
-    const contractUrl = signingUrl || client?.contract_signature_link;
-    return (
-      <div style={cardStyle}>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: '2rem', marginBottom: 8 }}>✎</div>
-          <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-            Signature du contrat
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-            {contractUrl
-              ? 'Votre contrat est prêt. Ouvrez-le, signez-le, puis revenez ici pour confirmer.'
-              : 'Cliquez ci-dessous pour générer votre contrat de prestation.'}
-          </p>
+  // Step 2: Contract signing (embedded public GHL link)
+  const contractPublicUrl = (() => {
+    const base = process.env.NEXT_PUBLIC_GHL_CONTRACT_URL || '';
+    if (!base || !client) return base;
+    const nameParts = client.contact_name?.trim().split(' ') || [];
+    const params = new URLSearchParams();
+    if (nameParts[0]) params.set('first_name', nameParts[0]);
+    if (nameParts.length > 1) params.set('last_name', nameParts.slice(1).join(' '));
+    if (client.email) params.set('email', client.email);
+    if (client.phone) params.set('phone', client.phone);
+    if (client.business_name) params.set('companyName', client.business_name);
+    const sep = base.includes('?') ? '&' : '?';
+    return base + sep + params.toString();
+  })();
+
+  const renderStep2 = () => (
+    <div style={{ ...cardStyle, maxWidth: 720 }}>
+      <div style={{ textAlign: 'center', marginBottom: 20 }}>
+        <div style={{ fontSize: '2rem', marginBottom: 8 }}>✎</div>
+        <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
+          Signature du contrat
+        </h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
+          Lisez, remplissez et signez votre contrat de prestation ci-dessous.
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{
+          borderRadius: 12,
+          overflow: 'hidden',
+          border: '1px solid var(--border-md)',
+          background: '#fff',
+        }}>
+          <iframe
+            src={contractPublicUrl}
+            style={{
+              width: '100%',
+              height: '70vh',
+              minHeight: 500,
+              border: 'none',
+              display: 'block',
+            }}
+            title="Contrat de prestation"
+            allow="camera;microphone"
+          />
         </div>
 
-        {contractUrl ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{
-              padding: '24px',
-              background: 'var(--night-mid)',
-              borderRadius: 12,
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 12, opacity: 0.6 }}>&#128196;</div>
-              <p style={{ color: 'var(--text)', fontSize: '0.9rem', fontWeight: 600, margin: '0 0 4px' }}>
-                Contrat de prestation
-              </p>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
-                Le contrat s&apos;ouvrira dans un nouvel onglet
-              </p>
-            </div>
+        <button
+          onClick={handleCheckContract}
+          disabled={checkingContract}
+          style={{ ...btnPrimary, opacity: checkingContract ? 0.6 : 1 }}
+        >
+          {checkingContract ? 'Vérification…' : 'J\'ai signé mon contrat — vérifier'}
+        </button>
 
-            <a
-              href={contractUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                ...btnPrimary,
-                textDecoration: 'none',
-                textAlign: 'center',
-                display: 'block',
-              }}
-            >
-              Ouvrir et signer le contrat &#8599;
-            </a>
-
-            <div style={{
-              padding: '16px',
-              background: 'rgba(251,146,60,.08)',
-              border: '1px solid rgba(251,146,60,.2)',
-              borderRadius: 10,
-              textAlign: 'center',
-            }}>
-              <p style={{ color: 'var(--text-mid)', fontSize: '0.8rem', margin: 0, lineHeight: 1.5 }}>
-                1. Ouvrez le contrat ci-dessus<br />
-                2. Lisez et signez le document<br />
-                3. Revenez ici et cliquez sur le bouton ci-dessous
-              </p>
-            </div>
-
-            <button
-              onClick={handleCheckContract}
-              disabled={checkingContract}
-              style={{ ...btnSecondary, opacity: checkingContract ? 0.6 : 1 }}
-            >
-              {checkingContract ? 'Vérification…' : 'J\'ai signé mon contrat — vérifier'}
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{
-              padding: '20px',
-              background: 'var(--night-mid)',
-              borderRadius: 12,
-              textAlign: 'center',
-            }}>
-              <p style={{ color: 'var(--text-mid)', fontSize: '0.85rem', margin: 0 }}>
-                Cliquez ci-dessous pour générer votre contrat et le signer électroniquement.
-              </p>
-            </div>
-            <button
-              onClick={handleInitContract}
-              disabled={loading}
-              style={{ ...btnPrimary, opacity: loading ? 0.6 : 1 }}
-            >
-              {loading ? 'Préparation du contrat…' : 'Préparer mon contrat'}
-            </button>
-          </div>
-        )}
-
-        {error && (
-          <div style={{
-            marginTop: 16,
-            padding: '10px 14px',
-            background: 'rgba(239,68,68,.1)',
-            border: '1px solid rgba(239,68,68,.3)',
-            borderRadius: 8,
-            color: 'var(--red)',
-            fontSize: '0.85rem',
-          }}>
-            {error}
-          </div>
-        )}
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
+          Remplissez et signez dans le formulaire ci-dessus, puis cliquez sur &laquo; J&apos;ai sign&eacute; &raquo;
+        </p>
       </div>
-    );
-  };
+
+      {error && (
+        <div style={{
+          marginTop: 16,
+          padding: '10px 14px',
+          background: 'rgba(239,68,68,.1)',
+          border: '1px solid rgba(239,68,68,.3)',
+          borderRadius: 8,
+          color: 'var(--red)',
+          fontSize: '0.85rem',
+        }}>
+          {error}
+        </div>
+      )}
+    </div>
+  );
 
   // Step 3: Payment
   const renderStep3 = () => {
