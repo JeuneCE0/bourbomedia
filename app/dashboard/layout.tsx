@@ -22,6 +22,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [hoveredLogout, setHoveredLogout] = useState(false);
 
   const isLoginPage = pathname === '/dashboard/login' || pathname === '/dashboard/login/';
+  const closeMobileSidebar = useCallback(() => setMobileOpen(false), []);
 
   // Responsive breakpoint detection
   useEffect(() => {
@@ -71,8 +72,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const p = pathname?.replace(/\/$/, '') || '';
   const isActive = (href: string) => href === '/dashboard' ? p === '/dashboard' : p.startsWith(href);
-
-  const closeMobileSidebar = useCallback(() => setMobileOpen(false), []);
 
   const sidebarWidth = collapsed && !isMobile ? 60 : 220;
 
