@@ -28,6 +28,27 @@ interface Client {
   filming_checklist?: ChecklistItem[];
   filming_photos?: string[];
   filming_notes?: string;
+  tags?: string[];
+  todos?: TodoItem[];
+  videos?: VideoItem[];
+}
+
+interface TodoItem {
+  id: string;
+  text: string;
+  done: boolean;
+  created_at: string;
+}
+
+interface VideoItem {
+  id: string;
+  title?: string;
+  video_url: string;
+  thumbnail_url?: string;
+  delivery_notes?: string;
+  status: string;
+  delivered_at?: string;
+  created_at: string;
 }
 
 interface ChecklistItem {
@@ -147,10 +168,13 @@ export default function ClientDetailPage() {
   const [toast, setToast] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
   const [versions, setVersions] = useState<ScriptVersion[]>([]);
   const [showVersions, setShowVersions] = useState(false);
-  const [deliveryForm, setDeliveryForm] = useState<{ video_url: string; video_thumbnail_url: string; delivery_notes: string }>({ video_url: '', video_thumbnail_url: '', delivery_notes: '' });
   const [payments, setPayments] = useState<Payment[]>([]);
   const [paymentForm, setPaymentForm] = useState({ amount: '', description: '' });
   const [addingPayment, setAddingPayment] = useState(false);
+  const [newTag, setNewTag] = useState('');
+  const [newTodo, setNewTodo] = useState('');
+  const [newVideo, setNewVideo] = useState({ title: '', video_url: '', thumbnail_url: '', delivery_notes: '' });
+  const [savingVideo, setSavingVideo] = useState(false);
 
   function notify(type: 'error' | 'success', msg: string) {
     setToast({ type, msg });
@@ -176,11 +200,6 @@ export default function ClientDetailPage() {
         setClient(d);
         if (d?.scripts?.length) setScript(d.scripts[0]);
         else setScript(null);
-        setDeliveryForm({
-          video_url: d?.video_url || '',
-          video_thumbnail_url: d?.video_thumbnail_url || '',
-          delivery_notes: d?.delivery_notes || '',
-        });
       })
       .catch(e => notify('error', e.message))
       .finally(() => setLoading(false));
@@ -329,47 +348,6 @@ export default function ClientDetailPage() {
     } finally { setSendingComment(false); }
   }
 
-  async function handleSaveDelivery(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const r = await fetch('/api/clients', {
-        method: 'PUT', headers: authHeaders(),
-        body: JSON.stringify({ id, ...deliveryForm }),
-      });
-      if (!r.ok) throw new Error(await parseErr(r));
-      notify('success', 'Livraison enregistrée');
-      loadClient();
-    } catch (err: unknown) {
-      notify('error', (err as Error).message);
-    } finally { setSaving(false); }
-  }
-
-  async function handleMarkDelivered() {
-    if (!deliveryForm.video_url) {
-      notify('error', 'Ajoutez d\'abord une URL de vidéo');
-      return;
-    }
-    if (!confirm('Marquer cette vidéo comme livrée au client ?')) return;
-    setSaving(true);
-    try {
-      const r = await fetch('/api/clients', {
-        method: 'PUT', headers: authHeaders(),
-        body: JSON.stringify({
-          id,
-          ...deliveryForm,
-          status: 'published',
-          delivered_at: new Date().toISOString(),
-        }),
-      });
-      if (!r.ok) throw new Error(await parseErr(r));
-      notify('success', 'Livraison marquée comme effectuée');
-      loadClient();
-    } catch (err: unknown) {
-      notify('error', (err as Error).message);
-    } finally { setSaving(false); }
-  }
-
   async function handleAddChecklistItem() {
     if (!newChecklistItem.trim() || !client) return;
     const next = [...(client.filming_checklist || []), {
@@ -463,6 +441,126 @@ export default function ClientDetailPage() {
         body: JSON.stringify({ id, filming_photos: next }),
       });
       if (!r.ok) throw new Error(await parseErr(r));
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleAddTag() {
+    const t = newTag.trim().toLowerCase();
+    if (!t || !client) return;
+    if ((client.tags || []).includes(t)) { notify('error', 'Tag déjà présent'); return; }
+    const next = [...(client.tags || []), t];
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, tags: next }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      setNewTag('');
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleRemoveTag(tag: string) {
+    if (!client) return;
+    const next = (client.tags || []).filter(t => t !== tag);
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, tags: next }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleAddTodo() {
+    if (!newTodo.trim() || !client) return;
+    const next: TodoItem[] = [...(client.todos || []), {
+      id: crypto.randomUUID(), text: newTodo.trim(), done: false, created_at: new Date().toISOString(),
+    }];
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, todos: next }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      setNewTodo('');
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleToggleTodo(todoId: string) {
+    if (!client) return;
+    const next = (client.todos || []).map(t => t.id === todoId ? { ...t, done: !t.done } : t);
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, todos: next }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleRemoveTodo(todoId: string) {
+    if (!client) return;
+    const next = (client.todos || []).filter(t => t.id !== todoId);
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, todos: next }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleAddVideo(e: React.FormEvent, deliver: boolean) {
+    e.preventDefault();
+    if (!newVideo.video_url) { notify('error', 'URL vidéo requise'); return; }
+    setSavingVideo(true);
+    try {
+      const r = await fetch('/api/videos', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          client_id: id,
+          title: newVideo.title || null,
+          video_url: newVideo.video_url,
+          thumbnail_url: newVideo.thumbnail_url || null,
+          delivery_notes: newVideo.delivery_notes || null,
+          status: deliver ? 'delivered' : 'draft',
+        }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      notify('success', deliver ? 'Vidéo livrée au client' : 'Vidéo enregistrée');
+      setNewVideo({ title: '', video_url: '', thumbnail_url: '', delivery_notes: '' });
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+    finally { setSavingVideo(false); }
+  }
+
+  async function handleToggleDeliverVideo(videoId: string, currentlyDelivered: boolean) {
+    try {
+      const r = await fetch('/api/videos', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id: videoId, status: currentlyDelivered ? 'draft' : 'delivered' }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      notify('success', currentlyDelivered ? 'Retirée de la livraison' : 'Vidéo livrée au client');
+      loadClient();
+    } catch (e: unknown) { notify('error', (e as Error).message); }
+  }
+
+  async function handleRemoveVideo(videoId: string) {
+    if (!confirm('Supprimer cette vidéo ?')) return;
+    try {
+      const r = await fetch('/api/videos', {
+        method: 'DELETE', headers: authHeaders(),
+        body: JSON.stringify({ id: videoId }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      notify('success', 'Vidéo supprimée');
       loadClient();
     } catch (e: unknown) { notify('error', (e as Error).message); }
   }
@@ -667,6 +765,85 @@ export default function ClientDetailPage() {
                     fontFamily: 'inherit', resize: 'vertical',
                   }}
                 />
+              </div>
+
+              {/* Tags */}
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+                  Tags
+                </span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {(client.tags || []).map(t => (
+                    <span key={t} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      padding: '4px 4px 4px 10px', borderRadius: 14,
+                      background: 'rgba(232,105,43,.1)', color: 'var(--orange)',
+                      fontSize: '0.74rem', fontWeight: 500,
+                    }}>
+                      #{t}
+                      <button onClick={() => handleRemoveTag(t)} style={{
+                        background: 'none', border: 'none', color: 'var(--orange)',
+                        cursor: 'pointer', fontSize: '0.78rem', lineHeight: 1, padding: '0 4px',
+                      }}>✕</button>
+                    </span>
+                  ))}
+                  <form onSubmit={(e) => { e.preventDefault(); handleAddTag(); }} style={{ display: 'flex', gap: 4 }}>
+                    <input value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="+ tag"
+                      style={{
+                        padding: '4px 10px', borderRadius: 14, fontSize: '0.74rem',
+                        background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                        color: 'var(--text)', outline: 'none', width: 80,
+                      }}
+                    />
+                  </form>
+                </div>
+              </div>
+
+              {/* TODOs */}
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+                  Tâches internes
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                  {(client.todos || []).map(t => (
+                    <div key={t.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 10px', borderRadius: 6,
+                      background: t.done ? 'rgba(34,197,94,.04)' : 'var(--night-mid)',
+                    }}>
+                      <button onClick={() => handleToggleTodo(t.id)} style={{
+                        width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                        background: t.done ? 'var(--green)' : 'transparent',
+                        border: `1.5px solid ${t.done ? 'var(--green)' : 'var(--border-md)'}`,
+                        color: '#fff', cursor: 'pointer', fontSize: '0.6rem',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>{t.done ? '✓' : ''}</button>
+                      <span style={{
+                        flex: 1, fontSize: '0.8rem',
+                        color: t.done ? 'var(--text-muted)' : 'var(--text)',
+                        textDecoration: t.done ? 'line-through' : 'none',
+                      }}>{t.text}</span>
+                      <button onClick={() => handleRemoveTodo(t.id)} style={{
+                        background: 'none', border: 'none', color: 'var(--text-muted)',
+                        cursor: 'pointer', fontSize: '0.8rem', padding: 2,
+                      }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+                <form onSubmit={(e) => { e.preventDefault(); handleAddTodo(); }} style={{ display: 'flex', gap: 6 }}>
+                  <input value={newTodo} onChange={e => setNewTodo(e.target.value)} placeholder="Ajouter une tâche…"
+                    style={{
+                      flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: '0.8rem',
+                      background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                      color: 'var(--text)', outline: 'none',
+                    }}
+                  />
+                  <button type="submit" disabled={!newTodo.trim()} style={{
+                    padding: '6px 12px', borderRadius: 6, background: 'var(--orange)',
+                    color: '#fff', border: 'none', fontSize: '0.78rem', cursor: 'pointer',
+                    opacity: newTodo.trim() ? 1 : 0.5,
+                  }}>+</button>
+                </form>
               </div>
 
               <div style={{ display: 'flex', gap: 8 }}>
@@ -1001,101 +1178,95 @@ export default function ClientDetailPage() {
         <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
           <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>Livraison vidéo</h3>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>Vidéos livrées</h3>
               <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                {client.delivered_at
-                  ? `Livrée le ${new Date(client.delivered_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`
-                  : 'Ajoutez l\'URL de la vidéo finale et marquez comme livrée'}
+                {(client.videos || []).filter(v => v.status === 'delivered').length} vidéo(s) visible(s) côté client
+                {(client.videos || []).filter(v => v.status === 'draft').length > 0 && ` · ${(client.videos || []).filter(v => v.status === 'draft').length} brouillon(s)`}
               </p>
             </div>
-            {client.delivered_at && (
-              <span style={{
-                fontSize: '0.72rem', padding: '5px 12px', borderRadius: 20,
-                background: 'rgba(34,197,94,.12)', color: 'var(--green)', fontWeight: 600,
-              }}>✓ Livrée</span>
-            )}
           </div>
 
-          <form onSubmit={handleSaveDelivery}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-              <label>
-                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                  URL vidéo (YouTube, Vimeo, Drive, lien direct…)
-                </span>
-                <input
-                  type="url"
-                  value={deliveryForm.video_url}
-                  onChange={e => setDeliveryForm({ ...deliveryForm, video_url: e.target.value })}
-                  placeholder="https://…"
-                  style={{
-                    width: '100%', padding: '9px 12px', borderRadius: 6,
-                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
-                    color: 'var(--text)', fontSize: '0.85rem', boxSizing: 'border-box',
-                  }}
-                />
-              </label>
-              <label>
-                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                  URL miniature (optionnel)
-                </span>
-                <input
-                  type="url"
-                  value={deliveryForm.video_thumbnail_url}
-                  onChange={e => setDeliveryForm({ ...deliveryForm, video_thumbnail_url: e.target.value })}
-                  placeholder="https://…"
-                  style={{
-                    width: '100%', padding: '9px 12px', borderRadius: 6,
-                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
-                    color: 'var(--text)', fontSize: '0.85rem', boxSizing: 'border-box',
-                  }}
-                />
-              </label>
-              <label>
-                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                  Message pour le client (optionnel)
-                </span>
-                <textarea
-                  value={deliveryForm.delivery_notes}
-                  onChange={e => setDeliveryForm({ ...deliveryForm, delivery_notes: e.target.value })}
-                  rows={3}
-                  placeholder="Votre vidéo est prête ! Voici quelques mots sur le rendu final…"
-                  style={{
-                    width: '100%', padding: '9px 12px', borderRadius: 6,
-                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
-                    color: 'var(--text)', fontSize: '0.85rem', boxSizing: 'border-box',
-                    fontFamily: 'inherit', resize: 'vertical',
-                  }}
-                />
-              </label>
+          {/* Existing videos */}
+          {client.videos && client.videos.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              {client.videos.map(v => (
+                <div key={v.id} style={{
+                  padding: 14, borderRadius: 10,
+                  background: 'var(--night-mid)', border: `1px solid ${v.status === 'delivered' ? 'rgba(34,197,94,.2)' : 'var(--border)'}`,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.88rem', color: 'var(--text)', fontWeight: 600 }}>
+                        {v.title || 'Vidéo sans titre'}
+                      </div>
+                      <a href={v.video_url} target="_blank" rel="noreferrer" style={{
+                        fontSize: '0.72rem', color: 'var(--orange)', wordBreak: 'break-all', textDecoration: 'none',
+                      }}>{v.video_url} ↗</a>
+                    </div>
+                    <span style={{
+                      fontSize: '0.68rem', padding: '3px 9px', borderRadius: 12, fontWeight: 600, whiteSpace: 'nowrap',
+                      background: v.status === 'delivered' ? 'rgba(34,197,94,.12)' : 'rgba(250,204,21,.12)',
+                      color: v.status === 'delivered' ? 'var(--green)' : 'var(--yellow)',
+                    }}>{v.status === 'delivered' ? '✓ Livrée' : 'Brouillon'}</span>
+                  </div>
+                  {v.delivery_notes && (
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '6px 0 8px', whiteSpace: 'pre-wrap' }}>
+                      {v.delivery_notes}
+                    </p>
+                  )}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    <button onClick={() => handleToggleDeliverVideo(v.id, v.status === 'delivered')} style={{
+                      padding: '5px 12px', borderRadius: 6, fontSize: '0.74rem', cursor: 'pointer',
+                      background: v.status === 'delivered' ? 'var(--night-card)' : 'var(--green)',
+                      color: v.status === 'delivered' ? 'var(--text-mid)' : '#fff',
+                      border: v.status === 'delivered' ? '1px solid var(--border-md)' : 'none',
+                    }}>{v.status === 'delivered' ? 'Retirer la livraison' : '✓ Livrer au client'}</button>
+                    <button onClick={() => handleRemoveVideo(v.id)} style={{
+                      padding: '5px 12px', borderRadius: 6, fontSize: '0.74rem', cursor: 'pointer',
+                      background: 'transparent', border: '1px solid rgba(239,68,68,.3)', color: 'var(--red)',
+                    }}>✕ Supprimer</button>
+                  </div>
+                </div>
+              ))}
             </div>
+          )}
 
-            {deliveryForm.video_url && (
-              <div style={{
-                marginBottom: 16, padding: 12, borderRadius: 8,
-                background: 'var(--night-mid)', border: '1px solid var(--border-md)',
-              }}>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6 }}>Prévisualisation</div>
-                <a href={deliveryForm.video_url} target="_blank" rel="noreferrer"
-                  style={{ color: 'var(--orange)', fontSize: '0.82rem', wordBreak: 'break-all' }}>
-                  {deliveryForm.video_url} ↗
-                </a>
+          {/* Add new video */}
+          <div style={{ borderTop: client.videos?.length ? '1px solid var(--border)' : 'none', paddingTop: client.videos?.length ? 16 : 0 }}>
+            <h4 style={{ margin: '0 0 12px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)' }}>Ajouter une vidéo</h4>
+            <form onSubmit={(e) => handleAddVideo(e, false)} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <input value={newVideo.title} onChange={e => setNewVideo({ ...newVideo, title: e.target.value })} placeholder="Titre (optionnel)"
+                  style={videoInputStyle} />
+                <input value={newVideo.thumbnail_url} onChange={e => setNewVideo({ ...newVideo, thumbnail_url: e.target.value })} placeholder="URL miniature (optionnel)"
+                  style={videoInputStyle} />
               </div>
-            )}
+              <input type="url" required value={newVideo.video_url} onChange={e => setNewVideo({ ...newVideo, video_url: e.target.value })} placeholder="URL vidéo (YouTube, Vimeo, MP4…)"
+                style={videoInputStyle} />
+              <textarea value={newVideo.delivery_notes} onChange={e => setNewVideo({ ...newVideo, delivery_notes: e.target.value })} placeholder="Message pour le client (optionnel)" rows={2}
+                style={{ ...videoInputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="submit" disabled={savingVideo || !newVideo.video_url} style={{
+                  padding: '8px 16px', borderRadius: 8, background: 'var(--night-mid)',
+                  border: '1px solid var(--border-md)', color: 'var(--text)', cursor: 'pointer', fontSize: '0.8rem',
+                }}>{savingVideo ? '…' : 'Enregistrer brouillon'}</button>
+                <button type="button" disabled={savingVideo || !newVideo.video_url} onClick={(e) => handleAddVideo(e as unknown as React.FormEvent, true)} style={{
+                  padding: '8px 16px', borderRadius: 8, background: 'var(--green)',
+                  color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem',
+                  opacity: newVideo.video_url ? 1 : 0.5,
+                }}>{savingVideo ? '…' : '✓ Livrer maintenant'}</button>
+              </div>
+            </form>
+          </div>
 
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              <button type="submit" disabled={saving} style={{
-                padding: '9px 18px', borderRadius: 8, background: 'var(--night-mid)',
-                border: '1px solid var(--border-md)', color: 'var(--text)', cursor: 'pointer', fontSize: '0.8rem',
-              }}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
-              {!client.delivered_at && (
-                <button type="button" onClick={handleMarkDelivered} disabled={saving || !deliveryForm.video_url} style={{
-                  padding: '9px 18px', borderRadius: 8, background: 'var(--green)',
-                  color: '#fff', border: 'none', fontWeight: 600, cursor: deliveryForm.video_url ? 'pointer' : 'not-allowed',
-                  fontSize: '0.8rem', opacity: deliveryForm.video_url ? 1 : 0.5,
-                }}>✓ Marquer comme livrée</button>
-              )}
+          {/* Legacy single-video form (only show if a single legacy video exists) */}
+          {client.video_url && !client.videos?.some(v => v.video_url === client.video_url) && (
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 8 }}>
+                ⚠ Vidéo legacy détectée (champ unique). Réimportez-la dans la nouvelle table multi-vidéos.
+              </p>
             </div>
-          </form>
+          )}
         </div>
       )}
 
@@ -1306,6 +1477,12 @@ export default function ClientDetailPage() {
     </div>
   );
 }
+
+const videoInputStyle: React.CSSProperties = {
+  width: '100%', padding: '8px 12px', borderRadius: 6,
+  background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+  color: 'var(--text)', fontSize: '0.82rem', boxSizing: 'border-box', outline: 'none',
+};
 
 function quickContactStyle(color: string): React.CSSProperties {
   return {

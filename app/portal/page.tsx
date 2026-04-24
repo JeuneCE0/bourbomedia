@@ -32,7 +32,59 @@ interface ClientDelivery {
   video_thumbnail_url?: string;
   delivery_notes?: string;
   delivered_at?: string;
+  filming_date?: string;
+  publication_deadline?: string;
+  contract_pdf_url?: string;
+  contract_signature_link?: string;
 }
+
+interface VideoDelivery {
+  id: string;
+  title?: string;
+  video_url: string;
+  thumbnail_url?: string;
+  delivery_notes?: string;
+  delivered_at?: string;
+}
+
+interface PortalPayment {
+  id: string;
+  amount: number;
+  currency: string;
+  description?: string;
+  receipt_url?: string;
+  invoice_pdf_url?: string;
+  invoice_number?: string;
+  created_at: string;
+}
+
+interface PortalNotification {
+  id: string;
+  type: string;
+  title: string;
+  body?: string;
+  link?: string;
+  read_at?: string | null;
+  created_at: string;
+}
+
+interface SatisfactionData {
+  rating: number;
+  comment?: string;
+  allow_testimonial: boolean;
+  created_at: string;
+}
+
+const STATUS_LABELS_PORTAL: Record<string, string> = {
+  onboarding: 'Onboarding',
+  script_writing: 'Écriture du script',
+  script_review: 'Relecture du script',
+  script_validated: 'Script validé',
+  filming_scheduled: 'Tournage planifié',
+  filming_done: 'Tournage terminé',
+  editing: 'Montage en cours',
+  published: 'Vidéo publiée',
+};
 
 const SCRIPT_STEPS = [
   { key: 'draft', label: 'Préparation', color: '#8A7060' },
@@ -62,22 +114,29 @@ function PortalContent() {
 
   const [script, setScript] = useState<Script | null>(null);
   const [clientInfo, setClientInfo] = useState<ClientDelivery | null>(null);
+  const [videos, setVideos] = useState<VideoDelivery[]>([]);
+  const [payments, setPayments] = useState<PortalPayment[]>([]);
+  const [notifications, setNotifications] = useState<PortalNotification[]>([]);
+  const [bellOpen, setBellOpen] = useState(false);
+  const [satisfaction, setSatisfaction] = useState<SatisfactionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [comment, setComment] = useState('');
   const [sending, setSending] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [tab, setTab] = useState<'script' | 'comments' | 'video'>('script');
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [tab, setTab] = useState<'script' | 'comments' | 'video' | 'documents' | 'feedback'>('script');
 
   const loadScript = useCallback(() => {
     if (!token) return;
     fetch(`/api/scripts?token=${token}`)
       .then(r => { if (!r.ok) throw new Error('Lien invalide ou expiré'); return r.json(); })
       .then(d => {
-        // API returns { script, client } - handle both shapes for back-compat
         if (d && typeof d === 'object' && 'script' in d) {
           setScript(d.script);
           setClientInfo(d.client || null);
+          if (Array.isArray(d.videos)) setVideos(d.videos);
+          if (Array.isArray(d.payments)) setPayments(d.payments);
         } else {
           setScript(d);
         }
@@ -86,17 +145,50 @@ function PortalContent() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  useEffect(() => { loadScript(); }, [loadScript]);
+  const loadNotifications = useCallback(() => {
+    if (!token) return;
+    fetch(`/api/notifications?token=${token}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { if (Array.isArray(d)) setNotifications(d); })
+      .catch(() => {});
+  }, [token]);
+
+  const loadSatisfaction = useCallback(() => {
+    if (!token) return;
+    fetch(`/api/satisfaction?token=${token}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setSatisfaction(d))
+      .catch(() => {});
+  }, [token]);
+
+  useEffect(() => {
+    loadScript();
+    loadNotifications();
+    loadSatisfaction();
+  }, [loadScript, loadNotifications, loadSatisfaction]);
 
   // Auto-switch to video tab when delivery becomes available
   useEffect(() => {
-    if (clientInfo?.delivered_at && clientInfo.video_url) {
-      setTab('video');
+    if (videos.length > 0 || (clientInfo?.delivered_at && clientInfo.video_url)) {
+      setTab(t => t === 'script' ? 'video' : t);
     }
-  }, [clientInfo?.delivered_at, clientInfo?.video_url]);
+  }, [videos.length, clientInfo?.delivered_at, clientInfo?.video_url]);
+
+  const unreadCount = notifications.filter(n => !n.read_at).length;
+
+  async function handleMarkAllRead() {
+    if (unreadCount === 0) return;
+    try {
+      await fetch(`/api/notifications?token=${token}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [] }),
+      });
+      loadNotifications();
+    } catch { /* */ }
+  }
 
   async function handleValidate() {
-    if (!confirm('Confirmer et valider ce script ? Le tournage sera planifié.')) return;
     setActionLoading(true);
     try {
       await fetch(`/api/scripts?token=${token}`, {
@@ -104,7 +196,21 @@ function PortalContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'validate' }),
       });
+      setShowValidationModal(false);
       loadScript();
+      loadNotifications();
+    } finally { setActionLoading(false); }
+  }
+
+  async function handleSubmitSatisfaction(rating: number, comment: string, allowTestimonial: boolean) {
+    setActionLoading(true);
+    try {
+      const r = await fetch(`/api/satisfaction?token=${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating, comment, allow_testimonial: allowTestimonial }),
+      });
+      if (r.ok) loadSatisfaction();
     } finally { setActionLoading(false); }
   }
 
@@ -117,6 +223,7 @@ function PortalContent() {
         body: JSON.stringify({ action: 'request_changes' }),
       });
       loadScript();
+      loadNotifications();
     } finally { setActionLoading(false); }
   }
 
@@ -233,21 +340,114 @@ function PortalContent() {
   const statusInfo = SCRIPT_STEPS[currentStepIdx] || SCRIPT_STEPS[0];
   const canValidate = script.status === 'proposition' || script.status === 'modified';
 
+  const deliveredVideos = videos.filter(v => v.delivered_at);
+  const hasDelivery = deliveredVideos.length > 0 || (clientInfo?.delivered_at && clientInfo.video_url);
+  const clientStatus = clientInfo?.status || '';
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
+      {/* Header with bell */}
       <header style={{
-        padding: '16px 20px', borderBottom: '1px solid var(--border)',
-        background: 'var(--night-mid)', textAlign: 'center',
+        padding: '14px 20px', borderBottom: '1px solid var(--border)',
+        background: 'var(--night-mid)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        position: 'sticky', top: 0, zIndex: 10,
       }}>
-        <h1 style={{
-          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
-          fontSize: '1.2rem', color: 'var(--orange)', margin: 0,
-        }}>BourbonMédia</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '4px 0 0' }}>Espace client</p>
+        <div style={{ flex: 1 }} />
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{
+            fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+            fontSize: '1.15rem', color: 'var(--orange)', margin: 0,
+          }}>BourbonMédia</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.72rem', margin: '2px 0 0' }}>Espace client</p>
+        </div>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', position: 'relative' }}>
+          <button onClick={() => { setBellOpen(!bellOpen); if (!bellOpen) handleMarkAllRead(); }} style={{
+            position: 'relative', background: 'transparent', border: 'none',
+            color: 'var(--text)', cursor: 'pointer', padding: 6, borderRadius: 8,
+            fontSize: '1.1rem', lineHeight: 1,
+          }}>
+            🔔
+            {unreadCount > 0 && (
+              <span style={{
+                position: 'absolute', top: -2, right: -2,
+                background: 'var(--orange)', color: '#fff',
+                fontSize: '0.6rem', fontWeight: 700,
+                minWidth: 16, height: 16, padding: '0 4px', borderRadius: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(232,105,43,.4)',
+              }}>{unreadCount}</span>
+            )}
+          </button>
+          {bellOpen && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 8, width: 320,
+              background: 'var(--night-card)', border: '1px solid var(--border-md)',
+              borderRadius: 10, maxHeight: 400, overflowY: 'auto',
+              boxShadow: '0 8px 24px rgba(0,0,0,.5)', zIndex: 1000,
+            }}>
+              {notifications.length === 0 ? (
+                <p style={{ padding: 20, textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Aucune notification
+                </p>
+              ) : (
+                notifications.map(n => (
+                  <div key={n.id} style={{
+                    padding: '10px 14px', borderBottom: '1px solid var(--border)',
+                    background: n.read_at ? 'transparent' : 'rgba(232,105,43,.04)',
+                  }}>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text)', fontWeight: 600, marginBottom: 2 }}>
+                      {n.title}
+                    </div>
+                    {n.body && (
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                        {n.body}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: 4, opacity: 0.7 }}>
+                      {relativeTime(n.created_at)}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </header>
 
       <main style={{ flex: 1, maxWidth: 800, width: '100%', margin: '0 auto', padding: 'clamp(16px, 4vw, 32px)' }}>
+        {/* Project status banner */}
+        {clientStatus && clientStatus !== 'published' && (
+          <div style={{
+            marginBottom: 20, padding: '12px 16px', borderRadius: 10,
+            background: 'var(--night-card)', border: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          }}>
+            <span style={{
+              fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase',
+              letterSpacing: '0.04em', fontWeight: 600,
+            }}>Statut projet</span>
+            <span style={{ fontSize: '0.88rem', color: 'var(--text)', fontWeight: 600 }}>
+              {STATUS_LABELS_PORTAL[clientStatus] || clientStatus}
+            </span>
+            {clientInfo?.filming_date && (clientStatus === 'filming_scheduled' || clientStatus === 'script_validated') && (
+              <span style={{
+                marginLeft: 'auto', fontSize: '0.78rem',
+                padding: '4px 10px', borderRadius: 14,
+                background: 'rgba(59,130,246,.1)', color: '#60A5FA',
+              }}>
+                🎥 Tournage le {new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+            )}
+            {clientInfo?.publication_deadline && (
+              <span style={{
+                fontSize: '0.72rem', color: 'var(--text-muted)',
+              }}>
+                Publication prévue le {new Date(clientInfo.publication_deadline).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+              </span>
+            )}
+          </div>
+        )}
         {/* Progress stepper */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -310,7 +510,7 @@ function PortalContent() {
                   color: 'var(--yellow)', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500,
                   transition: 'all .15s',
                 }}>✎ Demander des modifications</button>
-                <button onClick={handleValidate} disabled={actionLoading} style={{
+                <button onClick={() => setShowValidationModal(true)} disabled={actionLoading} style={{
                   padding: '10px 24px', borderRadius: 10, background: 'var(--green)',
                   color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
                   boxShadow: '0 2px 8px rgba(34,197,94,.3)',
@@ -336,66 +536,219 @@ function PortalContent() {
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
           {([
-            ...(clientInfo?.video_url ? ['video' as const] : []),
+            ...(hasDelivery ? ['video' as const] : []),
             'script' as const,
             'comments' as const,
+            'documents' as const,
+            ...(hasDelivery ? ['feedback' as const] : []),
           ]).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
-              padding: '10px 20px', border: 'none', cursor: 'pointer',
-              fontSize: '0.82rem', fontWeight: tab === t ? 600 : 400,
+              padding: '10px 18px', border: 'none', cursor: 'pointer',
+              fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
               background: 'transparent',
               color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
               borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
               transition: 'all .15s',
               whiteSpace: 'nowrap',
             }}>
-              {t === 'video' ? '🎬 Votre vidéo' : t === 'script' ? '📄 Script' : `💬 Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`}
+              {t === 'video' ? `🎬 Vos vidéos${deliveredVideos.length > 1 ? ` (${deliveredVideos.length})` : ''}`
+                : t === 'script' ? '📄 Script'
+                : t === 'comments' ? `💬 Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`
+                : t === 'documents' ? '📂 Documents'
+                : `⭐ Feedback${satisfaction ? ' ✓' : ''}`}
             </button>
           ))}
         </div>
 
-        {/* Video delivery view */}
-        {tab === 'video' && clientInfo?.video_url && (
+        {/* Video delivery view (multi-video) */}
+        {tab === 'video' && hasDelivery && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Render new multi-videos first */}
+            {deliveredVideos.map((v, idx) => (
+              <div key={v.id} style={{
+                background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
+                padding: 'clamp(16px, 3vw, 24px)',
+              }}>
+                {idx === 0 && (
+                  <div style={{ marginBottom: 18, textAlign: 'center' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: 8 }}>🎉</div>
+                    <h2 style={{
+                      fontSize: '1.1rem', color: 'var(--orange)', margin: 0, fontWeight: 700,
+                      fontFamily: "'Bricolage Grotesque', sans-serif",
+                    }}>{deliveredVideos.length === 1 ? 'Votre vidéo est prête !' : 'Vos vidéos sont prêtes !'}</h2>
+                  </div>
+                )}
+                {v.title && (
+                  <h3 style={{ margin: '0 0 10px', fontSize: '0.95rem', color: 'var(--text)', fontWeight: 600 }}>
+                    {v.title}
+                  </h3>
+                )}
+                {v.delivered_at && (
+                  <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '0 0 12px' }}>
+                    Livrée le {new Date(v.delivered_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                )}
+                <VideoEmbed url={v.video_url} thumbnail={v.thumbnail_url} />
+                {v.delivery_notes && (
+                  <div style={{
+                    marginTop: 14, padding: '12px 14px', borderRadius: 10,
+                    background: 'var(--night-mid)', border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>
+                      Message de l&#39;équipe
+                    </div>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text)', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>
+                      {v.delivery_notes}
+                    </p>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <a href={v.video_url} target="_blank" rel="noreferrer" style={{
+                    padding: '8px 16px', borderRadius: 8, background: 'var(--orange)',
+                    color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: '0.8rem',
+                  }}>Ouvrir ↗</a>
+                  <a href={v.video_url} download style={{
+                    padding: '8px 16px', borderRadius: 8, background: 'var(--night-mid)',
+                    border: '1px solid var(--border-md)', color: 'var(--text)',
+                    textDecoration: 'none', fontWeight: 600, fontSize: '0.8rem',
+                  }}>⇩ Télécharger</a>
+                </div>
+              </div>
+            ))}
+
+            {/* Legacy single-video fallback */}
+            {deliveredVideos.length === 0 && clientInfo?.video_url && (
+              <div style={{
+                background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
+                padding: 'clamp(16px, 3vw, 24px)',
+              }}>
+                <div style={{ marginBottom: 18, textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>🎉</div>
+                  <h2 style={{
+                    fontSize: '1.1rem', color: 'var(--orange)', margin: 0, fontWeight: 700,
+                    fontFamily: "'Bricolage Grotesque', sans-serif",
+                  }}>Votre vidéo est prête !</h2>
+                </div>
+                <VideoEmbed url={clientInfo.video_url} thumbnail={clientInfo.video_thumbnail_url} />
+                {clientInfo.delivery_notes && (
+                  <div style={{
+                    marginTop: 14, padding: '12px 14px', borderRadius: 10,
+                    background: 'var(--night-mid)', border: '1px solid var(--border)',
+                  }}>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text)', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>
+                      {clientInfo.delivery_notes}
+                    </p>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'center' }}>
+                  <a href={clientInfo.video_url} target="_blank" rel="noreferrer" style={{
+                    padding: '8px 16px', borderRadius: 8, background: 'var(--orange)',
+                    color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: '0.8rem',
+                  }}>Ouvrir ↗</a>
+                  <a href={clientInfo.video_url} download style={{
+                    padding: '8px 16px', borderRadius: 8, background: 'var(--night-mid)',
+                    border: '1px solid var(--border-md)', color: 'var(--text)',
+                    textDecoration: 'none', fontWeight: 600, fontSize: '0.8rem',
+                  }}>⇩ Télécharger</a>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Documents tab */}
+        {tab === 'documents' && (
           <div style={{
             background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
             padding: 'clamp(16px, 3vw, 24px)',
           }}>
-            <div style={{ marginBottom: 18, textAlign: 'center' }}>
-              <div style={{ fontSize: '2rem', marginBottom: 8 }}>🎉</div>
-              <h2 style={{
-                fontSize: '1.1rem', color: 'var(--orange)', margin: 0, fontWeight: 700,
-                fontFamily: "'Bricolage Grotesque', sans-serif",
-              }}>Votre vidéo est prête !</h2>
-              {clientInfo.delivered_at && (
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '6px 0 0' }}>
-                  Livrée le {new Date(clientInfo.delivered_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+            <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: 'var(--text)', fontWeight: 600 }}>
+              📂 Vos documents
+            </h3>
+
+            {/* Contract */}
+            <div style={{ marginBottom: 20 }}>
+              <h4 style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 8px' }}>
+                Contrat
+              </h4>
+              {clientInfo?.contract_pdf_url ? (
+                <a href={clientInfo.contract_pdf_url} target="_blank" rel="noreferrer" style={docLinkStyle}>
+                  <span style={{ fontSize: '1.2rem' }}>📄</span>
+                  <span style={{ flex: 1 }}>Contrat signé (PDF)</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Télécharger ↗</span>
+                </a>
+              ) : clientInfo?.contract_signature_link ? (
+                <a href={clientInfo.contract_signature_link} target="_blank" rel="noreferrer" style={docLinkStyle}>
+                  <span style={{ fontSize: '1.2rem' }}>✍</span>
+                  <span style={{ flex: 1 }}>Voir le contrat</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Ouvrir ↗</span>
+                </a>
+              ) : (
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
+                  Aucun contrat disponible pour le moment
                 </p>
               )}
             </div>
 
-            <VideoEmbed url={clientInfo.video_url} thumbnail={clientInfo.video_thumbnail_url} />
-
-            {clientInfo.delivery_notes && (
-              <div style={{
-                marginTop: 16, padding: '14px 16px', borderRadius: 10,
-                background: 'var(--night-mid)', border: '1px solid var(--border)',
-              }}>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>
-                  Message de l&#39;équipe
+            {/* Invoices / receipts */}
+            <div style={{ marginBottom: 20 }}>
+              <h4 style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 8px' }}>
+                Factures &amp; reçus
+              </h4>
+              {payments.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {payments.map(p => (
+                    <div key={p.id} style={{
+                      ...docLinkStyle, cursor: 'default',
+                    }}>
+                      <span style={{ fontSize: '1.1rem' }}>💳</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text)', fontWeight: 500 }}>
+                          {(p.amount / 100).toLocaleString('fr-FR')} {p.currency.toUpperCase()}
+                          {p.invoice_number && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 8 }}>· N° {p.invoice_number}</span>}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          {p.description || 'Paiement'} · {new Date(p.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </div>
+                      </div>
+                      {p.invoice_pdf_url ? (
+                        <a href={p.invoice_pdf_url} target="_blank" rel="noreferrer" style={smallLinkStyle}>Facture PDF ↗</a>
+                      ) : p.receipt_url ? (
+                        <a href={p.receipt_url} target="_blank" rel="noreferrer" style={smallLinkStyle}>Reçu ↗</a>
+                      ) : null}
+                    </div>
+                  ))}
                 </div>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text)', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>
-                  {clientInfo.delivery_notes}
+              ) : (
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
+                  Aucune facture disponible
                 </p>
+              )}
+            </div>
+
+            {/* Script PDF */}
+            {script?.status === 'confirmed' && (
+              <div>
+                <h4 style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 8px' }}>
+                  Script
+                </h4>
+                <a href={`/portal/print?token=${token}`} target="_blank" rel="noreferrer" style={docLinkStyle}>
+                  <span style={{ fontSize: '1.2rem' }}>📝</span>
+                  <span style={{ flex: 1 }}>Script validé (PDF)</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Télécharger ↗</span>
+                </a>
               </div>
             )}
-
-            <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <a href={clientInfo.video_url} target="_blank" rel="noreferrer" style={{
-                padding: '10px 20px', borderRadius: 10, background: 'var(--orange)',
-                color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: '0.85rem',
-              }}>Ouvrir dans un nouvel onglet ↗</a>
-            </div>
           </div>
+        )}
+
+        {/* Feedback tab */}
+        {tab === 'feedback' && (
+          <SatisfactionForm
+            existing={satisfaction}
+            onSubmit={handleSubmitSatisfaction}
+            loading={actionLoading}
+          />
         )}
 
         {/* Script view */}
@@ -490,6 +843,168 @@ function PortalContent() {
           BourbonMédia — Votre partenaire vidéo à La Réunion
         </p>
       </footer>
+
+      {/* Validation modal: preview before validating */}
+      {showValidationModal && script && (
+        <div onClick={() => setShowValidationModal(false)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 2000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--night-card)', borderRadius: 14,
+            border: '1px solid var(--border-orange)',
+            maxWidth: 720, width: '100%', maxHeight: '90vh', overflow: 'hidden',
+            display: 'flex', flexDirection: 'column',
+            boxShadow: '0 20px 60px rgba(0,0,0,.6)',
+          }}>
+            <div style={{
+              padding: '16px 20px', borderBottom: '1px solid var(--border)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>
+                Confirmer la validation du script
+              </h3>
+              <button onClick={() => setShowValidationModal(false)} style={{
+                background: 'none', border: 'none', color: 'var(--text-muted)',
+                cursor: 'pointer', fontSize: '1.4rem', lineHeight: 1, padding: 4,
+              }}>✕</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
+                Vérifiez une dernière fois votre script ci-dessous. Une fois validé, le tournage sera planifié automatiquement.
+              </p>
+              <div style={{
+                background: 'var(--night)', borderRadius: 10, padding: 16,
+                border: '1px solid var(--border)', maxHeight: 400, overflowY: 'auto',
+              }}>
+                <ScriptEditor content={script.content} onSave={() => {}} readOnly />
+              </div>
+            </div>
+
+            <div style={{
+              padding: '14px 20px', borderTop: '1px solid var(--border)',
+              display: 'flex', gap: 10, justifyContent: 'flex-end',
+            }}>
+              <button onClick={() => setShowValidationModal(false)} disabled={actionLoading} style={{
+                padding: '10px 18px', borderRadius: 8,
+                background: 'transparent', border: '1px solid var(--border-md)',
+                color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.82rem',
+              }}>Annuler</button>
+              <button onClick={handleValidate} disabled={actionLoading} style={{
+                padding: '10px 24px', borderRadius: 8, background: 'var(--green)',
+                color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem',
+                boxShadow: '0 2px 8px rgba(34,197,94,.3)',
+              }}>
+                {actionLoading ? 'Validation…' : '✓ Confirmer et valider'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const docLinkStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 12,
+  padding: '12px 14px', borderRadius: 10,
+  background: 'var(--night-mid)', border: '1px solid var(--border)',
+  textDecoration: 'none', color: 'var(--text)',
+  transition: 'border-color .15s', fontSize: '0.85rem',
+};
+
+const smallLinkStyle: React.CSSProperties = {
+  fontSize: '0.74rem', color: 'var(--orange)',
+  textDecoration: 'none', whiteSpace: 'nowrap',
+  padding: '4px 10px', borderRadius: 6,
+  background: 'rgba(232,105,43,.08)',
+};
+
+function SatisfactionForm({ existing, onSubmit, loading }: {
+  existing: SatisfactionData | null;
+  onSubmit: (rating: number, comment: string, allowTestimonial: boolean) => void;
+  loading: boolean;
+}) {
+  const [rating, setRating] = useState(existing?.rating || 0);
+  const [comment, setComment] = useState(existing?.comment || '');
+  const [allowTestimonial, setAllowTestimonial] = useState(existing?.allow_testimonial || false);
+  const [hover, setHover] = useState(0);
+
+  return (
+    <div style={{
+      background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
+      padding: 'clamp(20px, 4vw, 32px)', textAlign: 'center',
+    }}>
+      <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>⭐</div>
+      <h3 style={{
+        fontSize: '1.1rem', color: 'var(--text)', fontWeight: 600,
+        margin: '0 0 8px', fontFamily: "'Bricolage Grotesque', sans-serif",
+      }}>
+        {existing ? 'Votre avis' : 'Comment évaluez-vous notre travail ?'}
+      </h3>
+      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 24px' }}>
+        {existing ? `Merci pour votre feedback envoyé le ${new Date(existing.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}.` : 'Votre retour nous aide à nous améliorer ✨'}
+      </p>
+
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
+        {[1, 2, 3, 4, 5].map(n => (
+          <button
+            key={n}
+            onClick={() => setRating(n)}
+            onMouseEnter={() => setHover(n)}
+            onMouseLeave={() => setHover(0)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: '2.2rem', padding: 4, lineHeight: 1,
+              color: (hover || rating) >= n ? '#FACC15' : 'var(--border-md)',
+              transition: 'transform .15s, color .15s',
+              transform: hover === n ? 'scale(1.15)' : 'scale(1)',
+            }}
+          >★</button>
+        ))}
+      </div>
+
+      <textarea
+        value={comment}
+        onChange={e => setComment(e.target.value)}
+        placeholder="Un mot pour nous (optionnel) ?"
+        rows={3}
+        style={{
+          width: '100%', padding: '12px 14px', borderRadius: 10,
+          background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+          color: 'var(--text)', fontSize: '0.85rem', boxSizing: 'border-box',
+          fontFamily: 'inherit', resize: 'vertical', outline: 'none', marginBottom: 14,
+        }}
+      />
+
+      <label style={{
+        display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+        padding: '10px 12px', borderRadius: 8, background: 'var(--night-mid)',
+        marginBottom: 18, textAlign: 'left',
+      }}>
+        <input
+          type="checkbox"
+          checked={allowTestimonial}
+          onChange={e => setAllowTestimonial(e.target.checked)}
+          style={{ accentColor: 'var(--orange)' }}
+        />
+        <span style={{ fontSize: '0.78rem', color: 'var(--text-mid)' }}>
+          J&#39;autorise BourbonMédia à utiliser mon avis comme témoignage public
+        </span>
+      </label>
+
+      <button
+        onClick={() => onSubmit(rating, comment, allowTestimonial)}
+        disabled={loading || rating === 0}
+        style={{
+          padding: '12px 28px', borderRadius: 10, background: 'var(--orange)',
+          color: '#fff', border: 'none', fontWeight: 700, fontSize: '0.88rem',
+          cursor: loading || rating === 0 ? 'not-allowed' : 'pointer',
+          opacity: loading || rating === 0 ? 0.5 : 1,
+          boxShadow: '0 2px 10px rgba(232,105,43,.3)',
+        }}
+      >{loading ? 'Envoi…' : existing ? 'Mettre à jour' : 'Envoyer mon avis'}</button>
     </div>
   );
 }

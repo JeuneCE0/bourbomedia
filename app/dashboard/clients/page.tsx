@@ -14,6 +14,10 @@ interface Client {
   status: string;
   filming_date?: string;
   publication_deadline?: string;
+  paid_at?: string;
+  payment_amount?: number;
+  delivered_at?: string;
+  tags?: string[];
   created_at: string;
 }
 
@@ -113,12 +117,33 @@ export default function ClientsPage() {
   const [showForm, setShowForm] = useState(false);
   const [formMounted, setFormMounted] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [cityFilter, setCityFilter] = useState('all');
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [paidFilter, setPaidFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
+  const [deliveredFilter, setDeliveredFilter] = useState<'all' | 'delivered' | 'pending'>('all');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortOption>('created_desc');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [toast, setToast] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
   const [form, setForm] = useState({ business_name: '', contact_name: '', email: '', phone: '', city: '', category: '' });
   const [saving, setSaving] = useState(false);
+
+  function notify(type: 'error' | 'success', msg: string) {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 4000);
+  }
+
+  function toggleSelected(id: string) {
+    setSelected(s => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
   const formRef = useRef<HTMLFormElement>(null);
 
   function exportCSV() {
@@ -192,9 +217,27 @@ export default function ClientsPage() {
     return counts;
   }, [clients]);
 
+  const allCities = useMemo(() => {
+    const set = new Set<string>();
+    clients.forEach(c => { if (c.city) set.add(c.city); });
+    return Array.from(set).sort();
+  }, [clients]);
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    clients.forEach(c => (c.tags || []).forEach(t => set.add(t)));
+    return Array.from(set).sort();
+  }, [clients]);
+
   const filtered = useMemo(() => {
     let result = clients.filter(c => {
       if (filter !== 'all' && c.status !== filter) return false;
+      if (cityFilter !== 'all' && c.city !== cityFilter) return false;
+      if (tagFilter && !(c.tags || []).includes(tagFilter)) return false;
+      if (paidFilter === 'paid' && !c.paid_at) return false;
+      if (paidFilter === 'unpaid' && c.paid_at) return false;
+      if (deliveredFilter === 'delivered' && !c.delivered_at) return false;
+      if (deliveredFilter === 'pending' && c.delivered_at) return false;
       if (search) {
         const q = search.toLowerCase();
         return c.business_name.toLowerCase().includes(q) || c.contact_name.toLowerCase().includes(q) || (c.city || '').toLowerCase().includes(q);
@@ -220,7 +263,67 @@ export default function ClientsPage() {
     });
 
     return result;
-  }, [clients, filter, search, sort]);
+  }, [clients, filter, cityFilter, tagFilter, paidFilter, deliveredFilter, search, sort]);
+
+  async function bulkUpdateStatus(status: string) {
+    if (selected.size === 0) return;
+    if (!confirm(`Changer le statut de ${selected.size} client(s) en "${STATUS_LABELS[status]}" ?`)) return;
+    setBulkSaving(true);
+    let ok = 0, fail = 0;
+    for (const id of selected) {
+      try {
+        const r = await fetch('/api/clients', {
+          method: 'PUT', headers: authHeaders(),
+          body: JSON.stringify({ id, status }),
+        });
+        if (r.ok) ok++; else fail++;
+      } catch { fail++; }
+    }
+    notify(fail > 0 ? 'error' : 'success', `${ok} mis à jour${fail > 0 ? `, ${fail} échec(s)` : ''}`);
+    setSelected(new Set());
+    setBulkSaving(false);
+    loadClients();
+  }
+
+  async function bulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`Supprimer ${selected.size} client(s) ? Cette action est irréversible.`)) return;
+    setBulkSaving(true);
+    let ok = 0, fail = 0;
+    for (const id of selected) {
+      try {
+        const r = await fetch('/api/clients', { method: 'DELETE', headers: authHeaders(), body: JSON.stringify({ id }) });
+        if (r.ok) ok++; else fail++;
+      } catch { fail++; }
+    }
+    notify(fail > 0 ? 'error' : 'success', `${ok} supprimé(s)${fail > 0 ? `, ${fail} échec(s)` : ''}`);
+    setSelected(new Set());
+    setBulkSaving(false);
+    loadClients();
+  }
+
+  function bulkExportCSV() {
+    if (selected.size === 0) return;
+    const subset = clients.filter(c => selected.has(c.id));
+    const header = ['Commerce', 'Contact', 'Email', 'Téléphone', 'Ville', 'Catégorie', 'Statut', 'Tags', 'Date tournage', 'Créé le'];
+    const rows = subset.map(c => [
+      c.business_name, c.contact_name, c.email || '', c.phone || '', c.city || '', c.category || '',
+      STATUS_LABELS[c.status] || c.status, (c.tags || []).join(' | '),
+      c.filming_date ? new Date(c.filming_date).toLocaleDateString('fr-FR') : '',
+      new Date(c.created_at).toLocaleDateString('fr-FR'),
+    ]);
+    const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [header, ...rows].map(r => r.map(escape).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `clients-selection-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div style={{ ...cssVars, padding: 'clamp(16px, 3vw, 32px)' }}>
@@ -460,6 +563,7 @@ export default function ClientsPage() {
           scrollbarWidth: 'none',
           WebkitOverflowScrolling: 'touch',
           msOverflowStyle: 'none',
+          alignItems: 'center',
         }}>
           <FilterBtn
             label="Tous"
@@ -477,8 +581,106 @@ export default function ClientsPage() {
               color={STATUS_COLORS[key]}
             />
           ))}
+          <button
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            style={{
+              padding: '6px 14px', borderRadius: 20, border: '1px solid var(--border-md)',
+              background: showAdvanced ? 'rgba(232,105,43,.12)' : 'transparent',
+              color: showAdvanced ? 'var(--orange)' : 'var(--text-muted)',
+              fontSize: '0.74rem', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+              marginLeft: 4,
+            }}
+          >
+            ⚙ Filtres avancés {showAdvanced ? '▲' : '▼'}
+          </button>
         </div>
+
+        {/* Advanced filters */}
+        {showAdvanced && (
+          <div style={{
+            display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center',
+            padding: '10px 14px', borderRadius: 10,
+            background: 'var(--night-card)', border: '1px solid var(--border)',
+          }}>
+            <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} style={advancedSelectStyle}>
+              <option value="all">Toutes les villes</option>
+              {allCities.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={paidFilter} onChange={e => setPaidFilter(e.target.value as 'all' | 'paid' | 'unpaid')} style={advancedSelectStyle}>
+              <option value="all">Tous (paiement)</option>
+              <option value="paid">Payés</option>
+              <option value="unpaid">Non payés</option>
+            </select>
+            <select value={deliveredFilter} onChange={e => setDeliveredFilter(e.target.value as 'all' | 'delivered' | 'pending')} style={advancedSelectStyle}>
+              <option value="all">Tous (livraison)</option>
+              <option value="delivered">Livrés</option>
+              <option value="pending">En cours</option>
+            </select>
+            {allTags.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Tags :</span>
+                {allTags.map(t => (
+                  <button key={t} onClick={() => setTagFilter(tagFilter === t ? null : t)} style={{
+                    padding: '3px 9px', borderRadius: 12, border: '1px solid',
+                    borderColor: tagFilter === t ? 'var(--orange)' : 'var(--border-md)',
+                    background: tagFilter === t ? 'rgba(232,105,43,.12)' : 'var(--night-mid)',
+                    color: tagFilter === t ? 'var(--orange)' : 'var(--text-muted)',
+                    fontSize: '0.7rem', cursor: 'pointer',
+                  }}>#{t}</button>
+                ))}
+              </div>
+            )}
+            {(cityFilter !== 'all' || paidFilter !== 'all' || deliveredFilter !== 'all' || tagFilter) && (
+              <button onClick={() => { setCityFilter('all'); setPaidFilter('all'); setDeliveredFilter('all'); setTagFilter(null); }}
+                style={{
+                  padding: '4px 10px', borderRadius: 8, background: 'transparent',
+                  border: '1px solid var(--border-md)', color: 'var(--text-muted)',
+                  fontSize: '0.7rem', cursor: 'pointer',
+                }}>Réinitialiser</button>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div style={{
+          position: 'sticky', top: 16, zIndex: 50, marginBottom: 16,
+          padding: '10px 16px', borderRadius: 10,
+          background: 'var(--night-card)', border: '1px solid var(--border-orange)',
+          boxShadow: '0 4px 16px rgba(0,0,0,.3)',
+          display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: '0.85rem', color: 'var(--orange)', fontWeight: 600 }}>
+            {selected.size} sélectionné{selected.size > 1 ? 's' : ''}
+          </span>
+          <select disabled={bulkSaving} onChange={e => { if (e.target.value) bulkUpdateStatus(e.target.value); e.target.value = ''; }} style={{
+            padding: '6px 10px', borderRadius: 6, background: 'var(--night-mid)',
+            border: '1px solid var(--border-md)', color: 'var(--text)', fontSize: '0.78rem', cursor: 'pointer',
+          }}>
+            <option value="">Changer statut…</option>
+            {Object.entries(STATUS_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+          <button onClick={bulkExportCSV} disabled={bulkSaving} style={bulkBtnStyle('var(--text-mid)')}>⇩ Exporter</button>
+          <button onClick={bulkDelete} disabled={bulkSaving} style={bulkBtnStyle('var(--red)')}>✕ Supprimer</button>
+          <button onClick={() => setSelected(new Set())} style={{
+            ...bulkBtnStyle('var(--text-muted)'), background: 'transparent', border: '1px solid var(--border-md)',
+          }}>Annuler</button>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 24, right: 24, zIndex: 1000,
+          padding: '12px 18px', borderRadius: 10, maxWidth: 420,
+          background: toast.type === 'error' ? 'rgba(239,68,68,.95)' : 'rgba(34,197,94,.95)',
+          color: '#fff', fontSize: '0.85rem', fontWeight: 500,
+          boxShadow: '0 8px 24px rgba(0,0,0,.4)',
+        }}>
+          {toast.msg}
+        </div>
+      )}
 
       {/* Client list / grid */}
       {loading ? (
@@ -549,21 +751,36 @@ export default function ClientsPage() {
         }}>
           {filtered.map(client => {
             const isHovered = hoveredCard === client.id;
+            const isSelected = selected.has(client.id);
             const avatarColor = getAvatarColor(client.business_name);
             const currentStepIdx = STEPS.indexOf(client.status);
 
             return (
+              <div key={client.id} style={{ position: 'relative' }}>
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSelected(client.id); }}
+                  title="Sélectionner"
+                  style={{
+                    position: 'absolute', top: 12, left: 12, zIndex: 5,
+                    width: 22, height: 22, borderRadius: 5,
+                    background: isSelected ? 'var(--orange)' : 'rgba(0,0,0,.5)',
+                    border: `1.5px solid ${isSelected ? 'var(--orange)' : 'var(--border-md)'}`,
+                    color: '#fff', cursor: 'pointer', fontSize: '0.7rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    opacity: isSelected || isHovered || selected.size > 0 ? 1 : 0,
+                    transition: 'opacity .15s',
+                  }}
+                >{isSelected ? '✓' : ''}</button>
               <Link
-                key={client.id}
                 href={`/dashboard/clients/${client.id}`}
                 onMouseEnter={() => setHoveredCard(client.id)}
                 onMouseLeave={() => setHoveredCard(null)}
                 style={{
                   display: 'block', textDecoration: 'none',
-                  background: isHovered ? 'var(--card-bg-hover)' : 'var(--card-bg)',
+                  background: isSelected ? 'rgba(232,105,43,.06)' : isHovered ? 'var(--card-bg-hover)' : 'var(--card-bg)',
                   borderRadius: 14,
-                  border: `1px solid ${isHovered ? 'var(--card-border-hover)' : 'var(--card-border)'}`,
-                  padding: viewMode === 'grid' ? '20px' : '16px 20px',
+                  border: `1px solid ${isSelected ? 'var(--border-orange)' : isHovered ? 'var(--card-border-hover)' : 'var(--card-border)'}`,
+                  padding: viewMode === 'grid' ? '20px 20px 20px 42px' : '16px 20px 16px 42px',
                   transition: `all var(--transition-med) cubic-bezier(0.4, 0, 0.2, 1)`,
                   transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
                   boxShadow: isHovered
@@ -656,6 +873,21 @@ export default function ClientsPage() {
                   })}
                 </div>
 
+                {/* Tags */}
+                {client.tags && client.tags.length > 0 && (
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
+                    {client.tags.slice(0, 4).map(t => (
+                      <span key={t} style={{
+                        fontSize: '0.65rem', padding: '2px 7px', borderRadius: 10,
+                        background: 'rgba(232,105,43,.08)', color: 'var(--orange)',
+                      }}>#{t}</span>
+                    ))}
+                    {client.tags.length > 4 && (
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>+{client.tags.length - 4}</span>
+                    )}
+                  </div>
+                )}
+
                 {/* Bottom row: filming date + last updated */}
                 <div style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -675,12 +907,31 @@ export default function ClientsPage() {
                   </div>
                 </div>
               </Link>
+              </div>
             );
           })}
         </div>
       )}
     </div>
   );
+}
+
+const advancedSelectStyle: React.CSSProperties = {
+  padding: '6px 10px', borderRadius: 6,
+  background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+  color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer',
+  appearance: 'none',
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238A7060' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 8px center',
+  paddingRight: 26,
+};
+
+function bulkBtnStyle(color: string): React.CSSProperties {
+  return {
+    padding: '6px 12px', borderRadius: 6, background: 'var(--night-mid)',
+    border: 'none', color, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 500,
+  };
 }
 
 function FilterBtn({ label, count, active, onClick, color }: {

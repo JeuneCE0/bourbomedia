@@ -78,6 +78,23 @@ export async function createEmbeddedCheckoutSession(params: {
   }
 }
 
+export async function getPaymentReceipt(paymentIntentId: string): Promise<{ receipt_url?: string; invoice_pdf?: string; invoice_number?: string } | null> {
+  if (!STRIPE_SECRET_KEY || !paymentIntentId) return null;
+  try {
+    const pi = await getStripe().paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge', 'invoice'] }) as unknown as {
+      latest_charge?: { receipt_url?: string };
+      invoice?: { invoice_pdf?: string; number?: string };
+    };
+    return {
+      receipt_url: pi.latest_charge?.receipt_url || undefined,
+      invoice_pdf: pi.invoice?.invoice_pdf || undefined,
+      invoice_number: pi.invoice?.number || undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyWebhookSignature(body: string, signature: string): Promise<Stripe.Event | null> {
   if (!STRIPE_WEBHOOK_SECRET) return null;
   try {
