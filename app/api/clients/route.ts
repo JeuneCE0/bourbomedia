@@ -13,12 +13,21 @@ async function logEvent(clientId: string, type: string, payload?: Record<string,
   } catch { /* non-blocking */ }
 }
 
+async function pushNotification(clientId: string, type: string, title: string, body?: string) {
+  try {
+    await supaFetch('client_notifications', {
+      method: 'POST',
+      body: JSON.stringify({ client_id: clientId, type, title, body: body || null }),
+    }, true);
+  } catch { /* non-blocking */ }
+}
+
 export async function GET(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   try {
     const id = req.nextUrl.searchParams.get('id');
     const path = id
-      ? `clients?id=eq.${id}&select=*,scripts(*)`
+      ? `clients?id=eq.${id}&select=*,scripts(*,script_comments(*)),videos(*)`
       : 'clients?select=*&order=created_at.desc';
     const r = await supaFetch(path, {}, true);
     if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
@@ -71,6 +80,7 @@ export async function PUT(req: NextRequest) {
       // Status change: script sent to client
       if (prev && fields.status === 'script_review' && prev.status !== 'script_review') {
         logEvent(id, 'script_sent_to_client', { version: updated.script_version });
+        pushNotification(id, 'script_ready', 'Votre script est prêt à relire ✍', 'Connectez-vous pour le consulter et le valider.');
         if (notifyEnabled && updated.ghl_contact_id) {
           const portalUrl = updated.portal_token ? `https://bourbonmedia.fr/portal?token=${updated.portal_token}` : '';
           await sendWhatsAppMessage(updated.ghl_contact_id,
@@ -90,6 +100,7 @@ export async function PUT(req: NextRequest) {
       // Delivery: video delivered
       if (prev && fields.delivered_at && !prev.delivered_at) {
         logEvent(id, 'video_delivered', { video_url: updated.video_url });
+        pushNotification(id, 'video_delivered', 'Votre vidéo est prête 🎬', 'Découvrez le résultat final dans votre espace.');
         if (notifyEnabled && updated.ghl_contact_id) {
           const portalUrl = updated.portal_token ? `https://bourbonmedia.fr/portal?token=${updated.portal_token}` : '';
           await sendWhatsAppMessage(updated.ghl_contact_id,
@@ -105,6 +116,13 @@ export async function PUT(req: NextRequest) {
              <p>Merci de nous avoir fait confiance !<br>L'équipe BourbonMédia</p>`
           );
         }
+      }
+
+      // Filming date set/changed
+      if (prev && fields.filming_date && prev.filming_date !== fields.filming_date) {
+        const d = new Date(fields.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+        pushNotification(id, 'filming_scheduled', `Tournage planifié 🎥`, `Votre tournage est prévu le ${d}.`);
+        logEvent(id, 'filming_scheduled', { date: fields.filming_date });
       }
 
       // Generic status change logging

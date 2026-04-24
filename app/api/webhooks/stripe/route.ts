@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyWebhookSignature } from '@/lib/stripe';
+import { verifyWebhookSignature, getPaymentReceipt } from '@/lib/stripe';
 import { supaFetch } from '@/lib/supabase';
 import { notifyClientStatusChange } from '@/lib/slack';
 
@@ -32,6 +32,9 @@ export async function POST(req: NextRequest) {
       }),
     }, true);
 
+    // Fetch the receipt + invoice URLs from Stripe
+    const receipt = session.payment_intent ? await getPaymentReceipt(session.payment_intent) : null;
+
     await supaFetch('payments', {
       method: 'POST',
       body: JSON.stringify({
@@ -42,8 +45,24 @@ export async function POST(req: NextRequest) {
         currency: 'eur',
         status: 'completed',
         description: 'Production vidéo BourbonMédia',
+        receipt_url: receipt?.receipt_url || null,
+        invoice_pdf_url: receipt?.invoice_pdf || null,
+        invoice_number: receipt?.invoice_number || null,
       }),
     }, true);
+
+    // Push portal notification
+    try {
+      await supaFetch('client_notifications', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_id: clientId,
+          type: 'payment_received',
+          title: 'Paiement reçu ✓',
+          body: `Merci ! Votre paiement de ${((session.amount_total || 0) / 100).toLocaleString('fr-FR')} € a bien été enregistré.`,
+        }),
+      }, true);
+    } catch { /* */ }
 
     const cr = await supaFetch(`clients?id=eq.${clientId}&select=business_name`, {}, true);
     if (cr.ok) {

@@ -16,7 +16,29 @@ interface Client {
   paid_at?: string;
   payment_amount?: number;
   delivered_at?: string;
+  tags?: string[];
 }
+
+interface ActivityItem {
+  id: string;
+  type: string;
+  payload: Record<string, unknown> | null;
+  actor: string;
+  created_at: string;
+  clients?: { business_name: string };
+  client_id: string;
+}
+
+const ACTIVITY_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+  status_changed: { label: 'Statut modifié', icon: '→', color: 'var(--text-mid)' },
+  script_sent_to_client: { label: 'Script envoyé', icon: '✉', color: 'var(--orange)' },
+  script_validated: { label: 'Script validé', icon: '✓', color: 'var(--green)' },
+  script_changes_requested: { label: 'Modifications demandées', icon: '✎', color: 'var(--yellow)' },
+  video_delivered: { label: 'Vidéo livrée', icon: '🎬', color: 'var(--green)' },
+  filming_scheduled: { label: 'Tournage planifié', icon: '📅', color: 'var(--orange)' },
+  satisfaction_submitted: { label: 'Avis client reçu', icon: '⭐', color: '#FACC15' },
+  payment_received: { label: 'Paiement reçu', icon: '💳', color: 'var(--green)' },
+};
 
 const STATUS_LABELS: Record<string, string> = {
   onboarding: 'Onboarding',
@@ -88,6 +110,7 @@ function getInitials(name: string): string {
 
 export default function DashboardPage() {
   const [clients, setClients] = useState<Client[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -100,7 +123,44 @@ export default function DashboardPage() {
       .then(d => { if (Array.isArray(d)) setClients(d); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+
+    fetch('/api/activity?limit=15', { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { if (Array.isArray(d)) setActivity(d); })
+      .catch(() => {});
   }, []);
+
+  // Monthly aggregates: revenue + delivered videos per month, last 6 months
+  const months: { key: string; label: string; revenue: number; delivered: number; created: number }[] = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    months.push({
+      key,
+      label: d.toLocaleDateString('fr-FR', { month: 'short' }),
+      revenue: 0, delivered: 0, created: 0,
+    });
+  }
+  clients.forEach(c => {
+    if (c.paid_at && c.payment_amount) {
+      const d = new Date(c.paid_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const m = months.find(x => x.key === key);
+      if (m) m.revenue += c.payment_amount / 100;
+    }
+    if (c.delivered_at) {
+      const d = new Date(c.delivered_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const m = months.find(x => x.key === key);
+      if (m) m.delivered += 1;
+    }
+    const created = new Date(c.created_at);
+    const ckey = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}`;
+    const cm = months.find(x => x.key === ckey);
+    if (cm) cm.created += 1;
+  });
+  const maxRevenue = Math.max(...months.map(m => m.revenue), 1);
 
   const statusCounts: Record<string, number> = {};
   clients.forEach(c => { statusCounts[c.status] = (statusCounts[c.status] || 0) + 1; });
@@ -409,6 +469,43 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Monthly performance chart */}
+          <div style={{
+            background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
+            padding: '20px 24px', marginBottom: 24,
+          }}>
+            <h2 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-mid)', margin: '0 0 18px' }}>
+              Performance — 6 derniers mois
+            </h2>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 140, padding: '0 4px' }}>
+              {months.map(m => {
+                const heightPct = (m.revenue / maxRevenue) * 100;
+                return (
+                  <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      {m.revenue > 0 ? `${m.revenue.toLocaleString('fr-FR')} €` : '—'}
+                    </div>
+                    <div style={{
+                      width: '100%', height: 80, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+                    }}>
+                      <div style={{
+                        width: '70%', height: `${Math.max(heightPct, m.revenue > 0 ? 4 : 0)}%`,
+                        background: m.revenue > 0 ? 'linear-gradient(180deg, var(--orange) 0%, #C45520 100%)' : 'var(--night-mid)',
+                        borderRadius: '4px 4px 0 0', minHeight: m.revenue > 0 ? 4 : 0,
+                        transition: 'height .4s ease',
+                      }} />
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{m.label}</div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', gap: 6 }}>
+                      <span title="Vidéos livrées">🎬 {m.delivered}</span>
+                      <span title="Nouveaux clients">＋ {m.created}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Bottom two-column layout */}
           <div style={{
             display: 'grid',
@@ -526,10 +623,65 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+
+          {/* Global activity feed */}
+          {activity.length > 0 && (
+            <div style={{
+              background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
+              padding: '20px 24px', marginTop: 24,
+            }}>
+              <h2 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-mid)', margin: '0 0 16px' }}>
+                Activité récente
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {activity.slice(0, 12).map(ev => {
+                  const meta = ACTIVITY_LABELS[ev.type] || { label: ev.type, icon: '•', color: 'var(--text-muted)' };
+                  return (
+                    <Link key={ev.id} href={`/dashboard/clients/${ev.client_id}`} style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '8px 10px',
+                      borderRadius: 8, textDecoration: 'none', transition: 'background .15s',
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--night-mid)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <span style={{
+                        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                        background: 'var(--night-mid)', border: `2px solid ${meta.color}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.78rem', color: meta.color,
+                      }}>{meta.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ color: 'var(--text)' }}>{ev.clients?.business_name || 'Client'}</span>
+                          <span style={{ color: 'var(--text-muted)' }}> — {meta.label}</span>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {relativeTime(ev.created_at)}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
   );
+}
+
+function relativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "À l'instant";
+  if (mins < 60) return `Il y a ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `Il y a ${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Hier';
+  if (days < 30) return `Il y a ${days} j`;
+  return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
 /* ---------- Sub-components ---------- */

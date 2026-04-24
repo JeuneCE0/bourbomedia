@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (portalToken) {
     try {
       const cr = await supaFetch(
-        `clients?portal_token=eq.${portalToken}&select=id,business_name,contact_name,video_url,video_thumbnail_url,delivery_notes,delivered_at,status`,
+        `clients?portal_token=eq.${portalToken}&select=id,business_name,contact_name,video_url,video_thumbnail_url,delivery_notes,delivered_at,status,filming_date,publication_deadline,contract_pdf_url,contract_signature_link`,
         {},
         true
       );
@@ -20,11 +20,19 @@ export async function GET(req: NextRequest) {
       const clients = await cr.json();
       if (!clients.length) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
       const c = clients[0];
-      const r = await supaFetch(`scripts?client_id=eq.${c.id}&select=*,script_comments(*)`, {}, true);
-      if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
-      const data = await r.json();
+
+      const [scriptR, videosR, paymentsR] = await Promise.all([
+        supaFetch(`scripts?client_id=eq.${c.id}&select=*,script_comments(*)`, {}, true),
+        supaFetch(`videos?client_id=eq.${c.id}&status=eq.delivered&select=*&order=created_at.desc`, {}, true),
+        supaFetch(`payments?client_id=eq.${c.id}&status=eq.completed&select=id,amount,currency,description,receipt_url,invoice_pdf_url,invoice_number,created_at&order=created_at.desc`, {}, true),
+      ]);
+
+      const scriptData = scriptR.ok ? await scriptR.json() : [];
+      const videos = videosR.ok ? await videosR.json() : [];
+      const payments = paymentsR.ok ? await paymentsR.json() : [];
+
       return NextResponse.json({
-        script: data[0] || null,
+        script: scriptData[0] || null,
         client: {
           business_name: c.business_name,
           contact_name: c.contact_name,
@@ -33,7 +41,13 @@ export async function GET(req: NextRequest) {
           video_thumbnail_url: c.video_thumbnail_url,
           delivery_notes: c.delivery_notes,
           delivered_at: c.delivered_at,
+          filming_date: c.filming_date,
+          publication_deadline: c.publication_deadline,
+          contract_pdf_url: c.contract_pdf_url,
+          contract_signature_link: c.contract_signature_link,
         },
+        videos,
+        payments,
       });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
@@ -84,6 +98,15 @@ export async function PUT(req: NextRequest) {
 
       const { action } = await req.json();
 
+      async function logEvent(type: string, payload: Record<string, unknown> = {}) {
+        try {
+          await supaFetch('client_events', {
+            method: 'POST',
+            body: JSON.stringify({ client_id: cid, type, payload, actor: 'client' }),
+          }, true);
+        } catch { /* */ }
+      }
+
       if (action === 'validate') {
         const sr = await supaFetch(`scripts?client_id=eq.${cid}`, {
           method: 'PATCH',
@@ -117,6 +140,7 @@ export async function PUT(req: NextRequest) {
         if (filmingDate) {
           notifyFilmingScheduled(client.business_name || 'Client', filmingDate);
         }
+        logEvent('script_validated', filmingDate ? { filming_date: filmingDate } : {});
 
         // GHL WhatsApp + Email notifications
         if (client.ghl_contact_id) {
@@ -154,6 +178,8 @@ export async function PUT(req: NextRequest) {
           method: 'PATCH',
           body: JSON.stringify({ status: 'script_review', updated_at: new Date().toISOString() }),
         }, true);
+
+        logEvent('script_changes_requested');
 
         const data = await sr.json();
         return NextResponse.json(data[0]);
