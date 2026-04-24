@@ -87,8 +87,11 @@ function PrintContent() {
         @media print {
           .print-btn { display: none; }
           .print-wrap { padding: 20px; }
+          .ProseMirror h1, .ProseMirror h2 { page-break-after: avoid; }
+          .ProseMirror p, .ProseMirror li { orphans: 3; widows: 3; }
+          .print-footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; }
         }
-        @page { margin: 20mm; }
+        @page { margin: 18mm 20mm; }
       `}</style>
 
       <button className="print-btn" onClick={() => window.print()}>Imprimer / PDF</button>
