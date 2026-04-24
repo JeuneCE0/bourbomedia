@@ -110,7 +110,8 @@ export async function POST(req: NextRequest) {
       }
       if (!ghlContactId) return NextResponse.json({ error: 'Erreur création contact GHL' }, { status: 500 });
 
-      const result = await sendDocumentFromTemplate(templateId, ghlContactId, client.contact_name, client.email);
+      const ghlUserId = process.env.GHL_USER_ID || '';
+      const result = await sendDocumentFromTemplate(templateId, ghlContactId, ghlUserId);
       if (!result) return NextResponse.json({ error: 'Erreur envoi contrat GHL' }, { status: 500 });
 
       await supaFetch(`clients?id=eq.${client.id}`, {

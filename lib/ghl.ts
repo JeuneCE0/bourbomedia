@@ -60,16 +60,16 @@ export function getLocationId() {
 }
 
 // ============================================================
-// Documents & Contracts
+// Documents & Contracts (GHL API: /proposals/*)
 // ============================================================
 
 const GHL_CONTRACT_TEMPLATE_NAME = process.env.GHL_CONTRACT_TEMPLATE_NAME || 'CONTRAT BBP - CLIENT';
 
-export async function listDocumentTemplates(): Promise<Array<{ id: string; name: string }>> {
+export async function listDocumentTemplates(): Promise<Array<{ id: string; _id: string; name: string }>> {
   if (!GHL_API_KEY || !LOCATION_ID) return [];
   try {
-    const data = await ghlRequest('GET', `/documents/templates/?locationId=${LOCATION_ID}`);
-    return data?.templates || data?.data || [];
+    const data = await ghlRequest('GET', `/proposals/templates?locationId=${LOCATION_ID}`);
+    return data?.data || [];
   } catch {
     return [];
   }
@@ -77,28 +77,24 @@ export async function listDocumentTemplates(): Promise<Array<{ id: string; name:
 
 export async function findContractTemplateId(): Promise<string | null> {
   const templates = await listDocumentTemplates();
-  const tpl = templates.find((t: { name: string }) =>
-    t.name === GHL_CONTRACT_TEMPLATE_NAME
-  );
-  return tpl?.id || null;
+  const tpl = templates.find((t) => t.name === GHL_CONTRACT_TEMPLATE_NAME);
+  return tpl?.id || tpl?._id || null;
 }
 
-export async function sendDocumentFromTemplate(templateId: string, contactId: string, contactName: string, contactEmail: string): Promise<{ documentId: string; signingUrl: string } | null> {
+export async function sendDocumentFromTemplate(templateId: string, contactId: string, userId: string): Promise<{ documentId: string; signingUrl: string } | null> {
   if (!GHL_API_KEY || !LOCATION_ID) return null;
   try {
-    const data = await ghlRequest('POST', '/documents/templates/send', {
+    const data = await ghlRequest('POST', '/proposals/templates/send', {
       locationId: LOCATION_ID,
       templateId,
-      recipients: [{
-        contactId,
-        name: contactName,
-        email: contactEmail,
-        role: 'signer',
-      }],
+      contactId,
+      userId,
+      sendDocument: true,
     });
+    const link = data?.links?.[0];
     return {
-      documentId: data?.id || data?.documentId || '',
-      signingUrl: data?.signingUrl || data?.signing_url || data?.url || '',
+      documentId: link?.documentId || data?.documentId || '',
+      signingUrl: link?.referenceId ? `https://app.gohighlevel.com/v2/preview/${link.documentId}?referenceId=${link.referenceId}` : '',
     };
   } catch {
     return null;
@@ -108,10 +104,14 @@ export async function sendDocumentFromTemplate(templateId: string, contactId: st
 export async function getDocumentStatus(documentId: string): Promise<{ status: string; signedAt?: string } | null> {
   if (!GHL_API_KEY || !LOCATION_ID) return null;
   try {
-    const data = await ghlRequest('GET', `/documents/${documentId}?locationId=${LOCATION_ID}`);
+    const data = await ghlRequest('GET', `/proposals/document?locationId=${LOCATION_ID}&query=${documentId}&limit=1`);
+    const doc = data?.data?.[0];
+    if (!doc) return null;
+    const status = Array.isArray(doc.status) ? doc.status[0] : doc.status;
+    const isCompleted = status === 'completed' || status === 'accepted';
     return {
-      status: data?.status || 'pending',
-      signedAt: data?.signedAt || data?.signed_at || data?.completedAt || undefined,
+      status: status || 'pending',
+      signedAt: isCompleted ? doc.updatedAt : undefined,
     };
   } catch {
     return null;
