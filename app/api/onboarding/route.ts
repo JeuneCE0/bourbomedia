@@ -75,6 +75,25 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Login: client resumes onboarding with email + password
+  if (action === 'login') {
+    try {
+      const { email, password } = body;
+      if (!email || !password) return NextResponse.json({ error: 'Email et mot de passe requis' }, { status: 400 });
+      const r = await supaFetch(`clients?email=eq.${encodeURIComponent(email)}&select=id,onboarding_token,password_hash`, {}, true);
+      if (!r.ok) return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+      const results = await r.json();
+      if (!results.length) return NextResponse.json({ error: 'Aucun compte trouvé avec cet email' }, { status: 404 });
+      const found = results[0];
+      if (found.password_hash !== hashPassword(password)) {
+        return NextResponse.json({ error: 'Mot de passe incorrect' }, { status: 401 });
+      }
+      return NextResponse.json({ token: found.onboarding_token });
+    } catch (e: unknown) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    }
+  }
+
   // All other actions require a valid onboarding token
   if (!token) return NextResponse.json({ error: 'Token requis' }, { status: 400 });
 
@@ -101,16 +120,14 @@ export async function POST(req: NextRequest) {
           phone: client.phone || undefined,
           companyName: client.business_name,
         });
-        if (ghlContactId) {
-          await supaFetch(`clients?id=eq.${client.id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ ghl_contact_id: ghlContactId }),
-          }, true);
-        }
+        await supaFetch(`clients?id=eq.${client.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ ghl_contact_id: ghlContactId }),
+        }, true);
       }
-      if (!ghlContactId) return NextResponse.json({ error: 'Erreur création contact GHL' }, { status: 500 });
 
-      const result = await sendDocumentFromTemplate(templateId, ghlContactId, client.contact_name, client.email);
+      const ghlUserId = process.env.GHL_USER_ID || '';
+      const result = await sendDocumentFromTemplate(templateId, ghlContactId, ghlUserId);
       if (!result) return NextResponse.json({ error: 'Erreur envoi contrat GHL' }, { status: 500 });
 
       await supaFetch(`clients?id=eq.${client.id}`, {
