@@ -371,113 +371,270 @@ function OnboardingContent() {
     </div>
   );
 
-  // Step 1: Account creation form
+  // Step 1: Account creation + login/resume
+  const [mode, setMode] = useState<'signup' | 'login'>('signup');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
+  const handleLogin = async () => {
+    setError('');
+    if (!loginEmail || !loginPassword) {
+      setError('Email et mot de passe requis');
+      return;
+    }
+    setLoading(true);
+    try {
+      const r = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', email: loginEmail, password: loginPassword }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error);
+      localStorage.setItem('ob_token', data.token);
+      setToken(data.token);
+      router.replace(`/onboarding?token=${data.token}`);
+      await fetchClient(data.token);
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderStep1 = () => (
     <div style={cardStyle}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 8 }}>◉</div>
-        <h2 style={{ color: 'var(--white)', fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>
-          Créez votre compte
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-          Bienvenue chez BourbonMédia ! Commencez par créer votre espace client.
-        </p>
-      </div>
+      {mode === 'signup' ? (
+        <>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(234,88,12,.25))',
+              border: '1px solid rgba(249,115,22,.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              fontSize: '1.5rem',
+              color: 'var(--orange)',
+            }}>
+              &#9993;
+            </div>
+            <h2 style={{ color: 'var(--white)', fontSize: '1.6rem', fontWeight: 800, margin: 0, letterSpacing: '-.3px' }}>
+              Bienvenue
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 10, lineHeight: 1.5 }}>
+              Cr&eacute;ons votre espace client en quelques &eacute;tapes simples
+            </p>
+          </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Nom de l&apos;entreprise *
-          </label>
-          <input
-            style={inputStyle}
-            placeholder="Ex: Ma Super Entreprise"
-            value={form.business_name}
-            onChange={e => setForm({ ...form, business_name: e.target.value })}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Nom du contact *
-          </label>
-          <input
-            style={inputStyle}
-            placeholder="Prénom Nom"
-            value={form.contact_name}
-            onChange={e => setForm({ ...form, contact_name: e.target.value })}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Email *
-          </label>
-          <input
-            type="email"
-            style={inputStyle}
-            placeholder="email@entreprise.re"
-            value={form.email}
-            onChange={e => setForm({ ...form, email: e.target.value })}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Téléphone
-          </label>
-          <input
-            type="tel"
-            style={inputStyle}
-            placeholder="0692 XX XX XX"
-            value={form.phone}
-            onChange={e => setForm({ ...form, phone: e.target.value })}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Mot de passe *
-          </label>
-          <input
-            type="password"
-            style={inputStyle}
-            placeholder="6 caractères minimum"
-            value={form.password}
-            onChange={e => setForm({ ...form, password: e.target.value })}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-mid)', marginBottom: 6, display: 'block' }}>
-            Confirmer le mot de passe *
-          </label>
-          <input
-            type="password"
-            style={inputStyle}
-            placeholder="Répétez le mot de passe"
-            value={form.passwordConfirm}
-            onChange={e => setForm({ ...form, passwordConfirm: e.target.value })}
-          />
-        </div>
-      </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Entreprise</label>
+              <input
+                style={inputStyle}
+                placeholder="Nom de votre entreprise"
+                value={form.business_name}
+                onChange={e => setForm({ ...form, business_name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Votre nom</label>
+              <input
+                style={inputStyle}
+                placeholder="Pr&eacute;nom Nom"
+                value={form.contact_name}
+                onChange={e => setForm({ ...form, contact_name: e.target.value })}
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Email</label>
+                <input
+                  type="email"
+                  style={inputStyle}
+                  placeholder="email@pro.re"
+                  value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>T&eacute;l&eacute;phone</label>
+                <input
+                  type="tel"
+                  style={inputStyle}
+                  placeholder="0692..."
+                  value={form.phone}
+                  onChange={e => setForm({ ...form, phone: e.target.value })}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Mot de passe</label>
+                <input
+                  type="password"
+                  style={inputStyle}
+                  placeholder="6+ caract&egrave;res"
+                  value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Confirmer</label>
+                <input
+                  type="password"
+                  style={inputStyle}
+                  placeholder="R&eacute;p&eacute;ter"
+                  value={form.passwordConfirm}
+                  onChange={e => setForm({ ...form, passwordConfirm: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
 
-      {error && (
-        <div style={{
-          marginTop: 16,
-          padding: '10px 14px',
-          background: 'rgba(239,68,68,.1)',
-          border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 8,
-          color: 'var(--red)',
-          fontSize: '0.85rem',
-        }}>
-          {error}
-        </div>
+          {error && (
+            <div style={{
+              marginTop: 18,
+              padding: '12px 16px',
+              background: 'rgba(239,68,68,.08)',
+              borderLeft: '3px solid var(--red)',
+              borderRadius: 8,
+              color: '#fca5a5',
+              fontSize: '0.85rem',
+              lineHeight: 1.5,
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleCreateAccount}
+            disabled={loading}
+            style={{ ...btnPrimary, marginTop: 24, opacity: loading ? 0.6 : 1 }}
+          >
+            {loading ? 'Cr&eacute;ation en cours...' : 'Cr&eacute;er mon compte'}
+          </button>
+
+          <div style={{
+            marginTop: 24,
+            paddingTop: 20,
+            borderTop: '1px solid rgba(255,255,255,.06)',
+            textAlign: 'center',
+          }}>
+            <button
+              onClick={() => { setMode('login'); setError(''); }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                padding: 4,
+              }}
+            >
+              D&eacute;j&agrave; un compte ? <span style={{ color: 'var(--orange)', fontWeight: 600 }}>Reprendre mon onboarding</span>
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, rgba(249,115,22,.15), rgba(234,88,12,.25))',
+              border: '1px solid rgba(249,115,22,.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              fontSize: '1.5rem',
+              color: 'var(--orange)',
+            }}>
+              &#8618;
+            </div>
+            <h2 style={{ color: 'var(--white)', fontSize: '1.6rem', fontWeight: 800, margin: 0, letterSpacing: '-.3px' }}>
+              Reprendre
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 10, lineHeight: 1.5 }}>
+              Connectez-vous pour reprendre votre onboarding l&agrave; o&ugrave; vous en &eacute;tiez
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input
+                type="email"
+                style={inputStyle}
+                placeholder="email@pro.re"
+                value={loginEmail}
+                onChange={e => setLoginEmail(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleLogin(); }}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Mot de passe</label>
+              <input
+                type="password"
+                style={inputStyle}
+                placeholder="Votre mot de passe"
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleLogin(); }}
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div style={{
+              marginTop: 18,
+              padding: '12px 16px',
+              background: 'rgba(239,68,68,.08)',
+              borderLeft: '3px solid var(--red)',
+              borderRadius: 8,
+              color: '#fca5a5',
+              fontSize: '0.85rem',
+              lineHeight: 1.5,
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleLogin}
+            disabled={loading}
+            style={{ ...btnPrimary, marginTop: 24, opacity: loading ? 0.6 : 1 }}
+          >
+            {loading ? 'Connexion...' : 'Me connecter'}
+          </button>
+
+          <div style={{
+            marginTop: 24,
+            paddingTop: 20,
+            borderTop: '1px solid rgba(255,255,255,.06)',
+            textAlign: 'center',
+          }}>
+            <button
+              onClick={() => { setMode('signup'); setError(''); }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                padding: 4,
+              }}
+            >
+              Pas encore de compte ? <span style={{ color: 'var(--orange)', fontWeight: 600 }}>Cr&eacute;er mon compte</span>
+            </button>
+          </div>
+        </>
       )}
-
-      <button
-        onClick={handleCreateAccount}
-        disabled={loading}
-        style={{ ...btnPrimary, marginTop: 24, opacity: loading ? 0.6 : 1 }}
-      >
-        {loading ? 'Création en cours…' : 'Créer mon compte'}
-      </button>
     </div>
   );
 
