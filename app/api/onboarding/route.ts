@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { requireAuth } from '@/lib/auth';
 import { createCheckoutSession } from '@/lib/stripe';
-import { createSignatureRequest, uploadDocument, addSigner, activateSignatureRequest, getSignatureRequestStatus } from '@/lib/yousign';
+import { findContractTemplateId, sendDocumentFromTemplate, getDocumentStatus, createGhlContact } from '@/lib/ghl';
 import { notifyClientStatusChange } from '@/lib/slack';
 import crypto from 'crypto';
 
@@ -84,59 +84,63 @@ export async function POST(req: NextRequest) {
   if (!clients.length) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
   const client = clients[0];
 
-  // Step 2: Initiate contract signing
+  // Step 2: Initiate contract signing via GHL Documents
   if (action === 'init_contract') {
     try {
-      const sigReqId = await createSignatureRequest(`Contrat — ${client.business_name}`);
-      if (!sigReqId) return NextResponse.json({ error: 'Erreur Yousign' }, { status: 500 });
+      const templateId = await findContractTemplateId();
+      if (!templateId) return NextResponse.json({ error: 'Modèle de contrat introuvable dans GHL' }, { status: 400 });
 
-      // Get contract template
-      const tplR = await supaFetch('contract_templates?active=eq.true&limit=1', {}, true);
-      const templates = tplR.ok ? await tplR.json() : [];
-      if (!templates.length) return NextResponse.json({ error: 'Aucun modèle de contrat configuré' }, { status: 400 });
+      // Create GHL contact if not already linked
+      let ghlContactId = client.ghl_contact_id;
+      if (!ghlContactId) {
+        const nameParts = client.contact_name.trim().split(' ');
+        ghlContactId = await createGhlContact({
+          firstName: nameParts[0],
+          lastName: nameParts.slice(1).join(' ') || nameParts[0],
+          email: client.email,
+          phone: client.phone || undefined,
+          companyName: client.business_name,
+        });
+        if (ghlContactId) {
+          await supaFetch(`clients?id=eq.${client.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ ghl_contact_id: ghlContactId }),
+          }, true);
+        }
+      }
+      if (!ghlContactId) return NextResponse.json({ error: 'Erreur création contact GHL' }, { status: 500 });
 
-      const docId = await uploadDocument(sigReqId, templates[0].file_base64, 'contrat.pdf');
-      if (!docId) return NextResponse.json({ error: 'Erreur upload document' }, { status: 500 });
-
-      const nameParts = client.contact_name.trim().split(' ');
-      const signer = await addSigner(sigReqId, docId, {
-        firstName: nameParts[0],
-        lastName: nameParts.slice(1).join(' ') || nameParts[0],
-        email: client.email,
-        phone: client.phone,
-      });
-      if (!signer) return NextResponse.json({ error: 'Erreur ajout signataire' }, { status: 500 });
-
-      await activateSignatureRequest(sigReqId);
+      const result = await sendDocumentFromTemplate(templateId, ghlContactId, client.contact_name, client.email);
+      if (!result) return NextResponse.json({ error: 'Erreur envoi contrat GHL' }, { status: 500 });
 
       await supaFetch(`clients?id=eq.${client.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          contract_yousign_id: sigReqId,
-          contract_signature_link: signer.signatureLink,
+          contract_yousign_id: result.documentId,
+          contract_signature_link: result.signingUrl,
         }),
       }, true);
 
-      return NextResponse.json({ signatureLink: signer.signatureLink });
+      return NextResponse.json({ signatureLink: result.signingUrl, documentId: result.documentId });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
     }
   }
 
-  // Step 2: Check contract status
+  // Step 2: Check contract status via GHL
   if (action === 'check_contract') {
     try {
       if (!client.contract_yousign_id) return NextResponse.json({ signed: false });
-      const status = await getSignatureRequestStatus(client.contract_yousign_id);
-      if (status === 'done') {
+      const doc = await getDocumentStatus(client.contract_yousign_id);
+      if (doc && (doc.status === 'completed' || doc.status === 'signed')) {
         await supaFetch(`clients?id=eq.${client.id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ contract_signed_at: new Date().toISOString(), onboarding_step: 3 }),
+          body: JSON.stringify({ contract_signed_at: doc.signedAt || new Date().toISOString(), onboarding_step: 3 }),
         }, true);
         notifyClientStatusChange(client.business_name, 'Étape 2', 'Contrat signé');
         return NextResponse.json({ signed: true });
       }
-      return NextResponse.json({ signed: false, status });
+      return NextResponse.json({ signed: false, status: doc?.status || 'pending' });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
     }
