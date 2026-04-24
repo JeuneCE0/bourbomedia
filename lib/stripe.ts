@@ -73,8 +73,8 @@ export async function createEmbeddedCheckoutSession(params: {
       return_url: params.returnUrl,
     } as any);
     return session.client_secret;
-  } catch {
-    return null;
+  } catch (e: unknown) {
+    throw new Error('Stripe: ' + ((e as Error).message || 'Erreur inconnue'));
   }
 }
 
