@@ -181,74 +181,61 @@ export default function PipelinePage() {
 function Column({ emoji, label, color, items }: { emoji: string; label: string; color: string; items: Appointment[] }) {
   return (
     <div style={{
-      background: 'var(--night-card)', borderRadius: 12,
+      background: 'var(--night-card)', borderRadius: 10,
       border: `1px solid ${items.length > 0 ? color + '40' : 'var(--border)'}`,
-      padding: 12, display: 'flex', flexDirection: 'column', gap: 8,
-      minHeight: 100,
+      padding: 10, display: 'flex', flexDirection: 'column', gap: 6,
+      maxHeight: 'calc(100vh - 220px)',
     }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 8, paddingBottom: 8, borderBottom: '1px solid var(--border)',
+        gap: 6, paddingBottom: 6, borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <span aria-hidden style={{ fontSize: '0.95rem' }}>{emoji}</span>
-          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <span aria-hidden style={{ fontSize: '0.85rem' }}>{emoji}</span>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {label}
           </span>
         </div>
         <span style={{
-          padding: '2px 8px', borderRadius: 999, fontSize: '0.66rem', fontWeight: 700,
+          padding: '1px 7px', borderRadius: 999, fontSize: '0.62rem', fontWeight: 700,
           background: items.length > 0 ? color + '20' : 'var(--night-mid)',
           color: items.length > 0 ? color : 'var(--text-muted)',
           border: `1px solid ${items.length > 0 ? color + '40' : 'var(--border-md)'}`,
+          flexShrink: 0,
         }}>{items.length}</span>
       </div>
-      {items.length === 0 ? (
-        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', padding: '12px 4px', fontStyle: 'italic' }}>
-          Aucun prospect ici
-        </div>
-      ) : (
-        items.map(a => <Card key={a.id} appt={a} />)
-      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto', flex: 1 }}>
+        {items.length === 0 ? (
+          <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', padding: '8px 4px', fontStyle: 'italic' }}>
+            Aucun prospect ici
+          </div>
+        ) : (
+          items.map(a => <Card key={a.id} appt={a} />)
+        )}
+      </div>
     </div>
   );
 }
 
 function Card({ appt }: { appt: Appointment }) {
-  const status = appt.prospect_status ? STATUS_BY_KEY[appt.prospect_status] : null;
   return (
-    <div style={{
-      padding: '10px 12px', borderRadius: 8,
-      background: 'var(--night-mid)', border: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column', gap: 4,
-    }}>
-      <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {appt.opportunity_name || appt.contact_name || appt.contact_email || 'Sans nom'}
-      </div>
-      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-        📞 {relativeDate(appt.starts_at)}
-        {appt.contact_email && appt.opportunity_name && ` · ${appt.contact_email}`}
-      </div>
-      {appt.notes && (
-        <div style={{
-          fontSize: '0.7rem', color: 'var(--text-mid)', marginTop: 4,
-          padding: '6px 8px', background: 'var(--night-raised)', borderRadius: 6,
-          maxHeight: 60, overflow: 'hidden', textOverflow: 'ellipsis',
-          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-        }}>
-          {appt.notes}
+    <div
+      title={appt.notes || ''}
+      style={{
+        padding: '6px 10px', borderRadius: 6,
+        background: 'var(--night-mid)', border: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+        cursor: appt.notes ? 'help' : 'default',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {appt.opportunity_name || appt.contact_name || appt.contact_email || 'Sans nom'}
         </div>
-      )}
-      {status && (
-        <span style={{
-          alignSelf: 'flex-start', marginTop: 2,
-          fontSize: '0.62rem', padding: '2px 7px', borderRadius: 999,
-          background: status.color + '20', color: status.color,
-          border: `1px solid ${status.color}40`, fontWeight: 600,
-        }}>
-          {status.emoji} {status.label}
-        </span>
-      )}
+      </div>
+      <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', flexShrink: 0 }}>
+        {relativeDate(appt.starts_at)}
+      </span>
     </div>
   );
 }

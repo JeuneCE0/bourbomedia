@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
   const nowIso = new Date().toISOString();
 
   // Run lookups in parallel
-  const [bookedRes, allClosingsRes, clientsRes, settingsAds] = await Promise.all([
+  const [bookedRes, allClosingsRes, clientsRes, settingsAds, leadsRes, pipelineSnapshotRes] = await Promise.all([
     // Calls booked (created in range, closing only)
     supaFetch(
       `gh_appointments?calendar_kind=eq.closing`
@@ -74,6 +74,18 @@ export async function GET(req: NextRequest) {
       {}, true,
     ),
     getSetting('ads_budget_monthly_cents'),
+    // New leads in period (opportunities created in the pipeline during [from, to])
+    supaFetch(
+      `gh_opportunities?ghl_created_at=gte.${enc(fromIso)}&ghl_created_at=lte.${enc(toIso)}`
+      + `&select=id,monetary_value_cents,prospect_status`,
+      {}, true,
+    ),
+    // Pipeline snapshot (for value of currently-open opportunities)
+    supaFetch(
+      `gh_opportunities?prospect_status=in.(reflection,follow_up,awaiting_signature)`
+      + `&select=id,monetary_value_cents,prospect_status`,
+      {}, true,
+    ),
   ]);
 
   const booked = bookedRes.ok ? await bookedRes.json() : [];
@@ -141,15 +153,43 @@ export async function GET(req: NextRequest) {
   const revenue_won_ht_cents = calls_won * STANDARD_VIDEO_PRICE_HT_CENTS;
   const gross_profit_cents = revenue_paid_cents - ads_budget_cents - provider_fees_cents;
 
+  // ── New funnel metrics from gh_opportunities ────────────────────────────
+  interface OppRow { id: string; monetary_value_cents: number | null; prospect_status: string | null }
+  const leads: OppRow[] = leadsRes.ok ? await leadsRes.json() : [];
+  const pipelineSnapshot: OppRow[] = pipelineSnapshotRes.ok ? await pipelineSnapshotRes.json() : [];
+
+  // new_leads = total opportunities created in [from, to] (regardless of stage)
+  const new_leads = leads.length;
+  // booking_rate = closings_booked / new_leads — % de leads qui ont réservé un appel
+  const booking_rate = new_leads > 0 ? Math.round((calls_booked / new_leads) * 100) : null;
+  // attendance_rate = calls_done / calls_booked — % de RDV honorés (vs no_show/cancelled)
+  const attendance_rate = calls_booked > 0 ? Math.round((calls_done / calls_booked) * 100) : null;
+
+  // Pipeline value : somme des monetary_value des opportunités encore actives
+  // (réflexion / follow_up / awaiting_signature). Fallback : 500€ HT × count.
+  const pipeline_open_count = pipelineSnapshot.length;
+  const pipeline_value_cents = pipelineSnapshot.reduce(
+    (s, o) => s + (o.monetary_value_cents || STANDARD_VIDEO_PRICE_HT_CENTS),
+    0,
+  );
+
   return NextResponse.json({
     range: { from: fromIso, to: toIso },
+    // Funnel
+    new_leads,
     calls_booked,
     calls_done,
     calls_won,
     calls_no_show,
     calls_cancelled,
+    booking_rate,
+    attendance_rate,
     closing_rate,
     new_prospects,
+    // Pipeline (snapshot, pas borné par la période)
+    pipeline_open_count,
+    pipeline_value_cents,
+    // CA
     revenue_paid_cents,
     revenue_won_ht_cents,
     ads_budget_cents,

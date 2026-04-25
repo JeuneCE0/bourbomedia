@@ -318,15 +318,15 @@ export default function CalendarPage() {
   }
 
   const cssVars = {
-    '--cal-cell-min': '92px',
-    '--cal-cell-pad': '6px 8px',
-    '--cal-font-day': '0.78rem',
-    '--cal-font-slot': '0.7rem',
-    '--cal-gap': '3px',
+    '--cal-cell-min': '130px',
+    '--cal-cell-pad': '8px 10px',
+    '--cal-font-day': '0.92rem',
+    '--cal-font-slot': '0.78rem',
+    '--cal-gap': '4px',
   } as React.CSSProperties;
 
   return (
-    <div style={{ padding: 'clamp(20px, 4vw, 32px)', maxWidth: 1200, margin: '0 auto', ...cssVars }}>
+    <div style={{ padding: 'clamp(16px, 2.5vw, 28px)', maxWidth: '100%', margin: '0 auto', ...cssVars }}>
       <style>{`
         @media (max-width: 768px) {
           .cal-root {

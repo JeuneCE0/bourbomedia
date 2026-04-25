@@ -87,12 +87,17 @@ function rangeToIsoBounds(r: Range): { from: string; to: string } {
 }
 
 interface ClosingStatsRange {
+  new_leads: number;
   calls_booked: number;
   calls_done: number;
   calls_won: number;
   calls_no_show: number;
+  booking_rate: number | null;
+  attendance_rate: number | null;
   closing_rate: number | null;
   new_prospects: number;
+  pipeline_open_count: number;
+  pipeline_value_cents: number;
   revenue_paid_cents: number;
   revenue_won_ht_cents: number;
   ads_budget_cents: number;
@@ -256,18 +261,27 @@ export default function FinancePage() {
 
           {/* Performance commerciale (auto from GHL) */}
           {closingStats && (
-            <Card title={`📞 Performance commerciale · ${RANGE_LABEL[range]}`}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-                <Kpi emoji="🆕" label="Nouveaux prospects" value={closingStats.new_prospects.toString()} color="var(--orange)" />
-                <Kpi emoji="📞" label="Closings bookés" value={closingStats.calls_booked.toString()} color="#3B82F6" />
-                <Kpi emoji="✅" label="Closings réalisés" value={closingStats.calls_done.toString()} color="#A855F7" extra={closingStats.calls_no_show > 0 ? `${closingStats.calls_no_show} no-show` : undefined} />
-                <Kpi emoji="🏆" label="Closings gagnés" value={closingStats.calls_won.toString()} color="var(--green)" extra={closingStats.calls_won > 0 ? `+${fmtEUR(closingStats.revenue_won_ht_cents)} HT` : undefined} />
-                <Kpi emoji="🎯" label="Taux closing" value={closingStats.closing_rate !== null ? `${closingStats.closing_rate}%` : '—'} color={closingStats.closing_rate !== null && closingStats.closing_rate >= 30 ? 'var(--green)' : 'var(--yellow)'} />
-                <Kpi emoji="💰" label="Budget Ads" value={fmtEUR(closingStats.ads_budget_cents)} color="var(--text-mid)" extra="pro-rata" />
-                <Kpi emoji="🛠️" label="Frais presta" value={fmtEUR(closingStats.provider_fees_cents)} color="var(--text-mid)" />
-                <Kpi emoji="📈" label="Bénéfice brut" value={fmtEUR(closingStats.gross_profit_cents)} color={closingStats.gross_profit_cents >= 0 ? 'var(--green)' : 'var(--red)'} extra="Encaissé − Ads − Presta" />
-              </div>
-            </Card>
+            <>
+              <Card title={`🚶 Funnel commercial · ${RANGE_LABEL[range]}`}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                  <Kpi emoji="🚶" label="Nouveaux leads" value={closingStats.new_leads.toString()} color="var(--orange)" extra="entrés dans le pipeline" />
+                  <Kpi emoji="📞" label="Appels bookés" value={closingStats.calls_booked.toString()} color="#3B82F6" extra={closingStats.booking_rate !== null ? `${closingStats.booking_rate}% des leads` : undefined} />
+                  <Kpi emoji="✅" label="Appels réalisés" value={closingStats.calls_done.toString()} color="#A855F7" extra={closingStats.attendance_rate !== null ? `${closingStats.attendance_rate}% présence` : undefined} />
+                  <Kpi emoji="🏆" label="Closings gagnés" value={closingStats.calls_won.toString()} color="var(--green)" extra={closingStats.closing_rate !== null ? `${closingStats.closing_rate}% taux closing` : undefined} />
+                </div>
+              </Card>
+
+              <Card title={`💰 CA & rentabilité · ${RANGE_LABEL[range]}`}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                  <Kpi emoji="💸" label="CA encaissé" value={fmtEUR(closingStats.revenue_paid_cents)} color="var(--green)" />
+                  <Kpi emoji="📊" label="CA généré (HT)" value={fmtEUR(closingStats.revenue_won_ht_cents)} color="var(--orange)" extra={`${closingStats.calls_won} contrat${closingStats.calls_won > 1 ? 's' : ''} signé${closingStats.calls_won > 1 ? 's' : ''}`} />
+                  <Kpi emoji="🚀" label="Pipeline ouvert" value={fmtEUR(closingStats.pipeline_value_cents)} color="#3B82F6" extra={`${closingStats.pipeline_open_count} prospects en cours`} />
+                  <Kpi emoji="💰" label="Budget Ads" value={fmtEUR(closingStats.ads_budget_cents)} color="var(--text-mid)" extra="pro-rata" />
+                  <Kpi emoji="🛠️" label="Frais presta" value={fmtEUR(closingStats.provider_fees_cents)} color="var(--text-mid)" />
+                  <Kpi emoji="📈" label="Bénéfice brut" value={fmtEUR(closingStats.gross_profit_cents)} color={closingStats.gross_profit_cents >= 0 ? 'var(--green)' : 'var(--red)'} extra="Encaissé − Ads − Presta" />
+                </div>
+              </Card>
+            </>
           )}
 
           {/* Monthly chart 12 months */}

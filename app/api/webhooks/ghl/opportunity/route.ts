@@ -53,6 +53,45 @@ export async function POST(req: NextRequest) {
   const prospect_status = pipelineStageId ? stageIdToProspectStatus(mapping, pipelineStageId) : null;
   const stageName = pipeline?.stages.find(s => s.id === pipelineStageId)?.name || null;
 
+  // Pull contact info if available (GHL doesn't always inline it)
+  const contact = (payload.contact as Record<string, unknown>) || {};
+  const contactEmail = pick<string>(contact, 'email');
+  const contactPhone = pick<string>(contact, 'phone');
+  const contactNameRaw = pick<string>(contact, 'name', 'fullName', 'contactName');
+  const firstName = pick<string>(contact, 'firstName', 'first_name');
+  const lastName = pick<string>(contact, 'lastName', 'last_name');
+  const contactName = contactNameRaw || [firstName, lastName].filter(Boolean).join(' ').trim() || null;
+  const monetaryValueRaw = pick<number | string>(opp, 'monetaryValue', 'monetary_value');
+  const monetaryValue = typeof monetaryValueRaw === 'string' ? parseFloat(monetaryValueRaw) : monetaryValueRaw;
+  const ghlCreatedAt = pick<string>(opp, 'createdAt', 'created_at', 'dateAdded');
+  const ghlUpdatedAt = pick<string>(opp, 'updatedAt', 'updated_at', 'dateUpdated');
+
+  // Mirror to gh_opportunities (best effort — primary use is funnel metrics)
+  try {
+    const oppRow: Record<string, unknown> = {
+      ghl_opportunity_id: opportunityId,
+      ghl_contact_id: contactId || null,
+      pipeline_id: pipelineId,
+      pipeline_stage_id: pipelineStageId,
+      pipeline_stage_name: stageName,
+      name: opportunityName,
+      contact_email: contactEmail || null,
+      contact_phone: contactPhone || null,
+      contact_name: contactName,
+      monetary_value_cents: monetaryValue ? Math.round(monetaryValue * 100) : null,
+      prospect_status,
+      ghl_created_at: ghlCreatedAt ? new Date(ghlCreatedAt).toISOString() : null,
+      ghl_updated_at: ghlUpdatedAt ? new Date(ghlUpdatedAt).toISOString() : null,
+      raw_payload: payload as unknown as Record<string, unknown>,
+      updated_at: new Date().toISOString(),
+    };
+    await supaFetch('gh_opportunities?on_conflict=ghl_opportunity_id', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(oppRow),
+    }, true);
+  } catch { /* tolerate */ }
+
   // Update every gh_appointments row tied to this opportunity. If we don't have
   // the opportunity_id stored yet, fall back to ghl_contact_id (closing kind only).
   const patch: Record<string, unknown> = {

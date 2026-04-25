@@ -479,12 +479,17 @@ function UrgencySection({
 }
 
 interface ClosingStats {
+  new_leads: number;
   calls_booked: number;
   calls_done: number;
   calls_won: number;
   calls_no_show: number;
+  booking_rate: number | null;
+  attendance_rate: number | null;
   closing_rate: number | null;
   new_prospects: number;
+  pipeline_open_count: number;
+  pipeline_value_cents: number;
   revenue_paid_cents: number;
   revenue_won_ht_cents: number;
   ads_budget_cents: number;
@@ -530,14 +535,14 @@ function DailyMetricsCard({ clients: _clients }: { clients: Client[] }) {
         <div style={{ height: 80, background: 'var(--night-mid)', borderRadius: 8 }} />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-          <DailyStat emoji="💸" label="Encaissement" value={`${(stats.revenue_paid_cents / 100).toLocaleString('fr-FR')} €`} color="var(--green)" />
-          <DailyStat emoji="🆕" label="Nouveaux prospects" value={stats.new_prospects.toString()} color="var(--orange)" />
-          <DailyStat emoji="📞" label="Closings bookés" value={stats.calls_booked.toString()} color="#3B82F6" />
-          <DailyStat emoji="✅" label="Closings réalisés" value={stats.calls_done.toString()} color="#A855F7" hint={stats.calls_no_show > 0 ? `${stats.calls_no_show} no-show` : undefined} />
-          <DailyStat emoji="🏆" label="Closings gagnés" value={stats.calls_won.toString()} color="var(--green)" hint={stats.calls_won > 0 ? `+${(stats.revenue_won_ht_cents / 100).toLocaleString('fr-FR')} € HT` : undefined} />
-          <DailyStat emoji="🎯" label="Taux closing" value={stats.closing_rate !== null ? `${stats.closing_rate}%` : '—'} color={stats.closing_rate !== null && stats.closing_rate >= 30 ? 'var(--green)' : 'var(--yellow)'} />
-          <DailyStat emoji="💰" label="Budget Ads (jour)" value={`${(stats.ads_budget_cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`} color="var(--text-mid)" hint="pro-rata mensuel" />
-          <DailyStat emoji="📈" label="Bénéfice (brut)" value={`${(stats.gross_profit_cents / 100).toLocaleString('fr-FR')} €`} color={stats.gross_profit_cents >= 0 ? 'var(--green)' : 'var(--red)'} hint="Encaissement − Ads − Frais presta" />
+          <DailyStat emoji="🚶" label="Prospects" value={stats.new_leads.toString()} color="var(--orange)" />
+          <DailyStat emoji="📞" label="Appels réservés" value={stats.calls_booked.toString()} color="#3B82F6" hint={stats.booking_rate !== null ? `${stats.booking_rate}% des prospects` : undefined} />
+          <DailyStat emoji="✅" label="Appels réalisés" value={stats.calls_done.toString()} color="#A855F7" hint={stats.attendance_rate !== null ? `${stats.attendance_rate}% présence` : undefined} />
+          <DailyStat emoji="🏆" label="Closings gagnés" value={stats.calls_won.toString()} color="var(--green)" hint={stats.closing_rate !== null ? `${stats.closing_rate}% taux closing` : undefined} />
+          <DailyStat emoji="💸" label="Encaissé" value={`${(stats.revenue_paid_cents / 100).toLocaleString('fr-FR')} €`} color="var(--green)" />
+          <DailyStat emoji="🚀" label="Pipeline" value={stats.pipeline_open_count.toString()} color="#3B82F6" hint={`${(stats.pipeline_value_cents / 100).toLocaleString('fr-FR')} € à venir`} />
+          <DailyStat emoji="💰" label="Budget Ads" value={`${(stats.ads_budget_cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`} color="var(--text-mid)" hint="pro-rata jour" />
+          <DailyStat emoji="📈" label="Bénéfice brut" value={`${(stats.gross_profit_cents / 100).toLocaleString('fr-FR')} €`} color={stats.gross_profit_cents >= 0 ? 'var(--green)' : 'var(--red)'} hint="Encaissé − Ads − Presta" />
         </div>
       )}
     </div>
