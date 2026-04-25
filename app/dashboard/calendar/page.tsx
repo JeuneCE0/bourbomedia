@@ -22,7 +22,20 @@ interface TaskFromApi {
   due_date?: string;
 }
 
-type EventKind = 'filming' | 'publication' | 'script_sent' | 'script_due' | 'task' | 'onboarding_deadline';
+interface GhAppointmentFromApi {
+  id: string;
+  ghl_appointment_id: string;
+  calendar_kind: 'closing' | 'onboarding' | 'tournage' | 'other';
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  starts_at: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  client_id: string | null;
+  notes_completed_at: string | null;
+}
+
+type EventKind = 'filming' | 'publication' | 'script_sent' | 'script_due' | 'task' | 'onboarding_deadline'
+  | 'closing_call' | 'onboarding_call' | 'appt_other';
 
 interface CalEvent {
   id: string;
@@ -43,6 +56,9 @@ const KIND_META: Record<EventKind, { color: string; emoji: string; label: string
   script_due:          { color: '#FACC15', emoji: '⏰', label: 'Script à finaliser' },
   task:                { color: '#22C55E', emoji: '✅', label: 'Tâche' },
   onboarding_deadline: { color: '#EF4444', emoji: '🚀', label: 'Onboarding bloqué' },
+  closing_call:        { color: '#E8692B', emoji: '📞', label: 'Appel closing' },
+  onboarding_call:     { color: '#3B82F6', emoji: '🚀', label: 'Appel onboarding' },
+  appt_other:          { color: '#94A3B8', emoji: '📅', label: 'Rendez-vous' },
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -80,6 +96,7 @@ function formatTime(dateStr?: string): string {
 export default function CalendarPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [tasks, setTasks] = useState<TaskFromApi[]>([]);
+  const [appointments, setAppointments] = useState<GhAppointmentFromApi[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
@@ -91,14 +108,17 @@ export default function CalendarPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [cR, tR] = await Promise.all([
+      const [cR, tR, aR] = await Promise.all([
         fetch('/api/clients', { headers: authHeaders() }),
         fetch('/api/tasks', { headers: authHeaders() }),
+        fetch('/api/gh-appointments?recent=1', { headers: authHeaders() }),
       ]);
       const c = cR.ok ? await cR.json() : [];
       const t = tR.ok ? await tR.json() : [];
+      const a = aR.ok ? await aR.json() : { appointments: [] };
       if (Array.isArray(c)) setClients(c);
       if (Array.isArray(t)) setTasks(t);
+      if (Array.isArray(a.appointments)) setAppointments(a.appointments);
     } finally {
       setLoading(false);
     }
@@ -188,8 +208,26 @@ export default function CalendarPage() {
       });
     });
 
+    // GHL appointments (closing / onboarding / tournage / other) — skip cancelled/no-show
+    appointments.forEach(a => {
+      if (a.status === 'cancelled' || a.status === 'no_show') return;
+      const kind: EventKind = a.calendar_kind === 'closing' ? 'closing_call'
+        : a.calendar_kind === 'onboarding' ? 'onboarding_call'
+        : a.calendar_kind === 'tournage' ? 'filming'
+        : 'appt_other';
+      push({
+        id: `appt-${a.id}`,
+        date: a.starts_at.slice(0, 10),
+        time: formatTime(a.starts_at),
+        kind,
+        label: a.contact_name || a.contact_email || 'Contact GHL',
+        client_id: a.client_id || undefined,
+        client_name: a.contact_name || undefined,
+      });
+    });
+
     return evs;
-  }, [clients, tasks]);
+  }, [clients, tasks, appointments]);
 
   // Filter
   const filteredEvents = useMemo(() => {
@@ -205,7 +243,7 @@ export default function CalendarPage() {
       m[e.date].push(e);
     });
     // Sort within day: filming first, then publication, then scripts, then tasks
-    const order: Record<EventKind, number> = { filming: 0, publication: 1, script_sent: 2, script_due: 3, onboarding_deadline: 4, task: 5 };
+    const order: Record<EventKind, number> = { filming: 0, publication: 1, closing_call: 2, onboarding_call: 3, appt_other: 4, script_sent: 5, script_due: 6, onboarding_deadline: 7, task: 8 };
     Object.values(m).forEach(list => list.sort((a, b) => (order[a.kind] - order[b.kind]) || (a.time || '').localeCompare(b.time || '')));
     return m;
   }, [filteredEvents]);
@@ -220,7 +258,7 @@ export default function CalendarPage() {
 
   const monthEvents = useMemo(() => filteredEvents.filter(e => e.date.startsWith(monthKey)), [filteredEvents, monthKey]);
   const monthCountsByKind = useMemo(() => {
-    const counts: Record<EventKind, number> = { filming: 0, publication: 0, script_sent: 0, script_due: 0, task: 0, onboarding_deadline: 0 };
+    const counts: Record<EventKind, number> = { filming: 0, publication: 0, script_sent: 0, script_due: 0, task: 0, onboarding_deadline: 0, closing_call: 0, onboarding_call: 0, appt_other: 0 };
     monthEvents.forEach(e => { counts[e.kind]++; });
     return counts;
   }, [monthEvents]);
