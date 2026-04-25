@@ -166,18 +166,20 @@ export interface GhlCalendarEvent {
   appointmentStatus?: string;
 }
 
-export async function listCalendarEvents(calendarId: string, startTime: string, endTime: string): Promise<GhlCalendarEvent[]> {
-  if (!LOCATION_ID || !calendarId) return [];
+export async function listCalendarEvents(calendarId: string, startTime: string, endTime: string): Promise<{ events: GhlCalendarEvent[]; error?: string }> {
+  if (!LOCATION_ID || !calendarId) return { events: [], error: 'missing locationId or calendarId' };
+  // GHL /calendars/events expects epoch MILLISECONDS for startTime/endTime
+  const startMs = new Date(startTime).getTime().toString();
+  const endMs = new Date(endTime).getTime().toString();
+  const params = new URLSearchParams({
+    locationId: LOCATION_ID,
+    calendarId,
+    startTime: startMs,
+    endTime: endMs,
+  });
   try {
-    // GHL API expects UTC ISO strings
-    const params = new URLSearchParams({
-      locationId: LOCATION_ID,
-      calendarId,
-      startTime,
-      endTime,
-    });
     const data = await ghlRequest('GET', `/calendars/events?${params.toString()}`);
-    return (data?.events || []).map((e: Record<string, unknown>) => ({
+    const events: GhlCalendarEvent[] = (data?.events || []).map((e: Record<string, unknown>) => ({
       id: (e.id || e._id) as string,
       calendarId: (e.calendarId || calendarId) as string,
       contactId: (e.contactId || (e.contact as { id?: string })?.id) as string | undefined,
@@ -185,8 +187,9 @@ export async function listCalendarEvents(calendarId: string, startTime: string, 
       endTime: (e.endTime || e.endDate) as string | undefined,
       appointmentStatus: (e.appointmentStatus || e.status) as string | undefined,
     }));
-  } catch {
-    return [];
+    return { events };
+  } catch (e) {
+    return { events: [], error: (e as Error).message };
   }
 }
 
