@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyWebhookSignature, getPaymentReceipt } from '@/lib/stripe';
 import { supaFetch } from '@/lib/supabase';
 import { notifyClientStatusChange } from '@/lib/slack';
+import { resolveMapping, prospectStatusToStageId, updateOpportunityStage } from '@/lib/ghl-opportunities';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -64,13 +65,49 @@ export async function POST(req: NextRequest) {
       }, true);
     } catch { /* */ }
 
-    const cr = await supaFetch(`clients?id=eq.${clientId}&select=business_name`, {}, true);
+    const cr = await supaFetch(`clients?id=eq.${clientId}&select=business_name,email`, {}, true);
+    let clientEmail: string | null = null;
     if (cr.ok) {
       const clients = await cr.json();
       if (clients.length) {
         notifyClientStatusChange(clients[0].business_name, 'Étape 3', 'Paiement reçu');
+        clientEmail = clients[0].email || null;
       }
     }
+
+    // Auto-flip the matching gh_appointment(s) to "Contracté" — closing won.
+    // Match by client_id first, fall back to email.
+    try {
+      const matchPath = clientEmail
+        ? `gh_appointments?or=(client_id.eq.${clientId},contact_email.ilike.${encodeURIComponent(clientEmail.toLowerCase().trim())})`
+        : `gh_appointments?client_id=eq.${clientId}`;
+      const lookup = await supaFetch(`${matchPath}&prospect_status=in.(awaiting_signature,reflection,follow_up,ghosting)&select=id,opportunity_id,prospect_status`, {}, true);
+      if (lookup.ok) {
+        const appts = await lookup.json();
+        if (appts.length) {
+          const { mapping } = await resolveMapping();
+          const target = prospectStatusToStageId(mapping, 'contracted');
+          for (const appt of appts) {
+            // Mark as contracted + auto-document so it leaves the "to do" lists
+            await supaFetch(`gh_appointments?id=eq.${encodeURIComponent(appt.id)}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                prospect_status: 'contracted',
+                client_id: clientId,
+                notes_completed_at: new Date().toISOString(),
+                notes: '✅ Auto: contrat finalisé + paiement Stripe reçu',
+                ghl_synced_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }),
+            }, true);
+            // Push the new stage to GHL pipeline (best effort)
+            if (appt.opportunity_id && target.pipelineId && target.stageId) {
+              await updateOpportunityStage(appt.opportunity_id, target.pipelineId, target.stageId).catch(() => null);
+            }
+          }
+        }
+      }
+    } catch { /* tolerate */ }
   }
 
   return NextResponse.json({ received: true });

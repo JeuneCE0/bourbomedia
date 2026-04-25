@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { notifyAppointmentCompleted } from '@/lib/slack';
+import { triggerWorkflow } from '@/lib/ghl-workflows';
+import { resolveMapping, prospectStatusToStageId, updateOpportunityStage } from '@/lib/ghl-opportunities';
 
 // Runs every 15 min. GHL workflow auto-confirms appointments on booking and
 // doesn't transition them to "Showed" automatically — so we infer "the call
 // happened" from the clock: starts_at is past, status is still scheduled, and
-// it wasn't cancelled or marked no-show. We ping Slack once per appointment
-// (deduped via reminded_at) so Simeon knows to fill in the notes.
+// it wasn't cancelled or marked no-show.
+//
+// On every fresh past appointment (reminded_at IS NULL):
+//   - For closings : auto-set prospect_status = 'awaiting_signature' (happy
+//     path default — admin can override later if the call went badly), push
+//     the stage to GHL, and fire the workflow that emails the onboarding
+//     link to the prospect.
+//   - For everything else : just ping Slack so Simeon can document.
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
@@ -24,7 +32,7 @@ export async function GET(req: NextRequest) {
     + `&reminded_at=is.null`
     + `&notes_completed_at=is.null`
     + `&status=in.(scheduled,completed)`
-    + `&select=id,ghl_appointment_id,calendar_kind,starts_at,contact_name,contact_email`
+    + `&select=id,ghl_appointment_id,ghl_contact_id,opportunity_id,prospect_status,calendar_kind,starts_at,contact_name,contact_email`
     + `&order=starts_at.asc&limit=20`,
     {}, true,
   );
@@ -32,9 +40,34 @@ export async function GET(req: NextRequest) {
   if (!r.ok) return NextResponse.json({ error: 'fetch failed' }, { status: 500 });
   const items = await r.json();
 
+  // Resolve pipeline mapping once for all closings in this batch
+  const { mapping } = await resolveMapping();
+  const target = prospectStatusToStageId(mapping, 'awaiting_signature');
+
   let pinged = 0;
+  let autoFlipped = 0;
+  let onboardingSent = 0;
+
   for (const a of items) {
     try {
+      // Closing happy path : auto-set awaiting_signature + send onboarding link
+      if (a.calendar_kind === 'closing' && !a.prospect_status) {
+        await supaFetch(`gh_appointments?id=eq.${encodeURIComponent(a.id)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ prospect_status: 'awaiting_signature' }),
+        }, true);
+        autoFlipped++;
+
+        // Push to GHL pipeline (best effort)
+        if (a.opportunity_id && target.pipelineId && target.stageId) {
+          await updateOpportunityStage(a.opportunity_id, target.pipelineId, target.stageId).catch(() => null);
+        }
+
+        // Fire the workflow (no-op when AUTOMATIONS_PAUSED=true)
+        const res = await triggerWorkflow(a.ghl_contact_id || null, 'prospect_awaiting_signature').catch(() => null);
+        if (res && (res.tagged || res.workflowAdded)) onboardingSent++;
+      }
+
       await notifyAppointmentCompleted({
         contactName: a.contact_name || a.contact_email || 'Contact GHL',
         contactEmail: a.contact_email || undefined,
@@ -50,5 +83,5 @@ export async function GET(req: NextRequest) {
     } catch { /* tolerate, will retry next tick */ }
   }
 
-  return NextResponse.json({ checked: items.length, pinged, at: nowIso });
+  return NextResponse.json({ checked: items.length, pinged, auto_flipped_to_awaiting_signature: autoFlipped, onboarding_workflow_fired: onboardingSent, at: nowIso });
 }
