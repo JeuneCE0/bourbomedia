@@ -37,6 +37,7 @@ interface ClientDelivery {
   delivered_at?: string;
   filming_date?: string;
   publication_deadline?: string;
+  publication_date_confirmed?: boolean;
   contract_pdf_url?: string;
   contract_signature_link?: string;
 }
@@ -731,7 +732,12 @@ function PortalContent() {
         {(() => {
           const next = computeNextAction(script.status, !!hasDelivery, !!satisfaction);
           const pill = PILL_STYLES[next.pill.tone];
-          const dl = deadlineTone(clientInfo?.publication_deadline);
+          // Only display the publication countdown when the date is genuinely
+          // confirmed — otherwise it's an internal estimate that depends on
+          // script revisions, editing time, etc. Showing it as a hard date
+          // misleads the client.
+          const showDeadline = clientInfo?.publication_date_confirmed === true;
+          const dl = showDeadline ? deadlineTone(clientInfo?.publication_deadline) : null;
           const dlPill = dl ? PILL_STYLES[dl.tone] : null;
           return (
             <div style={{

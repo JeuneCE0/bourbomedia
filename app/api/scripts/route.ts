@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (portalToken) {
     try {
       const cr = await supaFetch(
-        `clients?portal_token=eq.${portalToken}&select=id,business_name,contact_name,video_url,video_thumbnail_url,delivery_notes,delivered_at,status,filming_date,publication_deadline,contract_pdf_url,contract_signature_link`,
+        `clients?portal_token=eq.${portalToken}&select=id,business_name,contact_name,video_url,video_thumbnail_url,delivery_notes,delivered_at,status,filming_date,publication_deadline,publication_date_confirmed,contract_pdf_url,contract_signature_link`,
         {},
         true
       );
@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
           delivered_at: c.delivered_at,
           filming_date: c.filming_date,
           publication_deadline: c.publication_deadline,
+          publication_date_confirmed: c.publication_date_confirmed,
           contract_pdf_url: c.contract_pdf_url,
           contract_signature_link: c.contract_signature_link,
         },
