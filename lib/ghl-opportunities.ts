@@ -45,9 +45,18 @@ export async function listPipelines(): Promise<GhlPipeline[]> {
   }
 }
 
-// Normalize for fuzzy match: lowercase + strip diacritics + collapse spaces
+// Normalize for fuzzy match: lowercase + strip diacritics + strip emojis +
+// collapse spaces. Lets us match e.g. "💭 En réflexion" (GHL) against
+// "En réflexion" (our seed) without manual updates each time the user adds an emoji.
 function norm(s: string): string {
-  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+  return (s || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')                       // diacritics
+    .replace(/\p{Extended_Pictographic}/gu, '')             // emojis
+    .replace(/[‍️\u{1f3fb}-\u{1f3ff}]/gu, '')    // ZWJ, variation selector, skin tones
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 export async function findBourbonPipeline(): Promise<GhlPipeline | null> {
@@ -166,18 +175,20 @@ export interface GhlCalendarEvent {
   appointmentStatus?: string;
 }
 
-export async function listCalendarEvents(calendarId: string, startTime: string, endTime: string): Promise<GhlCalendarEvent[]> {
-  if (!LOCATION_ID || !calendarId) return [];
+export async function listCalendarEvents(calendarId: string, startTime: string, endTime: string): Promise<{ events: GhlCalendarEvent[]; error?: string }> {
+  if (!LOCATION_ID || !calendarId) return { events: [], error: 'missing locationId or calendarId' };
+  // GHL /calendars/events expects epoch MILLISECONDS for startTime/endTime
+  const startMs = new Date(startTime).getTime().toString();
+  const endMs = new Date(endTime).getTime().toString();
+  const params = new URLSearchParams({
+    locationId: LOCATION_ID,
+    calendarId,
+    startTime: startMs,
+    endTime: endMs,
+  });
   try {
-    // GHL API expects UTC ISO strings
-    const params = new URLSearchParams({
-      locationId: LOCATION_ID,
-      calendarId,
-      startTime,
-      endTime,
-    });
     const data = await ghlRequest('GET', `/calendars/events?${params.toString()}`);
-    return (data?.events || []).map((e: Record<string, unknown>) => ({
+    const events: GhlCalendarEvent[] = (data?.events || []).map((e: Record<string, unknown>) => ({
       id: (e.id || e._id) as string,
       calendarId: (e.calendarId || calendarId) as string,
       contactId: (e.contactId || (e.contact as { id?: string })?.id) as string | undefined,
@@ -185,8 +196,9 @@ export async function listCalendarEvents(calendarId: string, startTime: string, 
       endTime: (e.endTime || e.endDate) as string | undefined,
       appointmentStatus: (e.appointmentStatus || e.status) as string | undefined,
     }));
-  } catch {
-    return [];
+    return { events };
+  } catch (e) {
+    return { events: [], error: (e as Error).message };
   }
 }
 

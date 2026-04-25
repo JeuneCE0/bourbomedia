@@ -51,21 +51,28 @@ export async function POST(req: NextRequest) {
     pipeline_name: '',
     pipeline_id: '',
     stages_mapped: 0,
+    expected_stages: [] as string[],
+    actual_ghl_stages: [] as string[],
+    unmapped_stages: [] as string[],
     appointments_processed: 0,
     appointments_inserted: 0,
     appointments_updated: 0,
     appointments_enriched_with_opportunity: 0,
     opportunities_seen: 0,
+    per_calendar: {} as Record<string, { kind: string; events: number; error?: string }>,
     errors: [] as string[],
   };
 
   // 1. Pipeline mapping
   const { mapping, pipeline } = await resolveMapping();
+  summary.expected_stages = Object.keys(mapping.stages);
   if (pipeline) {
     summary.pipeline_resolved = true;
     summary.pipeline_name = pipeline.name;
     summary.pipeline_id = pipeline.id;
     summary.stages_mapped = Object.keys(mapping.stage_ids || {}).length;
+    summary.actual_ghl_stages = pipeline.stages.map(s => s.name);
+    summary.unmapped_stages = summary.expected_stages.filter(name => !(mapping.stage_ids || {})[name]);
   } else {
     summary.errors.push(`Pipeline "${mapping.pipeline_name}" introuvable dans GHL`);
   }
@@ -94,7 +101,10 @@ export async function POST(req: NextRequest) {
       summary.errors.push(`${cal.envName} non défini`);
       continue;
     }
-    const events = await listCalendarEvents(cal.id, sinceIso, nowIso);
+    const { events, error } = await listCalendarEvents(cal.id, sinceIso, nowIso);
+    const kind = cal.envName.replace('GHL_', '').replace('_CALENDAR_ID', '').toLowerCase();
+    summary.per_calendar[cal.id] = { kind, events: events.length, ...(error ? { error } : {}) };
+    if (error) summary.errors.push(`${cal.envName}: ${error}`);
     for (const ev of events) {
       summary.appointments_processed++;
 
