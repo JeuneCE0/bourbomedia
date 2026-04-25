@@ -55,6 +55,16 @@ interface Client {
   tags?: string[];
   todos?: TodoItem[];
   videos?: VideoItem[];
+  provider_fees?: ProviderFee[];
+}
+
+interface ProviderFee {
+  id: string;
+  type: 'filmmaker' | 'editor' | 'voiceover' | 'other';
+  amount_cents: number;
+  description?: string;
+  paid_at?: string | null;
+  created_at: string;
 }
 
 interface TodoItem {
@@ -251,13 +261,50 @@ export default function ClientDetailPage() {
   const [versions, setVersions] = useState<ScriptVersion[]>([]);
   const [showVersions, setShowVersions] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [paymentForm, setPaymentForm] = useState({ amount: '', description: '' });
+  // Default payment = vidéo unique 500€ HT + 8.5% TVA = 542,50€ TTC
+  const [paymentForm, setPaymentForm] = useState({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)' });
   const [addingPayment, setAddingPayment] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [newTodo, setNewTodo] = useState('');
   const [newVideo, setNewVideo] = useState({ title: '', video_url: '', thumbnail_url: '', delivery_notes: '' });
   const [savingVideo, setSavingVideo] = useState(false);
   const [annotations, setAnnotations] = useState<AdminAnnotation[]>([]);
+  const [feeForm, setFeeForm] = useState<{ type: 'filmmaker' | 'editor' | 'voiceover' | 'other'; amount: string; description: string }>({ type: 'filmmaker', amount: '', description: '' });
+  const [addingFee, setAddingFee] = useState(false);
+
+  async function addFee(e: React.FormEvent) {
+    e.preventDefault();
+    const amountNum = parseFloat(feeForm.amount);
+    if (!amountNum || amountNum <= 0) return;
+    setAddingFee(true);
+    try {
+      const r = await fetch('/api/clients/fees', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          client_id: id, type: feeForm.type,
+          amount_cents: Math.round(amountNum * 100),
+          description: feeForm.description.trim() || undefined,
+        }),
+      });
+      if (r.ok) {
+        setFeeForm({ type: 'filmmaker', amount: '', description: '' });
+        loadClient();
+        notify('success', 'Frais ajouté');
+      } else {
+        notify('error', 'Erreur lors de l\'ajout');
+      }
+    } finally { setAddingFee(false); }
+  }
+
+  async function deleteFee(feeId: string) {
+    if (!confirm('Supprimer ce frais ?')) return;
+    try {
+      const r = await fetch(`/api/clients/fees?client_id=${id}&fee_id=${feeId}`, {
+        method: 'DELETE', headers: authHeaders(),
+      });
+      if (r.ok) loadClient();
+    } catch { /* */ }
+  }
 
   function notify(type: 'error' | 'success', msg: string) {
     setToast({ type, msg });
@@ -860,7 +907,7 @@ export default function ClientDetailPage() {
       });
       if (!r.ok) throw new Error(await parseErr(r));
       notify('success', 'Paiement ajouté');
-      setPaymentForm({ amount: '', description: '' });
+      setPaymentForm({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)' });
       loadPayments();
     } catch (err: unknown) {
       notify('error', (err as Error).message);
@@ -1756,6 +1803,120 @@ export default function ClientDetailPage() {
               }}>{addingPayment ? 'Ajout…' : '+ Ajouter'}</button>
             </form>
           </div>
+
+          {/* ───────── Frais prestataires (filmmaker / montage / etc.) ───────── */}
+          {(() => {
+            const fees = (client?.provider_fees || []) as ProviderFee[];
+            const totalFees = fees.reduce((s, f) => s + (f.amount_cents || 0), 0);
+            const totalPayments = payments.reduce((s, p) => s + p.amount, 0);
+            const grossProfit = totalPayments - totalFees;
+            const FEE_LABEL: Record<ProviderFee['type'], { emoji: string; label: string; color: string }> = {
+              filmmaker: { emoji: '🎥', label: 'Filmmaker', color: '#3B82F6' },
+              editor:    { emoji: '🎞️', label: 'Montage',   color: '#A855F7' },
+              voiceover: { emoji: '🎙️', label: 'Voix off',  color: '#EC4899' },
+              other:     { emoji: '🧾', label: 'Autre',     color: '#8A7060' },
+            };
+            return (
+              <>
+                <div style={{
+                  marginTop: 26, paddingTop: 20, borderTop: '1px solid var(--border)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 10, marginBottom: 14,
+                }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>
+                      💸 Frais prestataires
+                    </h4>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Total dépensé : {(totalFees / 100).toLocaleString('fr-FR')} €
+                      {totalPayments > 0 && (
+                        <> · Bénéfice brut : <strong style={{ color: grossProfit >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                          {(grossProfit / 100).toLocaleString('fr-FR')} €
+                        </strong></>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {fees.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+                    {fees.map(f => {
+                      const meta = FEE_LABEL[f.type];
+                      return (
+                        <div key={f.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          padding: '10px 14px', borderRadius: 10,
+                          background: 'var(--night-mid)', border: '1px solid var(--border)',
+                          borderLeft: `3px solid ${meta.color}`,
+                        }}>
+                          <span aria-hidden style={{ fontSize: '1.1rem' }}>{meta.emoji}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text)' }}>
+                              {meta.label}
+                              {f.description && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> — {f.description}</span>}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              Ajouté le {new Date(f.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--red)', whiteSpace: 'nowrap' }}>
+                            -{(f.amount_cents / 100).toLocaleString('fr-FR')} €
+                          </span>
+                          <button onClick={() => deleteFee(f.id)} style={{
+                            background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                            cursor: 'pointer', fontSize: '0.95rem', padding: 4,
+                          }} title="Supprimer">🗑️</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{
+                    padding: '14px 16px', borderRadius: 10, marginBottom: 14,
+                    background: 'var(--night-mid)', border: '1px dashed var(--border-md)',
+                    fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center',
+                  }}>
+                    Aucun frais enregistré pour ce client.
+                  </div>
+                )}
+
+                <form onSubmit={addFee} style={{
+                  display: 'flex', gap: 8, padding: '12px',
+                  background: 'var(--night-mid)', borderRadius: 10, alignItems: 'center', flexWrap: 'wrap',
+                }}>
+                  <select value={feeForm.type} onChange={e => setFeeForm({ ...feeForm, type: e.target.value as ProviderFee['type'] })} style={{
+                    padding: '8px 10px', borderRadius: 6, background: 'var(--night)',
+                    border: '1px solid var(--border-md)', color: 'var(--text)', fontSize: '0.82rem', cursor: 'pointer',
+                  }}>
+                    <option value="filmmaker">🎥 Filmmaker</option>
+                    <option value="editor">🎞️ Montage</option>
+                    <option value="voiceover">🎙️ Voix off</option>
+                    <option value="other">🧾 Autre</option>
+                  </select>
+                  <input
+                    type="number" min="0" step="0.01" placeholder="Montant €"
+                    value={feeForm.amount} onChange={e => setFeeForm({ ...feeForm, amount: e.target.value })}
+                    style={{
+                      width: 110, padding: '8px 10px', borderRadius: 6, background: 'var(--night)',
+                      border: '1px solid var(--border-md)', color: 'var(--text)', fontSize: '0.82rem',
+                    }}
+                  />
+                  <input
+                    type="text" placeholder="Description (optionnel)"
+                    value={feeForm.description} onChange={e => setFeeForm({ ...feeForm, description: e.target.value })}
+                    style={{
+                      flex: 1, minWidth: 180, padding: '8px 10px', borderRadius: 6, background: 'var(--night)',
+                      border: '1px solid var(--border-md)', color: 'var(--text)', fontSize: '0.82rem',
+                    }}
+                  />
+                  <button type="submit" disabled={addingFee || !feeForm.amount} style={{
+                    padding: '8px 16px', borderRadius: 6, background: 'var(--orange)',
+                    color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem',
+                    opacity: addingFee || !feeForm.amount ? 0.5 : 1,
+                  }}>{addingFee ? '…' : '+ Frais'}</button>
+                </form>
+              </>
+            );
+          })()}
         </div>
       )}
 

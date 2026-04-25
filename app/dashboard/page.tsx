@@ -262,6 +262,9 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="bm-stagger">
+          {/* Daily metrics — editable: calls / ads / closing rate / gross profit */}
+          <DailyMetricsCard clients={clients} />
+
           {/* Urgency: Today */}
           <UrgencySection
             tone="red"
@@ -463,6 +466,161 @@ function UrgencySection({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function DailyMetricsCard({ clients }: { clients: Client[] }) {
+  const today = new Date();
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  const [metric, setMetric] = useState<{ ads_budget_cents: number; calls_booked: number; calls_closed: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ ads_budget: '', calls_booked: '', calls_closed: '' });
+  const [savedHint, setSavedHint] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/daily-metrics?date=${todayIso}`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then((d) => {
+        if (d) {
+          setMetric(d);
+          setDraft({
+            ads_budget: ((d.ads_budget_cents || 0) / 100).toString(),
+            calls_booked: String(d.calls_booked || 0),
+            calls_closed: String(d.calls_closed || 0),
+          });
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [todayIso]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const r = await fetch('/api/daily-metrics', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({
+          date: todayIso,
+          ads_budget_cents: Math.round(parseFloat(draft.ads_budget || '0') * 100),
+          calls_booked: parseInt(draft.calls_booked || '0', 10),
+          calls_closed: parseInt(draft.calls_closed || '0', 10),
+        }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        setMetric(d);
+        setEditing(false);
+        setSavedHint(true);
+        setTimeout(() => setSavedHint(false), 2000);
+      }
+    } finally { setSaving(false); }
+  }
+
+  // Computed metrics — encaissement today, new clients today, gross profit
+  const todayRevenueCents = clients.reduce((sum, c) => {
+    if (c.paid_at && c.paid_at.slice(0, 10) === todayIso) return sum + (c.payment_amount || 0);
+    return sum;
+  }, 0);
+  const newClientsToday = clients.filter(c => c.created_at?.slice(0, 10) === todayIso).length;
+  const todayProviderFeesCents = clients.reduce((sum, c) => {
+    interface PF { amount_cents: number; created_at: string }
+    const fees = ((c as Client & { provider_fees?: PF[] }).provider_fees || []) as PF[];
+    return sum + fees.filter(f => f.created_at?.slice(0, 10) === todayIso).reduce((s, f) => s + (f.amount_cents || 0), 0);
+  }, 0);
+  const adsCents = metric?.ads_budget_cents || 0;
+  const grossProfitCents = todayRevenueCents - adsCents - todayProviderFeesCents;
+  const closingRate = (metric?.calls_booked || 0) > 0
+    ? Math.round(((metric?.calls_closed || 0) / (metric?.calls_booked || 1)) * 100)
+    : null;
+
+  return (
+    <div style={{
+      background: 'var(--night-card)', borderRadius: 14, border: '1px solid var(--border)',
+      padding: '18px 20px', marginBottom: 14,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <h2 style={{
+          fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-mid)',
+          margin: 0, display: 'flex', alignItems: 'center', gap: 8,
+          textTransform: 'uppercase', letterSpacing: 0.5,
+        }}>
+          <span aria-hidden>📊</span> Aujourd&apos;hui en chiffres
+          {savedHint && <span style={{ fontSize: '0.66rem', color: 'var(--green)', textTransform: 'none', letterSpacing: 0 }}>✅ Enregistré</span>}
+        </h2>
+        <button onClick={() => setEditing(e => !e)} style={{
+          background: 'transparent', border: '1px solid var(--border-md)', color: 'var(--text-muted)',
+          borderRadius: 8, padding: '4px 10px', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
+        }}>
+          {editing ? '👁️ Voir' : '✏️ Saisir'}
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={{ height: 80, background: 'var(--night-mid)', borderRadius: 8 }} />
+      ) : editing ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+          <DailyInput label="📞 Appels bookés" value={draft.calls_booked} onChange={v => setDraft({ ...draft, calls_booked: v })} suffix="" />
+          <DailyInput label="✅ Appels réalisés" value={draft.calls_closed} onChange={v => setDraft({ ...draft, calls_closed: v })} suffix="" />
+          <DailyInput label="💰 Budget Ads" value={draft.ads_budget} onChange={v => setDraft({ ...draft, ads_budget: v })} suffix="€" step="0.01" />
+          <button onClick={save} disabled={saving} style={{
+            padding: '11px 16px', borderRadius: 10, background: 'var(--orange)',
+            color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
+            opacity: saving ? 0.5 : 1, alignSelf: 'end',
+          }}>
+            {saving ? '⏳' : '💾'} Enregistrer
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+          <DailyStat emoji="💸" label="Encaissement" value={`${(todayRevenueCents / 100).toLocaleString('fr-FR')} €`} color="var(--green)" />
+          <DailyStat emoji="👥" label="Nouveaux clients" value={newClientsToday.toString()} color="var(--orange)" />
+          <DailyStat emoji="📞" label="Appels bookés" value={(metric?.calls_booked || 0).toString()} color="#3B82F6" />
+          <DailyStat emoji="✅" label="Appels réalisés" value={(metric?.calls_closed || 0).toString()} color="#A855F7" />
+          <DailyStat emoji="🎯" label="Taux closing" value={closingRate !== null ? `${closingRate}%` : '—'} color={closingRate !== null && closingRate >= 30 ? 'var(--green)' : 'var(--yellow)'} />
+          <DailyStat emoji="💰" label="Budget Ads" value={`${(adsCents / 100).toLocaleString('fr-FR')} €`} color="var(--text-mid)" />
+          <DailyStat emoji="📈" label="Bénéfice (brut)" value={`${(grossProfitCents / 100).toLocaleString('fr-FR')} €`} color={grossProfitCents >= 0 ? 'var(--green)' : 'var(--red)'} hint="Encaissement − Ads − Frais presta" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DailyInput({ label, value, onChange, suffix, step = '1' }: { label: string; value: string; onChange: (v: string) => void; suffix: string; step?: string }) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <input
+          type="number" min="0" step={step} value={value} onChange={e => onChange(e.target.value)}
+          style={{
+            flex: 1, padding: '8px 10px', borderRadius: 8,
+            background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+            color: 'var(--text)', fontSize: '0.9rem', outline: 'none',
+          }}
+        />
+        {suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{suffix}</span>}
+      </div>
+    </label>
+  );
+}
+
+function DailyStat({ emoji, label, value, color, hint }: { emoji: string; label: string; value: string; color: string; hint?: string }) {
+  return (
+    <div style={{
+      padding: '10px 12px', borderRadius: 10,
+      background: 'var(--night-mid)', border: '1px solid var(--border)',
+    }}>
+      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+        <span aria-hidden>{emoji}</span>
+        <span style={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</span>
+      </div>
+      <div style={{ fontSize: '1.15rem', fontWeight: 800, color, fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1.1 }}>
+        {value}
+      </div>
+      {hint && <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: 3 }}>{hint}</div>}
     </div>
   );
 }

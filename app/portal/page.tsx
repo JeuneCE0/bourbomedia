@@ -37,6 +37,10 @@ interface ClientDelivery {
   delivered_at?: string;
   filming_date?: string;
   publication_deadline?: string;
+  publication_date_confirmed?: boolean;
+  video_validated_at?: string | null;
+  video_review_comment?: string | null;
+  video_changes_requested?: boolean;
   contract_pdf_url?: string;
   contract_signature_link?: string;
 }
@@ -86,18 +90,22 @@ const STATUS_LABELS_PORTAL: Record<string, string> = {
   filming_scheduled: 'Tournage planifié',
   filming_done: 'Tournage terminé',
   editing: 'Montage en cours',
+  video_review: 'Vidéo à valider',
+  publication_pending: 'Publication à planifier',
   published: 'Vidéo publiée',
 };
 
 const PROJECT_STAGES = [
-  { key: 'onboarding', label: 'Inscription', emoji: '👋', description: 'Vous êtes inscrit·e — bienvenue !' },
-  { key: 'script_writing', label: 'Écriture du script', emoji: '✍️', description: 'Notre équipe écrit votre script sur mesure.' },
-  { key: 'script_review', label: 'Relecture du script', emoji: '📝', description: 'Le script vous est proposé pour relecture.' },
-  { key: 'script_validated', label: 'Réservez votre tournage', emoji: '✅', description: 'Choisissez votre créneau de tournage dans le calendrier ci-dessous.' },
-  { key: 'filming_scheduled', label: 'Tournage planifié', emoji: '📅', description: 'Une date de tournage est confirmée.' },
-  { key: 'filming_done', label: 'Tournage terminé', emoji: '🎬', description: 'Le tournage est dans la boîte !' },
-  { key: 'editing', label: 'Montage en cours', emoji: '🎞️', description: 'Notre équipe monte votre vidéo.' },
-  { key: 'published', label: 'Vidéo livrée', emoji: '🎉', description: 'Votre vidéo est prête à être visionnée.' },
+  { key: 'onboarding',          label: 'Inscription',           emoji: '👋',  description: 'Vous êtes inscrit·e — bienvenue !' },
+  { key: 'script_writing',      label: 'Écriture du script',     emoji: '✍️',  description: 'Notre équipe écrit votre script sur mesure.' },
+  { key: 'script_review',       label: 'Relecture du script',    emoji: '📝',  description: 'Le script vous est proposé pour relecture.' },
+  { key: 'script_validated',    label: 'Réservez votre tournage', emoji: '✅', description: 'Choisissez votre créneau de tournage dans le calendrier ci-dessous.' },
+  { key: 'filming_scheduled',   label: 'Tournage planifié',      emoji: '📅',  description: 'Une date de tournage est confirmée.' },
+  { key: 'filming_done',        label: 'Tournage terminé',       emoji: '🎬',  description: 'Le tournage est dans la boîte !' },
+  { key: 'editing',             label: 'Montage en cours',       emoji: '🎞️', description: 'Notre équipe monte votre vidéo.' },
+  { key: 'video_review',        label: 'Vidéo à valider',        emoji: '👀',  description: 'Visionnez et validez votre vidéo (ou demandez des modifications).' },
+  { key: 'publication_pending', label: 'Date de publication',    emoji: '🗓️', description: 'Choisissez la date de mise en ligne (mardi ou jeudi).' },
+  { key: 'published',           label: 'Vidéo publiée',          emoji: '🎉',  description: 'Votre vidéo est en ligne — bravo !' },
 ];
 
 const SCRIPT_STEPS = [
@@ -125,11 +133,37 @@ interface NextAction {
   cta?: { label: string; tab?: 'video' | 'script' | 'comments' | 'feedback' };
 }
 
-function computeNextAction(scriptStatus: string | null, hasDelivery: boolean, hasFeedback: boolean): NextAction {
-  if (hasDelivery && !hasFeedback) {
+function computeNextAction(
+  scriptStatus: string | null,
+  hasDelivery: boolean,
+  hasFeedback: boolean,
+  client?: { status?: string; video_validated_at?: string | null; publication_date_confirmed?: boolean; video_changes_requested?: boolean } | null,
+): NextAction {
+  // Video delivered but not yet validated → ask the client to review
+  if (hasDelivery && !client?.video_validated_at) {
+    if (client?.video_changes_requested) {
+      return {
+        pill: { tone: 'blue', emoji: '✏️', label: 'Modifications en cours' },
+        description: 'Vos retours ont été pris en compte. Notre équipe ajuste le montage.',
+      };
+    }
+    return {
+      pill: { tone: 'orange', emoji: '👀', label: 'Validez votre vidéo' },
+      description: 'Votre vidéo est livrée — visionnez-la et validez-la (ou demandez des modifications).',
+      cta: { label: 'Voir ma vidéo', tab: 'video' },
+    };
+  }
+  // Video validated, but no publication date picked yet
+  if (hasDelivery && client?.video_validated_at && !client?.publication_date_confirmed) {
+    return {
+      pill: { tone: 'orange', emoji: '🗓️', label: 'Choisissez votre date de publication' },
+      description: 'Sélectionnez le mardi ou le jeudi de votre choix dans le calendrier ci-dessous.',
+    };
+  }
+  if (hasDelivery && !hasFeedback && client?.publication_date_confirmed) {
     return {
       pill: { tone: 'orange', emoji: '⭐', label: 'Donnez-nous votre avis' },
-      description: 'Votre vidéo est livrée — on aimerait beaucoup connaître votre ressenti.',
+      description: 'Votre vidéo est planifiée — on aimerait beaucoup connaître votre ressenti.',
       cta: { label: 'Laisser mon avis', tab: 'feedback' },
     };
   }
@@ -729,9 +763,14 @@ function PortalContent() {
       }}>
         {/* Welcome + next action card */}
         {(() => {
-          const next = computeNextAction(script.status, !!hasDelivery, !!satisfaction);
+          const next = computeNextAction(script.status, !!hasDelivery, !!satisfaction, clientInfo);
           const pill = PILL_STYLES[next.pill.tone];
-          const dl = deadlineTone(clientInfo?.publication_deadline);
+          // Only display the publication countdown when the date is genuinely
+          // confirmed — otherwise it's an internal estimate that depends on
+          // script revisions, editing time, etc. Showing it as a hard date
+          // misleads the client.
+          const showDeadline = clientInfo?.publication_date_confirmed === true;
+          const dl = showDeadline ? deadlineTone(clientInfo?.publication_deadline) : null;
           const dlPill = dl ? PILL_STYLES[dl.tone] : null;
           return (
             <div style={{
@@ -858,6 +897,44 @@ function PortalContent() {
           <FilmingBookingPanel token={token!} onConfirmed={() => { loadScript(); loadNotifications(); }} actionLoading={actionLoading} />
         )}
 
+        {/* Video review — when a video is delivered but not yet validated by client */}
+        {hasDelivery && !clientInfo?.video_validated_at && (
+          <VideoReviewPanel
+            token={token!}
+            hasDelivery={!!hasDelivery}
+            clientInfo={clientInfo}
+            onActed={() => { loadScript(); loadNotifications(); }}
+          />
+        )}
+
+        {/* Publication date picker — Tuesdays / Thursdays only */}
+        {hasDelivery && clientInfo?.video_validated_at && !clientInfo?.publication_date_confirmed && (
+          <PublicationDatePicker
+            token={token!}
+            clientInfo={clientInfo}
+            onConfirmed={() => { loadScript(); loadNotifications(); }}
+          />
+        )}
+
+        {/* Confirmed publication banner */}
+        {clientInfo?.publication_date_confirmed && clientInfo?.publication_deadline && (
+          <div className="bm-fade-in" style={{
+            marginTop: 14, padding: '14px 18px', borderRadius: 12,
+            background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.30)',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <span aria-hidden style={{ fontSize: '1.6rem' }}>📺</span>
+            <div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>
+                Publication confirmée le {new Date(clientInfo.publication_deadline).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-mid)', marginTop: 2 }}>
+                Votre vidéo sera mise en ligne ce jour-là.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Status card + actions */}
         <div style={{
           background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
@@ -899,31 +976,43 @@ function PortalContent() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-          {([
+        {/* Tabs — Script + Commentaires uniquement quand le client doit relire
+            (proposition / modified / awaiting_changes). Une fois validé ou
+            avant proposition, ces onglets disparaissent pour ne pas surcharger. */}
+        {(() => {
+          const isInReview = script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes';
+          const tabsList: ('video' | 'script' | 'comments' | 'feedback')[] = [
             ...(hasDelivery ? ['video' as const] : []),
-            'script' as const,
-            'comments' as const,
+            ...(isInReview ? ['script' as const, 'comments' as const] : []),
             ...(hasDelivery ? ['feedback' as const] : []),
-          ]).map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{
-              padding: '10px 18px', border: 'none', cursor: 'pointer',
-              fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
-              background: 'transparent',
-              color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
-              borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
-              transition: 'all .15s',
-              whiteSpace: 'nowrap',
-            }}>
-              {t === 'video' ? `🎬 Vos vidéos${deliveredVideos.length > 1 ? ` (${deliveredVideos.length})` : ''}`
-                : t === 'script' ? '📄 Script'
-                : t === 'comments' ? `💬 Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`
-                : `⭐ Feedback${satisfaction ? ' ✓' : ''}`}
-            </button>
-          ))}
-        </div>
-
+          ];
+          // No tabs at all → render nothing (status card already explains the state)
+          if (tabsList.length === 0) return null;
+          // If current tab is no longer available, fall back to the first one silently.
+          if (!tabsList.includes(tab)) {
+            setTimeout(() => setTab(tabsList[0]), 0);
+          }
+          return (
+            <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+              {tabsList.map(t => (
+                <button key={t} onClick={() => setTab(t)} style={{
+                  padding: '10px 18px', border: 'none', cursor: 'pointer',
+                  fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
+                  background: 'transparent',
+                  color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
+                  borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
+                  transition: 'all .15s',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {t === 'video' ? `🎬 Vos vidéos${deliveredVideos.length > 1 ? ` (${deliveredVideos.length})` : ''}`
+                    : t === 'script' ? '📄 Script'
+                    : t === 'comments' ? `💬 Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`
+                    : `⭐ Feedback${satisfaction ? ' ✓' : ''}`}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
         {/* Video delivery view (multi-video) */}
         {tab === 'video' && hasDelivery && (
           <div key="tab-video" className="bm-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1335,6 +1424,286 @@ const smallLinkStyle: React.CSSProperties = {
   background: 'rgba(232,105,43,.08)',
 };
 
+function VideoReviewPanel({ token, hasDelivery, clientInfo, onActed }: {
+  token: string;
+  hasDelivery: boolean;
+  clientInfo: ClientDelivery | null;
+  onActed: () => void;
+}) {
+  const [mode, setMode] = useState<'idle' | 'changes'>('idle');
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!hasDelivery) return null;
+  if (clientInfo?.video_validated_at) return null; // already validated → don't show
+
+  async function send(action: 'validate_video' | 'request_video_changes') {
+    setSubmitting(true);
+    try {
+      await fetch(`/api/scripts?token=${token}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, comment: comment.trim() || undefined }),
+      });
+      onActed();
+      setComment('');
+      setMode('idle');
+    } finally { setSubmitting(false); }
+  }
+
+  const inChangesMode = clientInfo?.video_changes_requested && mode === 'idle';
+
+  return (
+    <div className="bm-fade-in" style={{
+      marginTop: 18, padding: '20px 22px', borderRadius: 14,
+      background: 'var(--night-card)', border: '1px solid var(--border-orange)',
+    }}>
+      {inChangesMode ? (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <span aria-hidden style={{ fontSize: '1.4rem' }}>✏️</span>
+            <h3 style={{
+              fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+              fontSize: '1.05rem', color: 'var(--text)', margin: 0,
+            }}>
+              Modifications en cours
+            </h3>
+          </div>
+          <p style={{ fontSize: '0.88rem', color: 'var(--text-mid)', margin: '0 0 12px', lineHeight: 1.5 }}>
+            Vos retours ont bien été reçus. Notre équipe ajuste le montage et vous renverra une nouvelle version dès que c&apos;est prêt.
+          </p>
+          {clientInfo?.video_review_comment && (
+            <blockquote style={{
+              borderLeft: '3px solid var(--orange)', padding: '8px 12px', margin: '0 0 12px',
+              background: 'rgba(232,105,43,.06)', borderRadius: '0 8px 8px 0',
+              fontSize: '0.82rem', color: 'var(--text-mid)', fontStyle: 'italic',
+            }}>
+              « {clientInfo.video_review_comment} »
+            </blockquote>
+          )}
+        </>
+      ) : (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <span aria-hidden style={{ fontSize: '1.4rem' }}>👀</span>
+            <h3 style={{
+              fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+              fontSize: '1.05rem', color: 'var(--text)', margin: 0,
+            }}>
+              Que pensez-vous de votre vidéo ?
+            </h3>
+          </div>
+          <p style={{ fontSize: '0.88rem', color: 'var(--text-mid)', margin: '0 0 14px', lineHeight: 1.5 }}>
+            {mode === 'changes'
+              ? 'Précisez ce qu\'il faut modifier — soyez concret·e (timecodes, formulations, plans à changer).'
+              : 'Validez si tout est OK pour passer à la planification de la publication. Sinon, demandez des modifications.'}
+          </p>
+
+          {mode === 'changes' && (
+            <textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="Ex : à 0:34, le titre est trop long. Pourrait-on raccourcir ?"
+              rows={4}
+              autoFocus
+              style={{
+                width: '100%', boxSizing: 'border-box', padding: '12px 14px',
+                borderRadius: 10, background: 'var(--night-mid)',
+                border: '1px solid var(--border-md)', color: 'var(--text)',
+                fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none',
+                marginBottom: 12,
+              }}
+            />
+          )}
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            {mode === 'idle' ? (
+              <>
+                <button onClick={() => setMode('changes')} disabled={submitting} style={{
+                  padding: '11px 18px', borderRadius: 10, background: 'transparent',
+                  border: '1px solid var(--yellow)', color: '#FDE68A',
+                  cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600,
+                }}>
+                  ✏️ Demander des modifications
+                </button>
+                <button onClick={() => send('validate_video')} disabled={submitting} style={{
+                  padding: '11px 22px', borderRadius: 10, background: 'var(--green)',
+                  color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.9rem',
+                  fontWeight: 700, boxShadow: '0 4px 14px rgba(34,197,94,.4)',
+                }}>
+                  {submitting ? '⏳' : '✅'} Valider la vidéo
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => { setMode('idle'); setComment(''); }} disabled={submitting} style={{
+                  padding: '9px 16px', borderRadius: 8, background: 'transparent',
+                  border: '1px solid var(--border-md)', color: 'var(--text-muted)',
+                  cursor: 'pointer', fontSize: '0.85rem',
+                }}>Annuler</button>
+                <button onClick={() => send('request_video_changes')} disabled={submitting || !comment.trim()} style={{
+                  padding: '11px 18px', borderRadius: 10, background: 'var(--orange)',
+                  color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.88rem',
+                  fontWeight: 700, opacity: !comment.trim() || submitting ? 0.5 : 1,
+                  boxShadow: '0 4px 14px rgba(232,105,43,.4)',
+                }}>
+                  {submitting ? '⏳ Envoi…' : '📤 Envoyer mes modifications'}
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
+  token: string;
+  clientInfo: ClientDelivery | null;
+  onConfirmed: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [pickedDate, setPickedDate] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [bookedSet, setBookedSet] = useState<Set<string>>(new Set());
+
+  // Fetch already-booked publication slots so we can grey them out
+  useEffect(() => {
+    if (!token) return;
+    fetch(`/api/calendar-slots?token=${token}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { bookedPublication?: string[] } | null) => {
+        if (d?.bookedPublication) setBookedSet(new Set(d.bookedPublication));
+      })
+      .catch(() => {});
+  }, [token]);
+
+  if (!clientInfo?.video_validated_at) return null;
+  if (clientInfo?.publication_date_confirmed) return null; // already chosen
+
+  // Generate next ~12 Tuesdays + Thursdays (mardi=2, jeudi=4) — we'll show 8
+  // available; if many are taken, the loop keeps walking forward.
+  const slots: { iso: string; label: string; weekday: 'Mardi' | 'Jeudi'; taken: boolean }[] = [];
+  {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 2; slots.length < 10 && i < 120; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const dow = d.getDay();
+      if (dow === 2 || dow === 4) {
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        slots.push({
+          iso,
+          label: d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }),
+          weekday: dow === 2 ? 'Mardi' : 'Jeudi',
+          taken: bookedSet.has(iso),
+        });
+      }
+    }
+  }
+
+  async function confirm() {
+    if (!pickedDate) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const r = await fetch(`/api/scripts?token=${token}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'confirm_publication_date', date: pickedDate }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setError(data.error || 'Erreur');
+        return;
+      }
+      onConfirmed();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="bm-fade-in" style={{
+      marginTop: 18, padding: '20px 22px', borderRadius: 14,
+      background: 'var(--night-card)', border: '1px solid var(--border-orange)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <span aria-hidden style={{ fontSize: '1.4rem' }}>🗓️</span>
+        <div>
+          <h3 style={{
+            fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+            fontSize: '1.1rem', color: 'var(--text)', margin: 0,
+          }}>
+            Choisissez votre date de publication
+          </h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-mid)', margin: '4px 0 0', lineHeight: 1.5 }}>
+            Les publications sont planifiées le <strong>mardi</strong> ou le <strong>jeudi</strong>.
+          </p>
+        </div>
+      </div>
+
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 14,
+      }}>
+        {slots.map(slot => {
+          const selected = pickedDate === slot.iso;
+          return (
+            <button
+              key={slot.iso}
+              onClick={() => !slot.taken && setPickedDate(slot.iso)}
+              disabled={slot.taken}
+              className={slot.taken ? '' : 'bm-press'}
+              title={slot.taken ? 'Ce créneau est déjà réservé' : undefined}
+              style={{
+                padding: '14px 12px', borderRadius: 10,
+                background: slot.taken ? 'rgba(0,0,0,.25)' : selected ? 'rgba(232,105,43,.18)' : 'var(--night-mid)',
+                border: slot.taken
+                  ? '1px dashed var(--border-md)'
+                  : selected ? '2px solid var(--orange)' : '1px solid var(--border-md)',
+                color: slot.taken ? 'var(--text-muted)' : selected ? 'var(--text)' : 'var(--text-mid)',
+                cursor: slot.taken ? 'not-allowed' : 'pointer',
+                textAlign: 'left', position: 'relative',
+                opacity: slot.taken ? 0.5 : 1,
+                transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+              }}
+            >
+              <div style={{ fontSize: '0.7rem', color: slot.weekday === 'Mardi' ? '#FBBF24' : '#A78BFA', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                {slot.weekday}{slot.taken && ' · réservé'}
+              </div>
+              <div style={{ fontSize: '0.92rem', fontWeight: 700, color: slot.taken ? 'var(--text-muted)' : 'var(--text)', textDecoration: slot.taken ? 'line-through' : 'none' }}>
+                {slot.label.charAt(0).toUpperCase() + slot.label.slice(1)}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {error && (
+        <div style={{
+          marginTop: 12, padding: '10px 12px', borderRadius: 8,
+          background: 'rgba(239,68,68,.10)', color: '#FCA5A5', fontSize: '0.84rem',
+        }}>❌ {error}</div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+        <button
+          onClick={confirm}
+          disabled={!pickedDate || submitting}
+          style={{
+            padding: '12px 22px', borderRadius: 10, background: 'var(--orange)',
+            color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.9rem',
+            fontWeight: 700, boxShadow: '0 4px 14px rgba(232,105,43,.4)',
+            opacity: !pickedDate || submitting ? 0.5 : 1,
+          }}
+        >
+          {submitting ? '⏳ Enregistrement…' : '✅ Confirmer cette date'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
   token: string;
   onConfirmed: () => void;
@@ -1347,6 +1716,8 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
   const [pickedDate, setPickedDate] = useState('');
   const [pickedTime, setPickedTime] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [bookedSet, setBookedSet] = useState<Set<string>>(new Set());
 
   // Show "I booked" button shortly after iframe loads (mirrors onboarding pattern)
   useEffect(() => {
@@ -1360,16 +1731,39 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
     }
   }, [iframeLoaded, showButton]);
 
+  // Fetch already-booked filming dates so we can warn before submission
+  useEffect(() => {
+    if (!token) return;
+    fetch(`/api/calendar-slots?token=${token}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { bookedFilming?: string[] } | null) => {
+        if (d?.bookedFilming) setBookedSet(new Set(d.bookedFilming));
+      })
+      .catch(() => {});
+  }, [token]);
+
   async function confirmBooking() {
+    if (!pickedDate) return;
+    setError('');
+    if (bookedSet.has(pickedDate)) {
+      setError('Cette date est déjà prise par un autre projet. Choisissez un autre jour.');
+      return;
+    }
     setSubmitting(true);
     try {
-      const isoDate = pickedDate ? new Date(`${pickedDate}T${pickedTime || '09:00'}`).toISOString() : null;
+      const isoDate = new Date(`${pickedDate}T${pickedTime || '09:00'}`).toISOString();
       const r = await fetch(`/api/scripts?token=${token}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'confirm_filming_booked', date: isoDate }),
       });
-      if (r.ok) { onConfirmed(); setShowDateForm(false); }
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setError(data.error || 'Erreur — réessayez ou contactez l\'équipe.');
+        return;
+      }
+      onConfirmed();
+      setShowDateForm(false);
     } finally {
       setSubmitting(false);
     }
@@ -1459,6 +1853,20 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
                   }}
                 />
               </div>
+              {pickedDate && bookedSet.has(pickedDate) && (
+                <div style={{
+                  padding: '8px 12px', borderRadius: 6, marginBottom: 10,
+                  background: 'rgba(239,68,68,.10)', color: '#FCA5A5', fontSize: '0.8rem',
+                }}>
+                  ⚠️ Ce jour est déjà pris par un autre projet — choisissez-en un autre.
+                </div>
+              )}
+              {error && (
+                <div style={{
+                  padding: '8px 12px', borderRadius: 6, marginBottom: 10,
+                  background: 'rgba(239,68,68,.10)', color: '#FCA5A5', fontSize: '0.8rem',
+                }}>{error}</div>
+              )}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button onClick={() => setShowDateForm(false)} style={{
                   padding: '9px 16px', borderRadius: 8, background: 'transparent',
@@ -1467,18 +1875,18 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
                 }}>Annuler</button>
                 <button
                   onClick={confirmBooking}
-                  disabled={!pickedDate || submitting}
+                  disabled={!pickedDate || submitting || bookedSet.has(pickedDate)}
                   style={{
                     padding: '9px 18px', borderRadius: 8, background: 'var(--green)',
                     color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem',
-                    fontWeight: 700, opacity: !pickedDate || submitting ? 0.5 : 1,
+                    fontWeight: 700, opacity: !pickedDate || submitting || bookedSet.has(pickedDate) ? 0.5 : 1,
                   }}
                 >
                   {submitting ? '⏳ Enregistrement…' : '🎬 Confirmer mon tournage'}
                 </button>
               </div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 8 }}>
-                💡 Vous pouvez aussi sauter cette étape — l&apos;équipe verra votre créneau dans GHL et le saisira.
+                ⚠️ La date est obligatoire pour qu&apos;elle apparaisse dans l&apos;agenda de l&apos;équipe. 1 seul tournage par jour.
               </div>
             </div>
           )}

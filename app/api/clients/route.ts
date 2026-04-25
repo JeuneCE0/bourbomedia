@@ -136,7 +136,15 @@ export async function PUT(req: NextRequest) {
       // Delivery: video delivered
       if (prev && fields.delivered_at && !prev.delivered_at) {
         logEvent(id, 'video_delivered', { video_url: updated.video_url });
-        pushNotification(id, 'video_delivered', 'Votre vidéo est prête 🎬', 'Découvrez le résultat final dans votre espace.');
+        pushNotification(id, 'video_delivered', 'Votre vidéo est prête 🎬', 'Découvrez-la et validez-la dans votre espace.');
+        // Auto-bump status to video_review so the client sees the validation flow.
+        // Don't override an explicit status update (e.g. admin set published manually).
+        if (!fields.status && prev.status !== 'video_review' && prev.status !== 'publication_pending' && prev.status !== 'published') {
+          await supaFetch(`clients?id=eq.${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: 'video_review' }),
+          }, true);
+        }
         triggerWorkflow(updated.ghl_contact_id, 'video_delivered').catch(() => {});
         if (notifyEnabled && updated.ghl_contact_id) {
           const portalUrl = updated.portal_token ? `https://bourbonmedia.fr/portal?token=${updated.portal_token}` : '';
