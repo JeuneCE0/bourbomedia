@@ -45,9 +45,18 @@ export async function listPipelines(): Promise<GhlPipeline[]> {
   }
 }
 
-// Normalize for fuzzy match: lowercase + strip diacritics + collapse spaces
+// Normalize for fuzzy match: lowercase + strip diacritics + strip emojis +
+// collapse spaces. Lets us match e.g. "💭 En réflexion" (GHL) against
+// "En réflexion" (our seed) without manual updates each time the user adds an emoji.
 function norm(s: string): string {
-  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+  return (s || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')                       // diacritics
+    .replace(/\p{Extended_Pictographic}/gu, '')             // emojis
+    .replace(/[‍️\u{1f3fb}-\u{1f3ff}]/gu, '')    // ZWJ, variation selector, skin tones
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 export async function findBourbonPipeline(): Promise<GhlPipeline | null> {
