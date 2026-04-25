@@ -45,11 +45,16 @@ export async function listPipelines(): Promise<GhlPipeline[]> {
   }
 }
 
+// Normalize for fuzzy match: lowercase + strip diacritics + collapse spaces
+function norm(s: string): string {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
 export async function findBourbonPipeline(): Promise<GhlPipeline | null> {
   const mapping = await getSetting('ghl_pipeline_mapping');
-  const targetName = (mapping?.pipeline_name || 'Pipeline Bourbon Média').toLowerCase();
+  const targetName = norm(mapping?.pipeline_name || 'Pipeline Bourbon Media');
   const pipelines = await listPipelines();
-  return pipelines.find(p => p.name.toLowerCase() === targetName) || null;
+  return pipelines.find(p => norm(p.name) === targetName) || null;
 }
 
 export async function listOpportunitiesByContact(contactId: string): Promise<GhlOpportunityLite[]> {
@@ -120,7 +125,8 @@ export async function resolveMapping(): Promise<{ mapping: GhlPipelineMapping; p
   if (!pipeline) return { mapping, pipeline: null };
   const stage_ids: Record<string, string> = {};
   for (const ghlStageName of Object.keys(mapping.stages)) {
-    const found = pipeline.stages.find(s => s.name.toLowerCase() === ghlStageName.toLowerCase());
+    const target = norm(ghlStageName);
+    const found = pipeline.stages.find(s => norm(s.name) === target);
     if (found) stage_ids[ghlStageName] = found.id;
   }
   return {
