@@ -86,30 +86,41 @@ export async function listOpportunitiesByContact(contactId: string): Promise<Ghl
   }
 }
 
-export async function listOpportunitiesByPipeline(pipelineId: string, since?: string): Promise<GhlOpportunityLite[]> {
+export async function listOpportunitiesByPipeline(pipelineId: string): Promise<GhlOpportunityLite[]> {
   if (!LOCATION_ID || !pipelineId) return [];
-  try {
-    const params = new URLSearchParams({
-      location_id: LOCATION_ID,
-      pipeline_id: pipelineId,
-      limit: '100',
-    });
-    if (since) params.set('date', since);
-    const data = await ghlRequest('GET', `/opportunities/search?${params.toString()}`);
-    return (data?.opportunities || []).map((o: Record<string, unknown>) => ({
-      id: (o.id || o._id) as string,
-      name: (o.name || '') as string,
-      contactId: (o.contactId || (o.contact as { id?: string })?.id || '') as string,
-      pipelineId: (o.pipelineId || pipelineId) as string,
-      pipelineStageId: (o.pipelineStageId || '') as string,
-      status: (o.status || '') as string,
-      monetaryValue: o.monetaryValue as number | undefined,
-      createdAt: o.createdAt as string | undefined,
-      updatedAt: o.updatedAt as string | undefined,
-    }));
-  } catch {
-    return [];
+  // Iterate all pages — GHL caps at 100/page on /opportunities/search.
+  const all: GhlOpportunityLite[] = [];
+  let page = 1;
+  for (;;) {
+    try {
+      const params = new URLSearchParams({
+        location_id: LOCATION_ID,
+        pipeline_id: pipelineId,
+        limit: '100',
+        page: String(page),
+      });
+      const data = await ghlRequest('GET', `/opportunities/search?${params.toString()}`);
+      const batch: GhlOpportunityLite[] = (data?.opportunities || []).map((o: Record<string, unknown>) => ({
+        id: (o.id || o._id) as string,
+        name: (o.name || '') as string,
+        contactId: (o.contactId || (o.contact as { id?: string })?.id || '') as string,
+        pipelineId: (o.pipelineId || pipelineId) as string,
+        pipelineStageId: (o.pipelineStageId || '') as string,
+        status: (o.status || '') as string,
+        monetaryValue: o.monetaryValue as number | undefined,
+        createdAt: o.createdAt as string | undefined,
+        updatedAt: o.updatedAt as string | undefined,
+      }));
+      if (batch.length === 0) break;
+      all.push(...batch);
+      if (batch.length < 100) break;
+      page++;
+      if (page > 50) break; // hard safety cap
+    } catch {
+      break;
+    }
   }
+  return all;
 }
 
 export async function updateOpportunityStage(opportunityId: string, pipelineId: string, pipelineStageId: string): Promise<boolean> {

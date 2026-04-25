@@ -275,7 +275,7 @@ export default function FinancePage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
                   <Kpi emoji="💸" label="CA encaissé" value={fmtEUR(closingStats.revenue_paid_cents)} color="var(--green)" />
                   <Kpi emoji="📊" label="CA généré (HT)" value={fmtEUR(closingStats.revenue_won_ht_cents)} color="var(--orange)" extra={`${closingStats.calls_won} contrat${closingStats.calls_won > 1 ? 's' : ''} signé${closingStats.calls_won > 1 ? 's' : ''}`} />
-                  <Kpi emoji="🚀" label="Pipeline ouvert" value={fmtEUR(closingStats.pipeline_value_cents)} color="#3B82F6" extra={`${closingStats.pipeline_open_count} prospects en cours`} />
+                  <Kpi emoji="🚀" label="CA à signer" value={fmtEUR(closingStats.pipeline_value_cents)} color="#3B82F6" extra={`${closingStats.pipeline_open_count} prospects actifs`} />
                   <Kpi emoji="💰" label="Budget Ads" value={fmtEUR(closingStats.ads_budget_cents)} color="var(--text-mid)" extra="pro-rata" />
                   <Kpi emoji="🛠️" label="Frais presta" value={fmtEUR(closingStats.provider_fees_cents)} color="var(--text-mid)" />
                   <Kpi emoji="📈" label="Bénéfice brut" value={fmtEUR(closingStats.gross_profit_cents)} color={closingStats.gross_profit_cents >= 0 ? 'var(--green)' : 'var(--red)'} extra="Encaissé − Ads − Presta" />
