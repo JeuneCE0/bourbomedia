@@ -1222,7 +1222,17 @@ export default function ClientDetailPage() {
                   letterSpacing: 0.3, marginLeft: 6,
                 }}>AUTO-SAVE 2s</span>
               </h4>
-              <ScriptEditor content={script.content} onSave={handleSaveScript} saving={saving} autoSaveMs={2000} />
+              <ScriptEditor
+                content={script.content}
+                onSave={handleSaveScript}
+                saving={saving}
+                autoSaveMs={2000}
+                aiContext={{
+                  business_name: client.business_name,
+                  category: client.category,
+                  city: client.city,
+                }}
+              />
 
               {/* Comments (inline, below editor) */}
               <div style={{

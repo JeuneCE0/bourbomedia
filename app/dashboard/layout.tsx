@@ -11,8 +11,9 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon:
     items: [
       { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
       { href: '/dashboard/pipeline', label: 'Pipeline', icon: '📊' },
+      { href: '/dashboard/shoots', label: 'Tournages', icon: '🎬' },
       { href: '/dashboard/tasks', label: 'Tâches', icon: '✅' },
-      { href: '/dashboard/scripts', label: 'Scripts / Tournages', icon: '📝' },
+      { href: '/dashboard/scripts', label: 'Scripts', icon: '📝' },
     ],
   },
   {
@@ -22,6 +23,13 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon:
       { href: '/dashboard/calendar', label: 'Calendrier', icon: '📅' },
       { href: '/dashboard/onboarding', label: 'Onboarding', icon: '🚀' },
       { href: '/dashboard/team', label: 'Équipe', icon: '👤' },
+    ],
+  },
+  {
+    title: 'Analyse',
+    items: [
+      { href: '/dashboard/finance', label: 'Finance', icon: '💰' },
+      { href: '/dashboard/stats', label: 'Stats', icon: '📈' },
     ],
   },
   {

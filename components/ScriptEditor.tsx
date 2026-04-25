@@ -17,7 +17,20 @@ interface ScriptEditorProps {
   readOnly?: boolean;
   /** Auto-save with this debounce delay (ms). Disabled if undefined or 0. */
   autoSaveMs?: number;
+  /** Optional client context passed to the AI assist endpoint */
+  aiContext?: { business_name?: string; category?: string; city?: string };
 }
+
+type AiAction = 'rewrite' | 'shorten' | 'expand' | 'hook' | 'cta' | 'fix';
+
+const AI_ACTIONS: { key: AiAction; label: string; emoji: string; description: string; needsSelection: boolean }[] = [
+  { key: 'rewrite',  label: 'Reformuler',     emoji: '✨', description: 'Reformule la sélection pour qu\'elle sonne mieux à l\'oral', needsSelection: true },
+  { key: 'shorten',  label: 'Raccourcir',     emoji: '✂️', description: 'Réduit la sélection de 30 à 50%', needsSelection: true },
+  { key: 'expand',   label: 'Étoffer',        emoji: '📝', description: 'Ajoute un détail ou une émotion', needsSelection: true },
+  { key: 'fix',      label: 'Corriger fautes', emoji: '🔠', description: 'Corrige uniquement les erreurs (sans réécrire)', needsSelection: true },
+  { key: 'hook',     label: 'Suggérer accroche', emoji: '🎯', description: 'Génère une accroche d\'ouverture', needsSelection: false },
+  { key: 'cta',      label: 'Suggérer CTA',   emoji: '🚀', description: 'Génère un appel à l\'action de fin', needsSelection: false },
+];
 
 /* ── word count helper ── */
 function countWords(text: string): number {
@@ -117,7 +130,7 @@ function SaveToast({ visible }: { visible: boolean }) {
 }
 
 /* ── main editor ── */
-export default function ScriptEditor({ content, onSave, saving, readOnly, autoSaveMs }: ScriptEditorProps) {
+export default function ScriptEditor({ content, onSave, saving, readOnly, autoSaveMs, aiContext }: ScriptEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -147,6 +160,9 @@ export default function ScriptEditor({ content, onSave, saving, readOnly, autoSa
   const [wordCount, setWordCount] = useState(0);
   const [showToast, setShowToast] = useState(false);
   const [autoStatus, setAutoStatus] = useState<'idle' | 'pending' | 'saved'>('idle');
+  const [aiMenuOpen, setAiMenuOpen] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiPreview, setAiPreview] = useState<{ action: AiAction; original: string; suggested: string; from: number; to: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<string>('');
@@ -193,6 +209,68 @@ export default function ScriptEditor({ content, onSave, saving, readOnly, autoSa
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setShowToast(false), 2000);
   }, [editor, onSave]);
+
+  const runAi = useCallback(async (action: AiAction) => {
+    if (!editor) return;
+    setAiMenuOpen(false);
+
+    const sel = editor.state.selection;
+    const meta = AI_ACTIONS.find(a => a.key === action);
+    if (!meta) return;
+
+    let from = sel.from;
+    let to = sel.to;
+    let selected = editor.state.doc.textBetween(from, to, ' ', ' ').trim();
+
+    if (meta.needsSelection && !selected) {
+      alert('Sélectionnez d\'abord un passage du script à modifier.');
+      return;
+    }
+    // For hook/cta without selection, pass nearby context (~first/last 200 chars)
+    if (!meta.needsSelection && !selected) {
+      const all = editor.state.doc.textBetween(0, editor.state.doc.content.size, ' ', ' ');
+      selected = action === 'hook' ? all.slice(0, 400) : all.slice(-400);
+      from = action === 'hook' ? 1 : Math.max(1, editor.state.doc.content.size - 1);
+      to = from;
+    }
+
+    setAiBusy(true);
+    try {
+      const r = await fetch('/api/ai/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('bbp_token') || '' : ''}` },
+        body: JSON.stringify({ action, text: selected, ...(aiContext || {}) }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        alert(data.error || 'Erreur IA');
+        return;
+      }
+      setAiPreview({ action, original: selected, suggested: data.text, from, to });
+    } catch (e) {
+      alert((e as Error).message || 'Erreur IA');
+    } finally {
+      setAiBusy(false);
+    }
+  }, [editor, aiContext]);
+
+  const acceptAiSuggestion = useCallback(() => {
+    if (!editor || !aiPreview) return;
+    const meta = AI_ACTIONS.find(a => a.key === aiPreview.action);
+    if (!meta) return;
+
+    if (meta.needsSelection) {
+      // Replace the selection with the suggestion
+      editor.chain().focus().setTextSelection({ from: aiPreview.from, to: aiPreview.to }).insertContent(aiPreview.suggested).run();
+    } else if (aiPreview.action === 'hook') {
+      // Insert at the very top
+      editor.chain().focus().setTextSelection(1).insertContent(aiPreview.suggested + '\n\n').run();
+    } else {
+      // CTA: insert at the very end
+      editor.chain().focus().setTextSelection(editor.state.doc.content.size - 1).insertContent('\n\n' + aiPreview.suggested).run();
+    }
+    setAiPreview(null);
+  }, [editor, aiPreview]);
 
   if (!editor) return null;
 
@@ -375,6 +453,58 @@ export default function ScriptEditor({ content, onSave, saving, readOnly, autoSa
           {/* spacer */}
           <div style={{ flex: 1 }} />
 
+          {/* ── AI assist menu ── */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setAiMenuOpen(o => !o)}
+              disabled={aiBusy}
+              title="Assistance IA"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '6px 12px', borderRadius: 8,
+                background: aiBusy ? 'var(--night-mid)' : 'rgba(168,85,247,.18)',
+                color: aiBusy ? 'var(--text-muted)' : '#D8B4FE',
+                border: '1px solid rgba(168,85,247,.45)',
+                fontWeight: 700, fontSize: '0.75rem', cursor: aiBusy ? 'wait' : 'pointer',
+                marginRight: 6,
+              }}
+            >
+              {aiBusy ? '⏳ IA…' : '✨ IA'}
+            </button>
+            {aiMenuOpen && !aiBusy && (
+              <>
+                <div onClick={() => setAiMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 100 }} />
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 101,
+                  background: 'var(--night-raised)', border: '1px solid var(--border-md)',
+                  borderRadius: 10, padding: 6, minWidth: 250,
+                  boxShadow: '0 12px 32px rgba(0,0,0,.5)',
+                }}>
+                  {AI_ACTIONS.map(a => (
+                    <button
+                      key={a.key}
+                      onClick={() => runAi(a.key)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'flex-start', gap: 10,
+                        padding: '8px 10px', borderRadius: 8, border: 'none',
+                        background: 'transparent', color: 'var(--text)',
+                        cursor: 'pointer', textAlign: 'left',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--night-mid)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <span aria-hidden style={{ fontSize: '1rem', lineHeight: 1.2, flexShrink: 0 }}>{a.emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)' }}>{a.label}</div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 2 }}>{a.description}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
           {/* ── save button ── */}
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <SaveToast visible={showToast && !saving} />
@@ -436,6 +566,82 @@ export default function ScriptEditor({ content, onSave, saving, readOnly, autoSa
           <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Lecture seule</span>
         ) : null}
       </div>
+
+      {/* AI suggestion preview modal */}
+      {aiPreview && (
+        <div onClick={() => setAiPreview(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 3000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--night-raised)', border: '1px solid rgba(168,85,247,.45)',
+            borderRadius: 14, padding: 22, maxWidth: 720, width: '100%',
+            maxHeight: '90vh', overflowY: 'auto',
+            boxShadow: '0 20px 60px rgba(0,0,0,.6)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span aria-hidden>✨</span>
+                Suggestion IA — {AI_ACTIONS.find(a => a.key === aiPreview.action)?.label}
+              </h3>
+              <button onClick={() => setAiPreview(null)} style={{
+                background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                fontSize: '1.2rem', cursor: 'pointer', padding: 4, lineHeight: 1,
+              }} aria-label="Fermer">✕</button>
+            </div>
+
+            {AI_ACTIONS.find(a => a.key === aiPreview.action)?.needsSelection && (
+              <>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                  Original
+                </div>
+                <div style={{
+                  padding: '10px 12px', borderRadius: 8,
+                  background: 'var(--night-mid)', border: '1px solid var(--border)',
+                  fontSize: '0.85rem', color: 'var(--text-mid)', lineHeight: 1.6,
+                  marginBottom: 14, whiteSpace: 'pre-wrap',
+                  maxHeight: 160, overflowY: 'auto',
+                }}>
+                  {aiPreview.original}
+                </div>
+              </>
+            )}
+
+            <div style={{ fontSize: '0.7rem', color: '#D8B4FE', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+              Suggestion
+            </div>
+            <div style={{
+              padding: '10px 12px', borderRadius: 8,
+              background: 'rgba(168,85,247,.08)', border: '1px solid rgba(168,85,247,.35)',
+              fontSize: '0.9rem', color: 'var(--text)', lineHeight: 1.6,
+              marginBottom: 16, whiteSpace: 'pre-wrap',
+              maxHeight: 240, overflowY: 'auto',
+            }}>
+              {aiPreview.suggested}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={() => setAiPreview(null)} style={{
+                padding: '9px 16px', borderRadius: 8, background: 'transparent',
+                border: '1px solid var(--border-md)', color: 'var(--text-muted)',
+                cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
+              }}>Annuler</button>
+              <button onClick={() => runAi(aiPreview.action)} style={{
+                padding: '9px 16px', borderRadius: 8, background: 'var(--night-card)',
+                border: '1px solid var(--border-md)', color: 'var(--text)',
+                cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
+              }}>🔄 Régénérer</button>
+              <button onClick={acceptAiSuggestion} style={{
+                padding: '9px 18px', borderRadius: 8, background: '#A855F7',
+                border: 'none', color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
+                boxShadow: '0 4px 14px rgba(168,85,247,.4)',
+              }}>
+                ✅ {AI_ACTIONS.find(a => a.key === aiPreview.action)?.needsSelection ? 'Remplacer' : 'Insérer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* inline keyframes for spinner */}
       <style>{`
