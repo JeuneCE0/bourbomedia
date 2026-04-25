@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
@@ -208,10 +208,27 @@ export default function ClientDetailPage() {
   const router = useRouter();
   const id = params.id as string;
 
+  const searchParams = useSearchParams();
+  const initialTab = (() => {
+    const t = searchParams.get('tab');
+    return (['info', 'script', 'filming', 'delivery', 'payments'] as const).includes(t as 'info') ? (t as 'info' | 'script' | 'filming' | 'delivery' | 'payments') : 'info';
+  })();
+
   const [client, setClient] = useState<Client | null>(null);
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'info' | 'script' | 'filming' | 'delivery' | 'payments'>('info');
+  const [tab, setTabState] = useState<'info' | 'script' | 'filming' | 'delivery' | 'payments'>(initialTab);
+
+  // Sync tab → URL so admin can share / refresh and stay on the right tab
+  const setTab = useCallback((next: 'info' | 'script' | 'filming' | 'delivery' | 'payments') => {
+    setTabState(next);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (next === 'info') url.searchParams.delete('tab');
+      else url.searchParams.set('tab', next);
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [events, setEvents] = useState<ClientEvent[]>([]);
@@ -312,6 +329,41 @@ export default function ClientDetailPage() {
   }, [script]);
 
   useEffect(() => { loadAnnotations(); }, [loadAnnotations]);
+
+  // Auto-create the script when admin opens the Script tab and no script exists.
+  // Removes the "Créer le script" friction step — the editor is ready immediately.
+  // Tracks per-page-session attempts so we don't loop on failure.
+  const autoCreateAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (tab !== 'script') return;
+    if (!client || script || loading || saving) return;
+    if (autoCreateAttemptedRef.current) return;
+    autoCreateAttemptedRef.current = true;
+    void (async () => {
+      try {
+        setSaving(true);
+        const r = await fetch('/api/scripts', {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify({
+            client_id: client.id,
+            title: `Script — ${client.business_name || 'Client'}`,
+          }),
+        });
+        if (r.ok) {
+          const created = await r.json();
+          setScript({ ...created, script_comments: [] });
+          if (client.status === 'onboarding') {
+            await fetch('/api/clients', {
+              method: 'PUT', headers: authHeaders(),
+              body: JSON.stringify({ id: client.id, status: 'script_writing' }),
+            });
+            loadClient();
+          }
+        }
+      } catch { /* silent fallback to manual button */ }
+      finally { setSaving(false); }
+    })();
+  }, [tab, client, script, loading, saving, loadClient]);
 
   async function updateAnnotation(id: string, fields: { note?: string; resolved?: boolean; add_reply?: string }) {
     try {
@@ -1170,7 +1222,17 @@ export default function ClientDetailPage() {
                   letterSpacing: 0.3, marginLeft: 6,
                 }}>AUTO-SAVE 2s</span>
               </h4>
-              <ScriptEditor content={script.content} onSave={handleSaveScript} saving={saving} autoSaveMs={2000} />
+              <ScriptEditor
+                content={script.content}
+                onSave={handleSaveScript}
+                saving={saving}
+                autoSaveMs={2000}
+                aiContext={{
+                  business_name: client.business_name,
+                  category: client.category,
+                  city: client.city,
+                }}
+              />
 
               {/* Comments (inline, below editor) */}
               <div style={{
@@ -1227,13 +1289,25 @@ export default function ClientDetailPage() {
               </div>
             </>
           ) : (
-            <div style={{ textAlign: 'center', padding: '48px 20px' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 12, opacity: 0.2 }}>✎</div>
-              <p style={{ color: 'var(--text-muted)', marginBottom: 16, fontSize: '0.88rem' }}>Aucun script pour ce client</p>
+            <div style={{
+              textAlign: 'center', padding: '48px 20px',
+              background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
+            }}>
+              <div style={{ fontSize: '3rem', marginBottom: 14 }} aria-hidden>📝</div>
+              <p style={{ color: 'var(--text)', fontWeight: 700, fontSize: '1rem', margin: '0 0 6px' }}>
+                {saving ? 'Préparation du script en cours…' : 'Démarrer le script de ce client'}
+              </p>
+              <p style={{ color: 'var(--text-muted)', marginBottom: 18, fontSize: '0.85rem', lineHeight: 1.5 }}>
+                {saving
+                  ? 'Encore un instant — l\'éditeur va apparaître automatiquement.'
+                  : 'L\'éditeur s\'ouvre dès qu\'on a créé l\'entrée. Cliquez sur le bouton ou attendez quelques secondes.'}
+              </p>
               <button onClick={handleCreateScript} disabled={saving} style={{
-                padding: '10px 22px', borderRadius: 10, background: 'var(--orange)',
-                color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
-              }}>{saving ? 'Création…' : 'Créer le script'}</button>
+                padding: '11px 24px', borderRadius: 10, background: 'var(--orange)',
+                color: '#fff', border: 'none', fontWeight: 700, fontSize: '0.9rem',
+                cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1,
+                boxShadow: '0 4px 14px rgba(232,105,43,.35)',
+              }}>{saving ? '⏳ Création…' : '✍️ Créer et commencer à écrire'}</button>
             </div>
           )}
         </div>
