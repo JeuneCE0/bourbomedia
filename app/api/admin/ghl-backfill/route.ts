@@ -5,6 +5,7 @@ import { classifyCalendar, matchClientFromContact } from '@/lib/ghl-appointments
 import {
   resolveMapping,
   listOpportunitiesByPipeline,
+  listOpportunitiesByContact,
   listCalendarEvents,
   getContact,
   stageIdToProspectStatus,
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
     summary.errors.push(`Pipeline "${mapping.pipeline_name}" introuvable dans GHL`);
   }
 
-  // 2. Pull opportunities in the pipeline since `since`
+  // 2. Pull opportunities in the pipeline since `since` and mirror them
   const oppsByContact = new Map<string, { id: string; name: string; pipelineId: string; pipelineStageId: string }>();
   if (pipeline) {
     const opps = await listOpportunitiesByPipeline(pipeline.id, sinceStr);
@@ -86,6 +87,27 @@ export async function POST(req: NextRequest) {
       if (o.contactId) oppsByContact.set(o.contactId, {
         id: o.id, name: o.name, pipelineId: o.pipelineId, pipelineStageId: o.pipelineStageId,
       });
+
+      // Mirror to gh_opportunities for funnel metrics
+      const stage = pipeline.stages.find(s => s.id === o.pipelineStageId);
+      const oppRow: Record<string, unknown> = {
+        ghl_opportunity_id: o.id,
+        ghl_contact_id: o.contactId || null,
+        pipeline_id: o.pipelineId,
+        pipeline_stage_id: o.pipelineStageId,
+        pipeline_stage_name: stage?.name || null,
+        name: o.name || null,
+        monetary_value_cents: o.monetaryValue ? Math.round(o.monetaryValue * 100) : null,
+        prospect_status: stageIdToProspectStatus(mapping, o.pipelineStageId),
+        ghl_created_at: o.createdAt ? new Date(o.createdAt).toISOString() : null,
+        ghl_updated_at: o.updatedAt ? new Date(o.updatedAt).toISOString() : null,
+        updated_at: new Date().toISOString(),
+      };
+      await supaFetch('gh_opportunities?on_conflict=ghl_opportunity_id', {
+        method: 'POST',
+        headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(oppRow),
+      }, true).catch(() => null);
     }
   }
 
@@ -125,6 +147,40 @@ export async function POST(req: NextRequest) {
 
       // Look up the matching opportunity (only meaningful for closing calls)
       let opp = ev.contactId ? oppsByContact.get(ev.contactId) : null;
+      // Fallback : per-contact lookup if the pipeline-wide fetch returned nothing
+      // (the GHL /opportunities/search?pipeline_id endpoint is sometimes empty
+      // even with valid data — querying by contact is more reliable).
+      if (!opp && ev.contactId && calendarKind === 'closing') {
+        const contactOpps = await listOpportunitiesByContact(ev.contactId);
+        const inPipeline = pipeline ? contactOpps.find(o => o.pipelineId === pipeline.id) : contactOpps[0];
+        if (inPipeline) {
+          opp = {
+            id: inPipeline.id,
+            name: inPipeline.name,
+            pipelineId: inPipeline.pipelineId,
+            pipelineStageId: inPipeline.pipelineStageId,
+          };
+          // Mirror to gh_opportunities so the funnel metrics see it
+          const stage = pipeline?.stages.find(s => s.id === inPipeline.pipelineStageId);
+          await supaFetch('gh_opportunities?on_conflict=ghl_opportunity_id', {
+            method: 'POST',
+            headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({
+              ghl_opportunity_id: inPipeline.id,
+              ghl_contact_id: inPipeline.contactId,
+              pipeline_id: inPipeline.pipelineId,
+              pipeline_stage_id: inPipeline.pipelineStageId,
+              pipeline_stage_name: stage?.name || null,
+              name: inPipeline.name || null,
+              monetary_value_cents: inPipeline.monetaryValue ? Math.round(inPipeline.monetaryValue * 100) : null,
+              prospect_status: stageIdToProspectStatus(mapping, inPipeline.pipelineStageId),
+              ghl_created_at: inPipeline.createdAt ? new Date(inPipeline.createdAt).toISOString() : null,
+              ghl_updated_at: inPipeline.updatedAt ? new Date(inPipeline.updatedAt).toISOString() : null,
+              updated_at: new Date().toISOString(),
+            }),
+          }, true).catch(() => null);
+        }
+      }
       let opportunity_id: string | null = null;
       let opportunity_name: string | null = null;
       let pipeline_id: string | null = null;
