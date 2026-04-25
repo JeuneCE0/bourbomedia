@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { Annotation } from '@/components/ScriptAnnotator';
+import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
 const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
@@ -92,7 +93,7 @@ const PROJECT_STAGES = [
   { key: 'onboarding', label: 'Inscription', emoji: '👋', description: 'Vous êtes inscrit·e — bienvenue !' },
   { key: 'script_writing', label: 'Écriture du script', emoji: '✍️', description: 'Notre équipe écrit votre script sur mesure.' },
   { key: 'script_review', label: 'Relecture du script', emoji: '📝', description: 'Le script vous est proposé pour relecture.' },
-  { key: 'script_validated', label: 'Script validé', emoji: '✅', description: 'Vous avez validé le script — on planifie le tournage.' },
+  { key: 'script_validated', label: 'Réservez votre tournage', emoji: '✅', description: 'Choisissez votre créneau de tournage dans le calendrier ci-dessous.' },
   { key: 'filming_scheduled', label: 'Tournage planifié', emoji: '📅', description: 'Une date de tournage est confirmée.' },
   { key: 'filming_done', label: 'Tournage terminé', emoji: '🎬', description: 'Le tournage est dans la boîte !' },
   { key: 'editing', label: 'Montage en cours', emoji: '🎞️', description: 'Notre équipe monte votre vidéo.' },
@@ -156,8 +157,8 @@ function computeNextAction(scriptStatus: string | null, hasDelivery: boolean, ha
   }
   if (scriptStatus === 'confirmed') {
     return {
-      pill: { tone: 'green', emoji: '✅', label: 'Script validé' },
-      description: 'Le tournage va être planifié. Vous serez notifié·e dès qu\'une date est proposée.',
+      pill: { tone: 'orange', emoji: '📅', label: 'Réservez votre tournage' },
+      description: 'Votre script est validé. Choisissez maintenant un créneau de tournage (3h) dans le calendrier ci-dessous.',
     };
   }
   if (scriptStatus === 'draft' || !scriptStatus) {
@@ -329,15 +330,83 @@ function PortalContent() {
     lastSeenNotifIdRef.current = first.id;
   }, [notifications, showToast]);
 
-  // Lightweight polling so the toasts trigger without manual refresh
+  // Live polling — faster cadence when the user is on the script or comments
+  // tab so admin replies and team comments feel instantaneous. We bump from
+  // 60s (passive) to 5s (active tab) to stay within Vercel/Supabase quotas
+  // while still feeling near-real-time.
   useEffect(() => {
     if (!token) return;
+    const ms = (tab === 'script' || tab === 'comments') ? 5_000 : 30_000;
     const interval = setInterval(() => {
       loadScript();
       loadNotifications();
-    }, 60_000);
+      if (tab === 'script') loadAnnotations();
+    }, ms);
     return () => clearInterval(interval);
-  }, [token, loadScript, loadNotifications]);
+  }, [token, tab, loadScript, loadNotifications, loadAnnotations]);
+
+  // Detect new admin comments on the script — fire a live alert with browser notif
+  const lastSeenCommentIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const comments = script?.script_comments || [];
+    if (comments.length === 0) { lastSeenCommentIdRef.current = null; return; }
+    const sorted = [...comments].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const newest = sorted[sorted.length - 1];
+    const prev = lastSeenCommentIdRef.current;
+    if (prev !== null && prev !== newest.id && newest.author_type !== 'client') {
+      fireLiveAlert(showToast, '💬', `${newest.author_name || 'L\'équipe'} a commenté votre script`,
+        { url: `/portal?token=${token}`, tag: `comment-${newest.id}` });
+    }
+    lastSeenCommentIdRef.current = newest.id;
+  }, [script?.script_comments, showToast, token]);
+
+  // Detect new admin replies on annotations
+  const lastSeenReplyIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (annotations.length === 0) { lastSeenReplyIdsRef.current = new Set(); return; }
+    const allReplyIds = new Set<string>();
+    const newReplies: { author: string; annotationId: string }[] = [];
+    annotations.forEach(a => {
+      (a.replies || []).forEach(r => {
+        allReplyIds.add(r.id);
+        if (!lastSeenReplyIdsRef.current.has(r.id) && r.author_type === 'admin' && lastSeenReplyIdsRef.current.size > 0) {
+          newReplies.push({ author: r.author_name, annotationId: a.id });
+        }
+      });
+    });
+    // Initial mount fills the set without firing alerts
+    if (lastSeenReplyIdsRef.current.size === 0) {
+      lastSeenReplyIdsRef.current = allReplyIds;
+      return;
+    }
+    if (newReplies.length > 0) {
+      const first = newReplies[0];
+      const more = newReplies.length > 1 ? ` (+${newReplies.length - 1})` : '';
+      fireLiveAlert(showToast, '↩️', `${first.author} a répondu à votre annotation${more}`,
+        { url: `/portal?token=${token}`, tag: `reply-${first.annotationId}` });
+    }
+    lastSeenReplyIdsRef.current = allReplyIds;
+  }, [annotations, showToast, token]);
+
+  // First user interaction → request browser notification permission
+  // (browsers block requestPermission outside a user gesture)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let asked = false;
+    const ask = () => {
+      if (asked) return;
+      asked = true;
+      ensureNotificationPermission().catch(() => null);
+      window.removeEventListener('pointerdown', ask);
+      window.removeEventListener('keydown', ask);
+    };
+    window.addEventListener('pointerdown', ask, { once: true });
+    window.addEventListener('keydown', ask, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', ask);
+      window.removeEventListener('keydown', ask);
+    };
+  }, []);
 
   const unreadCount = notifications.filter(n => !n.read_at).length;
 
@@ -609,7 +678,7 @@ function PortalContent() {
             )}
           </button>
           {bellOpen && (
-            <div style={{
+            <div className="bm-fade-in" style={{
               position: 'absolute', top: '100%', right: 0, marginTop: 8, width: 320,
               background: 'var(--night-card)', border: '1px solid var(--border-md)',
               borderRadius: 12, maxHeight: 400, overflowY: 'auto',
@@ -762,7 +831,7 @@ function PortalContent() {
                             {stage.label}
                           </span>
                           {status === 'current' && (
-                            <span style={{
+                            <span className="bm-pulse-glow" style={{
                               padding: '2px 8px', borderRadius: 999,
                               background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
                               color: '#FFB58A', fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
@@ -783,6 +852,11 @@ function PortalContent() {
             );
           })()}
         </div>
+
+        {/* Filming booking — appears after script validation, before any date is set */}
+        {(script?.status === 'confirmed' || clientInfo?.status === 'script_validated') && !clientInfo?.filming_date && (
+          <FilmingBookingPanel token={token!} onConfirmed={() => { loadScript(); loadNotifications(); }} actionLoading={actionLoading} />
+        )}
 
         {/* Status card + actions */}
         <div style={{
@@ -852,7 +926,7 @@ function PortalContent() {
 
         {/* Video delivery view (multi-video) */}
         {tab === 'video' && hasDelivery && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div key="tab-video" className="bm-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Render new multi-videos first */}
             {deliveredVideos.map((v, idx) => (
               <div key={v.id} style={{
@@ -948,11 +1022,13 @@ function PortalContent() {
 
         {/* Feedback tab */}
         {tab === 'feedback' && (
-          <SatisfactionForm
-            existing={satisfaction}
-            onSubmit={handleSubmitSatisfaction}
-            loading={actionLoading}
-          />
+          <div key="tab-feedback" className="bm-fade-in">
+            <SatisfactionForm
+              existing={satisfaction}
+              onSubmit={handleSubmitSatisfaction}
+              loading={actionLoading}
+            />
+          </div>
         )}
 
         {/* Script view */}
@@ -960,7 +1036,7 @@ function PortalContent() {
           const canAnnotate = script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes';
           const openCount = annotations.filter(a => !a.resolved).length;
           return (
-            <>
+            <div key="tab-script" className="bm-fade-in">
               {/* Helper bar — only when client can annotate AND nothing yet */}
               {canAnnotate && annotations.length === 0 && (
                 <div style={{
@@ -1057,13 +1133,13 @@ function PortalContent() {
                   }}>⬇️ Télécharger le script (PDF)</a>
                 </div>
               )}
-            </>
+            </div>
           );
         })()}
 
         {/* Comments */}
         {tab === 'comments' && (
-          <div>
+          <div key="tab-comments" className="bm-fade-in">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
               {script.script_comments && script.script_comments.length > 0 ? (
                 script.script_comments.map(c => {
@@ -1126,7 +1202,7 @@ function PortalContent() {
             </form>
           </div>
         )}
-      </main>
+        </main>
 
       {/* Live toast — fired when state changes during the session */}
       {liveToast && (
@@ -1183,11 +1259,12 @@ function PortalContent() {
 
       {/* Validation modal: preview before validating */}
       {showValidationModal && script && (
-        <div onClick={() => setShowValidationModal(false)} style={{
+        <div onClick={() => setShowValidationModal(false)} className="bm-modal-backdrop" style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 2000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          backdropFilter: 'blur(4px)',
         }}>
-          <div onClick={e => e.stopPropagation()} style={{
+          <div onClick={e => e.stopPropagation()} className="bm-modal-pop" style={{
             background: 'var(--night-card)', borderRadius: 14,
             border: '1px solid var(--border-orange)',
             maxWidth: 720, width: '100%', maxHeight: '90vh', overflow: 'hidden',
@@ -1257,6 +1334,159 @@ const smallLinkStyle: React.CSSProperties = {
   padding: '4px 10px', borderRadius: 6,
   background: 'rgba(232,105,43,.08)',
 };
+
+function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
+  token: string;
+  onConfirmed: () => void;
+  actionLoading: boolean;
+}) {
+  const calendarUrl = process.env.NEXT_PUBLIC_GHL_FILMING_CALENDAR_URL || process.env.NEXT_PUBLIC_GHL_CALENDAR_URL || '';
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [showButton, setShowButton] = useState(false);
+  const [showDateForm, setShowDateForm] = useState(false);
+  const [pickedDate, setPickedDate] = useState('');
+  const [pickedTime, setPickedTime] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Show "I booked" button shortly after iframe loads (mirrors onboarding pattern)
+  useEffect(() => {
+    if (iframeLoaded && !showButton) {
+      const t = setTimeout(() => setShowButton(true), 2500);
+      return () => clearTimeout(t);
+    }
+    if (!iframeLoaded && !showButton) {
+      const fallback = setTimeout(() => setShowButton(true), 8000);
+      return () => clearTimeout(fallback);
+    }
+  }, [iframeLoaded, showButton]);
+
+  async function confirmBooking() {
+    setSubmitting(true);
+    try {
+      const isoDate = pickedDate ? new Date(`${pickedDate}T${pickedTime || '09:00'}`).toISOString() : null;
+      const r = await fetch(`/api/scripts?token=${token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'confirm_filming_booked', date: isoDate }),
+      });
+      if (r.ok) { onConfirmed(); setShowDateForm(false); }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={{
+      marginBottom: 22, padding: '20px 22px', borderRadius: 14,
+      background: 'var(--night-card)', border: '1px solid var(--border-orange)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <span aria-hidden style={{ fontSize: '1.4rem' }}>📅</span>
+        <div style={{ flex: 1 }}>
+          <h3 style={{
+            fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+            fontSize: '1.1rem', color: 'var(--text)', margin: 0,
+          }}>
+            Réservez votre créneau de tournage
+          </h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-mid)', margin: '4px 0 0', lineHeight: 1.5 }}>
+            Choisissez une plage de <strong>3 heures</strong> dans le calendrier ci-dessous. Vous recevrez un email de confirmation.
+          </p>
+        </div>
+      </div>
+
+      {!calendarUrl ? (
+        <div style={{
+          padding: '14px 16px', borderRadius: 10,
+          background: 'var(--night-mid)', border: '1px dashed var(--border-md)',
+          fontSize: '0.85rem', color: 'var(--text-mid)', lineHeight: 1.5,
+        }}>
+          ⚠️ Le calendrier de tournage n&apos;est pas encore configuré. Notre équipe vous contactera directement pour caler la date.
+        </div>
+      ) : (
+        <>
+          <div style={{
+            borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-md)',
+            background: '#fff',
+          }}>
+            <iframe
+              src={calendarUrl}
+              onLoad={() => setIframeLoaded(true)}
+              style={{ width: '100%', height: '70vh', minHeight: 550, border: 'none', display: 'block' }}
+              title="Réservation tournage"
+            />
+          </div>
+
+          {showButton && !showDateForm && (
+            <button
+              onClick={() => setShowDateForm(true)}
+              disabled={actionLoading}
+              style={{
+                marginTop: 14, width: '100%', padding: '13px 22px', borderRadius: 12,
+                background: 'var(--orange)', color: '#fff', border: 'none',
+                cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700,
+                boxShadow: '0 4px 14px rgba(232,105,43,.4)',
+              }}
+            >
+              ✅ J&apos;ai réservé mon créneau
+            </button>
+          )}
+
+          {showDateForm && (
+            <div style={{
+              marginTop: 14, padding: '16px 18px', borderRadius: 12,
+              background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+            }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
+                Quelle date avez-vous réservée ?
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                <input
+                  type="date" value={pickedDate} onChange={e => setPickedDate(e.target.value)}
+                  style={{
+                    flex: '1 1 160px', padding: '10px 12px', borderRadius: 8,
+                    background: 'var(--night)', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', fontSize: '0.9rem', colorScheme: 'dark', outline: 'none',
+                  }}
+                />
+                <input
+                  type="time" value={pickedTime} onChange={e => setPickedTime(e.target.value)}
+                  placeholder="Heure" step={1800}
+                  style={{
+                    flex: '1 1 120px', padding: '10px 12px', borderRadius: 8,
+                    background: 'var(--night)', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', fontSize: '0.9rem', colorScheme: 'dark', outline: 'none',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowDateForm(false)} style={{
+                  padding: '9px 16px', borderRadius: 8, background: 'transparent',
+                  border: '1px solid var(--border-md)', color: 'var(--text-muted)',
+                  cursor: 'pointer', fontSize: '0.85rem',
+                }}>Annuler</button>
+                <button
+                  onClick={confirmBooking}
+                  disabled={!pickedDate || submitting}
+                  style={{
+                    padding: '9px 18px', borderRadius: 8, background: 'var(--green)',
+                    color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem',
+                    fontWeight: 700, opacity: !pickedDate || submitting ? 0.5 : 1,
+                  }}
+                >
+                  {submitting ? '⏳ Enregistrement…' : '🎬 Confirmer mon tournage'}
+                </button>
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 8 }}>
+                💡 Vous pouvez aussi sauter cette étape — l&apos;équipe verra votre créneau dans GHL et le saisira.
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 function SatisfactionForm({ existing, onSubmit, loading }: {
   existing: SatisfactionData | null;

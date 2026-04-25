@@ -25,13 +25,15 @@ function variantStyle(v: Variant, disabled: boolean): React.CSSProperties {
     fontWeight: 600,
     cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.55 : 1,
-    transition: 'background .15s, border-color .15s, transform .05s',
+    transition: 'background 200ms cubic-bezier(0.16, 1, 0.3, 1), border-color 150ms, box-shadow 200ms, transform 80ms ease-out, filter 150ms',
     fontFamily: 'inherit',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     whiteSpace: 'nowrap',
+    position: 'relative',
+    overflow: 'hidden',
   };
   switch (v) {
     case 'primary':
@@ -57,6 +59,7 @@ export default function Button({
   disabled,
   children,
   style,
+  className,
   ...rest
 }: Props) {
   const isDisabled = disabled || loading;
@@ -64,6 +67,21 @@ export default function Button({
     <button
       {...rest}
       disabled={isDisabled}
+      className={`bm-press ${className || ''}`}
+      onMouseEnter={e => {
+        if (!isDisabled && variant === 'primary') {
+          e.currentTarget.style.boxShadow = '0 8px 22px rgba(232,105,43,.35)';
+        } else if (!isDisabled && variant === 'success') {
+          e.currentTarget.style.boxShadow = '0 8px 22px rgba(34,197,94,.35)';
+        } else if (!isDisabled && variant === 'danger') {
+          e.currentTarget.style.boxShadow = '0 8px 22px rgba(239,68,68,.35)';
+        }
+        rest.onMouseEnter?.(e);
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.boxShadow = '';
+        rest.onMouseLeave?.(e);
+      }}
       style={{
         ...variantStyle(variant, !!isDisabled),
         ...SIZES[size],
@@ -88,11 +106,6 @@ export default function Button({
       ) : null}
       <span>{children}</span>
       {rightEmoji && !loading ? <span aria-hidden style={{ lineHeight: 1 }}>{rightEmoji}</span> : null}
-      <style jsx>{`
-        @keyframes bm-spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </button>
   );
 }

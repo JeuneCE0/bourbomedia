@@ -18,19 +18,12 @@ export default function Skeleton({ width = '100%', height = 16, radius = 8, styl
         height,
         borderRadius: radius,
         background:
-          'linear-gradient(90deg, rgba(255,255,255,.05) 0%, rgba(255,255,255,.10) 50%, rgba(255,255,255,.05) 100%)',
+          'linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.04) 100%)',
         backgroundSize: '200% 100%',
-        animation: 'bm-skel 1.4s ease-in-out infinite',
+        animation: 'bm-shimmer 1.4s ease-in-out infinite',
         ...style,
       }}
-    >
-      <style jsx>{`
-        @keyframes bm-skel {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
-    </span>
+    />
   );
 }
 

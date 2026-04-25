@@ -74,22 +74,22 @@ export async function POST(req: NextRequest) {
     }, true);
   } catch { /* */ }
 
-  // Trigger appropriate GHL workflow (different for promoter / passive / detractor)
-  try {
-    const cR = await supaFetch(`clients?id=eq.${client.id}&select=ghl_contact_id`, {}, true);
-    const arr = cR.ok ? await cR.json() : [];
-    const contactId = arr[0]?.ghl_contact_id;
-    if (contactId) {
-      const { triggerWorkflow } = await import('@/lib/ghl-workflows');
-      // Re-uses the existing 'feedback_requested' tag for any submission;
-      // the user can branch in their workflow on a custom tag added below.
-      const bucketTag = score >= 9 ? 'bbm_nps_promoter' : score <= 6 ? 'bbm_nps_detractor' : 'bbm_nps_passive';
-      // Minimal direct tag-add (mirrors lib/ghl-workflows internal helper)
-      const { ghlRequest } = await import('@/lib/ghl');
-      await ghlRequest('POST', `/contacts/${contactId}/tags`, { tags: [bucketTag] }).catch(() => null);
-      void triggerWorkflow;
-    }
-  } catch { /* */ }
+  // Trigger appropriate GHL workflow (different for promoter / passive / detractor).
+  // Honors AUTOMATIONS_PAUSED kill switch.
+  if (process.env.AUTOMATIONS_PAUSED !== 'true') {
+    try {
+      const cR = await supaFetch(`clients?id=eq.${client.id}&select=ghl_contact_id`, {}, true);
+      const arr = cR.ok ? await cR.json() : [];
+      const contactId = arr[0]?.ghl_contact_id;
+      if (contactId) {
+        const { triggerWorkflow } = await import('@/lib/ghl-workflows');
+        const bucketTag = score >= 9 ? 'bbm_nps_promoter' : score <= 6 ? 'bbm_nps_detractor' : 'bbm_nps_passive';
+        const { ghlRequest } = await import('@/lib/ghl');
+        await ghlRequest('POST', `/contacts/${contactId}/tags`, { tags: [bucketTag] }).catch(() => null);
+        void triggerWorkflow;
+      }
+    } catch { /* */ }
+  }
 
   const data = await r.json();
   return NextResponse.json(data[0], { status: 201 });

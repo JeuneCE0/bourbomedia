@@ -24,7 +24,15 @@ export async function ghlRequest(method: string, endpoint: string, body?: Record
   return data;
 }
 
+// Kill switch: when AUTOMATIONS_PAUSED=true, no client-facing WhatsApp/SMS/
+// Email goes out from this codebase. Internal Slack alerts and in-app
+// notifications are unaffected.
+function automationsPaused(): boolean {
+  return process.env.AUTOMATIONS_PAUSED === 'true';
+}
+
 export async function sendWhatsAppMessage(contactId: string, message: string) {
+  if (automationsPaused()) return null;
   if (!GHL_API_KEY || !LOCATION_ID) return null;
   try {
     return await ghlRequest('POST', '/conversations/messages', {
@@ -38,6 +46,7 @@ export async function sendWhatsAppMessage(contactId: string, message: string) {
 }
 
 export async function sendEmailMessage(contactId: string, subject: string, htmlBody: string) {
+  if (automationsPaused()) return null;
   if (!GHL_API_KEY || !LOCATION_ID) return null;
   try {
     return await ghlRequest('POST', '/conversations/messages', {

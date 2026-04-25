@@ -88,8 +88,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 fontSize: 14,
                 minWidth: 240,
                 maxWidth: 420,
-                boxShadow: '0 8px 24px rgba(0,0,0,.35)',
-                animation: 'bm-toast-in .25s ease',
+                boxShadow: '0 12px 32px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.2)',
+                animation: 'bm-toast-rise 350ms cubic-bezier(0.34, 1.56, 0.64, 1)',
               }}
             >
               <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>{t.emoji || v.emoji}</span>
@@ -112,12 +112,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             </div>
           );
         })}
-        <style jsx>{`
-          @keyframes bm-toast-in {
-            from { transform: translateY(-8px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-          }
-        `}</style>
       </div>
     </ToastContext.Provider>
   );

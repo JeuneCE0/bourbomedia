@@ -6,6 +6,8 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
   raised?: boolean;
   bordered?: boolean;
   accent?: boolean;
+  /** Adds hover lift + shadow growth — opt-in (off by default to avoid jitter on static layouts) */
+  interactive?: boolean;
   as?: keyof React.JSX.IntrinsicElements;
 }
 
@@ -14,8 +16,10 @@ export default function Card({
   raised = false,
   bordered = true,
   accent = false,
+  interactive = false,
   as: Tag = 'div',
   style,
+  className,
   children,
   ...rest
 }: Props) {
@@ -27,5 +31,6 @@ export default function Card({
     boxShadow: raised ? '0 4px 16px rgba(0,0,0,.25)' : undefined,
     ...style,
   };
-  return React.createElement(Tag as any, { ...rest, style: baseStyle }, children);
+  const finalClass = `${interactive ? 'bm-lift' : ''} ${className || ''}`.trim();
+  return React.createElement(Tag as any, { ...rest, className: finalClass || undefined, style: baseStyle }, children);
 }

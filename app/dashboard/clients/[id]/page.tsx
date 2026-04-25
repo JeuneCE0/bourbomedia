@@ -3,9 +3,18 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
 const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
+
+interface AdminAnnotationReply {
+  id: string;
+  author_type: 'client' | 'admin';
+  author_name: string;
+  text: string;
+  created_at: string;
+}
 
 interface AdminAnnotation {
   id: string;
@@ -18,6 +27,7 @@ interface AdminAnnotation {
   author_type: 'client' | 'admin';
   created_at: string;
   script_version?: number | null;
+  replies?: AdminAnnotationReply[];
 }
 
 interface Client {
@@ -329,6 +339,110 @@ export default function ClientDetailPage() {
   }, [script]);
 
   useEffect(() => { loadAnnotations(); }, [loadAnnotations]);
+
+  // Live polling on the script tab — detect new client activity (comments,
+  // annotations, replies) every 5s while the admin has the tab open.
+  useEffect(() => {
+    if (tab !== 'script' || !script) return;
+    const interval = setInterval(() => {
+      loadClient();
+      loadAnnotations();
+    }, 5_000);
+    return () => clearInterval(interval);
+  }, [tab, script, loadClient, loadAnnotations]);
+
+  // Detect new client comments on the script
+  const lastSeenAdminCommentIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const comments = script?.script_comments || [];
+    if (comments.length === 0) { lastSeenAdminCommentIdRef.current = null; return; }
+    const sorted = [...comments].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const newest = sorted[sorted.length - 1];
+    const prev = lastSeenAdminCommentIdRef.current;
+    if (prev !== null && prev !== newest.id && newest.author_type === 'client') {
+      fireLiveAlert(
+        (e, msg) => notify('success', `${e} ${msg}`),
+        '💬',
+        `${newest.author_name || 'Le client'} a commenté le script`,
+        { tag: `client-comment-${newest.id}` },
+      );
+    }
+    lastSeenAdminCommentIdRef.current = newest.id;
+  }, [script?.script_comments]);
+
+  // Detect new client annotations
+  const lastSeenAnnotationIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (annotations.length === 0) { lastSeenAnnotationIdsRef.current = new Set(); return; }
+    const ids = new Set(annotations.map(a => a.id));
+    const newClientAnnotations = annotations.filter(a => a.author_type === 'client' && !lastSeenAnnotationIdsRef.current.has(a.id));
+    // Skip alerts on initial mount
+    if (lastSeenAnnotationIdsRef.current.size === 0) {
+      lastSeenAnnotationIdsRef.current = ids;
+      return;
+    }
+    if (newClientAnnotations.length > 0) {
+      const first = newClientAnnotations[0];
+      const more = newClientAnnotations.length > 1 ? ` (+${newClientAnnotations.length - 1})` : '';
+      fireLiveAlert(
+        (e, msg) => notify('success', `${e} ${msg}`),
+        '🖍️',
+        `${first.author_name || 'Le client'} a annoté le script${more}`,
+        { tag: `client-annot-${first.id}` },
+      );
+    }
+    lastSeenAnnotationIdsRef.current = ids;
+  }, [annotations]);
+
+  // Detect new client replies on annotations
+  const lastSeenAdminReplyIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (annotations.length === 0) { lastSeenAdminReplyIdsRef.current = new Set(); return; }
+    const allIds = new Set<string>();
+    const newClientReplies: { author: string; annotationId: string }[] = [];
+    annotations.forEach(a => {
+      (a.replies || []).forEach(r => {
+        allIds.add(r.id);
+        if (!lastSeenAdminReplyIdsRef.current.has(r.id) && r.author_type === 'client' && lastSeenAdminReplyIdsRef.current.size > 0) {
+          newClientReplies.push({ author: r.author_name, annotationId: a.id });
+        }
+      });
+    });
+    if (lastSeenAdminReplyIdsRef.current.size === 0) {
+      lastSeenAdminReplyIdsRef.current = allIds;
+      return;
+    }
+    if (newClientReplies.length > 0) {
+      const first = newClientReplies[0];
+      const more = newClientReplies.length > 1 ? ` (+${newClientReplies.length - 1})` : '';
+      fireLiveAlert(
+        (e, msg) => notify('success', `${e} ${msg}`),
+        '↩️',
+        `${first.author} a répondu à une annotation${more}`,
+        { tag: `client-reply-${first.annotationId}` },
+      );
+    }
+    lastSeenAdminReplyIdsRef.current = allIds;
+  }, [annotations]);
+
+  // First user interaction → request notification permission
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let asked = false;
+    const ask = () => {
+      if (asked) return;
+      asked = true;
+      ensureNotificationPermission().catch(() => null);
+      window.removeEventListener('pointerdown', ask);
+      window.removeEventListener('keydown', ask);
+    };
+    window.addEventListener('pointerdown', ask, { once: true });
+    window.addEventListener('keydown', ask, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', ask);
+      window.removeEventListener('keydown', ask);
+    };
+  }, []);
 
   // Auto-create the script when admin opens the Script tab and no script exists.
   // Removes the "Créer le script" friction step — the editor is ready immediately.
@@ -917,7 +1031,7 @@ export default function ClientDetailPage() {
 
       {/* Info tab */}
       {tab === 'info' && (
-        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+        <div key="tab-info" className="bm-fade-in" style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
           {!editing ? (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px', marginBottom: 20 }}>
@@ -1117,7 +1231,7 @@ export default function ClientDetailPage() {
 
       {/* Script tab */}
       {tab === 'script' && (
-        <div>
+        <div key="tab-script" className="bm-fade-in">
           {script ? (
             <>
               <div style={{
@@ -1315,7 +1429,7 @@ export default function ClientDetailPage() {
 
       {/* Filming tab */}
       {tab === 'filming' && (
-        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+        <div key="tab-filming" className="bm-fade-in" style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
           <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>Jour de tournage</h3>
@@ -1455,7 +1569,7 @@ export default function ClientDetailPage() {
 
       {/* Delivery tab */}
       {tab === 'delivery' && (
-        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+        <div key="tab-delivery" className="bm-fade-in" style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
           <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>Vidéos livrées</h3>
@@ -1552,7 +1666,7 @@ export default function ClientDetailPage() {
 
       {/* Payments tab */}
       {tab === 'payments' && (
-        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+        <div key="tab-payments" className="bm-fade-in" style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
           <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>Paiements</h3>

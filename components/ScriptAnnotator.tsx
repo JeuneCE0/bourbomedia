@@ -266,17 +266,16 @@ export default function ScriptAnnotator({
             return (
               <>
                 {/* Soft scrim */}
-                <div onClick={() => setDraftFor(null)} style={{
-                  position: 'absolute', inset: 0, background: 'rgba(0,0,0,.25)', zIndex: 55,
-                  backdropFilter: 'blur(2px)',
+                <div onClick={() => setDraftFor(null)} className="bm-modal-backdrop" style={{
+                  position: 'absolute', inset: 0, background: 'rgba(0,0,0,.35)', zIndex: 55,
+                  backdropFilter: 'blur(3px)',
                 }} />
-                <div onClick={e => e.stopPropagation()} style={{
+                <div onClick={e => e.stopPropagation()} className="bm-modal-pop" style={{
                   position: 'absolute', left, top: Math.max(60, anchorY + 18),
                   width: popW, zIndex: 60,
                   background: 'var(--night-raised)', border: '1px solid var(--border-orange)',
                   borderRadius: 14, padding: 16,
                   boxShadow: '0 16px 48px rgba(0,0,0,.6)',
-                  animation: 'bm-pop-slide .2s ease-out',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -334,12 +333,6 @@ export default function ScriptAnnotator({
                       {submitting ? '⏳ Envoi…' : '💾 Enregistrer'}
                     </button>
                   </div>
-                  <style>{`
-                    @keyframes bm-pop-slide {
-                      from { transform: translateY(-6px); opacity: 0; }
-                      to   { transform: translateY(0);     opacity: 1; }
-                    }
-                  `}</style>
                 </div>
               </>
             );

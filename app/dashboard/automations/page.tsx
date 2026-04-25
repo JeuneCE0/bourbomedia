@@ -16,6 +16,7 @@ interface WorkflowExpected {
 interface AutomationsData {
   ghlConfigured: boolean;
   notificationsEnabled: boolean;
+  automationsPaused?: boolean;
   workflows: WorkflowExpected[];
   liveWorkflowCount: number;
 }
@@ -64,12 +65,34 @@ export default function AutomationsPage() {
         <div style={{ color: 'var(--red)', padding: 20 }}>Erreur de chargement</div>
       ) : (
         <>
+          {/* PAUSED banner — supersedes everything else when active */}
+          {data.automationsPaused && (
+            <div style={{
+              padding: '16px 18px', borderRadius: 12, marginBottom: 14,
+              background: 'rgba(239,68,68,.10)', border: '2px solid rgba(239,68,68,.45)',
+              display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+            }}>
+              <span style={{ fontSize: '1.8rem' }} aria-hidden>⏸️</span>
+              <div style={{ flex: 1, minWidth: 240 }}>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#FCA5A5' }}>
+                  Toutes les automatisations sont EN PAUSE
+                </div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-mid)', marginTop: 4, lineHeight: 1.5 }}>
+                  Aucun WhatsApp / SMS / Email automatique n&apos;est envoyé, et aucun tag GHL n&apos;est ajouté aux contacts.
+                  Les notifications Slack internes et les notifs in-app restent actives.
+                  Pour réactiver : passe la variable Vercel <code style={codeStyle}>AUTOMATIONS_PAUSED</code> à <code style={codeStyle}>false</code>.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Status banner */}
           <div style={{
             padding: '14px 18px', borderRadius: 12, marginBottom: 18,
             background: data.ghlConfigured ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.08)',
             border: `1px solid ${data.ghlConfigured ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)'}`,
             display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+            opacity: data.automationsPaused ? 0.55 : 1,
           }}>
             <span style={{ fontSize: '1.6rem' }} aria-hidden>{data.ghlConfigured ? '✅' : '⚠️'}</span>
             <div style={{ flex: 1, minWidth: 240 }}>

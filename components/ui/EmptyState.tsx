@@ -24,6 +24,7 @@ export default function EmptyState({ emoji = '✨', title, description, action, 
     >
       <div
         aria-hidden
+        className="bm-breathe"
         style={{
           fontSize: compact ? 36 : 48,
           lineHeight: 1,

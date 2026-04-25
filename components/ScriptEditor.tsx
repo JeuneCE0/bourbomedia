@@ -569,11 +569,12 @@ export default function ScriptEditor({ content, onSave, saving, readOnly, autoSa
 
       {/* AI suggestion preview modal */}
       {aiPreview && (
-        <div onClick={() => setAiPreview(null)} style={{
+        <div onClick={() => setAiPreview(null)} className="bm-modal-backdrop" style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 3000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          backdropFilter: 'blur(4px)',
         }}>
-          <div onClick={e => e.stopPropagation()} style={{
+          <div onClick={e => e.stopPropagation()} className="bm-modal-pop" style={{
             background: 'var(--night-raised)', border: '1px solid rgba(168,85,247,.45)',
             borderRadius: 14, padding: 22, maxWidth: 720, width: '100%',
             maxHeight: '90vh', overflowY: 'auto',
