@@ -138,8 +138,16 @@ async function addContactToConfiguredWorkflow(contactId: string, event: Workflow
  * Trigger a workflow event for a GHL contact.
  * Combines the tag-add (universal) with optional direct workflow-add.
  * Non-blocking: returns false if anything failed but never throws.
+ *
+ * Honors the global AUTOMATIONS_PAUSED kill switch — when "true", no GHL
+ * tags or workflow additions are made. Use this to silence all client-facing
+ * SMS/WhatsApp/Email automations while keeping internal Slack alerts and
+ * in-app notifications working.
  */
-export async function triggerWorkflow(contactId: string | null | undefined, event: WorkflowEvent): Promise<{ tagged: boolean; workflowAdded: boolean }> {
+export async function triggerWorkflow(contactId: string | null | undefined, event: WorkflowEvent): Promise<{ tagged: boolean; workflowAdded: boolean; paused?: boolean }> {
+  if (process.env.AUTOMATIONS_PAUSED === 'true') {
+    return { tagged: false, workflowAdded: false, paused: true };
+  }
   if (!contactId || !GHL_API_KEY) return { tagged: false, workflowAdded: false };
   const def = WORKFLOWS[event];
   if (!def) return { tagged: false, workflowAdded: false };
