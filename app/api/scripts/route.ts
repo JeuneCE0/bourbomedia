@@ -95,6 +95,20 @@ export async function POST(req: NextRequest) {
     }, true);
     if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
     const data = await r.json();
+
+    // Log script creation event (non-blocking)
+    try {
+      await supaFetch('client_events', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_id: body.client_id,
+          type: 'script_created',
+          payload: { title: body.title || null },
+          actor: 'admin',
+        }),
+      }, true);
+    } catch { /* non-blocking */ }
+
     return NextResponse.json(data[0], { status: 201 });
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

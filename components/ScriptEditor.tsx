@@ -130,6 +130,18 @@ export default function ScriptEditor({ content, onSave, saving, readOnly }: Scri
     editable: !readOnly,
   });
 
+  // Sync editor when the parent passes a new `content` prop
+  // (e.g. after a save round-trip or version load). useEditor only reads
+  // `content` on mount, so we manually setContent on prop changes.
+  useEffect(() => {
+    if (!editor) return;
+    if (!content) return;
+    const current = editor.getJSON();
+    // Avoid resetting if nothing actually changed (would lose cursor)
+    if (JSON.stringify(current) === JSON.stringify(content)) return;
+    editor.commands.setContent(content as Parameters<typeof editor.commands.setContent>[0], { emitUpdate: false });
+  }, [content, editor]);
+
   const [wordCount, setWordCount] = useState(0);
   const [showToast, setShowToast] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
