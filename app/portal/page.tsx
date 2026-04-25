@@ -935,46 +935,37 @@ function PortalContent() {
           </div>
         )}
 
-        {/* Status card + actions */}
-        <div style={{
-          background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
-          padding: 'clamp(14px, 3vw, 20px)', marginBottom: 20,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📝 Script — étape {currentStepIdx + 1}/{SCRIPT_STEPS.length}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                <div style={{
-                  width: 10, height: 10, borderRadius: '50%', background: statusInfo.color,
-                  boxShadow: `0 0 8px ${statusInfo.color}40`,
-                }} />
-                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: statusInfo.color }}>{statusInfo.label}</span>
+        {/* Status card — visible UNIQUEMENT pendant la relecture (proposition /
+            modified / awaiting_changes). Avant : la carte "On rédige" en haut suffit.
+            Après validation : la stepper globale + les onglets vidéo prennent le relais. */}
+        {(script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes') && (
+          <div style={{
+            background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
+            padding: 'clamp(14px, 3vw, 20px)', marginBottom: 20,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📝 Script — étape {currentStepIdx + 1}/{SCRIPT_STEPS.length}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                  <div style={{
+                    width: 10, height: 10, borderRadius: '50%', background: statusInfo.color,
+                    boxShadow: `0 0 8px ${statusInfo.color}40`,
+                  }} />
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: statusInfo.color }}>{statusInfo.label}</span>
+                </div>
               </div>
-            </div>
 
-            {/* Actions live BELOW the script (after reading). Top stays clean. */}
-            {canValidate && (
-              <span style={{
-                fontSize: '0.78rem', color: 'var(--text-mid)', fontStyle: 'italic',
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-              }}>
-                <span aria-hidden>👇</span> Lisez le script puis validez en bas
-              </span>
-            )}
-
-            {script.status === 'confirmed' && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px',
-                background: 'rgba(34,197,94,.08)', borderRadius: 8, border: '1px solid rgba(34,197,94,.2)',
-              }}>
-                <span style={{ fontSize: '1rem' }} aria-hidden>✅</span>
-                <span style={{ fontSize: '0.82rem', color: 'var(--green)', fontWeight: 500 }}>
-                  Script validé — tournage en cours de planification
+              {canValidate && (
+                <span style={{
+                  fontSize: '0.78rem', color: 'var(--text-mid)', fontStyle: 'italic',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span aria-hidden>👇</span> Lisez le script puis validez en bas
                 </span>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Tabs — Script + Commentaires uniquement quand le client doit relire
             (proposition / modified / awaiting_changes). Une fois validé ou

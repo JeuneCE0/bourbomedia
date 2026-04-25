@@ -88,11 +88,12 @@ export async function GET(req: NextRequest) {
   const calls_no_show = closings.filter((c: { status: string }) => c.status === 'no_show').length;
   const calls_cancelled = closings.filter((c: { status: string }) => c.status === 'cancelled').length;
 
-  // Won = appointments closed_won AND documented in range (regardless of starts_at)
-  // We re-query because notes_completed_at can differ from starts_at (admin documents later)
+  // Won = appointments where the prospect signed a contract (contracted) — measured
+  // by notes_completed_at because admin documents that after the call. We also accept
+  // 'closed_won' for legacy data and 'awaiting_signature' as a leading indicator.
   const wonRes = await supaFetch(
     `gh_appointments?calendar_kind=eq.closing`
-    + `&prospect_status=eq.closed_won`
+    + `&prospect_status=in.(contracted,closed_won)`
     + `&notes_completed_at=gte.${enc(fromIso)}&notes_completed_at=lte.${enc(toIso)}`
     + `&select=id,contact_email`,
     {}, true,

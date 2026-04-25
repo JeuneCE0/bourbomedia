@@ -17,6 +17,8 @@ interface Appointment {
   notes_completed_at: string | null;
   prospect_status: string | null;
   ghl_synced_at: string | null;
+  opportunity_name?: string | null;
+  pipeline_stage_name?: string | null;
 }
 
 const KIND_META: Record<Appointment['calendar_kind'], { emoji: string; label: string; color: string }> = {
@@ -26,13 +28,20 @@ const KIND_META: Record<Appointment['calendar_kind'], { emoji: string; label: st
   other:      { emoji: '📅', label: 'Rendez-vous', color: 'var(--text-mid)' },
 };
 
-const STATUS_OPTIONS: { value: string; label: string; emoji: string }[] = [
-  { value: 'interested',     label: 'Intéressé',          emoji: '👀' },
-  { value: 'to_follow_up',   label: 'À relancer',         emoji: '🔁' },
-  { value: 'closed_won',     label: 'Closé gagné',        emoji: '🏆' },
-  { value: 'closed_lost',    label: 'Closé perdu',        emoji: '❌' },
-  { value: 'not_interested', label: 'Pas intéressé',      emoji: '🚫' },
+// Aligned with GHL "Pipeline Bourbon Média" stages — see migration 015.
+const STATUS_OPTIONS: { value: string; label: string; emoji: string; followUpDays?: number }[] = [
+  { value: 'reflection',          label: 'En réflexion',                 emoji: '🤔', followUpDays: 2 },
+  { value: 'follow_up',           label: 'Follow-up',                    emoji: '🔁', followUpDays: 7 },
+  { value: 'ghosting',            label: 'Ghosting',                     emoji: '👻' },
+  { value: 'awaiting_signature',  label: 'Attente signature + paiement', emoji: '✍️' },
+  { value: 'contracted',          label: 'Contracté',                    emoji: '🤝' },
+  { value: 'regular',             label: 'Client régulier',              emoji: '⭐' },
+  { value: 'not_interested',      label: 'Pas intéressé',                emoji: '🚫' },
+  { value: 'closed_lost',         label: 'Perdu',                        emoji: '❌' },
 ];
+
+const STATUS_BY_VALUE: Record<string, { label: string; emoji: string; followUpDays?: number }> =
+  STATUS_OPTIONS.reduce((acc, o) => { acc[o.value] = o; return acc; }, {} as Record<string, { label: string; emoji: string; followUpDays?: number }>);
 
 function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('bbp_token')}`, 'Content-Type': 'application/json' };
@@ -165,10 +174,11 @@ function AppointmentRow({ appt, open, onToggle, onSaved }: {
           }}>{meta.emoji}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {appt.contact_name || appt.contact_email || 'Contact GHL'}
+              {appt.opportunity_name || appt.contact_name || appt.contact_email || 'Sans nom'}
             </div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
               {meta.label} · {formatWhen(appt.starts_at)}
+              {appt.opportunity_name && appt.contact_name && appt.contact_name !== appt.opportunity_name && ` · ${appt.contact_name}`}
             </div>
           </div>
         </div>
@@ -219,6 +229,25 @@ function AppointmentRow({ appt, open, onToggle, onSaved }: {
               }}
             />
           </div>
+
+          {STATUS_BY_VALUE[status]?.followUpDays && (
+            <div style={{
+              padding: '10px 12px', borderRadius: 8,
+              background: 'rgba(59,130,246,.10)', border: '1px solid rgba(59,130,246,.30)',
+              fontSize: '0.78rem', color: '#93C5FD',
+            }}>
+              ⏰ Une tâche de relance sera créée automatiquement pour <strong>J+{STATUS_BY_VALUE[status].followUpDays}</strong> ({STATUS_BY_VALUE[status].label.toLowerCase()}).
+            </div>
+          )}
+          {(status === 'awaiting_signature' || status === 'contracted') && (
+            <div style={{
+              padding: '10px 12px', borderRadius: 8,
+              background: 'rgba(34,197,94,.10)', border: '1px solid rgba(34,197,94,.30)',
+              fontSize: '0.78rem', color: '#86EFAC',
+            }}>
+              🚀 Pense à envoyer le lien d&apos;onboarding au prospect pour qu&apos;il complète son inscription.
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
