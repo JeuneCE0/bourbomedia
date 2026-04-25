@@ -899,31 +899,43 @@ function PortalContent() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-          {([
+        {/* Tabs — Script + Commentaires uniquement quand le client doit relire
+            (proposition / modified / awaiting_changes). Une fois validé ou
+            avant proposition, ces onglets disparaissent pour ne pas surcharger. */}
+        {(() => {
+          const isInReview = script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes';
+          const tabsList: ('video' | 'script' | 'comments' | 'feedback')[] = [
             ...(hasDelivery ? ['video' as const] : []),
-            'script' as const,
-            'comments' as const,
+            ...(isInReview ? ['script' as const, 'comments' as const] : []),
             ...(hasDelivery ? ['feedback' as const] : []),
-          ]).map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{
-              padding: '10px 18px', border: 'none', cursor: 'pointer',
-              fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
-              background: 'transparent',
-              color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
-              borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
-              transition: 'all .15s',
-              whiteSpace: 'nowrap',
-            }}>
-              {t === 'video' ? `🎬 Vos vidéos${deliveredVideos.length > 1 ? ` (${deliveredVideos.length})` : ''}`
-                : t === 'script' ? '📄 Script'
-                : t === 'comments' ? `💬 Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`
-                : `⭐ Feedback${satisfaction ? ' ✓' : ''}`}
-            </button>
-          ))}
-        </div>
-
+          ];
+          // No tabs at all → render nothing (status card already explains the state)
+          if (tabsList.length === 0) return null;
+          // If current tab is no longer available, fall back to the first one silently.
+          if (!tabsList.includes(tab)) {
+            setTimeout(() => setTab(tabsList[0]), 0);
+          }
+          return (
+            <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+              {tabsList.map(t => (
+                <button key={t} onClick={() => setTab(t)} style={{
+                  padding: '10px 18px', border: 'none', cursor: 'pointer',
+                  fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
+                  background: 'transparent',
+                  color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
+                  borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
+                  transition: 'all .15s',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {t === 'video' ? `🎬 Vos vidéos${deliveredVideos.length > 1 ? ` (${deliveredVideos.length})` : ''}`
+                    : t === 'script' ? '📄 Script'
+                    : t === 'comments' ? `💬 Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`
+                    : `⭐ Feedback${satisfaction ? ' ✓' : ''}`}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
         {/* Video delivery view (multi-video) */}
         {tab === 'video' && hasDelivery && (
           <div key="tab-video" className="bm-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
