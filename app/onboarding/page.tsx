@@ -10,14 +10,16 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   : null;
 
 const STEPS = [
-  { num: 1, label: 'Compte', icon: '◉' },
-  { num: 2, label: 'Contrat', icon: '✎' },
-  { num: 3, label: 'Paiement', icon: '€' },
-  { num: 4, label: 'Appel', icon: '☎' },
-  { num: 5, label: 'Script', icon: '▤' },
-  { num: 6, label: 'Tournage', icon: '▶' },
-  { num: 7, label: 'Publication', icon: '◈' },
+  { num: 1, label: 'Compte', icon: '👋' },
+  { num: 2, label: 'Contrat', icon: '✍️' },
+  { num: 3, label: 'Paiement', icon: '💳' },
+  { num: 4, label: 'Appel', icon: '📞' },
+  { num: 5, label: 'Script', icon: '📝' },
+  { num: 6, label: 'Tournage', icon: '🎬' },
+  { num: 7, label: 'Publication', icon: '📺' },
 ];
+
+const FORM_DRAFT_KEY = 'ob_form_draft_v1';
 
 interface ClientData {
   id: string;
@@ -51,12 +53,44 @@ function OnboardingContent() {
   const [error, setError] = useState('');
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Step 1 form
+  // Step 1 form (auto-saved draft restored on mount client-side)
   const [form, setForm] = useState({ business_name: '', contact_name: '', email: '', phone: '', password: '', passwordConfirm: '' });
+
+  // Restore Step 1 draft from localStorage (browser-only)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FORM_DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      // Never restore the password field for security
+      setForm((f) => ({
+        business_name: draft.business_name ?? f.business_name,
+        contact_name: draft.contact_name ?? f.contact_name,
+        email: draft.email ?? f.email,
+        phone: draft.phone ?? f.phone,
+        password: '',
+        passwordConfirm: '',
+      }));
+    } catch { /* ignore corrupt draft */ }
+  }, []);
+
+  // Auto-save Step 1 draft (debounced) — survives accidental close/reload
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const { password, passwordConfirm, ...safe } = form;
+        void password; void passwordConfirm;
+        localStorage.setItem(FORM_DRAFT_KEY, JSON.stringify(safe));
+      } catch { /* quota exceeded — ignore */ }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [form]);
 
   // Step 2 state
   const [checkingContract, setCheckingContract] = useState(false);
   const [showSignedBtn, setShowSignedBtn] = useState(false);
+  const [contractIframeLoaded, setContractIframeLoaded] = useState(false);
+  const [callIframeLoaded, setCallIframeLoaded] = useState(false);
 
   // Step 4 state
   const [calBooking, setCalBooking] = useState(false);
@@ -153,9 +187,18 @@ function OnboardingContent() {
       setClient(data.client);
       setCurrentStep(2);
       localStorage.setItem('ob_token', data.token);
+      // Account created — clear draft (data is now persisted server-side)
+      localStorage.removeItem(FORM_DRAFT_KEY);
       router.replace(`/onboarding?token=${data.token}`);
     } catch (e: unknown) {
-      setError((e as Error).message);
+      const msg = (e as Error).message || '';
+      if (msg.toLowerCase().includes('email') && msg.toLowerCase().includes('exist')) {
+        setError('Cet email est déjà utilisé. Cliquez sur « Reprendre mon onboarding » ci-dessous.');
+      } else if (msg.toLowerCase().includes('email')) {
+        setError("L'adresse email semble invalide. Vérifiez-la et réessayez.");
+      } else {
+        setError(msg || "Impossible de créer votre compte. Réessayez ou contactez-nous.");
+      }
     } finally {
       setLoading(false);
     }
@@ -171,10 +214,13 @@ function OnboardingContent() {
       if (data.signed) {
         await fetchClient(token);
       } else {
-        setError(data.error || 'Erreur de confirmation');
+        setError(
+          data.error ||
+            "Nous n'avons pas encore reçu votre signature. Vérifiez que vous avez bien rempli tous les champs et signé en bas du contrat, puis réessayez dans quelques secondes."
+        );
       }
     } catch {
-      setError('Erreur de confirmation');
+      setError("Impossible de vérifier votre contrat pour le moment. Réessayez dans un instant ou contactez-nous.");
     } finally {
       setCheckingContract(false);
     }
@@ -189,7 +235,7 @@ function OnboardingContent() {
       if (!r.ok) throw new Error('Erreur');
       await fetchClient(token);
     } catch {
-      setError('Erreur de réservation');
+      setError("Nous n'avons pas pu confirmer votre réservation. Vérifiez que vous avez bien sélectionné un créneau dans le calendrier, puis réessayez.");
     } finally {
       setCalBooking(false);
     }
@@ -204,7 +250,7 @@ function OnboardingContent() {
       if (!r.ok) throw new Error('Erreur');
       await fetchClient(token);
     } catch {
-      setError('Erreur de confirmation');
+      setError("La confirmation de la date de tournage n'a pas pu être enregistrée. Réessayez ou contactez-nous.");
     } finally {
       setConfirming(false);
     }
@@ -219,7 +265,7 @@ function OnboardingContent() {
       if (!r.ok) throw new Error('Erreur');
       await fetchClient(token);
     } catch {
-      setError('Erreur de confirmation');
+      setError("La confirmation de la date de publication n'a pas pu être enregistrée. Réessayez ou contactez-nous.");
     } finally {
       setConfirming(false);
     }
@@ -435,10 +481,11 @@ function OnboardingContent() {
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 14px',
-              fontSize: '1.2rem',
+              fontSize: '1.6rem',
               color: 'var(--orange)',
-            }}>
-              &#9993;
+              fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+            }} aria-hidden>
+              👋
             </div>
             <h2 style={{
               color: 'var(--text)',
@@ -451,27 +498,29 @@ function OnboardingContent() {
               Bienvenue chez BourbonM&eacute;dia
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', marginTop: 8, lineHeight: 1.5, margin: '8px 0 0' }}>
-              Cr&eacute;ons votre espace client en quelques &eacute;tapes
+              Créons votre espace en moins d&apos;une minute
             </p>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
-              <label style={labelStyle}>Entreprise</label>
+              <label style={labelStyle}>Nom de votre entreprise</label>
               <input
                 style={inputStyle}
-                placeholder="Nom de votre entreprise"
+                placeholder="Ex : Boulangerie Saint-Denis"
                 value={form.business_name}
                 onChange={e => setForm({ ...form, business_name: e.target.value })}
+                autoComplete="organization"
               />
             </div>
             <div>
-              <label style={labelStyle}>Votre nom</label>
+              <label style={labelStyle}>Prénom et nom</label>
               <input
                 style={inputStyle}
-                placeholder="Pr&eacute;nom Nom"
+                placeholder="Ex : Marie Dupont"
                 value={form.contact_name}
                 onChange={e => setForm({ ...form, contact_name: e.target.value })}
+                autoComplete="name"
               />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -480,19 +529,21 @@ function OnboardingContent() {
                 <input
                   type="email"
                   style={inputStyle}
-                  placeholder="email@pro.re"
+                  placeholder="marie@monentreprise.re"
                   value={form.email}
                   onChange={e => setForm({ ...form, email: e.target.value })}
+                  autoComplete="email"
                 />
               </div>
               <div>
-                <label style={labelStyle}>T&eacute;l&eacute;phone</label>
+                <label style={labelStyle}>Téléphone</label>
                 <input
                   type="tel"
                   style={inputStyle}
-                  placeholder="0692..."
+                  placeholder="0692 12 34 56"
                   value={form.phone}
                   onChange={e => setForm({ ...form, phone: e.target.value })}
+                  autoComplete="tel"
                 />
               </div>
             </div>
@@ -502,22 +553,27 @@ function OnboardingContent() {
                 <input
                   type="password"
                   style={inputStyle}
-                  placeholder="6+ caract&egrave;res"
+                  placeholder="Au moins 6 caractères"
                   value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
+                  autoComplete="new-password"
                 />
               </div>
               <div>
-                <label style={labelStyle}>Confirmer</label>
+                <label style={labelStyle}>Confirmer le mot de passe</label>
                 <input
                   type="password"
                   style={inputStyle}
-                  placeholder="R&eacute;p&eacute;ter"
+                  placeholder="Retapez le même"
                   value={form.passwordConfirm}
                   onChange={e => setForm({ ...form, passwordConfirm: e.target.value })}
+                  autoComplete="new-password"
                 />
               </div>
             </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0, lineHeight: 1.5 }}>
+              🔒 Vos informations sont enregistrées automatiquement à chaque saisie — vous pouvez fermer cette page et revenir plus tard sans rien perdre.
+            </p>
           </div>
 
           {error && (
@@ -577,10 +633,11 @@ function OnboardingContent() {
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 14px',
-              fontSize: '1.2rem',
+              fontSize: '1.6rem',
               color: 'var(--orange)',
-            }}>
-              &#8618;
+              fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+            }} aria-hidden>
+              ↩️
             </div>
             <h2 style={{
               color: 'var(--text)',
@@ -685,18 +742,25 @@ function OnboardingContent() {
     return base + sep + params.toString();
   })();
 
+  // Show "I signed" button as soon as the contract iframe is loaded (typically 1-2s)
+  // with a small grace period so users don't click before reading.
   useEffect(() => {
-    if (currentStep === 2 && !showSignedBtn) {
-      const timer = setTimeout(() => setShowSignedBtn(true), 30000);
+    if (currentStep === 2 && contractIframeLoaded && !showSignedBtn) {
+      const timer = setTimeout(() => setShowSignedBtn(true), 2500);
       return () => clearTimeout(timer);
     }
-  }, [currentStep, showSignedBtn]);
+    // Safety fallback if the iframe load event never fires (rare)
+    if (currentStep === 2 && !contractIframeLoaded && !showSignedBtn) {
+      const fallback = setTimeout(() => setShowSignedBtn(true), 8000);
+      return () => clearTimeout(fallback);
+    }
+  }, [currentStep, contractIframeLoaded, showSignedBtn]);
 
   const stepHeaderStyle = (icon: string, title: string, subtitle: string) => (
     <div style={{ textAlign: 'center', marginBottom: 24 }}>
       <div style={{
-        width: 44,
-        height: 44,
+        width: 52,
+        height: 52,
         borderRadius: '50%',
         background: 'rgba(232,105,43,.12)',
         border: '1px solid var(--border-orange)',
@@ -704,9 +768,10 @@ function OnboardingContent() {
         alignItems: 'center',
         justifyContent: 'center',
         margin: '0 auto 14px',
-        fontSize: '1.2rem',
+        fontSize: '1.7rem',
         color: 'var(--orange)',
-      }}>
+        fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+      }} aria-hidden>
         {icon}
       </div>
       <h2 style={{
@@ -742,7 +807,7 @@ function OnboardingContent() {
 
   const renderStep2 = () => (
     <div style={{ ...cardStyle, maxWidth: 900 }}>
-      {stepHeaderStyle('✎', 'Signature du contrat', 'Lisez, remplissez et signez votre contrat de prestation ci-dessous')}
+      {stepHeaderStyle('✍️', 'Signature du contrat', 'Lisez, remplissez et signez votre contrat ci-dessous. Cela formalise notre collaboration.')}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{
@@ -753,6 +818,7 @@ function OnboardingContent() {
         }}>
           <iframe
             src={contractPublicUrl}
+            onLoad={() => setContractIframeLoaded(true)}
             style={{
               width: '100%',
               height: '80vh',
@@ -772,10 +838,10 @@ function OnboardingContent() {
               disabled={checkingContract}
               style={{ ...btnPrimary, opacity: checkingContract ? 0.6 : 1, animation: 'fadeIn .4s ease' }}
             >
-              {checkingContract ? 'Confirmation...' : 'J\'ai signé mon contrat'}
+              {checkingContract ? '⏳ Vérification…' : '✅ J\'ai signé mon contrat'}
             </button>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
-              Remplissez et signez dans le formulaire ci-dessus, puis cliquez sur le bouton
+              💡 Remplissez et signez dans le contrat ci-dessus, puis cliquez sur le bouton
             </p>
           </>
         ) : (
@@ -816,7 +882,7 @@ function OnboardingContent() {
     const isPaid = !!client?.paid_at;
     return (
       <div style={{ ...cardStyle, maxWidth: isPaid || paymentStatus === 'success' ? 520 : 700 }}>
-        {stepHeaderStyle('€', 'Paiement', isPaid ? 'Votre paiement a été confirmé' : 'Réglez votre prestation de manière sécurisée')}
+        {stepHeaderStyle('💳', 'Paiement sécurisé', isPaid ? 'Votre paiement a bien été reçu' : 'Réglez votre prestation en toute sécurité avec Stripe')}
 
         {isPaid ? (
           <SuccessBox
@@ -858,16 +924,21 @@ function OnboardingContent() {
   const [showCallBookedBtn, setShowCallBookedBtn] = useState(false);
   const calendarUrl = process.env.NEXT_PUBLIC_GHL_CALENDAR_URL || '';
 
+  // Show "I booked my slot" button as soon as the calendar iframe is loaded.
   useEffect(() => {
-    if (currentStep === 4 && !showCallBookedBtn) {
-      const timer = setTimeout(() => setShowCallBookedBtn(true), 30000);
+    if (currentStep === 4 && callIframeLoaded && !showCallBookedBtn) {
+      const timer = setTimeout(() => setShowCallBookedBtn(true), 2500);
       return () => clearTimeout(timer);
     }
-  }, [currentStep, showCallBookedBtn]);
+    if (currentStep === 4 && !callIframeLoaded && !showCallBookedBtn) {
+      const fallback = setTimeout(() => setShowCallBookedBtn(true), 8000);
+      return () => clearTimeout(fallback);
+    }
+  }, [currentStep, callIframeLoaded, showCallBookedBtn]);
 
   const renderStep4 = () => (
     <div style={{ ...cardStyle, maxWidth: 900 }}>
-      {stepHeaderStyle('☎', 'Appel de lancement', 'Réservez un créneau de 30 minutes avec notre équipe')}
+      {stepHeaderStyle('📞', 'Appel de lancement', 'Réservez 30 minutes avec notre équipe pour cadrer votre projet')}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{
@@ -878,6 +949,7 @@ function OnboardingContent() {
         }}>
           <iframe
             src={calendarUrl}
+            onLoad={() => setCallIframeLoaded(true)}
             style={{
               width: '100%',
               height: '70vh',
@@ -895,7 +967,7 @@ function OnboardingContent() {
             disabled={calBooking}
             style={{ ...btnPrimary, opacity: calBooking ? 0.6 : 1, animation: 'fadeIn .4s ease' }}
           >
-            {calBooking ? 'Confirmation...' : 'J\'ai réservé mon créneau'}
+            {calBooking ? '⏳ Confirmation…' : '✅ J\'ai réservé mon créneau'}
           </button>
         ) : (
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>
@@ -908,7 +980,16 @@ function OnboardingContent() {
     </div>
   );
 
-  // Step 5: Waiting for script
+  // Step 5: Waiting for script — auto-refresh every 2 min so client never feels forgotten
+  useEffect(() => {
+    if (currentStep !== 5 || !token) return;
+    const scripts = client?.scripts || [];
+    const allConfirmed = scripts.length > 0 && scripts.every(s => s.status === 'confirmed');
+    if (allConfirmed) return;
+    const interval = setInterval(() => { fetchClient(token); }, 120000);
+    return () => clearInterval(interval);
+  }, [currentStep, token, client?.scripts, fetchClient]);
+
   const renderStep5 = () => {
     const scripts = client?.scripts || [];
     const hasScript = scripts.length > 0;
@@ -916,24 +997,28 @@ function OnboardingContent() {
 
     return (
       <div style={cardStyle}>
-        {stepHeaderStyle('▤', 'Script vidéo', scriptConfirmed
-          ? 'Votre script a été validé !'
+        {stepHeaderStyle('📝', 'Votre script', scriptConfirmed
+          ? '🎉 Votre script a été validé — on s\'occupe du reste !'
           : hasScript
-            ? 'Votre script est prêt. Consultez-le dans votre portail.'
-            : 'Notre équipe prépare votre script. Vous serez notifié dès qu\'il sera prêt.'
+            ? 'Votre script est prêt à être relu dans votre portail.'
+            : 'Notre équipe prépare votre script sur mesure.'
         )}
         {scriptConfirmed ? (
-          <SuccessBox title="Script validé" />
+          <SuccessBox title="Script validé" subtitle="On s'occupe d'organiser votre tournage. Vous serez notifié dès qu'une date est proposée." />
         ) : hasScript ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{
-              padding: '20px',
-              background: 'var(--night-mid)',
+              padding: '22px',
+              background: 'rgba(232,105,43,.08)',
+              border: '1px solid var(--border-orange)',
               borderRadius: 12,
               textAlign: 'center',
             }}>
-              <p style={{ color: 'var(--text-mid)', fontSize: '0.85rem', margin: 0 }}>
-                Un script vous a été soumis. Accédez à votre portail client pour le consulter et le valider.
+              <p style={{ color: 'var(--text)', fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>
+                ✨ Votre script est prêt à être relu
+              </p>
+              <p style={{ color: 'var(--text-mid)', fontSize: '0.85rem', margin: '8px 0 0' }}>
+                Connectez-vous à votre portail pour le découvrir, demander des modifications ou le valider.
               </p>
             </div>
             {client && (
@@ -946,7 +1031,7 @@ function OnboardingContent() {
                   display: 'block',
                 }}
               >
-                Accéder à mon portail client ↗
+                🚀 Voir mon script dans le portail
               </a>
             )}
           </div>
@@ -957,29 +1042,40 @@ function OnboardingContent() {
             borderRadius: 12,
             textAlign: 'center',
           }}>
-            <div style={{
-              width: 48,
-              height: 48,
-              borderRadius: '50%',
-              border: '3px solid var(--border-md)',
-              borderTopColor: 'var(--orange)',
-              margin: '0 auto 16px',
-              animation: 'spin 1s linear infinite',
-            }} />
-            <p style={{ color: 'var(--text-mid)', fontSize: '0.85rem', margin: 0 }}>
-              En attente de votre script…
+            <div style={{ fontSize: '2.5rem', marginBottom: 12 }} aria-hidden>✍️</div>
+            <p style={{ color: 'var(--text)', fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>
+              Notre équipe rédige votre script
             </p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '8px 0 0' }}>
-              Vous recevrez une notification quand il sera prêt.
+            <p style={{ color: 'var(--text-mid)', fontSize: '0.85rem', margin: '10px 0 0', lineHeight: 1.6 }}>
+              On compose un script personnalisé pour votre projet.<br />
+              <strong style={{ color: 'var(--text)' }}>Délai habituel : 2 à 5 jours ouvrés.</strong>
+            </p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: '14px 0 0' }}>
+              📧 Vous recevrez un email dès qu&apos;il est prêt — vous pouvez fermer cette page sereinement.
             </p>
           </div>
         )}
 
+        {client && (
+          <a
+            href={`/portal?token=${client.id}`}
+            style={{
+              ...btnSecondary,
+              marginTop: 12,
+              textDecoration: 'none',
+              textAlign: 'center',
+              display: 'block',
+            }}
+          >
+            🏠 Accéder à mon portail client
+          </a>
+        )}
+
         <button
           onClick={() => fetchClient(token)}
-          style={{ ...btnSecondary, marginTop: 16 }}
+          style={{ ...btnSecondary, marginTop: 8 }}
         >
-          Actualiser
+          🔄 Actualiser
         </button>
       </div>
     );
@@ -988,7 +1084,7 @@ function OnboardingContent() {
   // Step 6: Confirm filming date
   const renderStep6 = () => (
     <div style={cardStyle}>
-      {stepHeaderStyle('▶', 'Date de tournage', 'Confirmez la date de tournage proposée par notre équipe')}
+      {stepHeaderStyle('🎬', 'Date de tournage', 'Notre équipe vous propose une date — confirmez-la pour la valider')}
 
       {client?.filming_date ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1011,7 +1107,7 @@ function OnboardingContent() {
             disabled={confirming}
             style={{ ...btnPrimary, opacity: confirming ? 0.6 : 1 }}
           >
-            {confirming ? 'Confirmation…' : 'Confirmer cette date'}
+            {confirming ? '⏳ Confirmation…' : '✅ Confirmer cette date'}
           </button>
         </div>
       ) : (
@@ -1037,7 +1133,7 @@ function OnboardingContent() {
   // Step 7: Confirm publication date
   const renderStep7 = () => (
     <div style={cardStyle}>
-      {stepHeaderStyle('◈', 'Date de publication', 'Confirmez la date de publication de votre vidéo')}
+      {stepHeaderStyle('📺', 'Date de publication', 'Quand votre vidéo sera-t-elle mise en ligne ? Validez la date proposée.')}
 
       {client?.publication_date ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1060,7 +1156,7 @@ function OnboardingContent() {
             disabled={confirming}
             style={{ ...btnPrimary, opacity: confirming ? 0.6 : 1 }}
           >
-            {confirming ? 'Confirmation…' : 'Confirmer et finaliser'}
+            {confirming ? '⏳ Confirmation…' : '🎉 Confirmer et finaliser'}
           </button>
         </div>
       ) : (
@@ -1094,11 +1190,12 @@ function OnboardingContent() {
           justifyContent: 'center',
           margin: '0 auto 20px',
           fontSize: '2.5rem',
-        }}>
-          ✓
+          fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+        }} aria-hidden>
+          🎉
         </div>
         <h2 style={{ color: 'var(--green)', fontSize: '1.4rem', fontWeight: 700, margin: '0 0 12px' }}>
-          Onboarding terminé !
+          Tout est prêt — bienvenue chez nous !
         </h2>
         <p style={{ color: 'var(--text-mid)', fontSize: '0.9rem', lineHeight: 1.6, margin: 0 }}>
           Merci {client?.contact_name} ! Votre onboarding est terminé.
