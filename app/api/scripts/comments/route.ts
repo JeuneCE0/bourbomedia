@@ -31,6 +31,18 @@ export async function POST(req: NextRequest) {
       if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
       const data = await r.json();
       notifyNewComment(clients[0].business_name || 'Client', clients[0].contact_name, 'client', body.content);
+      // Log to client timeline (non-blocking)
+      try {
+        await supaFetch('client_events', {
+          method: 'POST',
+          body: JSON.stringify({
+            client_id: clients[0].id,
+            type: 'comment_added',
+            payload: { author_type: 'client' },
+            actor: 'client',
+          }),
+        }, true);
+      } catch { /* */ }
       return NextResponse.json(data[0], { status: 201 });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
@@ -53,6 +65,24 @@ export async function POST(req: NextRequest) {
     }, true);
     if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
     const data = await r.json();
+    // Resolve client_id from script for activity log
+    try {
+      const sc = await supaFetch(`scripts?id=eq.${body.script_id}&select=client_id`, {}, true);
+      if (sc.ok) {
+        const arr = await sc.json();
+        if (arr[0]?.client_id) {
+          await supaFetch('client_events', {
+            method: 'POST',
+            body: JSON.stringify({
+              client_id: arr[0].client_id,
+              type: 'comment_added',
+              payload: { author_type: 'admin' },
+              actor: 'admin',
+            }),
+          }, true);
+        }
+      }
+    } catch { /* */ }
     return NextResponse.json(data[0], { status: 201 });
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

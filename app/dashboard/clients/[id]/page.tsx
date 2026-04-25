@@ -5,6 +5,20 @@ import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
+const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
+
+interface AdminAnnotation {
+  id: string;
+  quote: string;
+  note: string;
+  pos_from?: number | null;
+  pos_to?: number | null;
+  resolved: boolean;
+  author_name?: string | null;
+  author_type: 'client' | 'admin';
+  created_at: string;
+  script_version?: number | null;
+}
 
 interface Client {
   id: string;
@@ -103,14 +117,55 @@ interface ClientEvent {
 }
 
 const EVENT_LABELS: Record<string, { label: string; icon: string; color: string }> = {
-  status_changed: { label: 'Changement de statut', icon: '→', color: 'var(--text-mid)' },
-  script_sent_to_client: { label: 'Script envoyé au client', icon: '✉', color: 'var(--orange)' },
-  video_delivered: { label: 'Vidéo livrée', icon: '🎬', color: 'var(--green)' },
-  script_created: { label: 'Script créé', icon: '✍', color: 'var(--text-mid)' },
-  contract_signed: { label: 'Contrat signé', icon: '✓', color: 'var(--green)' },
-  payment_received: { label: 'Paiement reçu', icon: '💳', color: 'var(--green)' },
-  call_booked: { label: 'Call onboarding réservé', icon: '📅', color: 'var(--orange)' },
+  status_changed: { label: 'Changement de statut', icon: '🔄', color: 'var(--text-mid)' },
+  script_created: { label: 'Script créé', icon: '✍️', color: 'var(--text-mid)' },
+  script_sent_to_client: { label: 'Script envoyé au client', icon: '📤', color: 'var(--orange)' },
+  script_validated: { label: 'Script validé par le client', icon: '✅', color: 'var(--green)' },
+  script_changes_requested: { label: 'Modifications demandées', icon: '✏️', color: 'var(--yellow)' },
+  script_annotation_added: { label: 'Annotation ajoutée', icon: '💬', color: 'var(--orange)' },
+  filming_scheduled: { label: 'Tournage planifié', icon: '📅', color: 'var(--orange)' },
+  filming_done: { label: 'Tournage terminé', icon: '🎬', color: 'var(--green)' },
+  video_delivered: { label: 'Vidéo livrée', icon: '🎉', color: 'var(--green)' },
+  contract_signed: { label: 'Contrat signé', icon: '✍️', color: 'var(--green)' },
+  payment_received: { label: 'Paiement reçu', icon: '💸', color: 'var(--green)' },
+  call_booked: { label: 'Appel d\'onboarding réservé', icon: '📞', color: 'var(--orange)' },
+  satisfaction_submitted: { label: 'Avis client reçu', icon: '⭐', color: '#FACC15' },
+  comment_added: { label: 'Nouveau commentaire', icon: '💬', color: 'var(--orange)' },
 };
+
+// Format event payload into a readable detail line
+function formatEventDetails(type: string, payload: Record<string, unknown> | null): string | null {
+  if (!payload) return null;
+  switch (type) {
+    case 'status_changed': {
+      const from = payload.from ? STATUS_LABELS[String(payload.from)] || String(payload.from) : null;
+      const to = payload.to ? STATUS_LABELS[String(payload.to)] || String(payload.to) : null;
+      if (from && to) return `${from} → ${to}`;
+      if (to) return `→ ${to}`;
+      return null;
+    }
+    case 'filming_scheduled':
+    case 'script_validated': {
+      const date = payload.date || payload.filming_date;
+      if (date) {
+        return new Date(String(date)).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      }
+      return null;
+    }
+    case 'script_sent_to_client':
+      return payload.version ? `Version ${payload.version}` : null;
+    case 'video_delivered':
+      return payload.video_url ? 'Lien partagé avec le client' : null;
+    case 'payment_received':
+      return payload.amount ? `${(Number(payload.amount) / 100).toLocaleString('fr-FR')} €` : null;
+    case 'satisfaction_submitted':
+      return payload.rating ? `${payload.rating}/5` : null;
+    case 'script_annotation_added':
+      return payload.count ? `${payload.count} annotation(s)` : null;
+    default:
+      return null;
+  }
+}
 
 const STATUS_LABELS: Record<string, string> = {
   onboarding: 'Onboarding',
@@ -175,6 +230,7 @@ export default function ClientDetailPage() {
   const [newTodo, setNewTodo] = useState('');
   const [newVideo, setNewVideo] = useState({ title: '', video_url: '', thumbnail_url: '', delivery_notes: '' });
   const [savingVideo, setSavingVideo] = useState(false);
+  const [annotations, setAnnotations] = useState<AdminAnnotation[]>([]);
 
   function notify(type: 'error' | 'success', msg: string) {
     setToast({ type, msg });
@@ -245,16 +301,70 @@ export default function ClientDetailPage() {
     }
   }
 
+  const loadAnnotations = useCallback(async () => {
+    if (!script) { setAnnotations([]); return; }
+    try {
+      const r = await fetch(`/api/scripts/annotations?script_id=${script.id}`, { headers: authHeaders() });
+      if (!r.ok) { setAnnotations([]); return; }
+      const data = await r.json();
+      if (Array.isArray(data)) setAnnotations(data);
+    } catch { /* table may not exist yet */ }
+  }, [script]);
+
+  useEffect(() => { loadAnnotations(); }, [loadAnnotations]);
+
+  async function updateAnnotation(id: string, fields: { note?: string; resolved?: boolean }) {
+    try {
+      const r = await fetch(`/api/scripts/annotations`, {
+        method: 'PATCH', headers: authHeaders(),
+        body: JSON.stringify({ id, ...fields }),
+      });
+      if (r.ok) {
+        const updated = await r.json();
+        setAnnotations(prev => prev.map(a => a.id === id ? updated : a));
+      }
+    } catch { /* */ }
+  }
+
   async function handleSaveScript(content: Record<string, unknown>) {
-    if (!script) return;
     setSaving(true);
     try {
+      // No script yet? Create it (POST upserts: server matches by client_id + UNIQUE constraint).
+      if (!script) {
+        const created = await fetch('/api/scripts', {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify({
+            client_id: id,
+            title: `Script — ${client?.business_name || 'Client'}`,
+            content,
+            status: 'draft',
+          }),
+        });
+        if (!created.ok) throw new Error(await parseErr(created));
+        const newScript = await created.json();
+        setScript({ ...newScript, script_comments: [] });
+        // Bump client status to script_writing if still in onboarding
+        if (client?.status === 'onboarding') {
+          await fetch('/api/clients', {
+            method: 'PUT', headers: authHeaders(),
+            body: JSON.stringify({ id, status: 'script_writing' }),
+          });
+        }
+        notify('success', 'Script créé et enregistré');
+        loadClient();
+        return;
+      }
+
       const r = await fetch('/api/scripts', {
         method: 'PUT', headers: authHeaders(),
         body: JSON.stringify({ id: script.id, content }),
       });
       if (!r.ok) throw new Error(await parseErr(r));
+      // Use the server response to update local state — avoids a stale loadClient race
+      const updated = await r.json();
+      setScript(prev => prev ? { ...prev, ...updated } : updated);
       notify('success', 'Script enregistré');
+      // Refresh comments / events in background (no await needed)
       loadClient();
     } catch (e: unknown) {
       notify('error', (e as Error).message);
@@ -948,53 +1058,7 @@ export default function ClientDetailPage() {
           )}
 
           {/* Timeline — inline in Aperçu */}
-          <div style={{
-            marginTop: 20, paddingTop: 16,
-            borderTop: '1px solid var(--border)',
-          }}>
-            <h4 style={{
-              fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)',
-              margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.05em',
-            }}>Historique</h4>
-            {events.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Aucun événement enregistré</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative' }}>
-                <div style={{
-                  position: 'absolute', left: 12, top: 14, bottom: 14, width: 1,
-                  background: 'var(--border-md)', opacity: 0.4,
-                }} />
-                {events.slice(0, 10).map(ev => {
-                  const meta = EVENT_LABELS[ev.type] || { label: ev.type, icon: '•', color: 'var(--text-muted)' };
-                  return (
-                    <div key={ev.id} style={{
-                      display: 'flex', gap: 10, alignItems: 'flex-start',
-                      padding: '6px 0', position: 'relative',
-                    }}>
-                      <div style={{
-                        width: 24, height: 24, borderRadius: '50%', flexShrink: 0, zIndex: 1,
-                        background: 'var(--night-mid)', border: `1.5px solid ${meta.color}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '0.7rem', color: meta.color,
-                      }}>{meta.icon}</div>
-                      <div style={{ flex: 1, paddingTop: 2 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                          <span style={{ fontSize: '0.78rem', color: 'var(--text)', fontWeight: 500 }}>
-                            {meta.label}
-                          </span>
-                          <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-                            {new Date(ev.created_at).toLocaleDateString('fr-FR', {
-                              day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <HistoryTimeline events={events} />
         </div>
       )}
 
@@ -1044,11 +1108,15 @@ export default function ClientDetailPage() {
               </div>
               {script.status === 'awaiting_changes' && (
                 <div style={{
-                  padding: '10px 14px', borderRadius: 8, marginBottom: 12,
-                  background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.2)',
-                  color: 'var(--yellow)', fontSize: '0.82rem',
+                  padding: '12px 14px', borderRadius: 10, marginBottom: 12,
+                  background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.25)',
+                  color: '#FDE68A', fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
                 }}>
-                  ⚠ Le client a demandé des modifications. Modifiez le script puis cliquez sur <strong>Renvoyer au client</strong>.
+                  <span aria-hidden style={{ fontSize: '1.2rem' }}>✏️</span>
+                  <span style={{ flex: 1 }}>
+                    <strong>Le client a demandé {annotations.filter(a => !a.resolved).length || 'des'} modification{(annotations.filter(a => !a.resolved).length || 0) !== 1 ? 's' : ''}.</strong>
+                    {' '}Consultez les annotations dans le panneau de droite, modifiez le script puis cliquez sur <strong>Renvoyer au client</strong>.
+                  </span>
                 </div>
               )}
               {script.status === 'confirmed' && (
@@ -1057,9 +1125,44 @@ export default function ClientDetailPage() {
                   background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.2)',
                   color: 'var(--green)', fontSize: '0.82rem',
                 }}>
-                  ✓ Script validé par le client
+                  ✅ Script validé par le client
                 </div>
               )}
+              {/*
+                Two views of the same script:
+                - When there are annotations, default to the read-only annotator
+                  so admin can see exactly what the client highlighted
+                - The classic editor stays available below for actual editing
+              */}
+              {annotations.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginBottom: 10, gap: 8, flexWrap: 'wrap',
+                  }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)' }}>
+                      💬 Annotations du client ({annotations.filter(a => !a.resolved).length} ouverte{annotations.filter(a => !a.resolved).length !== 1 ? 's' : ''} / {annotations.length} au total)
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      Cliquez sur ✅ pour marquer comme traité après avoir modifié le script ci-dessous.
+                    </span>
+                  </div>
+                  <ScriptAnnotator
+                    content={script.content}
+                    annotations={annotations}
+                    onUpdate={updateAnnotation}
+                    canAnnotate={false}
+                    emptyHint="Aucune annotation client pour le moment."
+                  />
+                </div>
+              )}
+              <h4 style={{
+                fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-mid)',
+                margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.5,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <span aria-hidden>✏️</span> Édition du script
+              </h4>
               <ScriptEditor content={script.content} onSave={handleSaveScript} saving={saving} />
 
               {/* Comments (inline, below editor) */}
@@ -1524,6 +1627,91 @@ const miniActionStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   fontSize: '0.85rem', textDecoration: 'none', color: 'var(--text-mid)',
 };
+
+function HistoryTimeline({ events }: { events: ClientEvent[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? events : events.slice(0, 8);
+  return (
+    <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h4 style={{
+          fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-mid)',
+          margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span aria-hidden>📋</span> Historique
+          {events.length > 0 && (
+            <span style={{
+              fontSize: '0.65rem', padding: '1px 7px', borderRadius: 999,
+              background: 'var(--night-mid)', color: 'var(--text-muted)', fontWeight: 600,
+            }}>{events.length}</span>
+          )}
+        </h4>
+        {events.length > 8 && (
+          <button onClick={() => setExpanded(e => !e)} style={{
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            color: 'var(--orange)', fontSize: '0.72rem', fontWeight: 600,
+          }}>
+            {expanded ? '↑ Réduire' : `↓ Voir tout (${events.length})`}
+          </button>
+        )}
+      </div>
+      {events.length === 0 ? (
+        <div style={{
+          padding: '14px 16px', borderRadius: 10,
+          background: 'var(--night-mid)', border: '1px dashed var(--border-md)',
+          fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span aria-hidden>⏳</span>
+          Pas encore d&apos;événement — l&apos;historique se construit au fil du projet (création, statut, scripts, paiements, etc.).
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative' }}>
+          <div style={{
+            position: 'absolute', left: 14, top: 14, bottom: 14, width: 2,
+            background: 'var(--border-md)', opacity: 0.4,
+          }} />
+          {visible.map(ev => {
+            const meta = EVENT_LABELS[ev.type] || { label: ev.type, icon: '•', color: 'var(--text-muted)' };
+            const details = formatEventDetails(ev.type, ev.payload);
+            const actorEmoji = ev.actor === 'client' ? '👤' : ev.actor === 'system' ? '⚙️' : '🛠️';
+            return (
+              <div key={ev.id} style={{
+                display: 'flex', gap: 12, alignItems: 'flex-start',
+                padding: '8px 0', position: 'relative',
+              }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: '50%', flexShrink: 0, zIndex: 1,
+                  background: 'var(--night-mid)', border: `2px solid ${meta.color}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '0.95rem',
+                  fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+                }} aria-hidden>{meta.icon}</div>
+                <div style={{ flex: 1, paddingTop: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text)', fontWeight: 600 }}>
+                      {meta.label}
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }} title={ev.actor}>
+                      {actorEmoji} {new Date(ev.created_at).toLocaleDateString('fr-FR', {
+                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  {details && (
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-mid)', marginTop: 2, lineHeight: 1.4 }}>
+                      {details}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function InfoField({ label, value, copyable }: { label: string; value?: string | null; copyable?: boolean }) {
   const [copied, setCopied] = useState(false);

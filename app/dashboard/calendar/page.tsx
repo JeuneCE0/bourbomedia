@@ -9,23 +9,46 @@ interface Client {
   contact_name: string;
   status: string;
   filming_date?: string;
+  publication_deadline?: string;
+  scripts?: { id: string; status: string; updated_at: string }[];
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  onboarding: '#8A7060',
-  script_writing: '#FACC15',
-  script_review: '#F28C55',
-  script_validated: '#22C55E',
-  filming_scheduled: '#3B82F6',
-  filming_done: '#8B5CF6',
-  editing: '#EC4899',
-  published: '#22C55E',
+interface TaskFromApi {
+  id: string;
+  client_id: string;
+  client_name: string;
+  text: string;
+  done: boolean;
+  due_date?: string;
+}
+
+type EventKind = 'filming' | 'publication' | 'script_sent' | 'script_due' | 'task' | 'onboarding_deadline';
+
+interface CalEvent {
+  id: string;
+  date: string; // YYYY-MM-DD
+  time?: string; // HH:MM (optional)
+  kind: EventKind;
+  label: string;
+  client_id?: string;
+  client_name?: string;
+  status?: string;
+  done?: boolean;
+}
+
+const KIND_META: Record<EventKind, { color: string; emoji: string; label: string }> = {
+  filming:             { color: '#3B82F6', emoji: '🎬', label: 'Tournage' },
+  publication:         { color: '#A855F7', emoji: '📺', label: 'Publication prévue' },
+  script_sent:         { color: '#F28C55', emoji: '📤', label: 'Script envoyé' },
+  script_due:          { color: '#FACC15', emoji: '⏰', label: 'Script à finaliser' },
+  task:                { color: '#22C55E', emoji: '✅', label: 'Tâche' },
+  onboarding_deadline: { color: '#EF4444', emoji: '🚀', label: 'Onboarding bloqué' },
 };
 
 const STATUS_LABELS: Record<string, string> = {
   onboarding: 'Onboarding',
   script_writing: 'Écriture',
-  script_review: 'Révision',
+  script_review: 'Relecture',
   script_validated: 'Validé',
   filming_scheduled: 'Tournage prévu',
   filming_done: 'Tourné',
@@ -40,9 +63,14 @@ function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('bbp_token')}`, 'Content-Type': 'application/json' };
 }
 
-function formatTime(dateStr: string): string {
+function formatTime(dateStr?: string): string {
+  if (!dateStr) return '';
   try {
     const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return '';
+    const hh = d.getHours();
+    const mm = d.getMinutes();
+    if (hh === 0 && mm === 0) return ''; // pure date, no time component
     return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   } catch {
     return '';
@@ -51,23 +79,29 @@ function formatTime(dateStr: string): string {
 
 export default function CalendarPage() {
   const [clients, setClients] = useState<Client[]>([]);
+  const [tasks, setTasks] = useState<TaskFromApi[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [activeKinds, setActiveKinds] = useState<EventKind[]>([]); // empty = all
 
-  const loadClients = useCallback(() => {
-    fetch('/api/clients', { headers: authHeaders() })
-      .then(async r => {
-        if (!r.ok) throw new Error((await r.json().catch(() => ({ error: r.statusText }))).error || 'Erreur');
-        return r.json();
-      })
-      .then(d => { if (Array.isArray(d)) setClients(d); })
-      .catch(e => console.error('Erreur chargement calendrier:', e))
-      .finally(() => setLoading(false));
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [cR, tR] = await Promise.all([
+        fetch('/api/clients', { headers: authHeaders() }),
+        fetch('/api/tasks', { headers: authHeaders() }),
+      ]);
+      const c = cR.ok ? await cR.json() : [];
+      const t = tR.ok ? await tR.json() : [];
+      if (Array.isArray(c)) setClients(c);
+      if (Array.isArray(t)) setTasks(t);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { loadClients(); }, [loadClients]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -75,11 +109,103 @@ export default function CalendarPage() {
         setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
       } else if (e.key === 'ArrowRight') {
         setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+      } else if ((e.key === 't' || e.key === 'T') && !(e.target as HTMLElement)?.matches('input,textarea')) {
+        setCurrentDate(new Date()); setExpandedDay(null);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  // Build a unified events array
+  const allEvents = useMemo<CalEvent[]>(() => {
+    const evs: CalEvent[] = [];
+    const seen = new Set<string>();
+
+    const push = (e: CalEvent) => {
+      const key = `${e.kind}|${e.id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      evs.push(e);
+    };
+
+    clients.forEach(c => {
+      // 🎬 Filming
+      if (c.filming_date) {
+        push({
+          id: `filming-${c.id}`,
+          date: c.filming_date.slice(0, 10),
+          time: formatTime(c.filming_date),
+          kind: 'filming',
+          label: c.business_name,
+          client_id: c.id,
+          client_name: c.business_name,
+          status: c.status,
+        });
+      }
+      // 📺 Publication deadline
+      if (c.publication_deadline) {
+        push({
+          id: `pub-${c.id}`,
+          date: c.publication_deadline.slice(0, 10),
+          kind: 'publication',
+          label: c.business_name,
+          client_id: c.id,
+          client_name: c.business_name,
+          status: c.status,
+        });
+      }
+      // 📤 Script sent (when script.status='proposition' or 'modified')
+      if (c.scripts?.length) {
+        const s = c.scripts[0];
+        if ((s.status === 'proposition' || s.status === 'modified') && s.updated_at) {
+          push({
+            id: `script-sent-${c.id}-${s.id}`,
+            date: s.updated_at.slice(0, 10),
+            kind: 'script_sent',
+            label: c.business_name,
+            client_id: c.id,
+            client_name: c.business_name,
+            status: c.status,
+          });
+        }
+      }
+    });
+
+    tasks.forEach(t => {
+      if (!t.due_date) return;
+      push({
+        id: `task-${t.id}`,
+        date: t.due_date.slice(0, 10),
+        kind: 'task',
+        label: `${t.text}${t.client_name ? ` (${t.client_name})` : ''}`,
+        client_id: t.client_id,
+        client_name: t.client_name,
+        done: t.done,
+      });
+    });
+
+    return evs;
+  }, [clients, tasks]);
+
+  // Filter
+  const filteredEvents = useMemo(() => {
+    if (activeKinds.length === 0) return allEvents;
+    return allEvents.filter(e => activeKinds.includes(e.kind));
+  }, [allEvents, activeKinds]);
+
+  // Group by date
+  const eventsByDate = useMemo(() => {
+    const m: Record<string, CalEvent[]> = {};
+    filteredEvents.forEach(e => {
+      if (!m[e.date]) m[e.date] = [];
+      m[e.date].push(e);
+    });
+    // Sort within day: filming first, then publication, then scripts, then tasks
+    const order: Record<EventKind, number> = { filming: 0, publication: 1, script_sent: 2, script_due: 3, onboarding_deadline: 4, task: 5 };
+    Object.values(m).forEach(list => list.sort((a, b) => (order[a.kind] - order[b.kind]) || (a.time || '').localeCompare(b.time || '')));
+    return m;
+  }, [filteredEvents]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -87,31 +213,14 @@ export default function CalendarPage() {
   const lastDay = new Date(year, month + 1, 0);
   const startPad = (firstDay.getDay() + 6) % 7;
   const totalDays = lastDay.getDate();
-
-  const filteredClients = useMemo(() => {
-    if (statusFilter.length === 0) return clients;
-    return clients.filter(c => statusFilter.includes(c.status));
-  }, [clients, statusFilter]);
-
-  const filmingByDate: Record<string, Client[]> = {};
-  filteredClients.forEach(c => {
-    if (c.filming_date) {
-      const key = c.filming_date.slice(0, 10);
-      if (!filmingByDate[key]) filmingByDate[key] = [];
-      filmingByDate[key].push(c);
-    }
-  });
-
   const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-  const monthFilmings = useMemo(() => {
-    return filteredClients.filter(c => c.filming_date && c.filming_date.startsWith(monthKey));
-  }, [filteredClients, monthKey]);
 
-  const activeStatuses = useMemo(() => {
-    const s = new Set<string>();
-    clients.forEach(c => { if (c.filming_date) s.add(c.status); });
-    return Array.from(s);
-  }, [clients]);
+  const monthEvents = useMemo(() => filteredEvents.filter(e => e.date.startsWith(monthKey)), [filteredEvents, monthKey]);
+  const monthCountsByKind = useMemo(() => {
+    const counts: Record<EventKind, number> = { filming: 0, publication: 0, script_sent: 0, script_due: 0, task: 0, onboarding_deadline: 0 };
+    monthEvents.forEach(e => { counts[e.kind]++; });
+    return counts;
+  }, [monthEvents]);
 
   const days: (number | null)[] = [];
   for (let i = 0; i < startPad; i++) days.push(null);
@@ -126,147 +235,112 @@ export default function CalendarPage() {
   const today = now.toISOString().slice(0, 10);
   const isCurrentMonth = now.getFullYear() === year && now.getMonth() === month;
 
-  function toggleStatus(s: string) {
-    setStatusFilter(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  function toggleKind(k: EventKind) {
+    setActiveKinds(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
   }
 
   const cssVars = {
-    '--cal-cell-min': '88px',
+    '--cal-cell-min': '92px',
     '--cal-cell-pad': '6px 8px',
-    '--cal-font-day': '0.75rem',
-    '--cal-font-slot': '0.68rem',
+    '--cal-font-day': '0.78rem',
+    '--cal-font-slot': '0.7rem',
     '--cal-gap': '3px',
   } as React.CSSProperties;
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto', ...cssVars }}>
+    <div style={{ padding: 'clamp(20px, 4vw, 32px)', maxWidth: 1200, margin: '0 auto', ...cssVars }}>
       <style>{`
         @media (max-width: 768px) {
           .cal-root {
-            --cal-cell-min: 44px !important;
-            --cal-cell-pad: 3px 4px !important;
-            --cal-font-day: 0.65rem !important;
-            --cal-font-slot: 0.58rem !important;
+            --cal-cell-min: 56px !important;
+            --cal-cell-pad: 4px 5px !important;
+            --cal-font-day: 0.7rem !important;
+            --cal-font-slot: 0.6rem !important;
             --cal-gap: 2px !important;
-            padding: 16px 12px !important;
           }
           .cal-header-row { flex-wrap: wrap !important; gap: 8px !important; }
           .cal-title { font-size: 1.1rem !important; }
-          .cal-slot-label { display: none; }
-          .cal-slot-dot { display: inline-block !important; }
         }
         @media (max-width: 480px) {
-          .cal-root {
-            --cal-cell-min: 36px !important;
-            padding: 10px 6px !important;
-          }
+          .cal-root { --cal-cell-min: 40px !important; }
         }
       `}</style>
 
       {/* Header */}
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{
-          fontFamily: "'Bricolage Grotesque', sans-serif",
-          fontWeight: 800, fontSize: '1.6rem', color: 'var(--text)',
-          margin: 0, lineHeight: 1.3,
-        }}>
-          Calendrier
-        </h1>
-        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-          Tournages planifiés et timeline de production
-        </p>
+      <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h1 style={{
+            fontFamily: "'Bricolage Grotesque', sans-serif",
+            fontWeight: 800, fontSize: '1.6rem', color: 'var(--text)',
+            margin: 0, lineHeight: 1.3,
+          }}>
+            📅 Calendrier
+          </h1>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            Tournages, publications, scripts envoyés, tâches — tout en un seul endroit
+          </p>
+        </div>
+        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+          ← / → pour changer de mois · <kbd style={kbdStyle}>T</kbd> pour aujourd&apos;hui
+        </div>
       </div>
 
-      {/* Month summary strip */}
+      {/* Month summary by kind */}
       {!loading && (
         <div style={{
-          display: 'flex', gap: 0,
-          background: 'var(--night-card)', borderRadius: 10,
-          border: '1px solid var(--border)',
-          marginBottom: 16, overflow: 'hidden',
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8,
+          marginBottom: 14,
         }}>
-          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>
-              Ce mois
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--orange)', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-              {monthFilmings.length}
-            </div>
-          </div>
-          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>
-              À venir
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#3B82F6', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-              {monthFilmings.filter(c => c.filming_date! >= today).length}
-            </div>
-          </div>
-          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center', borderRight: '1px solid var(--border)' }}>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>
-              Passés
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-muted)', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-              {monthFilmings.filter(c => c.filming_date! < today).length}
-            </div>
-          </div>
-          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', marginBottom: 3 }}>
-              Total clients
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--green)', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-              {clients.filter(c => c.filming_date).length}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Status filter chips */}
-      {!loading && activeStatuses.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginRight: 4 }}>Filtrer :</span>
-          {activeStatuses.map(s => {
-            const active = statusFilter.includes(s);
-            const color = STATUS_COLORS[s] || '#8A7060';
+          {(Object.keys(KIND_META) as EventKind[]).filter(k => k !== 'script_due' && k !== 'onboarding_deadline' || monthCountsByKind[k] > 0).map(k => {
+            const meta = KIND_META[k];
+            const count = monthCountsByKind[k];
+            const active = activeKinds.includes(k);
+            const filterApplied = activeKinds.length > 0;
             return (
-              <button key={s} onClick={() => toggleStatus(s)} style={{
-                padding: '4px 10px', borderRadius: 14, border: 'none',
-                background: active ? color + '25' : 'var(--night-mid)',
-                color: active ? color : 'var(--text-muted)',
-                fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
-                transition: 'all .15s',
+              <button key={k} onClick={() => toggleKind(k)} style={{
+                background: active ? meta.color + '20' : 'var(--night-card)',
+                border: `1px solid ${active ? meta.color : 'var(--border)'}`,
+                borderRadius: 12, padding: '12px 14px', cursor: 'pointer',
+                textAlign: 'left', transition: 'all .15s',
+                opacity: !active && filterApplied ? 0.55 : 1,
               }}>
-                {STATUS_LABELS[s] || s}
+                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span aria-hidden>{meta.emoji}</span> {meta.label}
+                </div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700, color: meta.color, fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+                  {count}
+                </div>
               </button>
             );
           })}
-          {statusFilter.length > 0 && (
-            <button onClick={() => setStatusFilter([])} style={{
-              padding: '4px 8px', borderRadius: 14, border: 'none',
-              background: 'transparent', color: 'var(--orange)',
-              fontSize: '0.68rem', fontWeight: 500, cursor: 'pointer',
+          {activeKinds.length > 0 && (
+            <button onClick={() => setActiveKinds([])} style={{
+              background: 'transparent', border: '1px dashed var(--border-md)',
+              borderRadius: 12, padding: '12px 14px', cursor: 'pointer',
+              color: 'var(--orange)', fontSize: '0.8rem', fontWeight: 600,
             }}>
-              Tout afficher
+              ✕ Tout afficher
             </button>
           )}
         </div>
       )}
 
       {loading ? (
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '40px 0', textAlign: 'center' }}>Chargement...</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '40px 0', textAlign: 'center' }}>Chargement…</div>
       ) : (
         <div className="cal-root" style={{
           background: 'var(--night-card)', borderRadius: 14,
           border: '1px solid var(--border)', padding: 22,
           overflowX: 'auto', ...cssVars,
         }}>
-          {/* Month navigation */}
+          {/* Month nav */}
           <div className="cal-header-row" style={{
-            display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center', marginBottom: 20, gap: 12,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            marginBottom: 18, gap: 12,
           }}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <NavBtn onClick={prev} label="←" title="Mois précédent" />
-              <NavBtn onClick={next} label="→" title="Mois suivant" />
+              <NavBtn onClick={prev} label="◀" title="Mois précédent" />
+              <NavBtn onClick={next} label="▶" title="Mois suivant" />
             </div>
             <span className="cal-title" style={{
               fontWeight: 700, fontSize: '1.15rem',
@@ -279,9 +353,8 @@ export default function CalendarPage() {
               border: isCurrentMonth ? '1px solid var(--border-orange)' : '1px solid var(--border-md)',
               borderRadius: 8, color: isCurrentMonth ? 'var(--orange)' : 'var(--text-mid)',
               cursor: 'pointer', padding: '7px 14px', fontSize: '0.78rem', fontWeight: 600,
-              transition: 'all .15s',
             }}>
-              Aujourd&apos;hui
+              📍 Aujourd&apos;hui
             </button>
           </div>
 
@@ -301,7 +374,7 @@ export default function CalendarPage() {
             ))}
           </div>
 
-          {/* Calendar grid */}
+          {/* Grid */}
           <div style={{
             display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
             gap: 'var(--cal-gap)', minWidth: 'calc(7 * var(--cal-cell-min))',
@@ -317,10 +390,10 @@ export default function CalendarPage() {
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
               const isToday = dateStr === today;
               const isPast = dateStr < today;
-              const dayClients = filmingByDate[dateStr] || [];
+              const dayEvents = eventsByDate[dateStr] || [];
               const isWeekend = (i % 7) >= 5;
               const isExpanded = expandedDay === dateStr;
-              const hasSlots = dayClients.length > 0;
+              const hasSlots = dayEvents.length > 0;
 
               return (
                 <div key={`day-${i}`}>
@@ -335,18 +408,6 @@ export default function CalendarPage() {
                       boxShadow: isToday ? '0 0 0 3px rgba(232,105,43,.15)' : 'none',
                       opacity: isPast && !isToday ? 0.55 : isWeekend ? 0.7 : 1,
                     }}
-                    onMouseEnter={e => {
-                      if (!isToday) {
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,.12)';
-                        e.currentTarget.style.background = isWeekend ? 'rgba(0,0,0,.18)' : 'rgba(255,255,255,.04)';
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (!isToday) {
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,.04)';
-                        e.currentTarget.style.background = isWeekend ? 'rgba(0,0,0,.12)' : 'var(--night-mid)';
-                      }
-                    }}
                   >
                     <div style={{
                       fontSize: 'var(--cal-font-day)',
@@ -355,36 +416,41 @@ export default function CalendarPage() {
                       marginBottom: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     }}>
                       <span>{day}</span>
-                      {hasSlots && <span style={{
-                        width: 6, height: 6, borderRadius: '50%',
-                        background: 'var(--orange)', display: 'inline-block', opacity: 0.7,
-                      }} />}
+                      {hasSlots && (
+                        <div style={{ display: 'flex', gap: 2 }}>
+                          {Array.from(new Set(dayEvents.map(e => e.kind))).slice(0, 4).map(k => (
+                            <span key={k} aria-hidden style={{
+                              width: 6, height: 6, borderRadius: '50%',
+                              background: KIND_META[k].color, opacity: 0.9,
+                            }} />
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    {dayClients.slice(0, 2).map(c => {
-                      const color = STATUS_COLORS[c.status] || '#8A7060';
-                      const time = c.filming_date ? formatTime(c.filming_date) : '';
+                    {dayEvents.slice(0, 3).map(e => {
+                      const meta = KIND_META[e.kind];
                       return (
-                        <div key={c.id} style={{
+                        <div key={e.id} style={{
                           fontSize: 'var(--cal-font-slot)', padding: '2px 5px',
                           borderRadius: 4, marginBottom: 2,
-                          background: color + '18', borderLeft: `2px solid ${color}`,
-                          color, overflow: 'hidden', textOverflow: 'ellipsis',
+                          background: meta.color + '18', borderLeft: `2px solid ${meta.color}`,
+                          color: meta.color, overflow: 'hidden', textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap', fontWeight: 500, lineHeight: 1.4,
+                          textDecoration: e.done ? 'line-through' : 'none',
+                          opacity: e.done ? 0.6 : 1,
                         }}>
-                          <span className="cal-slot-dot" style={{ display: 'none' }}>&#9679;</span>
-                          <span className="cal-slot-label">
-                            {time ? `${time} ` : ''}{c.business_name}
-                          </span>
+                          <span aria-hidden style={{ marginRight: 3 }}>{meta.emoji}</span>
+                          {e.time ? `${e.time} ` : ''}{e.label}
                         </div>
                       );
                     })}
-                    {dayClients.length > 2 && (
+                    {dayEvents.length > 3 && (
                       <div style={{
                         fontSize: 'var(--cal-font-slot)', color: 'var(--text-muted)',
                         fontWeight: 500, paddingLeft: 5,
                       }}>
-                        +{dayClients.length - 2}
+                        +{dayEvents.length - 3} autres
                       </div>
                     )}
                   </div>
@@ -397,46 +463,61 @@ export default function CalendarPage() {
                       padding: '10px 12px',
                     }}>
                       <div style={{
-                        fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-mid)',
+                        fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-mid)',
                         marginBottom: 8, display: 'flex', justifyContent: 'space-between',
                       }}>
                         <span>{day} {MONTHS[month]} {year}</span>
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>
-                          {dayClients.length} tournage{dayClients.length !== 1 ? 's' : ''}
+                        <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                          {dayEvents.length} évènement{dayEvents.length !== 1 ? 's' : ''}
                         </span>
                       </div>
-                      {dayClients.length === 0 ? (
+                      {dayEvents.length === 0 ? (
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '6px 0' }}>
-                          Aucun tournage
+                          Rien de prévu ce jour-là
                         </div>
                       ) : (
-                        dayClients.map(c => {
-                          const color = STATUS_COLORS[c.status] || '#8A7060';
-                          const label = STATUS_LABELS[c.status] || c.status;
-                          const time = c.filming_date ? formatTime(c.filming_date) : '';
-                          return (
-                            <Link key={c.id} href={`/dashboard/clients/${c.id}`} style={{
-                              display: 'block', padding: '8px 10px', borderRadius: 8,
-                              background: color + '10', borderLeft: `3px solid ${color}`,
-                              marginBottom: 6, textDecoration: 'none',
-                              transition: 'background .15s',
-                            }}>
-                              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
-                                {c.business_name}
+                        dayEvents.map(e => {
+                          const meta = KIND_META[e.kind];
+                          const inner = (
+                            <>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6, textDecoration: e.done ? 'line-through' : 'none' }}>
+                                <span aria-hidden>{meta.emoji}</span>
+                                {e.label}
                               </div>
-                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                {c.contact_name}
-                              </div>
-                              <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
-                                {time && <span style={{ fontSize: '0.68rem', color: 'var(--text-mid)', fontWeight: 500 }}>
-                                  &#128337; {time}
-                                </span>}
+                              <div style={{ display: 'flex', gap: 8, marginTop: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                                {e.time && (
+                                  <span style={{ fontSize: '0.66rem', color: 'var(--text-mid)', fontWeight: 500 }}>
+                                    🕐 {e.time}
+                                  </span>
+                                )}
                                 <span style={{
-                                  fontSize: '0.65rem', padding: '1px 7px', borderRadius: 20,
-                                  background: color + '20', color, fontWeight: 600,
-                                }}>{label}</span>
+                                  fontSize: '0.62rem', padding: '1px 7px', borderRadius: 20,
+                                  background: meta.color + '20', color: meta.color, fontWeight: 600,
+                                }}>{meta.label}</span>
+                                {e.status && (
+                                  <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                                    {STATUS_LABELS[e.status] || e.status}
+                                  </span>
+                                )}
                               </div>
+                            </>
+                          );
+                          return e.client_id ? (
+                            <Link key={e.id} href={`/dashboard/clients/${e.client_id}`} style={{
+                              display: 'block', padding: '8px 10px', borderRadius: 8,
+                              background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
+                              marginBottom: 6, textDecoration: 'none',
+                            }}>
+                              {inner}
                             </Link>
+                          ) : (
+                            <div key={e.id} style={{
+                              padding: '8px 10px', borderRadius: 8,
+                              background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
+                              marginBottom: 6,
+                            }}>
+                              {inner}
+                            </div>
                           );
                         })
                       )}
@@ -449,24 +530,33 @@ export default function CalendarPage() {
 
           {/* Legend */}
           <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: 10,
+            display: 'flex', flexWrap: 'wrap', gap: 12,
             marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border)',
           }}>
-            {Object.entries(STATUS_COLORS).map(([key, color]) => (
-              <div key={key} style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                fontSize: '0.65rem', color: 'var(--text-muted)',
-              }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
-                {STATUS_LABELS[key] || key}
-              </div>
-            ))}
+            {(Object.keys(KIND_META) as EventKind[]).map(k => {
+              const meta = KIND_META[k];
+              return (
+                <div key={k} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  fontSize: '0.7rem', color: 'var(--text-muted)',
+                }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: meta.color }} />
+                  <span aria-hidden>{meta.emoji}</span>
+                  {meta.label}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
     </div>
   );
 }
+
+const kbdStyle: React.CSSProperties = {
+  padding: '1px 6px', borderRadius: 4, background: 'var(--night-mid)',
+  border: '1px solid var(--border-md)', fontSize: '0.65rem', fontFamily: 'monospace',
+};
 
 function NavBtn({ onClick, label, title }: { onClick: () => void; label: string; title: string }) {
   return (

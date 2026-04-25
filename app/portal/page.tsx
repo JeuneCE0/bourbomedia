@@ -3,8 +3,10 @@
 import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import type { Annotation } from '@/components/ScriptAnnotator';
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
+const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
 
 interface Script {
   id: string;
@@ -119,7 +121,7 @@ function deadlineTone(deadline?: string | null): { tone: 'red' | 'yellow' | 'blu
 interface NextAction {
   pill: { tone: 'orange' | 'green' | 'blue' | 'red' | 'yellow'; emoji: string; label: string };
   description: string;
-  cta?: { label: string; tab?: 'video' | 'script' | 'comments' | 'documents' | 'feedback' };
+  cta?: { label: string; tab?: 'video' | 'script' | 'comments' | 'feedback' };
 }
 
 function computeNextAction(scriptStatus: string | null, hasDelivery: boolean, hasFeedback: boolean): NextAction {
@@ -209,7 +211,8 @@ function PortalContent() {
   const [sending, setSending] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [showValidationModal, setShowValidationModal] = useState(false);
-  const [tab, setTab] = useState<'script' | 'comments' | 'video' | 'documents' | 'feedback'>('script');
+  const [tab, setTab] = useState<'script' | 'comments' | 'video' | 'feedback'>('script');
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const bellRef = useRef<HTMLDivElement>(null);
 
   // Close bell dropdown on click outside
@@ -255,11 +258,20 @@ function PortalContent() {
       .catch(() => {});
   }, [token]);
 
+  const loadAnnotations = useCallback(() => {
+    if (!token) return;
+    fetch(`/api/scripts/annotations?token=${token}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => { if (Array.isArray(d)) setAnnotations(d); })
+      .catch(() => {});
+  }, [token]);
+
   useEffect(() => {
     loadScript();
     loadNotifications();
     loadSatisfaction();
-  }, [loadScript, loadNotifications, loadSatisfaction]);
+    loadAnnotations();
+  }, [loadScript, loadNotifications, loadSatisfaction, loadAnnotations]);
 
   // Auto-switch to video tab when delivery becomes available
   useEffect(() => {
@@ -309,6 +321,60 @@ function PortalContent() {
   }
 
   async function handleRequestChanges() {
+    setActionLoading(true);
+    try {
+      await fetch(`/api/scripts?token=${token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request_changes' }),
+      });
+      loadScript();
+      loadNotifications();
+    } finally { setActionLoading(false); }
+  }
+
+  // ── Inline annotations CRUD ──
+  async function createAnnotation(a: { quote: string; note: string; pos_from: number; pos_to: number }) {
+    if (!token) return;
+    const r = await fetch(`/api/scripts/annotations?token=${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(a),
+    });
+    if (r.ok) {
+      const created = await r.json();
+      setAnnotations(prev => [...prev, created]);
+    } else {
+      const err = await r.json().catch(() => ({}));
+      alert(err.migration_missing
+        ? "La fonctionnalité d'annotation n'est pas encore activée côté serveur. Demandez à votre interlocuteur d'appliquer la migration 008."
+        : (err.error || "Impossible d'enregistrer l'annotation."));
+    }
+  }
+  async function updateAnnotation(id: string, fields: { note?: string; resolved?: boolean }) {
+    if (!token) return;
+    const r = await fetch(`/api/scripts/annotations?token=${token}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...fields }),
+    });
+    if (r.ok) {
+      const updated = await r.json();
+      setAnnotations(prev => prev.map(a => a.id === id ? updated : a));
+    }
+  }
+  async function deleteAnnotation(id: string) {
+    if (!token) return;
+    const r = await fetch(`/api/scripts/annotations?token=${token}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    if (r.ok) setAnnotations(prev => prev.filter(a => a.id !== id));
+  }
+  async function sendAnnotationsToTeam() {
+    // Triggers the same status flip as "Demander des modifications" — but now
+    // the team has the actual annotations to act on.
     setActionLoading(true);
     try {
       await fetch(`/api/scripts?token=${token}`, {
@@ -663,22 +729,44 @@ function PortalContent() {
               </div>
             </div>
 
-            {canValidate && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={handleRequestChanges} disabled={actionLoading} style={{
-                  padding: '10px 20px', borderRadius: 10,
-                  background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.25)',
-                  color: 'var(--yellow)', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500,
-                  transition: 'all .15s',
-                }}>✏️ Demander des modifications</button>
-                <button onClick={() => setShowValidationModal(true)} disabled={actionLoading} style={{
-                  padding: '10px 24px', borderRadius: 10, background: 'var(--green)',
-                  color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
-                  boxShadow: '0 2px 8px rgba(34,197,94,.3)',
-                  transition: 'all .15s',
-                }}>✅ Valider le script</button>
-              </div>
-            )}
+            {canValidate && (() => {
+              const openCount = annotations.filter(a => !a.resolved).length;
+              return (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    onClick={() => { setTab('script'); /* scroll the page to script */ window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    style={{
+                      padding: '10px 18px', borderRadius: 10,
+                      background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.25)',
+                      color: '#FDE68A', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600,
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                    }}
+                  >
+                    <span aria-hidden>🖍️</span> Annoter le script
+                    {openCount > 0 && (
+                      <span style={{
+                        background: 'var(--yellow)', color: '#1a1008', borderRadius: 999,
+                        padding: '1px 7px', fontSize: '0.65rem', fontWeight: 800,
+                      }}>{openCount}</span>
+                    )}
+                  </button>
+                  {openCount > 0 && (
+                    <button onClick={sendAnnotationsToTeam} disabled={actionLoading} style={{
+                      padding: '10px 18px', borderRadius: 10, background: 'var(--orange)',
+                      color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
+                      boxShadow: '0 2px 8px rgba(232,105,43,.3)',
+                    }}>
+                      📤 Envoyer mes modifications ({openCount})
+                    </button>
+                  )}
+                  <button onClick={() => setShowValidationModal(true)} disabled={actionLoading} style={{
+                    padding: '10px 24px', borderRadius: 10, background: 'var(--green)',
+                    color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
+                    boxShadow: '0 2px 8px rgba(34,197,94,.3)',
+                  }}>✅ Valider le script</button>
+                </div>
+              );
+            })()}
 
             {script.status === 'confirmed' && (
               <div style={{
@@ -700,7 +788,6 @@ function PortalContent() {
             ...(hasDelivery ? ['video' as const] : []),
             'script' as const,
             'comments' as const,
-            'documents' as const,
             ...(hasDelivery ? ['feedback' as const] : []),
           ]).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
@@ -715,7 +802,6 @@ function PortalContent() {
               {t === 'video' ? `🎬 Vos vidéos${deliveredVideos.length > 1 ? ` (${deliveredVideos.length})` : ''}`
                 : t === 'script' ? '📄 Script'
                 : t === 'comments' ? `💬 Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`
-                : t === 'documents' ? '📂 Documents'
                 : `⭐ Feedback${satisfaction ? ' ✓' : ''}`}
             </button>
           ))}
@@ -817,102 +903,6 @@ function PortalContent() {
           </div>
         )}
 
-        {/* Documents tab */}
-        {tab === 'documents' && (
-          <div style={{
-            background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
-            padding: 'clamp(16px, 3vw, 24px)',
-          }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '1rem', color: 'var(--text)', fontWeight: 600 }}>
-              📂 Vos documents
-            </h3>
-
-            {/* Contract */}
-            <div style={{ marginBottom: 20 }}>
-              <h4 style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 8px' }}>
-                Contrat
-              </h4>
-              {clientInfo?.contract_pdf_url ? (
-                <a href={clientInfo.contract_pdf_url} target="_blank" rel="noreferrer" style={docLinkStyle}>
-                  <span style={{ fontSize: '1.2rem' }} aria-hidden>📄</span>
-                  <span style={{ flex: 1 }}>Contrat signé (PDF)</span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--orange)', fontWeight: 600 }}>⬇️ Télécharger</span>
-                </a>
-              ) : clientInfo?.contract_signature_link ? (
-                <a href={clientInfo.contract_signature_link} target="_blank" rel="noreferrer" style={docLinkStyle}>
-                  <span style={{ fontSize: '1.2rem' }} aria-hidden>✍️</span>
-                  <span style={{ flex: 1 }}>Voir le contrat</span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--orange)', fontWeight: 600 }}>↗️ Ouvrir</span>
-                </a>
-              ) : (
-                <div style={{
-                  padding: '12px 14px', borderRadius: 10,
-                  background: 'rgba(59,130,246,.06)', border: '1px dashed rgba(59,130,246,.3)',
-                  fontSize: '0.82rem', color: 'var(--text-mid)', display: 'flex', alignItems: 'center', gap: 10,
-                }}>
-                  <span aria-hidden>📋</span>
-                  <span>Le contrat sera disponible ici dès qu&apos;il sera prêt à signer.</span>
-                </div>
-              )}
-            </div>
-
-            {/* Invoices / receipts */}
-            <div style={{ marginBottom: 20 }}>
-              <h4 style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 8px' }}>
-                Factures &amp; reçus
-              </h4>
-              {payments.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {payments.map(p => (
-                    <div key={p.id} style={{
-                      ...docLinkStyle, cursor: 'default',
-                    }}>
-                      <span style={{ fontSize: '1.1rem' }} aria-hidden>💸</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text)', fontWeight: 500 }}>
-                          {(p.amount / 100).toLocaleString('fr-FR')} {p.currency.toUpperCase()}
-                          {p.invoice_number && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 8 }}>· N° {p.invoice_number}</span>}
-                        </div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                          {p.description || 'Paiement'} · {new Date(p.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </div>
-                      </div>
-                      {p.invoice_pdf_url ? (
-                        <a href={p.invoice_pdf_url} target="_blank" rel="noreferrer" style={smallLinkStyle}>⬇️ Facture PDF</a>
-                      ) : p.receipt_url ? (
-                        <a href={p.receipt_url} target="_blank" rel="noreferrer" style={smallLinkStyle}>↗️ Reçu</a>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{
-                  padding: '12px 14px', borderRadius: 10,
-                  background: 'rgba(59,130,246,.06)', border: '1px dashed rgba(59,130,246,.3)',
-                  fontSize: '0.82rem', color: 'var(--text-mid)', display: 'flex', alignItems: 'center', gap: 10,
-                }}>
-                  <span aria-hidden>🧾</span>
-                  <span>Vos factures et reçus apparaîtront ici dès le premier paiement.</span>
-                </div>
-              )}
-            </div>
-
-            {/* Script PDF */}
-            {script?.status === 'confirmed' && (
-              <div>
-                <h4 style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 8px' }}>
-                  Script
-                </h4>
-                <a href={`/portal/print?token=${token}`} target="_blank" rel="noreferrer" style={docLinkStyle}>
-                  <span style={{ fontSize: '1.2rem' }} aria-hidden>📝</span>
-                  <span style={{ flex: 1 }}>Script validé (PDF)</span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--orange)', fontWeight: 600 }}>⬇️ Télécharger</span>
-                </a>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Feedback tab */}
         {tab === 'feedback' && (
           <SatisfactionForm
@@ -925,7 +915,50 @@ function PortalContent() {
         {/* Script view */}
         {tab === 'script' && (
           <>
-            <ScriptEditor content={script.content} onSave={() => {}} readOnly />
+            {(() => {
+              // Allow annotations only when the script is awaiting client review.
+              // After validation, freeze the script (no more new annotations).
+              const canAnnotate = script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes';
+              return (
+                <>
+                  <ScriptAnnotator
+                    content={script.content}
+                    annotations={annotations}
+                    onCreate={canAnnotate ? createAnnotation : undefined}
+                    onUpdate={updateAnnotation}
+                    onDelete={canAnnotate ? deleteAnnotation : undefined}
+                    canAnnotate={canAnnotate}
+                    hideResolveButton
+                    emptyHint={canAnnotate
+                      ? 'Surlignez n\'importe quel passage du script pour y attacher un commentaire — comme dans Google Docs. Quand vous avez fini, cliquez sur « Envoyer mes modifications » en haut.'
+                      : script.status === 'confirmed'
+                        ? 'Le script est validé.'
+                        : 'Aucune annotation pour le moment.'}
+                  />
+                  {canAnnotate && annotations.filter(a => !a.resolved).length > 0 && (
+                    <div style={{
+                      marginTop: 14, padding: '14px 16px', borderRadius: 12,
+                      background: 'rgba(232,105,43,.08)', border: '1px solid var(--border-orange)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+                    }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span aria-hidden style={{ fontSize: '1.1rem' }}>📝</span>
+                        <span>
+                          <strong>{annotations.filter(a => !a.resolved).length}</strong> modification{annotations.filter(a => !a.resolved).length > 1 ? 's' : ''} à envoyer à l&apos;équipe
+                        </span>
+                      </div>
+                      <button onClick={sendAnnotationsToTeam} disabled={actionLoading} style={{
+                        padding: '10px 18px', borderRadius: 10, background: 'var(--orange)',
+                        color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
+                        boxShadow: '0 2px 8px rgba(232,105,43,.3)',
+                      }}>
+                        📤 Envoyer mes modifications
+                      </button>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             {script.status === 'confirmed' && (
               <div style={{ marginTop: 12, textAlign: 'center' }}>
                 <a href={`/portal/print?token=${token}`} target="_blank" rel="noreferrer" style={{
