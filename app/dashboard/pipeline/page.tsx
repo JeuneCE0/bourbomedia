@@ -25,14 +25,16 @@ interface Client {
 }
 
 const STAGES: { key: string; label: string; color: string }[] = [
-  { key: 'onboarding', label: 'Onboarding', color: '#8A7060' },
-  { key: 'script_writing', label: 'Script', color: '#FACC15' },
-  { key: 'script_review', label: 'Relecture', color: '#F28C55' },
-  { key: 'script_validated', label: 'Validé', color: '#22C55E' },
-  { key: 'filming_scheduled', label: 'Tournage', color: '#3B82F6' },
-  { key: 'filming_done', label: 'Tourné', color: '#8B5CF6' },
-  { key: 'editing', label: 'Montage', color: '#EC4899' },
-  { key: 'published', label: 'Livré', color: '#22C55E' },
+  { key: 'onboarding',          label: 'Onboarding',     color: '#8A7060' },
+  { key: 'script_writing',      label: 'Script',         color: '#FACC15' },
+  { key: 'script_review',       label: 'Relecture',      color: '#F28C55' },
+  { key: 'script_validated',    label: 'Validé',         color: '#22C55E' },
+  { key: 'filming_scheduled',   label: 'Tournage',       color: '#3B82F6' },
+  { key: 'filming_done',        label: 'Tourné',         color: '#8B5CF6' },
+  { key: 'editing',             label: 'Montage',        color: '#EC4899' },
+  { key: 'video_review',        label: 'Vidéo à valider', color: '#F97316' },
+  { key: 'publication_pending', label: 'Date publi',     color: '#FB923C' },
+  { key: 'published',           label: 'Publié',         color: '#22C55E' },
 ];
 
 type CardField = 'contact' | 'city' | 'category' | 'email' | 'phone' | 'filming_date' | 'payment' | 'tags' | 'days';

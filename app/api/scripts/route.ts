@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (portalToken) {
     try {
       const cr = await supaFetch(
-        `clients?portal_token=eq.${portalToken}&select=id,business_name,contact_name,video_url,video_thumbnail_url,delivery_notes,delivered_at,status,filming_date,publication_deadline,publication_date_confirmed,contract_pdf_url,contract_signature_link`,
+        `clients?portal_token=eq.${portalToken}&select=id,business_name,contact_name,video_url,video_thumbnail_url,delivery_notes,delivered_at,status,filming_date,publication_deadline,publication_date_confirmed,video_validated_at,video_review_comment,video_changes_requested,contract_pdf_url,contract_signature_link`,
         {},
         true
       );
@@ -44,6 +44,9 @@ export async function GET(req: NextRequest) {
           filming_date: c.filming_date,
           publication_deadline: c.publication_deadline,
           publication_date_confirmed: c.publication_date_confirmed,
+          video_validated_at: c.video_validated_at,
+          video_review_comment: c.video_review_comment,
+          video_changes_requested: c.video_changes_requested,
           contract_pdf_url: c.contract_pdf_url,
           contract_signature_link: c.contract_signature_link,
         },
@@ -127,7 +130,8 @@ export async function PUT(req: NextRequest) {
       if (!clients.length) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
       const cid = clients[0].id;
 
-      const { action } = await req.json();
+      const reqBody = await req.json().catch(() => ({} as Record<string, unknown>));
+      const action = reqBody.action as string | undefined;
 
       async function logEvent(type: string, payload: Record<string, unknown> = {}) {
         try {
@@ -174,8 +178,7 @@ export async function PUT(req: NextRequest) {
       // Optional: pass `date` (ISO string) to record it on the client record;
       // otherwise the admin reads it from GHL and updates the client manually.
       if (action === 'confirm_filming_booked') {
-        const body = await req.json().catch(() => ({}));
-        const date = typeof body.date === 'string' ? body.date : null;
+        const date = typeof reqBody.date === 'string' ? (reqBody.date as string) : null;
         const updates: Record<string, unknown> = {
           status: 'filming_scheduled',
           updated_at: new Date().toISOString(),
@@ -183,8 +186,26 @@ export async function PUT(req: NextRequest) {
         if (date) {
           const d = new Date(date);
           if (!Number.isNaN(d.getTime())) {
+            // Uniqueness check : only 1 tournage slot per day (3h block)
+            const dayIso = d.toISOString().slice(0, 10);
+            try {
+              const conflictR = await supaFetch(
+                `clients?filming_date=gte.${dayIso}T00:00:00&filming_date=lte.${dayIso}T23:59:59&id=neq.${cid}&select=id`,
+                {}, true,
+              );
+              if (conflictR.ok) {
+                const conflicts = await conflictR.json();
+                if (conflicts.length > 0) {
+                  return NextResponse.json({
+                    error: 'Ce jour de tournage est déjà pris par un autre projet. Choisissez une autre date.',
+                    conflict: true,
+                  }, { status: 409 });
+                }
+              }
+            } catch { /* */ }
             updates.filming_date = d.toISOString();
-            try { updates.publication_deadline = computePublicationDeadline(d.toISOString()); } catch { /* */ }
+            // Note: we no longer auto-set publication_deadline here — the client
+            // will pick it explicitly after video validation.
           }
         }
         await supaFetch(`clients?id=eq.${cid}`, {
@@ -200,6 +221,99 @@ export async function PUT(req: NextRequest) {
         triggerWorkflow(cl.ghl_contact_id || null, 'filming_scheduled').catch(() => {});
 
         return NextResponse.json({ ok: true, filming_date: updates.filming_date || null });
+      }
+
+      // Client validates the delivered video (no further changes needed).
+      // Moves the project from "video_review" to "publication_pending" — the
+      // client will then pick a publication date in the next step.
+      if (action === 'validate_video') {
+        const updates: Record<string, unknown> = {
+          status: 'publication_pending',
+          video_validated_at: new Date().toISOString(),
+          video_changes_requested: false,
+          video_review_comment: typeof reqBody.comment === 'string' ? (reqBody.comment as string) : null,
+          updated_at: new Date().toISOString(),
+        };
+        const r = await supaFetch(`clients?id=eq.${cid}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updates),
+        }, true);
+        if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
+
+        const cR = await supaFetch(`clients?id=eq.${cid}&select=business_name,ghl_contact_id`, {}, true);
+        const arr = cR.ok ? await cR.json() : [];
+        const cl = arr[0] || {};
+        logEvent('video_validated');
+        // Reuse the satisfaction workflow tag — the user can branch on it in GHL
+        triggerWorkflow(cl.ghl_contact_id || null, 'feedback_requested').catch(() => {});
+        return NextResponse.json({ ok: true });
+      }
+
+      // Client requests changes on the delivered video.
+      if (action === 'request_video_changes') {
+        const comment = typeof reqBody.comment === 'string' ? (reqBody.comment as string).trim() : '';
+        const updates: Record<string, unknown> = {
+          status: 'video_review',
+          video_changes_requested: true,
+          video_review_comment: comment || null,
+          updated_at: new Date().toISOString(),
+        };
+        const r = await supaFetch(`clients?id=eq.${cid}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updates),
+        }, true);
+        if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
+
+        logEvent('video_changes_requested', { comment_preview: comment.slice(0, 80) });
+        return NextResponse.json({ ok: true });
+      }
+
+      // Client picks a publication date (must be a Tuesday or Thursday).
+      if (action === 'confirm_publication_date') {
+        const dateStr = typeof reqBody.date === 'string' ? (reqBody.date as string) : '';
+        if (!dateStr) return NextResponse.json({ error: 'Date requise' }, { status: 400 });
+        const d = new Date(dateStr);
+        if (Number.isNaN(d.getTime())) return NextResponse.json({ error: 'Date invalide' }, { status: 400 });
+        const dow = d.getDay(); // 0=Sun .. 6=Sat
+        if (dow !== 2 && dow !== 4) {
+          return NextResponse.json({ error: 'Les publications ne sont planifiées que le mardi ou le jeudi.' }, { status: 400 });
+        }
+
+        // Uniqueness check : 1 publication slot per day
+        const isoDate = d.toISOString().slice(0, 10);
+        try {
+          const conflictR = await supaFetch(
+            `clients?publication_deadline=eq.${isoDate}&publication_date_confirmed=eq.true&id=neq.${cid}&select=id`,
+            {}, true,
+          );
+          if (conflictR.ok) {
+            const conflicts = await conflictR.json();
+            if (conflicts.length > 0) {
+              return NextResponse.json({
+                error: 'Cette date est déjà réservée par un autre projet. Choisissez un autre créneau.',
+                conflict: true,
+              }, { status: 409 });
+            }
+          }
+        } catch { /* fall through — the unique constraint isn't critical */ }
+
+        const updates: Record<string, unknown> = {
+          publication_deadline: isoDate,
+          publication_date_confirmed: true,
+          updated_at: new Date().toISOString(),
+        };
+        const r = await supaFetch(`clients?id=eq.${cid}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updates),
+        }, true);
+        if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
+
+        const cR = await supaFetch(`clients?id=eq.${cid}&select=business_name,ghl_contact_id`, {}, true);
+        const arr = cR.ok ? await cR.json() : [];
+        const cl = arr[0] || {};
+        logEvent('publication_scheduled', { date: dateStr });
+        triggerWorkflow(cl.ghl_contact_id || null, 'project_published').catch(() => {});
+        return NextResponse.json({ ok: true, publication_deadline: updates.publication_deadline });
       }
 
       if (action === 'request_changes') {
