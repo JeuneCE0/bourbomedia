@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import EmptyState from '@/components/ui/EmptyState';
+import AppointmentsToDocument from '@/components/AppointmentsToDocument';
 
 interface Client {
   id: string;
@@ -264,6 +265,9 @@ export default function DashboardPage() {
         <div className="bm-stagger">
           {/* Daily metrics — editable: calls / ads / closing rate / gross profit */}
           <DailyMetricsCard clients={clients} />
+
+          {/* Appels à documenter (notes post-call → bidirectionnel GHL) */}
+          <AppointmentsToDocument />
 
           {/* Urgency: Today */}
           <UrgencySection

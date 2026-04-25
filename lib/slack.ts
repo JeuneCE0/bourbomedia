@@ -113,6 +113,35 @@ export function notifyAnnotationsSent(clientName: string, count: number, samples
   });
 }
 
+export function notifyAppointmentCompleted(args: {
+  contactName: string;
+  contactEmail?: string;
+  calendarKind: 'closing' | 'onboarding' | 'tournage' | 'other';
+  startsAt: string;
+  appointmentId: string;
+}) {
+  const kindLabel = args.calendarKind === 'closing' ? '📞 Appel closing'
+    : args.calendarKind === 'onboarding' ? '🚀 Appel onboarding'
+    : args.calendarKind === 'tournage' ? '🎬 Tournage'
+    : '📅 Rendez-vous';
+  const formattedTime = new Date(args.startsAt).toLocaleString('fr-FR', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+  return sendSlackNotification({
+    text: `${kindLabel} terminé avec ${args.contactName} — à documenter`,
+    blocks: [
+      { type: 'header', text: { type: 'plain_text', text: `${kindLabel} terminé`, emoji: true } },
+      { type: 'section', fields: [
+        { type: 'mrkdwn', text: `*Contact:*\n${args.contactName}${args.contactEmail ? ` (${args.contactEmail})` : ''}` },
+        { type: 'mrkdwn', text: `*Quand:*\n${formattedTime}` },
+      ]},
+      { type: 'context', elements: [
+        { type: 'mrkdwn', text: '👉 Renseigner les notes sur le panel admin Bourbomedia (Dashboard → Appels à documenter)' },
+      ]},
+    ],
+  });
+}
+
 export function notifyAnnotationCreated(clientName: string, contactName: string, quote: string, note: string) {
   return sendSlackNotification({
     text: `📝 ${clientName} a annoté le script`,
