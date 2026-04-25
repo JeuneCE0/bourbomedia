@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
 import { sendWhatsAppMessage, sendEmailMessage } from '@/lib/ghl';
+import { triggerWorkflow } from '@/lib/ghl-workflows';
 import crypto from 'crypto';
 
 async function logEvent(clientId: string, type: string, payload?: Record<string, unknown>) {
@@ -26,13 +27,46 @@ export async function GET(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   try {
     const id = req.nextUrl.searchParams.get('id');
-    const path = id
-      ? `clients?id=eq.${id}&select=*,scripts(*,script_comments(*)),videos(*)`
-      : 'clients?select=*&order=created_at.desc';
-    const r = await supaFetch(path, {}, true);
+    if (id) {
+      const r = await supaFetch(`clients?id=eq.${id}&select=*,scripts(*,script_comments(*)),videos(*)`, {}, true);
+      if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
+      const data = await r.json();
+      return NextResponse.json(data[0] || null);
+    }
+
+    // List path with optional pagination
+    const limit = Number(req.nextUrl.searchParams.get('limit') || '0');
+    const offset = Number(req.nextUrl.searchParams.get('offset') || '0');
+    const search = req.nextUrl.searchParams.get('q');
+    const status = req.nextUrl.searchParams.get('status');
+
+    let path = 'clients?select=*&order=created_at.desc';
+    if (status) path += `&status=eq.${encodeURIComponent(status)}`;
+    if (search && search.trim()) {
+      const enc = encodeURIComponent(`%${search.trim()}%`);
+      path += `&or=(business_name.ilike.${enc},contact_name.ilike.${enc},email.ilike.${enc},city.ilike.${enc})`;
+    }
+    if (limit > 0) {
+      path += `&limit=${limit}&offset=${offset}`;
+    }
+
+    // When paginated, also return total count via PostgREST exact-count header
+    const r = await supaFetch(path, {
+      headers: limit > 0 ? { 'Prefer': 'count=exact' } : {},
+    }, true);
     if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
     const data = await r.json();
-    return NextResponse.json(id ? data[0] || null : data);
+
+    // If client requested pagination, send pagination envelope
+    if (limit > 0) {
+      const contentRange = r.headers.get('content-range') || '';
+      const totalMatch = contentRange.match(/\/(\d+)$/);
+      const total = totalMatch ? Number(totalMatch[1]) : data.length;
+      return NextResponse.json({ data, total, limit, offset, hasMore: offset + data.length < total });
+    }
+
+    // Back-compat : raw array when no pagination requested
+    return NextResponse.json(data);
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
@@ -81,6 +115,8 @@ export async function PUT(req: NextRequest) {
       if (prev && fields.status === 'script_review' && prev.status !== 'script_review') {
         logEvent(id, 'script_sent_to_client', { version: updated.script_version });
         pushNotification(id, 'script_ready', 'Votre script est prêt à relire ✍', 'Connectez-vous pour le consulter et le valider.');
+        // GHL workflow trigger (tag-based) — runs whether or not direct sends are enabled
+        triggerWorkflow(updated.ghl_contact_id, 'script_ready').catch(() => {});
         if (notifyEnabled && updated.ghl_contact_id) {
           const portalUrl = updated.portal_token ? `https://bourbonmedia.fr/portal?token=${updated.portal_token}` : '';
           await sendWhatsAppMessage(updated.ghl_contact_id,
@@ -101,6 +137,7 @@ export async function PUT(req: NextRequest) {
       if (prev && fields.delivered_at && !prev.delivered_at) {
         logEvent(id, 'video_delivered', { video_url: updated.video_url });
         pushNotification(id, 'video_delivered', 'Votre vidéo est prête 🎬', 'Découvrez le résultat final dans votre espace.');
+        triggerWorkflow(updated.ghl_contact_id, 'video_delivered').catch(() => {});
         if (notifyEnabled && updated.ghl_contact_id) {
           const portalUrl = updated.portal_token ? `https://bourbonmedia.fr/portal?token=${updated.portal_token}` : '';
           await sendWhatsAppMessage(updated.ghl_contact_id,
@@ -123,6 +160,12 @@ export async function PUT(req: NextRequest) {
         const d = new Date(fields.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
         pushNotification(id, 'filming_scheduled', `Tournage planifié 🎥`, `Votre tournage est prévu le ${d}.`);
         logEvent(id, 'filming_scheduled', { date: fields.filming_date });
+        triggerWorkflow(updated.ghl_contact_id, 'filming_scheduled').catch(() => {});
+      }
+
+      // Project published
+      if (prev && fields.status === 'published' && prev.status !== 'published') {
+        triggerWorkflow(updated.ghl_contact_id, 'project_published').catch(() => {});
       }
 
       // Generic status change logging

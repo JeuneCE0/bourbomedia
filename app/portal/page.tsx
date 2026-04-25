@@ -213,7 +213,17 @@ function PortalContent() {
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [tab, setTab] = useState<'script' | 'comments' | 'video' | 'feedback'>('script');
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [liveToast, setLiveToast] = useState<{ emoji: string; message: string; key: number } | null>(null);
+  const lastSeenScriptStatusRef = useRef<string | null>(null);
+  const lastSeenNotifIdRef = useRef<string | null>(null);
+  const lastSeenDeliveredAtRef = useRef<string | null>(null);
   const bellRef = useRef<HTMLDivElement>(null);
+
+  // Show a transient toast (auto-dismisses after 5s)
+  const showToast = useCallback((emoji: string, message: string) => {
+    setLiveToast({ emoji, message, key: Date.now() });
+    setTimeout(() => setLiveToast(curr => (curr && curr.key === Date.now() ? null : curr)), 5000);
+  }, []);
 
   // Close bell dropdown on click outside
   useEffect(() => {
@@ -280,6 +290,55 @@ function PortalContent() {
     }
   }, [videos.length, clientInfo?.delivered_at, clientInfo?.video_url]);
 
+  // Detect script status changes between polls and toast the client
+  useEffect(() => {
+    if (!script?.status) return;
+    const previous = lastSeenScriptStatusRef.current;
+    if (previous !== null && previous !== script.status) {
+      const transitionMessages: Record<string, { emoji: string; message: string }> = {
+        proposition: { emoji: '📝', message: 'Votre script est prêt à relire !' },
+        modified: { emoji: '✨', message: 'Une nouvelle version du script vient d\'arriver.' },
+        confirmed: { emoji: '🎉', message: 'Script validé — on planifie la suite !' },
+        awaiting_changes: { emoji: '✅', message: 'Vos modifications ont bien été envoyées.' },
+      };
+      const msg = transitionMessages[script.status];
+      if (msg) showToast(msg.emoji, msg.message);
+    }
+    lastSeenScriptStatusRef.current = script.status;
+  }, [script?.status, showToast]);
+
+  // Toast when video gets delivered while client is on the page
+  useEffect(() => {
+    const delivered = clientInfo?.delivered_at || (videos.find(v => v.delivered_at)?.delivered_at);
+    if (!delivered) return;
+    const previous = lastSeenDeliveredAtRef.current;
+    if (previous !== null && previous !== delivered) {
+      showToast('🎬', 'Votre vidéo est en ligne ! Découvrez-la.');
+    }
+    lastSeenDeliveredAtRef.current = delivered;
+  }, [clientInfo?.delivered_at, videos, showToast]);
+
+  // Toast when a brand-new notification arrives during the session
+  useEffect(() => {
+    if (!notifications.length) return;
+    const first = notifications[0];
+    const previous = lastSeenNotifIdRef.current;
+    if (previous !== null && previous !== first.id) {
+      showToast('🔔', first.title);
+    }
+    lastSeenNotifIdRef.current = first.id;
+  }, [notifications, showToast]);
+
+  // Lightweight polling so the toasts trigger without manual refresh
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(() => {
+      loadScript();
+      loadNotifications();
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [token, loadScript, loadNotifications]);
+
   const unreadCount = notifications.filter(n => !n.read_at).length;
 
   async function handleMarkAllRead() {
@@ -344,14 +403,18 @@ function PortalContent() {
     if (r.ok) {
       const created = await r.json();
       setAnnotations(prev => [...prev, created]);
+      showToast('💬', 'Annotation enregistrée');
     } else {
       const err = await r.json().catch(() => ({}));
-      alert(err.migration_missing
-        ? "La fonctionnalité d'annotation n'est pas encore activée côté serveur. Demandez à votre interlocuteur d'appliquer la migration 008."
-        : (err.error || "Impossible d'enregistrer l'annotation."));
+      if (err.migration_missing) {
+        // Friendly message; do NOT show the raw PostgREST error to the client.
+        showToast('⚠️', "Fonctionnalité bientôt disponible — l'équipe est notifiée.");
+      } else {
+        showToast('❌', err.error || "Impossible d'enregistrer cette annotation. Réessayez ou contactez-nous.");
+      }
     }
   }
-  async function updateAnnotation(id: string, fields: { note?: string; resolved?: boolean }) {
+  async function updateAnnotation(id: string, fields: { note?: string; resolved?: boolean; add_reply?: string }) {
     if (!token) return;
     const r = await fetch(`/api/scripts/annotations?token=${token}`, {
       method: 'PATCH',
@@ -361,6 +424,7 @@ function PortalContent() {
     if (r.ok) {
       const updated = await r.json();
       setAnnotations(prev => prev.map(a => a.id === id ? updated : a));
+      if (fields.add_reply) showToast('💬', 'Réponse envoyée');
     }
   }
   async function deleteAnnotation(id: string) {
@@ -585,7 +649,15 @@ function PortalContent() {
         </div>
       </header>
 
-      <main style={{ flex: 1, maxWidth: 820, width: '100%', margin: '0 auto', padding: 'clamp(16px, 4vw, 32px)' }}>
+      <main style={{
+        flex: 1,
+        // When the user is reading/annotating the script, give the page much
+        // more horizontal room so the script breathes. For other tabs we keep
+        // a comfortable reading width.
+        maxWidth: tab === 'script' ? 1180 : 820,
+        width: '100%', margin: '0 auto', padding: 'clamp(16px, 4vw, 32px)',
+        transition: 'max-width .2s ease',
+      }}>
         {/* Welcome + next action card */}
         {(() => {
           const next = computeNextAction(script.status, !!hasDelivery, !!satisfaction);
@@ -729,44 +801,15 @@ function PortalContent() {
               </div>
             </div>
 
-            {canValidate && (() => {
-              const openCount = annotations.filter(a => !a.resolved).length;
-              return (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <button
-                    onClick={() => { setTab('script'); /* scroll the page to script */ window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    style={{
-                      padding: '10px 18px', borderRadius: 10,
-                      background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.25)',
-                      color: '#FDE68A', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600,
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                    }}
-                  >
-                    <span aria-hidden>🖍️</span> Annoter le script
-                    {openCount > 0 && (
-                      <span style={{
-                        background: 'var(--yellow)', color: '#1a1008', borderRadius: 999,
-                        padding: '1px 7px', fontSize: '0.65rem', fontWeight: 800,
-                      }}>{openCount}</span>
-                    )}
-                  </button>
-                  {openCount > 0 && (
-                    <button onClick={sendAnnotationsToTeam} disabled={actionLoading} style={{
-                      padding: '10px 18px', borderRadius: 10, background: 'var(--orange)',
-                      color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
-                      boxShadow: '0 2px 8px rgba(232,105,43,.3)',
-                    }}>
-                      📤 Envoyer mes modifications ({openCount})
-                    </button>
-                  )}
-                  <button onClick={() => setShowValidationModal(true)} disabled={actionLoading} style={{
-                    padding: '10px 24px', borderRadius: 10, background: 'var(--green)',
-                    color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
-                    boxShadow: '0 2px 8px rgba(34,197,94,.3)',
-                  }}>✅ Valider le script</button>
-                </div>
-              );
-            })()}
+            {/* Actions live BELOW the script (after reading). Top stays clean. */}
+            {canValidate && (
+              <span style={{
+                fontSize: '0.78rem', color: 'var(--text-mid)', fontStyle: 'italic',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}>
+                <span aria-hidden>👇</span> Lisez le script puis validez en bas
+              </span>
+            )}
 
             {script.status === 'confirmed' && (
               <div style={{
@@ -913,63 +956,110 @@ function PortalContent() {
         )}
 
         {/* Script view */}
-        {tab === 'script' && (
-          <>
-            {(() => {
-              // Allow annotations only when the script is awaiting client review.
-              // After validation, freeze the script (no more new annotations).
-              const canAnnotate = script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes';
-              return (
-                <>
-                  <ScriptAnnotator
-                    content={script.content}
-                    annotations={annotations}
-                    onCreate={canAnnotate ? createAnnotation : undefined}
-                    onUpdate={updateAnnotation}
-                    onDelete={canAnnotate ? deleteAnnotation : undefined}
-                    canAnnotate={canAnnotate}
-                    hideResolveButton
-                    emptyHint={canAnnotate
-                      ? 'Surlignez n\'importe quel passage du script pour y attacher un commentaire — comme dans Google Docs. Quand vous avez fini, cliquez sur « Envoyer mes modifications » en haut.'
-                      : script.status === 'confirmed'
-                        ? 'Le script est validé.'
-                        : 'Aucune annotation pour le moment.'}
-                  />
-                  {canAnnotate && annotations.filter(a => !a.resolved).length > 0 && (
-                    <div style={{
-                      marginTop: 14, padding: '14px 16px', borderRadius: 12,
-                      background: 'rgba(232,105,43,.08)', border: '1px solid var(--border-orange)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
-                    }}>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span aria-hidden style={{ fontSize: '1.1rem' }}>📝</span>
-                        <span>
-                          <strong>{annotations.filter(a => !a.resolved).length}</strong> modification{annotations.filter(a => !a.resolved).length > 1 ? 's' : ''} à envoyer à l&apos;équipe
-                        </span>
-                      </div>
+        {tab === 'script' && (() => {
+          const canAnnotate = script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes';
+          const openCount = annotations.filter(a => !a.resolved).length;
+          return (
+            <>
+              {/* Helper bar — only when client can annotate AND nothing yet */}
+              {canAnnotate && annotations.length === 0 && (
+                <div style={{
+                  marginBottom: 14, padding: '12px 16px', borderRadius: 12,
+                  background: 'linear-gradient(135deg, rgba(250,204,21,.10), rgba(232,105,43,.08))',
+                  border: '1px dashed rgba(250,204,21,.40)',
+                  display: 'flex', alignItems: 'center', gap: 12, fontSize: '0.86rem',
+                  color: 'var(--text)',
+                }}>
+                  <span aria-hidden style={{ fontSize: '1.4rem' }}>🖍️</span>
+                  <div style={{ flex: 1 }}>
+                    <strong>Comment commenter le script ?</strong> Sélectionnez n&apos;importe quel passage avec votre souris (ou doigt sur mobile) — un bouton « 💬 Annoter » apparaîtra automatiquement. Cliquez dessus pour ajouter votre remarque.
+                  </div>
+                </div>
+              )}
+
+              <ScriptAnnotator
+                content={script.content}
+                annotations={annotations}
+                onCreate={canAnnotate ? createAnnotation : undefined}
+                onUpdate={updateAnnotation}
+                onDelete={canAnnotate ? deleteAnnotation : undefined}
+                canAnnotate={canAnnotate}
+                canReply={canAnnotate}
+                hideResolveButton
+                emptyHint={canAnnotate
+                  ? 'Sélectionnez un passage du script pour y attacher un commentaire.'
+                  : script.status === 'confirmed'
+                    ? 'Le script est validé. ✅'
+                    : 'Aucune annotation pour le moment.'}
+              />
+
+              {/* ───────── BOTTOM ACTION BAR ───────── */}
+              {canValidate && (
+                <div style={{
+                  marginTop: 18, padding: '16px 18px', borderRadius: 14,
+                  background: 'var(--night-card)', border: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  gap: 14, flexWrap: 'wrap',
+                  position: 'sticky', bottom: 12, zIndex: 5,
+                  boxShadow: '0 8px 32px rgba(0,0,0,.45)',
+                }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    {openCount > 0 ? (
+                      <>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>
+                          📝 {openCount} modification{openCount > 1 ? 's' : ''} prête{openCount > 1 ? 's' : ''} à envoyer
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-mid)', marginTop: 2 }}>
+                          L&apos;équipe recevra vos annotations et vous renverra une nouvelle version.
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>
+                          {script.status === 'modified' ? '✨ Nouvelle version disponible' : '👀 Vous avez tout lu ?'}
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-mid)', marginTop: 2 }}>
+                          Validez le script pour qu&apos;on planifie le tournage, ou ajoutez des annotations si quelque chose ne vous convient pas.
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {openCount > 0 && (
                       <button onClick={sendAnnotationsToTeam} disabled={actionLoading} style={{
-                        padding: '10px 18px', borderRadius: 10, background: 'var(--orange)',
-                        color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
-                        boxShadow: '0 2px 8px rgba(232,105,43,.3)',
+                        padding: '11px 20px', borderRadius: 10, background: 'var(--orange)',
+                        color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 700,
+                        boxShadow: '0 4px 14px rgba(232,105,43,.4)',
                       }}>
                         📤 Envoyer mes modifications
                       </button>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-            {script.status === 'confirmed' && (
-              <div style={{ marginTop: 12, textAlign: 'center' }}>
-                <a href={`/portal/print?token=${token}`} target="_blank" rel="noreferrer" style={{
-                  display: 'inline-block', padding: '9px 18px', borderRadius: 8,
-                  background: 'var(--night-card)', border: '1px solid var(--border-md)',
-                  color: 'var(--text)', textDecoration: 'none', fontSize: '0.82rem',
-                }}>⬇️ Télécharger le script (PDF)</a>
-              </div>
-            )}
-          </>
-        )}
+                    )}
+                    <button onClick={() => setShowValidationModal(true)} disabled={actionLoading} style={{
+                      padding: '11px 22px', borderRadius: 10,
+                      background: openCount > 0 ? 'transparent' : 'var(--green)',
+                      color: openCount > 0 ? 'var(--green)' : '#fff',
+                      border: openCount > 0 ? '1px solid var(--green)' : 'none',
+                      cursor: 'pointer', fontSize: '0.88rem', fontWeight: 700,
+                      boxShadow: openCount > 0 ? 'none' : '0 4px 14px rgba(34,197,94,.4)',
+                    }}>
+                      ✅ Valider le script
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {script.status === 'confirmed' && (
+                <div style={{ marginTop: 16, textAlign: 'center' }}>
+                  <a href={`/portal/print?token=${token}`} target="_blank" rel="noreferrer" style={{
+                    display: 'inline-block', padding: '9px 18px', borderRadius: 8,
+                    background: 'var(--night-card)', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', textDecoration: 'none', fontSize: '0.82rem',
+                  }}>⬇️ Télécharger le script (PDF)</a>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {/* Comments */}
         {tab === 'comments' && (
@@ -1037,6 +1127,42 @@ function PortalContent() {
           </div>
         )}
       </main>
+
+      {/* Live toast — fired when state changes during the session */}
+      {liveToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '14px 22px', borderRadius: 999,
+            background: 'rgba(232,105,43,.95)', color: '#fff',
+            boxShadow: '0 12px 36px rgba(0,0,0,.45)',
+            fontSize: '0.92rem', fontWeight: 600, zIndex: 3000,
+            maxWidth: 'calc(100vw - 32px)',
+            animation: 'bm-toast-rise .35s ease',
+          }}
+        >
+          <span aria-hidden style={{ fontSize: '1.2rem', lineHeight: 1 }}>{liveToast.emoji}</span>
+          <span>{liveToast.message}</span>
+          <button
+            onClick={() => setLiveToast(null)}
+            aria-label="Fermer"
+            style={{
+              background: 'rgba(0,0,0,.2)', border: 'none', color: '#fff',
+              borderRadius: '50%', width: 22, height: 22, cursor: 'pointer',
+              fontSize: '0.75rem', lineHeight: 1, padding: 0,
+            }}
+          >✕</button>
+          <style>{`
+            @keyframes bm-toast-rise {
+              from { transform: translate(-50%, 16px); opacity: 0; }
+              to   { transform: translate(-50%, 0);    opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
 
       {/* Footer */}
       <footer style={{

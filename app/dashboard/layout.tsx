@@ -24,15 +24,22 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon:
       { href: '/dashboard/team', label: 'Équipe', icon: '👤' },
     ],
   },
+  {
+    title: 'Configuration',
+    items: [
+      { href: '/dashboard/automations', label: 'Automatisations', icon: '🤖' },
+    ],
+  },
 ];
 
 interface SearchResult {
-  type: 'client' | 'script' | 'comment';
+  type: 'client' | 'script' | 'comment' | 'script_content';
   id: string;
   client_id: string;
   title: string;
   subtitle: string;
   status?: string;
+  highlight?: string;
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -248,11 +255,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 >
                   <span style={{
                     width: 24, height: 24, borderRadius: 6, flexShrink: 0,
-                    background: r.type === 'client' ? 'rgba(232,105,43,.12)' : r.type === 'script' ? 'rgba(250,204,21,.12)' : 'rgba(139,92,246,.12)',
-                    color: r.type === 'client' ? 'var(--orange)' : r.type === 'script' ? 'var(--yellow)' : '#8B5CF6',
+                    background: r.type === 'client' ? 'rgba(232,105,43,.12)' : r.type === 'script' || r.type === 'script_content' ? 'rgba(250,204,21,.12)' : 'rgba(139,92,246,.12)',
+                    color: r.type === 'client' ? 'var(--orange)' : r.type === 'script' || r.type === 'script_content' ? 'var(--yellow)' : '#8B5CF6',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '0.7rem', fontWeight: 700,
-                  }} aria-hidden>{r.type === 'client' ? '👤' : r.type === 'script' ? '📝' : '💬'}</span>
+                  }} aria-hidden>{r.type === 'client' ? '👤' : r.type === 'script' ? '📝' : r.type === 'script_content' ? '🔍' : '💬'}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>
@@ -516,7 +523,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         color: r.type === 'client' ? 'var(--orange)' : r.type === 'script' ? 'var(--yellow)' : '#8B5CF6',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: '0.7rem', fontWeight: 700,
-                      }} aria-hidden>{r.type === 'client' ? '👤' : r.type === 'script' ? '📝' : '💬'}</span>
+                      }} aria-hidden>{r.type === 'client' ? '👤' : r.type === 'script' ? '📝' : r.type === 'script_content' ? '🔍' : '💬'}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
                         <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>

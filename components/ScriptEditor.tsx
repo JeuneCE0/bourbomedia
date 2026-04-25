@@ -15,6 +15,8 @@ interface ScriptEditorProps {
   onSave: (content: Record<string, unknown>) => void;
   saving?: boolean;
   readOnly?: boolean;
+  /** Auto-save with this debounce delay (ms). Disabled if undefined or 0. */
+  autoSaveMs?: number;
 }
 
 /* ── word count helper ── */
@@ -115,7 +117,7 @@ function SaveToast({ visible }: { visible: boolean }) {
 }
 
 /* ── main editor ── */
-export default function ScriptEditor({ content, onSave, saving, readOnly }: ScriptEditorProps) {
+export default function ScriptEditor({ content, onSave, saving, readOnly, autoSaveMs }: ScriptEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -144,20 +146,48 @@ export default function ScriptEditor({ content, onSave, saving, readOnly }: Scri
 
   const [wordCount, setWordCount] = useState(0);
   const [showToast, setShowToast] = useState(false);
+  const [autoStatus, setAutoStatus] = useState<'idle' | 'pending' | 'saved'>('idle');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedRef = useRef<string>('');
 
-  /* keep word count in sync */
+  /* keep word count + auto-save in sync */
   useEffect(() => {
     if (!editor) return;
-    const update = () => setWordCount(countWords(editor.getText()));
+    const update = () => {
+      setWordCount(countWords(editor.getText()));
+      // Auto-save logic
+      if (!autoSaveMs || readOnly) return;
+      const json = JSON.stringify(editor.getJSON());
+      if (json === lastSavedRef.current) return;
+      setAutoStatus('pending');
+      if (autoTimer.current) clearTimeout(autoTimer.current);
+      autoTimer.current = setTimeout(() => {
+        const payload = editor.getJSON() as Record<string, unknown>;
+        lastSavedRef.current = JSON.stringify(payload);
+        onSave(payload);
+        setAutoStatus('saved');
+        setTimeout(() => setAutoStatus(prev => prev === 'saved' ? 'idle' : prev), 2200);
+      }, autoSaveMs);
+    };
     update();
     editor.on('update', update);
-    return () => { editor.off('update', update); };
-  }, [editor]);
+    return () => {
+      editor.off('update', update);
+      if (autoTimer.current) clearTimeout(autoTimer.current);
+    };
+  }, [editor, autoSaveMs, readOnly, onSave]);
+
+  // Initialise lastSavedRef when content prop changes (e.g. after parent re-fetch)
+  useEffect(() => {
+    if (content) lastSavedRef.current = JSON.stringify(content);
+  }, [content]);
 
   const handleSave = useCallback(() => {
     if (!editor) return;
-    onSave(editor.getJSON() as Record<string, unknown>);
+    const payload = editor.getJSON() as Record<string, unknown>;
+    lastSavedRef.current = JSON.stringify(payload);
+    onSave(payload);
     /* show toast */
     setShowToast(true);
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -389,10 +419,22 @@ export default function ScriptEditor({ content, onSave, saving, readOnly }: Scri
         <EditorContent editor={editor} />
       </div>
 
-      {/* status bar with word count */}
+      {/* status bar with word count + auto-save indicator */}
       <div style={statusBarStyle}>
         <span>{wordCount} mot{wordCount !== 1 ? 's' : ''}</span>
-        {readOnly && <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Lecture seule</span>}
+        {!readOnly && autoSaveMs ? (
+          <span style={{
+            color: autoStatus === 'saved' ? 'var(--green)' : autoStatus === 'pending' ? 'var(--yellow)' : 'var(--text-muted)',
+            fontStyle: autoStatus === 'idle' ? 'italic' : 'normal',
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }} aria-live="polite">
+            {autoStatus === 'pending' && <>⏳ Auto-save…</>}
+            {autoStatus === 'saved' && <>✅ Sauvegardé automatiquement</>}
+            {autoStatus === 'idle' && <>💾 Auto-save activé</>}
+          </span>
+        ) : readOnly ? (
+          <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Lecture seule</span>
+        ) : null}
       </div>
 
       {/* inline keyframes for spinner */}

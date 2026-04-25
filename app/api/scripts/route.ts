@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
 import { findNextAvailableSlot, bookFilmingSlot, computePublicationDeadline } from '@/lib/filming';
-import { notifyScriptValidated, notifyFilmingScheduled } from '@/lib/slack';
+import { notifyScriptValidated, notifyFilmingScheduled, notifyAnnotationsSent } from '@/lib/slack';
+import { triggerWorkflow } from '@/lib/ghl-workflows';
 import { sendWhatsAppMessage, sendEmailMessage } from '@/lib/ghl';
 
 export async function GET(req: NextRequest) {
@@ -171,6 +172,9 @@ export async function PUT(req: NextRequest) {
           notifyFilmingScheduled(client.business_name || 'Client', filmingDate);
         }
         logEvent('script_validated', filmingDate ? { filming_date: filmingDate } : {});
+        // GHL workflows
+        triggerWorkflow(client.ghl_contact_id, 'script_validated').catch(() => {});
+        if (filmingDate) triggerWorkflow(client.ghl_contact_id, 'filming_scheduled').catch(() => {});
 
         // GHL WhatsApp + Email notifications
         if (client.ghl_contact_id) {
@@ -209,7 +213,37 @@ export async function PUT(req: NextRequest) {
           body: JSON.stringify({ status: 'script_review', updated_at: new Date().toISOString() }),
         }, true);
 
+        // Pull current annotations to enrich the Slack ping
+        try {
+          const cR = await supaFetch(`clients?id=eq.${cid}&select=business_name`, {}, true);
+          const clientArr = cR.ok ? await cR.json() : [];
+          const clientName = clientArr[0]?.business_name || 'Client';
+          const sIdR = await supaFetch(`scripts?client_id=eq.${cid}&select=id`, {}, true);
+          const sArr = sIdR.ok ? await sIdR.json() : [];
+          const sid = sArr[0]?.id;
+          if (sid) {
+            const aR = await supaFetch(`script_annotations?script_id=eq.${sid}&resolved=eq.false&select=quote,note&order=created_at.desc`, {}, true);
+            const annots = aR.ok ? await aR.json() : [];
+            if (annots.length) {
+              notifyAnnotationsSent(
+                clientName,
+                annots.length,
+                annots.map((a: { quote: string; note: string }) => `« ${a.quote.slice(0, 60)}${a.quote.length > 60 ? '…' : ''} » → ${a.note.slice(0, 80)}${a.note.length > 80 ? '…' : ''}`),
+              ).catch(() => {});
+            }
+          }
+        } catch { /* non-blocking */ }
+
         logEvent('script_changes_requested');
+
+        // GHL workflow: notify the client we received their changes
+        try {
+          const cR = await supaFetch(`clients?id=eq.${cid}&select=ghl_contact_id`, {}, true);
+          const cArr = cR.ok ? await cR.json() : [];
+          if (cArr[0]?.ghl_contact_id) {
+            triggerWorkflow(cArr[0].ghl_contact_id, 'script_changes_requested').catch(() => {});
+          }
+        } catch { /* */ }
 
         const data = await sr.json();
         return NextResponse.json(data[0]);
