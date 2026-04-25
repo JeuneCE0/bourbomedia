@@ -54,6 +54,7 @@ export default function PipelinePage() {
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetch('/api/gh-appointments?recent=1', { headers: authHeaders() })
@@ -63,6 +64,8 @@ export default function PipelinePage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const selected = useMemo(() => appts.find(a => a.id === selectedId) || null, [appts, selectedId]);
 
   // Pipeline = closing appointments only
   const closings = useMemo(
@@ -161,6 +164,7 @@ export default function PipelinePage() {
               label="À documenter"
               color="#A855F7"
               items={grouped[UNDOCUMENTED_KEY]}
+              onSelect={setSelectedId}
             />
           )}
           {STAGES.map(s => (
@@ -170,15 +174,24 @@ export default function PipelinePage() {
               label={s.label}
               color={s.color}
               items={grouped[s.key]}
+              onSelect={setSelectedId}
             />
           ))}
         </div>
+      )}
+
+      {selected && (
+        <ProspectModal
+          appt={selected}
+          onClose={() => setSelectedId(null)}
+          onSaved={() => { setSelectedId(null); load(); }}
+        />
       )}
     </div>
   );
 }
 
-function Column({ emoji, label, color, items }: { emoji: string; label: string; color: string; items: Appointment[] }) {
+function Column({ emoji, label, color, items, onSelect }: { emoji: string; label: string; color: string; items: Appointment[]; onSelect: (id: string) => void }) {
   return (
     <div style={{
       background: 'var(--night-card)', borderRadius: 10,
@@ -210,33 +223,37 @@ function Column({ emoji, label, color, items }: { emoji: string; label: string; 
             Aucun prospect ici
           </div>
         ) : (
-          items.map(a => <Card key={a.id} appt={a} />)
+          items.map(a => <Card key={a.id} appt={a} onSelect={onSelect} />)
         )}
       </div>
     </div>
   );
 }
 
-function Card({ appt }: { appt: Appointment }) {
+function Card({ appt, onSelect }: { appt: Appointment; onSelect: (id: string) => void }) {
   return (
-    <div
-      title={appt.notes || ''}
+    <button
+      type="button"
+      onClick={() => onSelect(appt.id)}
       style={{
         padding: '6px 10px', borderRadius: 6,
         background: 'var(--night-mid)', border: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-        cursor: appt.notes ? 'help' : 'default',
+        cursor: 'pointer', textAlign: 'left', width: '100%', color: 'var(--text)',
+        transition: 'background .12s, border-color .12s',
       }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'var(--night-raised)'; e.currentTarget.style.borderColor = 'var(--border-md)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'var(--night-mid)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: '0.78rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {appt.opportunity_name || appt.contact_name || appt.contact_email || 'Sans nom'}
         </div>
       </div>
       <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', flexShrink: 0 }}>
         {relativeDate(appt.starts_at)}
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -252,6 +269,159 @@ function Stat({ label, value, color, last }: { label: string; value: string; col
       <div style={{ fontSize: '1.15rem', fontWeight: 800, color, fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1 }}>
         {value}
       </div>
+    </div>
+  );
+}
+
+function ProspectModal({ appt, onClose, onSaved }: { appt: Appointment; onClose: () => void; onSaved: () => void }) {
+  const [notes, setNotes] = useState(appt.notes || '');
+  const [status, setStatus] = useState<string>(appt.prospect_status || '');
+  const [saving, setSaving] = useState(false);
+  const stage = STAGES.find(s => s.key === status);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const r = await fetch('/api/gh-appointments', {
+        method: 'PATCH', headers: authHeaders(),
+        body: JSON.stringify({ id: appt.id, notes: notes.trim() || null, prospect_status: status || null }),
+      });
+      if (r.ok) onSaved();
+      else alert('Erreur lors de l\'enregistrement.');
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(3px)',
+        display: 'flex', justifyContent: 'flex-end',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: 'min(520px, 100vw)', height: '100vh',
+          background: 'var(--night-card)', borderLeft: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          boxShadow: '-12px 0 40px rgba(0,0,0,.45)',
+          animation: 'bm-slide-in-right .18s ease-out',
+        }}
+      >
+        <style>{`@keyframes bm-slide-in-right { from { transform: translateX(20px); opacity: 0 } to { transform: translateX(0); opacity: 1 } }`}</style>
+
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text)', margin: 0, fontFamily: "'Bricolage Grotesque', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {appt.opportunity_name || appt.contact_name || appt.contact_email || 'Sans nom'}
+            </h2>
+            <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
+              📞 Closing du {new Date(appt.starts_at).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+          <button onClick={onClose} style={{
+            background: 'transparent', border: 'none', color: 'var(--text-muted)',
+            fontSize: '1.4rem', cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0,
+          }}>×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Contact info */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+            {appt.contact_email && <InfoRow icon="📧" value={appt.contact_email} />}
+            {appt.contact_phone && <InfoRow icon="📱" value={appt.contact_phone} />}
+            {appt.contact_name && appt.contact_name !== appt.opportunity_name && <InfoRow icon="👤" value={appt.contact_name} />}
+            {appt.pipeline_stage_name && <InfoRow icon="🏷️" value={`Stage GHL : ${appt.pipeline_stage_name}`} />}
+          </div>
+
+          {/* Status */}
+          <div>
+            <label style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              Statut prospect (synchronisé avec GHL)
+            </label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {STAGES.map(opt => (
+                <button key={opt.key} type="button" onClick={() => setStatus(opt.key)} style={{
+                  padding: '7px 12px', borderRadius: 999, fontSize: '0.78rem', fontWeight: 600,
+                  background: status === opt.key ? opt.color : 'var(--night-mid)',
+                  color: status === opt.key ? '#fff' : 'var(--text-mid)',
+                  border: `1px solid ${status === opt.key ? opt.color : 'var(--border-md)'}`,
+                  cursor: 'pointer',
+                }}>
+                  {opt.emoji} {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              Notes de l&apos;appel
+            </label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Compte-rendu, prochaines étapes, objections, budget..."
+              rows={8}
+              style={{
+                width: '100%', padding: '11px 13px', borderRadius: 8,
+                background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                color: 'var(--text)', fontSize: '0.88rem', resize: 'vertical', outline: 'none',
+                fontFamily: 'inherit', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          {stage && status === 'awaiting_signature' && (
+            <div style={{
+              padding: '10px 12px', borderRadius: 8,
+              background: 'rgba(34,197,94,.10)', border: '1px solid rgba(34,197,94,.30)',
+              fontSize: '0.78rem', color: '#86EFAC',
+            }}>
+              🚀 Pense à envoyer le lien d&apos;onboarding au prospect.
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+            {appt.opportunity_id ? '🔁 Sync auto vers le pipeline GHL' : '⚠️ Pas d\'opportunité GHL liée'}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} style={{
+              padding: '9px 16px', borderRadius: 8,
+              background: 'transparent', border: '1px solid var(--border-md)',
+              color: 'var(--text-mid)', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600,
+            }}>Annuler</button>
+            <button onClick={save} disabled={saving} style={{
+              padding: '9px 18px', borderRadius: 8, background: 'var(--orange)',
+              color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
+              opacity: saving ? 0.5 : 1,
+            }}>
+              {saving ? '⏳' : '💾'} Enregistrer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ icon, value }: { icon: string; value: string }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
+      background: 'var(--night-mid)', borderRadius: 6, border: '1px solid var(--border)',
+      fontSize: '0.78rem', color: 'var(--text)', minWidth: 0,
+    }}>
+      <span aria-hidden style={{ flexShrink: 0 }}>{icon}</span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
     </div>
   );
 }

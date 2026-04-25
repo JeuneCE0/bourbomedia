@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
   // 2. Pull opportunities in the pipeline since `since` and mirror them
   const oppsByContact = new Map<string, { id: string; name: string; pipelineId: string; pipelineStageId: string }>();
   if (pipeline) {
-    const opps = await listOpportunitiesByPipeline(pipeline.id, sinceStr);
+    const opps = await listOpportunitiesByPipeline(pipeline.id);
     summary.opportunities_seen = opps.length;
     for (const o of opps) {
       if (o.contactId) oppsByContact.set(o.contactId, {
