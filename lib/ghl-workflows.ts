@@ -20,6 +20,7 @@ export type WorkflowEvent =
   | 'contract_signed'
   | 'payment_received'
   | 'call_booked'
+  | 'prospect_awaiting_signature'  // closing terminé → envoyer le lien d'onboarding
   | 'script_ready'         // script sent to client for review
   | 'script_changes_requested'
   | 'script_validated'
@@ -62,6 +63,11 @@ export const WORKFLOWS: Record<WorkflowEvent, WorkflowDef> = {
     tag: 'bbm_call_booked', label: 'Appel onboarding réservé',
     channels: ['whatsapp', 'email'], trigger: 'Le client choisit un créneau d\'appel',
     copyHint: 'Votre appel est prévu le {date}. À bientôt !',
+  },
+  prospect_awaiting_signature: {
+    tag: 'bbm_prospect_awaiting_signature', label: 'Closing OK — envoi onboarding',
+    channels: ['email', 'whatsapp'], trigger: 'Le call closing est terminé, le prospect doit signer + payer',
+    copyHint: 'Merci pour cet échange ! Voici le lien pour finaliser : {onboarding_url}',
   },
   script_ready: {
     tag: 'bbm_script_ready', label: 'Script à relire',
