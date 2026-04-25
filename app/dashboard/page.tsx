@@ -261,7 +261,7 @@ export default function DashboardPage() {
           />
         </div>
       ) : (
-        <>
+        <div className="bm-stagger">
           {/* Urgency: Today */}
           <UrgencySection
             tone="red"
@@ -369,7 +369,7 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

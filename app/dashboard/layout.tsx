@@ -308,7 +308,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       : hovered
                         ? 'rgba(255,255,255,.04)'
                         : 'transparent',
-                    transition: 'all .15s ease',
+                    transition: 'all 220ms cubic-bezier(0.16, 1, 0.3, 1)',
                     borderLeft: active ? '3px solid var(--orange)' : '3px solid transparent',
                   }}
                 >

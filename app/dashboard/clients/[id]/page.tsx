@@ -1031,7 +1031,7 @@ export default function ClientDetailPage() {
 
       {/* Info tab */}
       {tab === 'info' && (
-        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+        <div key="tab-info" className="bm-fade-in" style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
           {!editing ? (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px', marginBottom: 20 }}>
@@ -1231,7 +1231,7 @@ export default function ClientDetailPage() {
 
       {/* Script tab */}
       {tab === 'script' && (
-        <div>
+        <div key="tab-script" className="bm-fade-in">
           {script ? (
             <>
               <div style={{
@@ -1429,7 +1429,7 @@ export default function ClientDetailPage() {
 
       {/* Filming tab */}
       {tab === 'filming' && (
-        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+        <div key="tab-filming" className="bm-fade-in" style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
           <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>Jour de tournage</h3>
@@ -1569,7 +1569,7 @@ export default function ClientDetailPage() {
 
       {/* Delivery tab */}
       {tab === 'delivery' && (
-        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+        <div key="tab-delivery" className="bm-fade-in" style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
           <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>Vidéos livrées</h3>
@@ -1666,7 +1666,7 @@ export default function ClientDetailPage() {
 
       {/* Payments tab */}
       {tab === 'payments' && (
-        <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+        <div key="tab-payments" className="bm-fade-in" style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
           <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>Paiements</h3>

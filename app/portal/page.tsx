@@ -678,7 +678,7 @@ function PortalContent() {
             )}
           </button>
           {bellOpen && (
-            <div style={{
+            <div className="bm-fade-in" style={{
               position: 'absolute', top: '100%', right: 0, marginTop: 8, width: 320,
               background: 'var(--night-card)', border: '1px solid var(--border-md)',
               borderRadius: 12, maxHeight: 400, overflowY: 'auto',
@@ -831,7 +831,7 @@ function PortalContent() {
                             {stage.label}
                           </span>
                           {status === 'current' && (
-                            <span style={{
+                            <span className="bm-pulse-glow" style={{
                               padding: '2px 8px', borderRadius: 999,
                               background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
                               color: '#FFB58A', fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
@@ -926,7 +926,7 @@ function PortalContent() {
 
         {/* Video delivery view (multi-video) */}
         {tab === 'video' && hasDelivery && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div key="tab-video" className="bm-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Render new multi-videos first */}
             {deliveredVideos.map((v, idx) => (
               <div key={v.id} style={{
@@ -1022,11 +1022,13 @@ function PortalContent() {
 
         {/* Feedback tab */}
         {tab === 'feedback' && (
-          <SatisfactionForm
-            existing={satisfaction}
-            onSubmit={handleSubmitSatisfaction}
-            loading={actionLoading}
-          />
+          <div key="tab-feedback" className="bm-fade-in">
+            <SatisfactionForm
+              existing={satisfaction}
+              onSubmit={handleSubmitSatisfaction}
+              loading={actionLoading}
+            />
+          </div>
         )}
 
         {/* Script view */}
@@ -1034,7 +1036,7 @@ function PortalContent() {
           const canAnnotate = script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes';
           const openCount = annotations.filter(a => !a.resolved).length;
           return (
-            <>
+            <div key="tab-script" className="bm-fade-in">
               {/* Helper bar — only when client can annotate AND nothing yet */}
               {canAnnotate && annotations.length === 0 && (
                 <div style={{
@@ -1131,13 +1133,13 @@ function PortalContent() {
                   }}>⬇️ Télécharger le script (PDF)</a>
                 </div>
               )}
-            </>
+            </div>
           );
         })()}
 
         {/* Comments */}
         {tab === 'comments' && (
-          <div>
+          <div key="tab-comments" className="bm-fade-in">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
               {script.script_comments && script.script_comments.length > 0 ? (
                 script.script_comments.map(c => {
@@ -1200,7 +1202,7 @@ function PortalContent() {
             </form>
           </div>
         )}
-      </main>
+        </main>
 
       {/* Live toast — fired when state changes during the session */}
       {liveToast && (
@@ -1257,11 +1259,12 @@ function PortalContent() {
 
       {/* Validation modal: preview before validating */}
       {showValidationModal && script && (
-        <div onClick={() => setShowValidationModal(false)} style={{
+        <div onClick={() => setShowValidationModal(false)} className="bm-modal-backdrop" style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 2000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          backdropFilter: 'blur(4px)',
         }}>
-          <div onClick={e => e.stopPropagation()} style={{
+          <div onClick={e => e.stopPropagation()} className="bm-modal-pop" style={{
             background: 'var(--night-card)', borderRadius: 14,
             border: '1px solid var(--border-orange)',
             maxWidth: 720, width: '100%', maxHeight: '90vh', overflow: 'hidden',
