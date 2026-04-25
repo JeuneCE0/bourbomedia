@@ -7,34 +7,18 @@ import { ToastProvider } from '@/components/ui/Toast';
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
-    title: 'Pilotage',
+    title: '',
     items: [
-      { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
-      { href: '/dashboard/pipeline', label: 'Pipeline', icon: '📊' },
-      { href: '/dashboard/shoots', label: 'Tournages', icon: '🎬' },
-      { href: '/dashboard/tasks', label: 'Tâches', icon: '✅' },
-      { href: '/dashboard/scripts', label: 'Scripts', icon: '📝' },
-    ],
-  },
-  {
-    title: 'Données',
-    items: [
-      { href: '/dashboard/clients', label: 'Clients', icon: '👥' },
-      { href: '/dashboard/calendar', label: 'Calendrier', icon: '📅' },
-      { href: '/dashboard/onboarding', label: 'Onboarding', icon: '🚀' },
-      { href: '/dashboard/team', label: 'Équipe', icon: '👤' },
-    ],
-  },
-  {
-    title: 'Analyse',
-    items: [
-      { href: '/dashboard/finance', label: 'Finance', icon: '💰' },
-      { href: '/dashboard/stats', label: 'Stats', icon: '📈' },
-    ],
-  },
-  {
-    title: 'Configuration',
-    items: [
+      { href: '/dashboard',             label: 'Dashboard',       icon: '🏠' },
+      { href: '/dashboard/pipeline',    label: 'Pipeline',        icon: '📊' },
+      { href: '/dashboard/tasks',       label: 'Tâches',          icon: '✅' },
+      { href: '/dashboard/scripts',     label: 'Scripts',         icon: '📝' },
+      { href: '/dashboard/shoots',      label: 'Tournage',        icon: '🎬' },
+      { href: '/dashboard/clients',     label: 'Clients',         icon: '👥' },
+      { href: '/dashboard/calendar',    label: 'Calendriers',     icon: '📅' },
+      { href: '/dashboard/team',        label: 'Équipe',          icon: '👤' },
+      { href: '/dashboard/finance',     label: 'Finances',        icon: '💰' },
+      { href: '/dashboard/stats',       label: 'Statistiques',    icon: '📈' },
       { href: '/dashboard/automations', label: 'Automatisations', icon: '🤖' },
     ],
   },
@@ -282,8 +266,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Navigation */}
       <nav style={{ padding: '12px 8px', flex: 1 }}>
         {NAV_SECTIONS.map((section, sIdx) => (
-          <div key={section.title} style={{ marginBottom: sIdx === NAV_SECTIONS.length - 1 ? 0 : 14 }}>
-            {(!(collapsed && !isMobile)) && (
+          <div key={section.title || `sec-${sIdx}`} style={{ marginBottom: sIdx === NAV_SECTIONS.length - 1 ? 0 : 14 }}>
+            {(!(collapsed && !isMobile)) && section.title && (
               <div style={{
                 fontSize: '0.62rem',
                 fontWeight: 700,
@@ -295,7 +279,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {section.title}
               </div>
             )}
-            {collapsed && !isMobile && sIdx > 0 && (
+            {collapsed && !isMobile && sIdx > 0 && section.title && (
               <div style={{ height: 1, background: 'var(--border)', margin: '8px 12px 8px' }} />
             )}
             {section.items.map(item => {
