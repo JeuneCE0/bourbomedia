@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
 import { notifyAnnotationCreated } from '@/lib/slack';
+import crypto from 'crypto';
 
 // Inline script annotations (highlight + note from the client).
 //
@@ -134,6 +135,21 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ error: 'Use the portal token to create annotations' }, { status: 400 });
 }
 
+interface AnnotationReply {
+  id: string;
+  author_type: 'client' | 'admin';
+  author_name: string;
+  text: string;
+  created_at: string;
+}
+
+async function fetchAnnotationById(id: string): Promise<{ replies?: AnnotationReply[] } | null> {
+  const r = await supaFetch(`script_annotations?id=eq.${id}&select=replies`, {}, true);
+  if (!r.ok) return null;
+  const arr = await r.json();
+  return arr[0] || null;
+}
+
 export async function PATCH(req: NextRequest) {
   const portalToken = req.nextUrl.searchParams.get('token');
   const body = await req.json();
@@ -146,11 +162,34 @@ export async function PATCH(req: NextRequest) {
     fields.resolved_at = body.resolved ? new Date().toISOString() : null;
   }
 
+  // --- Reply branch (works for both client and admin) ---
+  if (typeof body.add_reply === 'string' && body.add_reply.trim()) {
+    let authorType: 'client' | 'admin' = 'admin';
+    let authorName = 'Admin';
+    if (portalToken) {
+      const client = await resolveClientFromToken(portalToken);
+      if (!client) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
+      authorType = 'client';
+      authorName = client.contact_name || 'Client';
+    } else if (!requireAuth(req)) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+    }
+    const existing = await fetchAnnotationById(body.id);
+    const currentReplies: AnnotationReply[] = Array.isArray(existing?.replies) ? existing!.replies as AnnotationReply[] : [];
+    const newReply: AnnotationReply = {
+      id: crypto.randomUUID(),
+      author_type: authorType,
+      author_name: authorName,
+      text: String(body.add_reply).slice(0, 2000).trim(),
+      created_at: new Date().toISOString(),
+    };
+    fields.replies = [...currentReplies, newReply];
+  }
+
   // --- Portal: client edits their own annotation ---
   if (portalToken) {
     const client = await resolveClientFromToken(portalToken);
     if (!client) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
-    // Restrict update to this client's annotation
     const r = await supaFetch(`script_annotations?id=eq.${body.id}&client_id=eq.${client.id}`, {
       method: 'PATCH',
       body: JSON.stringify(fields),
@@ -159,7 +198,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json((await r.json())[0]);
   }
 
-  // --- Admin: typically marks as resolved ---
+  // --- Admin ---
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const r = await supaFetch(`script_annotations?id=eq.${body.id}`, {
     method: 'PATCH',

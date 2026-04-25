@@ -313,7 +313,7 @@ export default function ClientDetailPage() {
 
   useEffect(() => { loadAnnotations(); }, [loadAnnotations]);
 
-  async function updateAnnotation(id: string, fields: { note?: string; resolved?: boolean }) {
+  async function updateAnnotation(id: string, fields: { note?: string; resolved?: boolean; add_reply?: string }) {
     try {
       const r = await fetch(`/api/scripts/annotations`, {
         method: 'PATCH', headers: authHeaders(),
@@ -322,6 +322,7 @@ export default function ClientDetailPage() {
       if (r.ok) {
         const updated = await r.json();
         setAnnotations(prev => prev.map(a => a.id === id ? updated : a));
+        if (fields.add_reply) notify('success', 'Réponse envoyée au client');
       }
     } catch { /* */ }
   }
@@ -1152,6 +1153,7 @@ export default function ClientDetailPage() {
                     annotations={annotations}
                     onUpdate={updateAnnotation}
                     canAnnotate={false}
+                    canReply={true}
                     emptyHint="Aucune annotation client pour le moment."
                   />
                 </div>

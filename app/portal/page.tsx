@@ -414,7 +414,7 @@ function PortalContent() {
       }
     }
   }
-  async function updateAnnotation(id: string, fields: { note?: string; resolved?: boolean }) {
+  async function updateAnnotation(id: string, fields: { note?: string; resolved?: boolean; add_reply?: string }) {
     if (!token) return;
     const r = await fetch(`/api/scripts/annotations?token=${token}`, {
       method: 'PATCH',
@@ -424,6 +424,7 @@ function PortalContent() {
     if (r.ok) {
       const updated = await r.json();
       setAnnotations(prev => prev.map(a => a.id === id ? updated : a));
+      if (fields.add_reply) showToast('💬', 'Réponse envoyée');
     }
   }
   async function deleteAnnotation(id: string) {
@@ -983,6 +984,7 @@ function PortalContent() {
                 onUpdate={updateAnnotation}
                 onDelete={canAnnotate ? deleteAnnotation : undefined}
                 canAnnotate={canAnnotate}
+                canReply={canAnnotate}
                 hideResolveButton
                 emptyHint={canAnnotate
                   ? 'Sélectionnez un passage du script pour y attacher un commentaire.'

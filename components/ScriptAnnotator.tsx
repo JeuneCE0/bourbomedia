@@ -9,6 +9,14 @@ import Color from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+export interface AnnotationReply {
+  id: string;
+  author_type: 'client' | 'admin';
+  author_name: string;
+  text: string;
+  created_at: string;
+}
+
 export interface Annotation {
   id: string;
   quote: string;
@@ -20,14 +28,17 @@ export interface Annotation {
   author_type: 'client' | 'admin';
   created_at: string;
   script_version?: number | null;
+  replies?: AnnotationReply[];
 }
 
 interface Props {
   content: Record<string, unknown> | null;
   annotations: Annotation[];
   onCreate?: (a: { quote: string; note: string; pos_from: number; pos_to: number }) => Promise<void> | void;
-  onUpdate?: (id: string, fields: { note?: string; resolved?: boolean }) => Promise<void> | void;
+  onUpdate?: (id: string, fields: { note?: string; resolved?: boolean; add_reply?: string }) => Promise<void> | void;
   onDelete?: (id: string) => Promise<void> | void;
+  /** Show the "Reply" form on each annotation card */
+  canReply?: boolean;
   // When true, the user can highlight text and add new annotations.
   // When false (admin view), annotations are read-only with a "Mark as resolved" action.
   canAnnotate?: boolean;
@@ -50,6 +61,7 @@ export default function ScriptAnnotator({
   onUpdate,
   onDelete,
   canAnnotate = false,
+  canReply = false,
   hideResolveButton = false,
   emptyHint,
 }: Props) {
@@ -374,6 +386,7 @@ export default function ScriptAnnotator({
                   onDelete={canAnnotate && a.author_type === 'client' ? onDelete : undefined}
                   hideResolveButton={hideResolveButton}
                   canEdit={canAnnotate && a.author_type === 'client'}
+                  canReply={canReply || canAnnotate}
                 />
               ))}
 
@@ -406,6 +419,7 @@ export default function ScriptAnnotator({
                       onDelete={canAnnotate && a.author_type === 'client' ? onDelete : undefined}
                       hideResolveButton={hideResolveButton}
                       canEdit={canAnnotate && a.author_type === 'client'}
+                      canReply={canReply || canAnnotate}
                     />
                   ))}
                 </>
@@ -419,17 +433,20 @@ export default function ScriptAnnotator({
 }
 
 function AnnotationCard({
-  annotation: a, onUpdate, onDelete, hideResolveButton, canEdit,
+  annotation: a, onUpdate, onDelete, hideResolveButton, canEdit, canReply,
 }: {
   annotation: Annotation;
   onUpdate?: Props['onUpdate'];
   onDelete?: Props['onDelete'];
   hideResolveButton?: boolean;
   canEdit?: boolean;
+  canReply?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(a.note);
   const [busy, setBusy] = useState(false);
+  const [replyDraft, setReplyDraft] = useState('');
+  const [replying, setReplying] = useState(false);
 
   const save = async () => {
     if (!onUpdate || !draft.trim()) return;
@@ -454,6 +471,18 @@ function AnnotationCard({
     try { await onDelete(a.id); }
     finally { setBusy(false); }
   };
+
+  const submitReply = async () => {
+    if (!onUpdate || !replyDraft.trim()) return;
+    setBusy(true);
+    try {
+      await onUpdate(a.id, { add_reply: replyDraft.trim() });
+      setReplyDraft('');
+      setReplying(false);
+    } finally { setBusy(false); }
+  };
+
+  const replies = a.replies || [];
 
   return (
     <div style={{
@@ -519,6 +548,68 @@ function AnnotationCard({
           )}
         </div>
       </div>
+
+      {/* Replies thread */}
+      {(replies.length > 0 || (canReply && !a.resolved)) && (
+        <div style={{
+          marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border-md)',
+          display: 'flex', flexDirection: 'column', gap: 6,
+        }}>
+          {replies.map(rep => (
+            <div key={rep.id} style={{
+              padding: '7px 10px', borderRadius: 8,
+              background: rep.author_type === 'admin' ? 'rgba(232,105,43,.08)' : 'var(--night-mid)',
+              borderLeft: `3px solid ${rep.author_type === 'admin' ? 'var(--orange)' : 'var(--text-muted)'}`,
+            }}>
+              <div style={{ fontSize: '0.7rem', color: rep.author_type === 'admin' ? 'var(--orange)' : 'var(--text-mid)', fontWeight: 700, marginBottom: 2 }}>
+                {rep.author_type === 'admin' ? '🛠️ ' : '👤 '}{rep.author_name}
+                <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>
+                  · {new Date(rep.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text)', lineHeight: 1.45, margin: 0, whiteSpace: 'pre-wrap' }}>
+                {rep.text}
+              </p>
+            </div>
+          ))}
+          {canReply && !a.resolved && (
+            replying ? (
+              <div style={{ marginTop: 4 }}>
+                <textarea
+                  autoFocus
+                  rows={2}
+                  value={replyDraft}
+                  onChange={e => setReplyDraft(e.target.value)}
+                  onKeyDown={e => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitReply();
+                    if (e.key === 'Escape') { setReplying(false); setReplyDraft(''); }
+                  }}
+                  placeholder="Écrire une réponse… (⌘/Ctrl + ↵ pour envoyer)"
+                  style={{
+                    width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6,
+                    background: 'var(--night)', border: '1px solid var(--border-md)', color: 'var(--text)',
+                    fontSize: '0.78rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 5, marginTop: 4, justifyContent: 'flex-end' }}>
+                  <button onClick={() => { setReplying(false); setReplyDraft(''); }} style={smallBtn('ghost')}>Annuler</button>
+                  <button onClick={submitReply} disabled={busy || !replyDraft.trim()} style={smallBtn('primary')}>
+                    {busy ? '⏳' : '📤'} Répondre
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setReplying(true)} style={{
+                background: 'transparent', border: 'none', color: 'var(--orange)',
+                cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600,
+                padding: '4px 0', textAlign: 'left', alignSelf: 'flex-start',
+              }}>
+                💬 Répondre
+              </button>
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 }

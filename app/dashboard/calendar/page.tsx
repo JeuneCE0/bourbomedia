@@ -84,6 +84,9 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [activeKinds, setActiveKinds] = useState<EventKind[]>([]); // empty = all
+  const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [rescheduling, setRescheduling] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -239,6 +242,42 @@ export default function CalendarPage() {
     setActiveKinds(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
   }
 
+  // Drag-to-reschedule for filming events
+  async function handleDropOnDate(targetDate: string, eventId: string) {
+    const ev = allEvents.find(e => e.id === eventId);
+    if (!ev || ev.kind !== 'filming' || !ev.client_id) return;
+    if (ev.date === targetDate) return;
+    const client = clients.find(c => c.id === ev.client_id);
+    if (!client) return;
+    // Preserve the original time-of-day so we don't lose hours
+    const original = client.filming_date ? new Date(client.filming_date) : new Date();
+    const [y, m, d] = targetDate.split('-').map(Number);
+    const newDate = new Date(original);
+    newDate.setFullYear(y); newDate.setMonth(m - 1); newDate.setDate(d);
+    const friendlyOld = original.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    const friendlyNew = newDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (!confirm(`Déplacer le tournage de ${client.business_name}\nde ${friendlyOld}\nvers ${friendlyNew} ?`)) return;
+    setRescheduling(true);
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id: client.id, filming_date: newDate.toISOString() }),
+      });
+      if (r.ok) {
+        // Optimistic local update
+        setClients(prev => prev.map(c => c.id === client.id ? { ...c, filming_date: newDate.toISOString() } : c));
+      } else {
+        alert("Le déplacement n'a pas pu être enregistré.");
+      }
+    } catch {
+      alert("Le déplacement n'a pas pu être enregistré.");
+    } finally {
+      setRescheduling(false);
+      setDragOverDate(null);
+      setDraggingEventId(null);
+    }
+  }
+
   const cssVars = {
     '--cal-cell-min': '92px',
     '--cal-cell-pad': '6px 8px',
@@ -277,13 +316,112 @@ export default function CalendarPage() {
             📅 Calendrier
           </h1>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            Tournages, publications, scripts envoyés, tâches — tout en un seul endroit
+            Tournages, publications, scripts envoyés, tâches — glissez un 🎬 tournage sur un autre jour pour le reprogrammer
           </p>
         </div>
         <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
           ← / → pour changer de mois · <kbd style={kbdStyle}>T</kbd> pour aujourd&apos;hui
         </div>
       </div>
+
+      {/* Today's events — sticky panel above the calendar */}
+      {!loading && (() => {
+        const todaysEvents = eventsByDate[today] || [];
+        const tomorrowDate = new Date();
+        tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+        const tomorrowKey = tomorrowDate.toISOString().slice(0, 10);
+        const tomorrowsEvents = eventsByDate[tomorrowKey] || [];
+        return (
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12,
+            marginBottom: 14,
+          }}>
+            <div style={{
+              background: todaysEvents.length > 0 ? 'rgba(232,105,43,.08)' : 'var(--night-card)',
+              border: `1px solid ${todaysEvents.length > 0 ? 'var(--border-orange)' : 'var(--border)'}`,
+              borderRadius: 14, padding: 14,
+            }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: todaysEvents.length > 0 ? 'var(--orange)' : 'var(--text-mid)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span aria-hidden>📌</span> Aujourd&apos;hui · {now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </div>
+              {todaysEvents.length === 0 ? (
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  Rien de prévu — bonne journée !
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {todaysEvents.map(e => {
+                    const meta = KIND_META[e.kind];
+                    const inner = (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span aria-hidden style={{ fontSize: '1rem' }}>{meta.emoji}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: '0.83rem', color: 'var(--text)', fontWeight: 600,
+                            textDecoration: e.done ? 'line-through' : 'none',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            {e.label}
+                          </div>
+                          <div style={{ fontSize: '0.66rem', color: 'var(--text-mid)' }}>
+                            {e.time && <>🕐 {e.time} · </>}{meta.label}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                    return e.client_id ? (
+                      <Link key={e.id} href={`/dashboard/clients/${e.client_id}`} style={{
+                        padding: '8px 10px', borderRadius: 8, textDecoration: 'none',
+                        background: 'var(--night-mid)',
+                      }}>{inner}</Link>
+                    ) : (
+                      <div key={e.id} style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--night-mid)' }}>{inner}</div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div style={{
+              background: 'var(--night-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 14, padding: 14,
+            }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-mid)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span aria-hidden>📅</span> Demain · {tomorrowDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </div>
+              {tomorrowsEvents.length === 0 ? (
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  Aucun évènement prévu demain.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {tomorrowsEvents.slice(0, 4).map(e => {
+                    const meta = KIND_META[e.kind];
+                    return (
+                      <Link key={e.id} href={e.client_id ? `/dashboard/clients/${e.client_id}` : '#'} style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '6px 10px', borderRadius: 8, textDecoration: 'none',
+                        background: 'var(--night-mid)',
+                      }}>
+                        <span aria-hidden style={{ fontSize: '0.95rem' }}>{meta.emoji}</span>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text)', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {e.label}
+                        </span>
+                        {e.time && <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>{e.time}</span>}
+                      </Link>
+                    );
+                  })}
+                  {tomorrowsEvents.length > 4 && (
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center', paddingTop: 4 }}>
+                      + {tomorrowsEvents.length - 4} autre{tomorrowsEvents.length - 4 > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Month summary by kind */}
       {!loading && (
@@ -395,16 +533,29 @@ export default function CalendarPage() {
               const isExpanded = expandedDay === dateStr;
               const hasSlots = dayEvents.length > 0;
 
+              const isDropTarget = dragOverDate === dateStr && draggingEventId !== null;
               return (
                 <div key={`day-${i}`}>
                   <div
                     onClick={() => setExpandedDay(isExpanded ? null : dateStr)}
+                    onDragOver={(e) => {
+                      if (!draggingEventId) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverDate !== dateStr) setDragOverDate(dateStr);
+                    }}
+                    onDragLeave={() => { if (dragOverDate === dateStr) setDragOverDate(null); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const evId = e.dataTransfer.getData('text/plain') || draggingEventId;
+                      if (evId) handleDropOnDate(dateStr, evId);
+                    }}
                     style={{
                       minHeight: 'var(--cal-cell-min)', borderRadius: 8,
                       padding: 'var(--cal-cell-pad)', cursor: 'pointer',
                       transition: 'all .15s',
-                      background: isToday ? 'rgba(232,105,43,.07)' : isWeekend ? 'rgba(0,0,0,.12)' : 'var(--night-mid)',
-                      border: isToday ? '2px solid var(--orange)' : '1px solid rgba(255,255,255,.04)',
+                      background: isDropTarget ? 'rgba(232,105,43,.18)' : isToday ? 'rgba(232,105,43,.07)' : isWeekend ? 'rgba(0,0,0,.12)' : 'var(--night-mid)',
+                      border: isDropTarget ? '2px dashed var(--orange)' : isToday ? '2px solid var(--orange)' : '1px solid rgba(255,255,255,.04)',
                       boxShadow: isToday ? '0 0 0 3px rgba(232,105,43,.15)' : 'none',
                       opacity: isPast && !isToday ? 0.55 : isWeekend ? 0.7 : 1,
                     }}
@@ -430,16 +581,30 @@ export default function CalendarPage() {
 
                     {dayEvents.slice(0, 3).map(e => {
                       const meta = KIND_META[e.kind];
+                      const draggable = e.kind === 'filming' && !rescheduling;
                       return (
-                        <div key={e.id} style={{
-                          fontSize: 'var(--cal-font-slot)', padding: '2px 5px',
-                          borderRadius: 4, marginBottom: 2,
-                          background: meta.color + '18', borderLeft: `2px solid ${meta.color}`,
-                          color: meta.color, overflow: 'hidden', textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap', fontWeight: 500, lineHeight: 1.4,
-                          textDecoration: e.done ? 'line-through' : 'none',
-                          opacity: e.done ? 0.6 : 1,
-                        }}>
+                        <div
+                          key={e.id}
+                          draggable={draggable}
+                          onDragStart={(ev) => {
+                            if (!draggable) return;
+                            ev.dataTransfer.setData('text/plain', e.id);
+                            ev.dataTransfer.effectAllowed = 'move';
+                            setDraggingEventId(e.id);
+                          }}
+                          onDragEnd={() => { setDraggingEventId(null); setDragOverDate(null); }}
+                          title={draggable ? 'Glissez sur un autre jour pour reprogrammer' : undefined}
+                          style={{
+                            fontSize: 'var(--cal-font-slot)', padding: '2px 5px',
+                            borderRadius: 4, marginBottom: 2,
+                            background: meta.color + '18', borderLeft: `2px solid ${meta.color}`,
+                            color: meta.color, overflow: 'hidden', textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap', fontWeight: 500, lineHeight: 1.4,
+                            textDecoration: e.done ? 'line-through' : 'none',
+                            opacity: e.done ? 0.6 : draggingEventId === e.id ? 0.4 : 1,
+                            cursor: draggable ? 'grab' : 'pointer',
+                          }}
+                        >
                           <span aria-hidden style={{ marginRight: 3 }}>{meta.emoji}</span>
                           {e.time ? `${e.time} ` : ''}{e.label}
                         </div>

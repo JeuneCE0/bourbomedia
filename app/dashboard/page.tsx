@@ -202,6 +202,16 @@ export default function DashboardPage() {
   const deliveredThisMonth = clients.filter(c => c.delivered_at && new Date(c.delivered_at).getTime() >= monthStart).length;
   const pendingPayment = clients.filter(c => !c.paid_at && c.status !== 'published').length;
 
+  // Scripts that need admin attention
+  const scriptsToFinish = clients
+    .filter(c => c.status === 'script_writing' || c.status === 'script_review')
+    .map(c => {
+      const lastMs = c.updated_at ? new Date(c.updated_at).getTime() : new Date(c.created_at).getTime();
+      const idleDays = Math.floor((nowMs - lastMs) / 86400000);
+      return { client: c, idleDays };
+    })
+    .sort((a, b) => b.idleDays - a.idleDays);
+
   return (
     <div style={{ padding: 'clamp(20px, 4vw, 32px)', maxWidth: 1100, margin: '0 auto' }}>
       {/* Header */}
@@ -281,6 +291,9 @@ export default function DashboardPage() {
             items={week}
             emptyMessage="Aucun tournage planifié cette semaine."
           />
+
+          {/* Scripts to finish */}
+          <ScriptsToFinishSection items={scriptsToFinish} />
 
           {/* Récap */}
           <div style={{
@@ -446,6 +459,94 @@ function UrgencySection({
               textAlign: 'center', padding: '6px 0', fontWeight: 600,
             }}>
               Voir les {items.length - 6} autres →
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScriptsToFinishSection({ items }: { items: { client: Client; idleDays: number }[] }) {
+  const isEmpty = items.length === 0;
+  return (
+    <div style={{
+      background: 'var(--night-card)', borderRadius: 14,
+      border: `1px solid ${isEmpty ? 'var(--border)' : 'rgba(232,105,43,.30)'}`,
+      padding: '16px 20px', marginBottom: 14,
+      opacity: isEmpty ? 0.7 : 1,
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: isEmpty ? 4 : 12, gap: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span aria-hidden style={{ fontSize: '1.1rem' }}>📝</span>
+          <div>
+            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>Scripts à finaliser</div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              Écriture en cours ou retours client à appliquer
+            </div>
+          </div>
+        </div>
+        {!isEmpty && (
+          <span style={{
+            padding: '3px 10px', borderRadius: 999,
+            background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
+            color: '#FFB58A', fontSize: '0.72rem', fontWeight: 700,
+          }}>{items.length}</span>
+        )}
+      </div>
+      {isEmpty ? (
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', paddingLeft: 30 }}>
+          Aucun script en cours d&apos;écriture ou en attente de modifs.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {items.slice(0, 6).map(({ client, idleDays }) => {
+            const isWriting = client.status === 'script_writing';
+            const tone = idleDays >= 5 ? 'red' : idleDays >= 2 ? 'orange' : 'neutral';
+            const toneStyle: Record<string, { bg: string; border: string; color: string }> = {
+              red:     { bg: 'rgba(239,68,68,.16)',  border: 'rgba(239,68,68,.45)',  color: '#FCA5A5' },
+              orange:  { bg: 'rgba(232,105,43,.16)', border: 'rgba(232,105,43,.45)', color: '#FFB58A' },
+              neutral: { bg: 'var(--night-raised)',  border: 'var(--border-md)',     color: 'var(--text-mid)' },
+            };
+            const t = toneStyle[tone];
+            return (
+              <Link key={client.id} href={`/dashboard/clients/${client.id}`} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+                padding: '10px 12px', borderRadius: 10,
+                background: 'var(--night-mid)', textDecoration: 'none',
+                transition: 'background .15s',
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--night-raised)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'var(--night-mid)'}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {client.business_name}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-mid)' }}>
+                    {isWriting ? '✍️ Script à écrire' : '✏️ Modifs à appliquer'}
+                    {idleDays > 0 && <span style={{ color: 'var(--text-muted)' }}> · {idleDays} j sans bouger</span>}
+                  </div>
+                </div>
+                <span style={{
+                  fontSize: '0.7rem', padding: '4px 10px', borderRadius: 999,
+                  background: t.bg, border: `1px solid ${t.border}`, color: t.color,
+                  fontWeight: 700, whiteSpace: 'nowrap',
+                }}>
+                  {isWriting ? 'Écrire →' : 'Renvoyer →'}
+                </span>
+              </Link>
+            );
+          })}
+          {items.length > 6 && (
+            <Link href="/dashboard/scripts" style={{
+              fontSize: '0.74rem', color: 'var(--orange)', textDecoration: 'none',
+              textAlign: 'center', padding: '6px 0', fontWeight: 600,
+            }}>
+              Voir les {items.length - 6} autres scripts →
             </Link>
           )}
         </div>
