@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/ui/Toast';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 
 interface Client {
   id: string;
@@ -59,6 +61,7 @@ function daysIn(c: Client): number {
 }
 
 export default function PipelinePage() {
+  const toast = useToast();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -119,6 +122,8 @@ export default function PipelinePage() {
   }, [filtered]);
 
   const moveClient = useCallback(async (clientId: string, newStatus: string) => {
+    const client = clients.find(x => x.id === clientId);
+    const stage = STAGES.find(s => s.key === newStatus);
     setMovingId(clientId);
     try {
       const r = await fetch('/api/clients', {
@@ -127,11 +132,18 @@ export default function PipelinePage() {
       });
       if (r.ok) {
         setClients(prev => prev.map(x => x.id === clientId ? { ...x, status: newStatus, updated_at: new Date().toISOString() } : x));
+        if (client && stage) {
+          toast.success(`${client.business_name} → ${stage.label}`, { emoji: '🎯' });
+        }
+      } else {
+        toast.error("Le déplacement n'a pas pu être enregistré.");
       }
-    } catch { /* */ } finally {
+    } catch {
+      toast.error("Le déplacement n'a pas pu être enregistré.");
+    } finally {
       setMovingId(null);
     }
-  }, []);
+  }, [clients, toast]);
 
   function toggleField(f: CardField) {
     setVisibleFields(prev => {
@@ -275,8 +287,14 @@ export default function PipelinePage() {
       )}
 
       {loading ? (
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '40px 0', textAlign: 'center' }}>
-          Chargement…
+        <div style={{ display: 'flex', gap: 12, overflowX: 'auto' }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} style={{ minWidth: 240, flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <SkeletonCard lines={2} />
+              <SkeletonCard lines={3} />
+              <SkeletonCard lines={2} />
+            </div>
+          ))}
         </div>
       ) : view === 'kanban' ? (
         /* KANBAN VIEW */

@@ -287,7 +287,23 @@ export default function ClientsPage() {
 
   async function bulkDelete() {
     if (selected.size === 0) return;
-    if (!confirm(`Supprimer ${selected.size} client(s) ? Cette action est irréversible.`)) return;
+    const subset = clients.filter(c => selected.has(c.id));
+    const names = subset.slice(0, 3).map(c => c.business_name).join(', ');
+    const more = subset.length > 3 ? ` et ${subset.length - 3} autre(s)` : '';
+    const first = confirm(
+      `⚠️ Vous allez supprimer DÉFINITIVEMENT :\n\n${names}${more}\n\n(${subset.length} client${subset.length > 1 ? 's' : ''} au total)\n\nCette action est IRRÉVERSIBLE. Continuer ?`
+    );
+    if (!first) return;
+    const expected = subset.length === 1 ? subset[0].business_name : `SUPPRIMER ${subset.length}`;
+    const confirmation = prompt(
+      subset.length === 1
+        ? `Pour confirmer la suppression de "${expected}", retapez son nom exact ci-dessous :`
+        : `Pour confirmer la suppression de ${subset.length} clients, tapez :\n\n${expected}`
+    );
+    if (confirmation?.trim() !== expected) {
+      notify('error', 'Suppression annulée — la confirmation ne correspond pas.');
+      return;
+    }
     setBulkSaving(true);
     let ok = 0, fail = 0;
     for (const id of selected) {
@@ -581,18 +597,32 @@ export default function ClientsPage() {
               color={STATUS_COLORS[key]}
             />
           ))}
-          <button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            style={{
-              padding: '6px 14px', borderRadius: 20, border: '1px solid var(--border-md)',
-              background: showAdvanced ? 'rgba(232,105,43,.12)' : 'transparent',
-              color: showAdvanced ? 'var(--orange)' : 'var(--text-muted)',
-              fontSize: '0.74rem', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-              marginLeft: 4,
-            }}
-          >
-            ⚙ Filtres avancés {showAdvanced ? '▲' : '▼'}
-          </button>
+          {(() => {
+            const activeAdvanced = (cityFilter !== 'all' ? 1 : 0) + (paidFilter !== 'all' ? 1 : 0) + (deliveredFilter !== 'all' ? 1 : 0) + (tagFilter ? 1 : 0);
+            return (
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                style={{
+                  padding: '6px 14px', borderRadius: 20, border: '1px solid var(--border-md)',
+                  background: showAdvanced || activeAdvanced > 0 ? 'rgba(232,105,43,.12)' : 'transparent',
+                  borderColor: activeAdvanced > 0 ? 'var(--border-orange)' : 'var(--border-md)',
+                  color: showAdvanced || activeAdvanced > 0 ? 'var(--orange)' : 'var(--text-muted)',
+                  fontSize: '0.74rem', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                  marginLeft: 4, display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <span aria-hidden>⚙️</span> Filtres avancés
+                {activeAdvanced > 0 && (
+                  <span style={{
+                    background: 'var(--orange)', color: '#fff',
+                    fontSize: '0.66rem', fontWeight: 700,
+                    padding: '1px 7px', borderRadius: 999, minWidth: 18, textAlign: 'center',
+                  }}>{activeAdvanced}</span>
+                )}
+                <span aria-hidden>{showAdvanced ? '▲' : '▼'}</span>
+              </button>
+            );
+          })()}
         </div>
 
         {/* Advanced filters */}
@@ -661,8 +691,8 @@ export default function ClientsPage() {
             <option value="">Changer statut…</option>
             {Object.entries(STATUS_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
-          <button onClick={bulkExportCSV} disabled={bulkSaving} style={bulkBtnStyle('var(--text-mid)')}>⇩ Exporter</button>
-          <button onClick={bulkDelete} disabled={bulkSaving} style={bulkBtnStyle('var(--red)')}>✕ Supprimer</button>
+          <button onClick={bulkExportCSV} disabled={bulkSaving} style={bulkBtnStyle('var(--text-mid)')}>⬇️ Exporter</button>
+          <button onClick={bulkDelete} disabled={bulkSaving} style={bulkBtnStyle('var(--red)')}>🗑️ Supprimer</button>
           <button onClick={() => setSelected(new Set())} style={{
             ...bulkBtnStyle('var(--text-muted)'), background: 'transparent', border: '1px solid var(--border-md)',
           }}>Annuler</button>

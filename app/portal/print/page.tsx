@@ -108,7 +108,7 @@ function PrintContent() {
 
       <h2 className="print-title">{script.title}</h2>
       <p className="print-subtitle">
-        Statut : {script.status === 'confirmed' ? '✓ Validé par le client' : script.status}
+        Statut : {script.status === 'confirmed' ? '✅ Validé par le client' : script.status}
       </p>
 
       <EditorContent editor={editor} />

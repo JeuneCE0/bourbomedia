@@ -87,23 +87,96 @@ const STATUS_LABELS_PORTAL: Record<string, string> = {
 };
 
 const PROJECT_STAGES = [
-  { key: 'onboarding', label: 'Inscription', icon: '◎' },
-  { key: 'script_writing', label: 'Script', icon: '✎' },
-  { key: 'script_review', label: 'Relecture', icon: '◉' },
-  { key: 'script_validated', label: 'Validé', icon: '✓' },
-  { key: 'filming_scheduled', label: 'Tournage', icon: '▶' },
-  { key: 'filming_done', label: 'Tourné', icon: '●' },
-  { key: 'editing', label: 'Montage', icon: '◈' },
-  { key: 'published', label: 'Livré', icon: '★' },
+  { key: 'onboarding', label: 'Inscription', emoji: '👋', description: 'Vous êtes inscrit·e — bienvenue !' },
+  { key: 'script_writing', label: 'Écriture du script', emoji: '✍️', description: 'Notre équipe écrit votre script sur mesure.' },
+  { key: 'script_review', label: 'Relecture du script', emoji: '📝', description: 'Le script vous est proposé pour relecture.' },
+  { key: 'script_validated', label: 'Script validé', emoji: '✅', description: 'Vous avez validé le script — on planifie le tournage.' },
+  { key: 'filming_scheduled', label: 'Tournage planifié', emoji: '📅', description: 'Une date de tournage est confirmée.' },
+  { key: 'filming_done', label: 'Tournage terminé', emoji: '🎬', description: 'Le tournage est dans la boîte !' },
+  { key: 'editing', label: 'Montage en cours', emoji: '🎞️', description: 'Notre équipe monte votre vidéo.' },
+  { key: 'published', label: 'Vidéo livrée', emoji: '🎉', description: 'Votre vidéo est prête à être visionnée.' },
 ];
 
 const SCRIPT_STEPS = [
   { key: 'draft', label: 'Préparation', color: '#8A7060' },
-  { key: 'proposition', label: 'Proposition', color: '#F28C55' },
-  { key: 'awaiting_changes', label: 'Modifications', color: '#FACC15' },
-  { key: 'modified', label: 'Modifié', color: '#3B82F6' },
-  { key: 'confirmed', label: 'Confirmé', color: '#22C55E' },
+  { key: 'proposition', label: 'À relire', color: '#F28C55' },
+  { key: 'awaiting_changes', label: 'Modifs demandées', color: '#FACC15' },
+  { key: 'modified', label: 'Nouvelle version', color: '#3B82F6' },
+  { key: 'confirmed', label: 'Validé', color: '#22C55E' },
 ];
+
+// Compute the urgency tone of the publication deadline
+function deadlineTone(deadline?: string | null): { tone: 'red' | 'yellow' | 'blue'; emoji: string; label: string } | null {
+  if (!deadline) return null;
+  const ms = new Date(deadline).getTime() - Date.now();
+  const days = Math.ceil(ms / 86400000);
+  if (days < 0) return { tone: 'red', emoji: '⚠️', label: `Publication en retard de ${Math.abs(days)}j` };
+  if (days <= 2) return { tone: 'red', emoji: '🔴', label: `Publication dans ${days}j` };
+  if (days <= 7) return { tone: 'yellow', emoji: '🟡', label: `Publication dans ${days}j` };
+  return { tone: 'blue', emoji: '📅', label: `Publication dans ${days}j` };
+}
+
+interface NextAction {
+  pill: { tone: 'orange' | 'green' | 'blue' | 'red' | 'yellow'; emoji: string; label: string };
+  description: string;
+  cta?: { label: string; tab?: 'video' | 'script' | 'comments' | 'documents' | 'feedback' };
+}
+
+function computeNextAction(scriptStatus: string | null, hasDelivery: boolean, hasFeedback: boolean): NextAction {
+  if (hasDelivery && !hasFeedback) {
+    return {
+      pill: { tone: 'orange', emoji: '⭐', label: 'Donnez-nous votre avis' },
+      description: 'Votre vidéo est livrée — on aimerait beaucoup connaître votre ressenti.',
+      cta: { label: 'Laisser mon avis', tab: 'feedback' },
+    };
+  }
+  if (hasDelivery) {
+    return {
+      pill: { tone: 'green', emoji: '🎉', label: 'Projet terminé' },
+      description: 'Votre vidéo est en ligne — un grand merci pour votre confiance.',
+      cta: { label: 'Voir ma vidéo', tab: 'video' },
+    };
+  }
+  if (scriptStatus === 'proposition' || scriptStatus === 'modified') {
+    return {
+      pill: { tone: 'yellow', emoji: '🟡', label: 'À vous de jouer' },
+      description: scriptStatus === 'modified'
+        ? 'Une nouvelle version du script est prête. Relisez-la et validez-la.'
+        : 'Votre script vous attend. Relisez-le et validez-le (ou demandez des modifications).',
+      cta: { label: 'Voir le script', tab: 'script' },
+    };
+  }
+  if (scriptStatus === 'awaiting_changes') {
+    return {
+      pill: { tone: 'blue', emoji: '✍️', label: 'On retravaille votre script' },
+      description: 'Vos retours ont été pris en compte. Notre équipe prépare la nouvelle version.',
+    };
+  }
+  if (scriptStatus === 'confirmed') {
+    return {
+      pill: { tone: 'green', emoji: '✅', label: 'Script validé' },
+      description: 'Le tournage va être planifié. Vous serez notifié·e dès qu\'une date est proposée.',
+    };
+  }
+  if (scriptStatus === 'draft' || !scriptStatus) {
+    return {
+      pill: { tone: 'blue', emoji: '⏳', label: 'Notre équipe rédige votre script' },
+      description: 'On compose un script personnalisé pour votre projet — délai habituel : 2 à 5 jours ouvrés.',
+    };
+  }
+  return {
+    pill: { tone: 'blue', emoji: '🚀', label: 'En cours' },
+    description: 'Votre projet avance. Vous serez notifié·e à chaque étape clé.',
+  };
+}
+
+const PILL_STYLES: Record<string, { bg: string; border: string; color: string }> = {
+  orange: { bg: 'rgba(232,105,43,.16)', border: 'rgba(232,105,43,.45)', color: '#FFB58A' },
+  green: { bg: 'rgba(34,197,94,.14)', border: 'rgba(34,197,94,.40)', color: '#86EFAC' },
+  blue: { bg: 'rgba(59,130,246,.16)', border: 'rgba(59,130,246,.40)', color: '#93C5FD' },
+  red: { bg: 'rgba(239,68,68,.16)', border: 'rgba(239,68,68,.45)', color: '#FCA5A5' },
+  yellow: { bg: 'rgba(250,204,21,.18)', border: 'rgba(250,204,21,.50)', color: '#FDE68A' },
+};
 
 function relativeTime(dateStr: string): string {
   const now = Date.now();
@@ -446,123 +519,131 @@ function PortalContent() {
         </div>
       </header>
 
-      <main style={{ flex: 1, maxWidth: 800, width: '100%', margin: '0 auto', padding: 'clamp(16px, 4vw, 32px)' }}>
-        {/* Welcome + project progress */}
-        <div style={{
-          marginBottom: 22, padding: '18px 20px', borderRadius: 14,
-          background: 'var(--night-card)', border: '1px solid var(--border)',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
-            <div>
-              <h2 style={{
-                fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
-                fontSize: '1.15rem', color: 'var(--text)', margin: 0,
-              }}>
-                {clientInfo?.business_name || 'Votre projet'}
-              </h2>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
-                {STATUS_LABELS_PORTAL[clientStatus] || 'En cours'}
-                {clientInfo?.filming_date && (clientStatus === 'filming_scheduled' || clientStatus === 'script_validated') && (
-                  <span style={{ color: '#60A5FA' }}>
-                    {' '}— Tournage le {new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
+      <main style={{ flex: 1, maxWidth: 820, width: '100%', margin: '0 auto', padding: 'clamp(16px, 4vw, 32px)' }}>
+        {/* Welcome + next action card */}
+        {(() => {
+          const next = computeNextAction(script.status, !!hasDelivery, !!satisfaction);
+          const pill = PILL_STYLES[next.pill.tone];
+          const dl = deadlineTone(clientInfo?.publication_deadline);
+          const dlPill = dl ? PILL_STYLES[dl.tone] : null;
+          return (
+            <div style={{
+              marginBottom: 22, padding: '20px 22px', borderRadius: 14,
+              background: 'var(--night-card)', border: '1px solid var(--border)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+                <h2 style={{
+                  fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+                  fontSize: '1.2rem', color: 'var(--text)', margin: 0,
+                }}>
+                  {clientInfo?.business_name || 'Votre projet'}
+                </h2>
+                {dl && dlPill && (
+                  <span style={{
+                    fontSize: '0.72rem', padding: '5px 11px', borderRadius: 999,
+                    background: dlPill.bg, border: `1px solid ${dlPill.border}`, color: dlPill.color, fontWeight: 600,
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                  }}>
+                    <span aria-hidden>{dl.emoji}</span>
+                    {dl.label}
                   </span>
                 )}
-              </p>
-            </div>
-            {clientInfo?.publication_deadline && (
-              <span style={{
-                fontSize: '0.68rem', padding: '4px 10px', borderRadius: 12,
-                background: 'rgba(59,130,246,.08)', color: '#60A5FA', fontWeight: 600,
-              }}>
-                Publication {new Date(clientInfo.publication_deadline).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-              </span>
-            )}
-          </div>
-
-          {/* Project progress bar */}
-          {(() => {
-            const stageIdx = PROJECT_STAGES.findIndex(s => s.key === clientStatus);
-            const progress = stageIdx >= 0 ? Math.round(((stageIdx + 1) / PROJECT_STAGES.length) * 100) : 0;
-            return (
-              <div>
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  marginBottom: 6,
-                }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>Progression du projet</span>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--orange)', fontWeight: 700 }}>{progress}%</span>
-                </div>
-                <div style={{
-                  height: 6, borderRadius: 3, background: 'var(--night-mid)',
-                  overflow: 'hidden',
-                }}>
-                  <div style={{
-                    height: '100%', borderRadius: 3,
-                    background: progress >= 100 ? 'var(--green)' : 'linear-gradient(90deg, var(--orange), #F28C55)',
-                    width: `${progress}%`, transition: 'width .5s ease',
-                  }} />
-                </div>
-                {/* Mini milestone dots */}
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between', marginTop: 6,
-                  padding: '0 2px',
-                }}>
-                  {PROJECT_STAGES.map((stage, i) => {
-                    const done = i <= stageIdx;
-                    const isCurrent = i === stageIdx;
-                    return (
-                      <div key={stage.key} style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                        opacity: done ? 1 : 0.35,
-                      }}>
-                        <span style={{
-                          fontSize: '0.55rem', color: isCurrent ? 'var(--orange)' : done ? 'var(--green)' : 'var(--text-muted)',
-                          fontWeight: isCurrent ? 700 : 500,
-                        }}>{stage.icon}</span>
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
-            );
-          })()}
-        </div>
 
-        {/* Script progress stepper */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: 0, marginBottom: 22, padding: '0 8px', overflowX: 'auto',
-        }}>
-          {SCRIPT_STEPS.map((step, i) => {
-            const done = i <= currentStepIdx;
-            const isCurrent = i === currentStepIdx;
-            return (
-              <div key={step.key} style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 56 }}>
-                  <div style={{
-                    width: isCurrent ? 28 : 20, height: isCurrent ? 28 : 20,
-                    borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: done ? step.color : 'var(--night-mid)',
-                    border: `2px solid ${done ? step.color : 'var(--border-md)'}`,
-                    boxShadow: isCurrent ? `0 0 10px ${step.color}40` : 'none',
-                    transition: 'all .3s',
-                    fontSize: '0.6rem', color: done ? '#fff' : 'var(--text-muted)', fontWeight: 700,
-                  }}>{done ? '✓' : i + 1}</div>
-                  <span style={{
-                    fontSize: '0.58rem', color: isCurrent ? statusInfo.color : 'var(--text-muted)',
-                    fontWeight: isCurrent ? 600 : 400, marginTop: 4, textAlign: 'center',
-                    whiteSpace: 'nowrap',
-                  }}>{step.label}</span>
-                </div>
-                {i < SCRIPT_STEPS.length - 1 && (
-                  <div style={{
-                    width: 20, height: 2, background: i < currentStepIdx ? SCRIPT_STEPS[i + 1].color : 'var(--border-md)',
-                    margin: '0 2px', marginBottom: 16, borderRadius: 1,
-                  }} />
+              {/* Next action pill + description */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  padding: '6px 13px', borderRadius: 999,
+                  background: pill.bg, border: `1px solid ${pill.border}`, color: pill.color,
+                  fontSize: '0.82rem', fontWeight: 700,
+                }}>
+                  <span aria-hidden style={{ fontSize: '1rem', lineHeight: 1 }}>{next.pill.emoji}</span>
+                  {next.pill.label}
+                </span>
+                {next.cta && (
+                  <button onClick={() => next.cta?.tab && setTab(next.cta.tab)} style={{
+                    background: 'transparent', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', borderRadius: 999, padding: '6px 13px',
+                    fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                  }}>
+                    {next.cta.label} →
+                  </button>
                 )}
               </div>
+              <p style={{ fontSize: '0.86rem', color: 'var(--text-mid)', margin: 0, lineHeight: 1.55 }}>
+                {next.description}
+              </p>
+            </div>
+          );
+        })()}
+
+        {/* Project timeline — single source of truth for progression */}
+        <div style={{
+          marginBottom: 22, padding: '20px 22px', borderRadius: 14,
+          background: 'var(--night-card)', border: '1px solid var(--border)',
+        }}>
+          <h3 style={{
+            fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+            fontSize: '0.95rem', color: 'var(--text)', margin: '0 0 16px',
+          }}>
+            🗺️ Avancement de votre projet
+          </h3>
+          {(() => {
+            const stageIdx = PROJECT_STAGES.findIndex(s => s.key === clientStatus);
+            const effectiveIdx = stageIdx >= 0 ? stageIdx : 0;
+            return (
+              <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {PROJECT_STAGES.map((stage, i) => {
+                  const status: 'done' | 'current' | 'pending' = i < effectiveIdx ? 'done' : i === effectiveIdx ? 'current' : 'pending';
+                  const isLast = i === PROJECT_STAGES.length - 1;
+                  const dotBg = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'transparent';
+                  const dotBorder = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'var(--border-md)';
+                  const lineBg = status === 'done' ? 'var(--green)' : 'var(--border)';
+                  const titleColor = status === 'pending' ? 'var(--text-mid)' : 'var(--text)';
+                  const dateExtra = stage.key === 'filming_scheduled' && clientInfo?.filming_date
+                    ? new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+                    : null;
+                  return (
+                    <li key={stage.key} style={{
+                      display: 'grid', gridTemplateColumns: '36px 1fr', gap: 12, alignItems: 'flex-start',
+                    }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 54 }}>
+                        <span aria-hidden style={{
+                          width: 30, height: 30, borderRadius: '50%',
+                          background: dotBg, border: `2px solid ${dotBorder}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: '#fff', fontSize: 14, flexShrink: 0,
+                          fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+                        }}>{status === 'done' ? '✓' : stage.emoji}</span>
+                        {!isLast && <span aria-hidden style={{ flex: 1, width: 2, background: lineBg, marginTop: 4 }} />}
+                      </div>
+                      <div style={{ paddingBottom: 18 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: status === 'current' ? 700 : 600, color: titleColor, fontSize: 14.5 }}>
+                            {stage.label}
+                          </span>
+                          {status === 'current' && (
+                            <span style={{
+                              padding: '2px 8px', borderRadius: 999,
+                              background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
+                              color: '#FFB58A', fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+                            }}>VOUS ÊTES ICI</span>
+                          )}
+                        </div>
+                        {dateExtra && (
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{dateExtra}</div>
+                        )}
+                        <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginTop: 3, lineHeight: 1.5 }}>
+                          {stage.description}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
             );
-          })}
+          })()}
         </div>
 
         {/* Status card + actions */}
@@ -572,7 +653,7 @@ function PortalContent() {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Statut du script</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📝 Script — étape {currentStepIdx + 1}/{SCRIPT_STEPS.length}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
                 <div style={{
                   width: 10, height: 10, borderRadius: '50%', background: statusInfo.color,
@@ -589,13 +670,13 @@ function PortalContent() {
                   background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.25)',
                   color: 'var(--yellow)', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500,
                   transition: 'all .15s',
-                }}>✎ Demander des modifications</button>
+                }}>✏️ Demander des modifications</button>
                 <button onClick={() => setShowValidationModal(true)} disabled={actionLoading} style={{
                   padding: '10px 24px', borderRadius: 10, background: 'var(--green)',
                   color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
                   boxShadow: '0 2px 8px rgba(34,197,94,.3)',
                   transition: 'all .15s',
-                }}>✓ Valider le script</button>
+                }}>✅ Valider le script</button>
               </div>
             )}
 
@@ -604,7 +685,7 @@ function PortalContent() {
                 display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px',
                 background: 'rgba(34,197,94,.08)', borderRadius: 8, border: '1px solid rgba(34,197,94,.2)',
               }}>
-                <span style={{ fontSize: '1rem' }}>✓</span>
+                <span style={{ fontSize: '1rem' }} aria-hidden>✅</span>
                 <span style={{ fontSize: '0.82rem', color: 'var(--green)', fontWeight: 500 }}>
                   Script validé — tournage en cours de planification
                 </span>
@@ -686,12 +767,12 @@ function PortalContent() {
                   <a href={v.video_url} target="_blank" rel="noreferrer" style={{
                     padding: '8px 16px', borderRadius: 8, background: 'var(--orange)',
                     color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: '0.8rem',
-                  }}>Ouvrir ↗</a>
+                  }}>↗️ Ouvrir</a>
                   <a href={v.video_url} download style={{
                     padding: '8px 16px', borderRadius: 8, background: 'var(--night-mid)',
                     border: '1px solid var(--border-md)', color: 'var(--text)',
                     textDecoration: 'none', fontWeight: 600, fontSize: '0.8rem',
-                  }}>⇩ Télécharger</a>
+                  }}>⬇️ Télécharger</a>
                 </div>
               </div>
             ))}
@@ -753,20 +834,25 @@ function PortalContent() {
               </h4>
               {clientInfo?.contract_pdf_url ? (
                 <a href={clientInfo.contract_pdf_url} target="_blank" rel="noreferrer" style={docLinkStyle}>
-                  <span style={{ fontSize: '1.2rem' }}>📄</span>
+                  <span style={{ fontSize: '1.2rem' }} aria-hidden>📄</span>
                   <span style={{ flex: 1 }}>Contrat signé (PDF)</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Télécharger ↗</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--orange)', fontWeight: 600 }}>⬇️ Télécharger</span>
                 </a>
               ) : clientInfo?.contract_signature_link ? (
                 <a href={clientInfo.contract_signature_link} target="_blank" rel="noreferrer" style={docLinkStyle}>
-                  <span style={{ fontSize: '1.2rem' }}>✍</span>
+                  <span style={{ fontSize: '1.2rem' }} aria-hidden>✍️</span>
                   <span style={{ flex: 1 }}>Voir le contrat</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Ouvrir ↗</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--orange)', fontWeight: 600 }}>↗️ Ouvrir</span>
                 </a>
               ) : (
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
-                  Aucun contrat disponible pour le moment
-                </p>
+                <div style={{
+                  padding: '12px 14px', borderRadius: 10,
+                  background: 'rgba(59,130,246,.06)', border: '1px dashed rgba(59,130,246,.3)',
+                  fontSize: '0.82rem', color: 'var(--text-mid)', display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span aria-hidden>📋</span>
+                  <span>Le contrat sera disponible ici dès qu&apos;il sera prêt à signer.</span>
+                </div>
               )}
             </div>
 
@@ -781,7 +867,7 @@ function PortalContent() {
                     <div key={p.id} style={{
                       ...docLinkStyle, cursor: 'default',
                     }}>
-                      <span style={{ fontSize: '1.1rem' }}>💳</span>
+                      <span style={{ fontSize: '1.1rem' }} aria-hidden>💸</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '0.85rem', color: 'var(--text)', fontWeight: 500 }}>
                           {(p.amount / 100).toLocaleString('fr-FR')} {p.currency.toUpperCase()}
@@ -792,17 +878,22 @@ function PortalContent() {
                         </div>
                       </div>
                       {p.invoice_pdf_url ? (
-                        <a href={p.invoice_pdf_url} target="_blank" rel="noreferrer" style={smallLinkStyle}>Facture PDF ↗</a>
+                        <a href={p.invoice_pdf_url} target="_blank" rel="noreferrer" style={smallLinkStyle}>⬇️ Facture PDF</a>
                       ) : p.receipt_url ? (
-                        <a href={p.receipt_url} target="_blank" rel="noreferrer" style={smallLinkStyle}>Reçu ↗</a>
+                        <a href={p.receipt_url} target="_blank" rel="noreferrer" style={smallLinkStyle}>↗️ Reçu</a>
                       ) : null}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
-                  Aucune facture disponible
-                </p>
+                <div style={{
+                  padding: '12px 14px', borderRadius: 10,
+                  background: 'rgba(59,130,246,.06)', border: '1px dashed rgba(59,130,246,.3)',
+                  fontSize: '0.82rem', color: 'var(--text-mid)', display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span aria-hidden>🧾</span>
+                  <span>Vos factures et reçus apparaîtront ici dès le premier paiement.</span>
+                </div>
               )}
             </div>
 
@@ -813,9 +904,9 @@ function PortalContent() {
                   Script
                 </h4>
                 <a href={`/portal/print?token=${token}`} target="_blank" rel="noreferrer" style={docLinkStyle}>
-                  <span style={{ fontSize: '1.2rem' }}>📝</span>
+                  <span style={{ fontSize: '1.2rem' }} aria-hidden>📝</span>
                   <span style={{ flex: 1 }}>Script validé (PDF)</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Télécharger ↗</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--orange)', fontWeight: 600 }}>⬇️ Télécharger</span>
                 </a>
               </div>
             )}
@@ -841,7 +932,7 @@ function PortalContent() {
                   display: 'inline-block', padding: '9px 18px', borderRadius: 8,
                   background: 'var(--night-card)', border: '1px solid var(--border-md)',
                   color: 'var(--text)', textDecoration: 'none', fontSize: '0.82rem',
-                }}>⇩ Télécharger le script (PDF)</a>
+                }}>⬇️ Télécharger le script (PDF)</a>
               </div>
             )}
           </>

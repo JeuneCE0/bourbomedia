@@ -596,7 +596,14 @@ export default function ClientDetailPage() {
   }
 
   async function handleDelete() {
-    if (!confirm('Supprimer ce client ? Cette action est irréversible.')) return;
+    if (!client) return;
+    const first = confirm(`⚠️ Vous allez supprimer DÉFINITIVEMENT le client :\n\n"${client.business_name}"\n\nToutes les données associées (script, commentaires, paiements, etc.) seront perdues.\n\nContinuer ?`);
+    if (!first) return;
+    const typed = prompt(`Pour confirmer, retapez le nom exact du commerce :\n\n${client.business_name}`);
+    if (typed?.trim() !== client.business_name) {
+      notify('error', 'Suppression annulée — la confirmation ne correspond pas.');
+      return;
+    }
     try {
       const r = await fetch('/api/clients', { method: 'DELETE', headers: authHeaders(), body: JSON.stringify({ id }) });
       if (!r.ok) throw new Error(await parseErr(r));
@@ -753,8 +760,8 @@ export default function ClientDetailPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px', marginBottom: 20 }}>
                 <InfoField label="Commerce" value={client.business_name} />
                 <InfoField label="Contact" value={client.contact_name} />
-                <InfoField label="Email" value={client.email} />
-                <InfoField label="Téléphone" value={client.phone} />
+                <InfoField label="Email" value={client.email} copyable />
+                <InfoField label="Téléphone" value={client.phone} copyable />
                 <InfoField label="Ville" value={client.city} />
                 <InfoField label="Catégorie" value={client.category} />
                 <InfoField label="Date tournage" value={client.filming_date ? new Date(client.filming_date).toLocaleDateString('fr-FR') : '—'} />
@@ -1518,11 +1525,36 @@ const miniActionStyle: React.CSSProperties = {
   fontSize: '0.85rem', textDecoration: 'none', color: 'var(--text-mid)',
 };
 
-function InfoField({ label, value }: { label: string; value?: string | null }) {
+function InfoField({ label, value, copyable }: { label: string; value?: string | null; copyable?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const hasValue = value && value !== '—';
+  const handleCopy = () => {
+    if (!hasValue) return;
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  };
   return (
     <div>
       <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 2 }}>{label}</span>
-      <span style={{ fontSize: '0.85rem', color: value && value !== '—' ? 'var(--text)' : 'var(--text-muted)' }}>{value || '—'}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: '0.85rem', color: hasValue ? 'var(--text)' : 'var(--text-muted)' }}>{value || '—'}</span>
+        {hasValue && copyable && (
+          <button
+            onClick={handleCopy}
+            title={copied ? 'Copié !' : 'Copier'}
+            aria-label={copied ? 'Copié' : `Copier ${label.toLowerCase()}`}
+            style={{
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              fontSize: '0.78rem', color: copied ? 'var(--green)' : 'var(--text-muted)',
+              padding: 2, lineHeight: 1, transition: 'color .15s',
+            }}
+          >
+            {copied ? '✅' : '📋'}
+          </button>
+        )}
+      </span>
     </div>
   );
 }

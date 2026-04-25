@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { SkeletonCard } from '@/components/ui/Skeleton';
+import EmptyState from '@/components/ui/EmptyState';
 
 interface Client {
   id: string;
@@ -29,41 +31,27 @@ interface ActivityItem {
   client_id: string;
 }
 
-const ACTIVITY_LABELS: Record<string, { label: string; icon: string; color: string }> = {
-  status_changed: { label: 'Statut modifié', icon: '→', color: 'var(--text-mid)' },
-  script_sent_to_client: { label: 'Script envoyé', icon: '✉', color: 'var(--orange)' },
-  script_validated: { label: 'Script validé', icon: '✓', color: 'var(--green)' },
-  script_changes_requested: { label: 'Modifications demandées', icon: '✎', color: 'var(--yellow)' },
-  video_delivered: { label: 'Vidéo livrée', icon: '🎬', color: 'var(--green)' },
-  filming_scheduled: { label: 'Tournage planifié', icon: '📅', color: 'var(--orange)' },
-  satisfaction_submitted: { label: 'Avis client reçu', icon: '⭐', color: '#FACC15' },
-  payment_received: { label: 'Paiement reçu', icon: '💳', color: 'var(--green)' },
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  onboarding: 'Onboarding',
-  script_writing: 'Écriture script',
-  script_review: 'Relecture client',
-  script_validated: 'Script validé',
-  filming_scheduled: 'Tournage planifié',
-  filming_done: 'Tournage terminé',
-  editing: 'Montage',
-  published: 'Publié',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  onboarding: '#8A7060',
-  script_writing: '#FACC15',
-  script_review: '#F28C55',
-  script_validated: '#22C55E',
-  filming_scheduled: '#3B82F6',
-  filming_done: '#8B5CF6',
-  editing: '#EC4899',
-  published: '#22C55E',
+const ACTIVITY_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
+  status_changed: { label: 'Statut modifié', emoji: '🔄', color: 'var(--text-mid)' },
+  script_sent_to_client: { label: 'Script envoyé', emoji: '📤', color: 'var(--orange)' },
+  script_validated: { label: 'Script validé', emoji: '✅', color: 'var(--green)' },
+  script_changes_requested: { label: 'Modifs demandées', emoji: '✏️', color: 'var(--yellow)' },
+  video_delivered: { label: 'Vidéo livrée', emoji: '🎬', color: 'var(--green)' },
+  filming_scheduled: { label: 'Tournage planifié', emoji: '📅', color: 'var(--orange)' },
+  satisfaction_submitted: { label: 'Avis client reçu', emoji: '⭐', color: '#FACC15' },
+  payment_received: { label: 'Paiement reçu', emoji: '💸', color: 'var(--green)' },
 };
 
 function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('bbp_token')}`, 'Content-Type': 'application/json' };
+}
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 6) return 'Bonne nuit';
+  if (h < 12) return 'Bonjour';
+  if (h < 18) return 'Bon après-midi';
+  return 'Bonsoir';
 }
 
 function getFrenchDate(): string {
@@ -88,6 +76,7 @@ function getCountdownLabel(dateStr: string): string {
   const days = getDaysUntil(dateStr);
   if (days === 0) return "Aujourd'hui";
   if (days === 1) return 'Demain';
+  if (days < 0) return `Il y a ${Math.abs(days)} j`;
   return `dans ${days} jour${days > 1 ? 's' : ''}`;
 }
 
@@ -102,6 +91,12 @@ function relativeTime(dateStr: string): string {
   if (days === 1) return 'Hier';
   if (days < 30) return `Il y a ${days} j`;
   return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+
+interface Bucket {
+  client: Client;
+  reason: string;
+  cta?: string;
 }
 
 export default function DashboardPage() {
@@ -128,125 +123,95 @@ export default function DashboardPage() {
 
   const now = new Date();
   const nowMs = Date.now();
+  const todayKey = now.toISOString().slice(0, 10);
 
-  // --- KPI calculations ---
-  const todayKey = new Date().toISOString().slice(0, 10);
+  // ---------- Urgency buckets ----------
+  const urgentToday: Bucket[] = [];
+  const next24h: Bucket[] = [];
+  const thisWeek: Bucket[] = [];
+
+  clients.forEach(c => {
+    if (c.status === 'published') return;
+    const lastMs = c.updated_at ? new Date(c.updated_at).getTime() : new Date(c.created_at).getTime();
+    const daysIdle = Math.floor((nowMs - lastMs) / 86400000);
+
+    // Filming today / tomorrow / this week
+    if (c.filming_date) {
+      const days = getDaysUntil(c.filming_date);
+      if (days === 0 && c.status !== 'filming_done' && c.status !== 'editing') {
+        urgentToday.push({ client: c, reason: '🎬 Tournage aujourd\'hui', cta: 'Préparer' });
+      } else if (days === 1 && c.status !== 'filming_done' && c.status !== 'editing') {
+        next24h.push({ client: c, reason: '🎬 Tournage demain', cta: 'Confirmer' });
+      } else if (days >= 2 && days <= 7 && c.status === 'filming_scheduled') {
+        thisWeek.push({ client: c, reason: `🎬 Tournage ${getCountdownLabel(c.filming_date)}` });
+      }
+    }
+
+    // Stuck script_review (urgent if > 7d, attention if > 3d)
+    if (c.status === 'script_review') {
+      if (daysIdle > 7) urgentToday.push({ client: c, reason: `⏰ Script en relecture depuis ${daysIdle} j — relancer`, cta: 'Relancer' });
+      else if (daysIdle > 3) next24h.push({ client: c, reason: `📝 Script en relecture depuis ${daysIdle} j` });
+    }
+
+    // Inactivity > 14 days
+    if (daysIdle > 14) {
+      urgentToday.push({ client: c, reason: `💤 Aucune activité depuis ${daysIdle} j` });
+    }
+
+    // Script writing stuck > 3d
+    if (c.status === 'script_writing' && daysIdle >= 3) {
+      next24h.push({ client: c, reason: `✍️ Script à écrire depuis ${daysIdle} j` });
+    }
+
+    // Payment overdue (no payment but client onboarded > 7 days ago)
+    if (!c.paid_at && c.status !== 'onboarding' && c.status !== 'published') {
+      const sinceCreation = Math.floor((nowMs - new Date(c.created_at).getTime()) / 86400000);
+      if (sinceCreation >= 14) urgentToday.push({ client: c, reason: `💰 Paiement en retard (${sinceCreation} j sans règlement)`, cta: 'Relancer' });
+      else if (sinceCreation >= 7) next24h.push({ client: c, reason: `💰 Paiement en attente depuis ${sinceCreation} j` });
+    }
+  });
+
+  // Dedup by client+reason
+  const dedup = (arr: Bucket[]) => {
+    const seen = new Set<string>();
+    return arr.filter(b => {
+      const key = `${b.client.id}|${b.reason}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const urgent = dedup(urgentToday);
+  const soon = dedup(next24h);
+  const week = dedup(thisWeek);
+
+  // ---------- Stats récap ----------
   const leadsToday = clients.filter(c => c.created_at?.slice(0, 10) === todayKey);
-
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const monthlyRevenueCents = clients
     .filter(c => c.paid_at && new Date(c.paid_at).getTime() >= monthStart)
     .reduce((s, c) => s + (c.payment_amount || 0), 0);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
-  const lastMonthEnd = monthStart;
   const lastMonthRevenueCents = clients
-    .filter(c => c.paid_at && new Date(c.paid_at).getTime() >= lastMonthStart && new Date(c.paid_at).getTime() < lastMonthEnd)
+    .filter(c => c.paid_at && new Date(c.paid_at).getTime() >= lastMonthStart && new Date(c.paid_at).getTime() < monthStart)
     .reduce((s, c) => s + (c.payment_amount || 0), 0);
   const revenueDelta = lastMonthRevenueCents > 0
     ? Math.round(((monthlyRevenueCents - lastMonthRevenueCents) / lastMonthRevenueCents) * 100)
     : null;
-
-  const pendingPayment = clients.filter(c => !c.paid_at && c.status !== 'published');
-
-  const nextActions: { client: Client; label: string }[] = [];
-  clients.forEach(c => {
-    if (c.status === 'published') return;
-    if (c.status === 'script_writing') {
-      const idleDays = Math.floor((nowMs - new Date(c.updated_at || c.created_at).getTime()) / 86400000);
-      if (idleDays >= 2) nextActions.push({ client: c, label: `Script à finaliser (${idleDays} j)` });
-    }
-    if (c.filming_date) {
-      const days = Math.ceil((new Date(c.filming_date).getTime() - nowMs) / 86400000);
-      if (days >= 0 && days <= 1 && c.status === 'filming_scheduled') {
-        nextActions.push({ client: c, label: days === 0 ? "Tournage aujourd'hui" : 'Tournage demain' });
-      }
-    }
-    if (c.status === 'script_review') {
-      const idle = Math.floor((nowMs - new Date(c.updated_at || c.created_at).getTime()) / 86400000);
-      if (idle >= 5) nextActions.push({ client: c, label: `Relancer (script en attente ${idle} j)` });
-    }
-  });
-
-  // --- Compact metrics ---
-  const totalRevenue = clients.reduce((sum, c) => sum + (c.payment_amount || 0), 0) / 100;
-  const deliveredClients = clients.filter(c => c.delivered_at);
-  const avgDeliveryDays = deliveredClients.length > 0
-    ? Math.round(deliveredClients.reduce((sum, c) => {
-      return sum + (new Date(c.delivered_at!).getTime() - new Date(c.created_at).getTime()) / 86400000;
-    }, 0) / deliveredClients.length)
-    : 0;
-  const stuckClients = clients.filter(c => {
-    if (c.status === 'published') return false;
-    const last = c.updated_at ? new Date(c.updated_at).getTime() : new Date(c.created_at).getTime();
-    return nowMs - last > 7 * 86400000;
-  }).length;
-  const statusCounts: Record<string, number> = {};
-  clients.forEach(c => { statusCounts[c.status] = (statusCounts[c.status] || 0) + 1; });
   const activeClients = clients.filter(c => c.status !== 'published').length;
-
-  // --- Needs attention ---
-  const needsAttention: { client: Client; reason: string; urgency: 'high' | 'medium' }[] = [];
-  clients.forEach(c => {
-    if (c.status === 'published') return;
-    const lastMs = c.updated_at ? new Date(c.updated_at).getTime() : new Date(c.created_at).getTime();
-    const daysIdle = Math.floor((nowMs - lastMs) / 86400000);
-    if (c.status === 'script_review' && daysIdle > 3) {
-      needsAttention.push({ client: c, reason: `Script en relecture depuis ${daysIdle} j`, urgency: daysIdle > 7 ? 'high' : 'medium' });
-    } else if (daysIdle > 14) {
-      needsAttention.push({ client: c, reason: `Aucune activité depuis ${daysIdle} j`, urgency: 'high' });
-    } else if (c.filming_date) {
-      const d = new Date(c.filming_date);
-      const daysToFilming = Math.ceil((d.getTime() - nowMs) / 86400000);
-      if (daysToFilming >= 0 && daysToFilming <= 2 && c.status !== 'filming_done' && c.status !== 'editing') {
-        needsAttention.push({ client: c, reason: daysToFilming === 0 ? "Tournage aujourd'hui" : daysToFilming === 1 ? 'Tournage demain' : `Tournage dans ${daysToFilming} j`, urgency: 'high' });
-      }
-    }
-  });
-  needsAttention.sort((a, b) => (a.urgency === 'high' ? 0 : 1) - (b.urgency === 'high' ? 0 : 1));
-
-  // --- Monthly chart data ---
-  const months: { key: string; label: string; revenue: number; delivered: number; created: number }[] = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    months.push({ key, label: d.toLocaleDateString('fr-FR', { month: 'short' }), revenue: 0, delivered: 0, created: 0 });
-  }
-  clients.forEach(c => {
-    if (c.paid_at && c.payment_amount) {
-      const d = new Date(c.paid_at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const m = months.find(x => x.key === key);
-      if (m) m.revenue += c.payment_amount / 100;
-    }
-    if (c.delivered_at) {
-      const d = new Date(c.delivered_at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const m = months.find(x => x.key === key);
-      if (m) m.delivered += 1;
-    }
-    const created = new Date(c.created_at);
-    const ckey = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}`;
-    const cm = months.find(x => x.key === ckey);
-    if (cm) cm.created += 1;
-  });
-  const maxRevenue = Math.max(...months.map(m => m.revenue), 1);
-
-  // --- Upcoming filming ---
-  const upcomingFilming = clients
-    .filter(c => c.filming_date && new Date(c.filming_date) >= new Date())
-    .sort((a, b) => new Date(a.filming_date!).getTime() - new Date(b.filming_date!).getTime())
-    .slice(0, 5);
+  const deliveredThisMonth = clients.filter(c => c.delivered_at && new Date(c.delivered_at).getTime() >= monthStart).length;
+  const pendingPayment = clients.filter(c => !c.paid_at && c.status !== 'published').length;
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(20px, 4vw, 32px)', maxWidth: 1100, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 24 }}>
         <h1 style={{
           fontFamily: "'Bricolage Grotesque', sans-serif",
-          fontWeight: 800, fontSize: '1.6rem', color: 'var(--text)',
-          margin: 0, lineHeight: 1.3,
+          fontWeight: 800, fontSize: '1.7rem', color: 'var(--text)',
+          margin: 0, lineHeight: 1.2,
         }}>
-          Bonjour !
+          {getGreeting()} 👋
         </h1>
         <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
           {getFrenchDate()}
@@ -254,8 +219,10 @@ export default function DashboardPage() {
       </div>
 
       {loading ? (
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '40px 0', textAlign: 'center' }}>
-          Chargement...
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={4} />
         </div>
       ) : error ? (
         <div style={{
@@ -263,258 +230,124 @@ export default function DashboardPage() {
           background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)',
           color: 'var(--red)', fontSize: '0.85rem',
         }}>
-          {error}
+          ❌ {error}
+        </div>
+      ) : clients.length === 0 ? (
+        <div style={{
+          background: 'var(--night-card)', border: '1px solid var(--border)',
+          borderRadius: 14, padding: 24,
+        }}>
+          <EmptyState
+            emoji="🚀"
+            title="Bienvenue sur votre dashboard"
+            description="Commencez par ajouter votre premier client pour démarrer."
+            action={
+              <Link href="/dashboard/clients" style={{
+                display: 'inline-block', padding: '10px 18px', borderRadius: 10,
+                background: 'var(--orange)', color: '#fff', textDecoration: 'none',
+                fontWeight: 600, fontSize: '0.9rem',
+              }}>➕ Ajouter un client</Link>
+            }
+          />
         </div>
       ) : (
         <>
-          {/* KPI Cards */}
+          {/* Urgency: Today */}
+          <UrgencySection
+            tone="red"
+            emoji="🔴"
+            title="Aujourd'hui"
+            subtitle="À traiter en priorité"
+            items={urgent}
+            emptyMessage="Rien d'urgent — profitez-en !"
+          />
+
+          {/* Urgency: Next 24h */}
+          <UrgencySection
+            tone="orange"
+            emoji="🟠"
+            title="Dans les 24h"
+            subtitle="À surveiller"
+            items={soon}
+            emptyMessage="Pas d'alerte pour demain."
+          />
+
+          {/* Urgency: This week */}
+          <UrgencySection
+            tone="yellow"
+            emoji="🟡"
+            title="Cette semaine"
+            subtitle="Tournages à venir"
+            items={week}
+            emptyMessage="Aucun tournage planifié cette semaine."
+          />
+
+          {/* Récap */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 12, marginBottom: 20,
+            background: 'var(--night-card)', borderRadius: 14, border: '1px solid var(--border)',
+            padding: '18px 20px', marginBottom: 18,
           }}>
-            <KpiCard title="Leads du jour" value={leadsToday.length.toString()} accent="var(--orange)" icon="◎">
-              {leadsToday.length === 0 ? (
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Aucun nouveau lead</span>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {leadsToday.slice(0, 2).map(c => (
-                    <Link key={c.id} href={`/dashboard/clients/${c.id}`} style={{
-                      fontSize: '0.75rem', color: 'var(--text-mid)', textDecoration: 'none',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {c.business_name}
-                    </Link>
-                  ))}
-                  {leadsToday.length > 2 && (
-                    <Link href="/dashboard/clients" style={{ fontSize: '0.7rem', color: 'var(--orange)', textDecoration: 'none' }}>
-                      +{leadsToday.length - 2} autres
-                    </Link>
-                  )}
-                </div>
-              )}
-            </KpiCard>
-
-            <KpiCard title="Encaissé ce mois" value={`${(monthlyRevenueCents / 100).toLocaleString('fr-FR')} €`} accent="var(--green)" icon="€">
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                {revenueDelta === null ? 'Premier mois' : revenueDelta > 0 ? (
-                  <span style={{ color: 'var(--green)' }}>+{revenueDelta}% vs M-1</span>
-                ) : revenueDelta < 0 ? (
-                  <span style={{ color: 'var(--red)' }}>{revenueDelta}% vs M-1</span>
-                ) : '= mois dernier'}
-              </span>
-            </KpiCard>
-
-            <KpiCard title="En attente" value={pendingPayment.length.toString()} accent="var(--yellow)" icon="⏳">
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                {pendingPayment.length === 0 ? 'Tout encaissé' : `${pendingPayment.length} sans paiement`}
-              </span>
-            </KpiCard>
-
-            <KpiCard
-              title="Prochaine action"
-              value={nextActions.length === 0 ? '—' : nextActions.length.toString()}
-              accent={nextActions.length > 0 ? 'var(--red)' : 'var(--green)'}
-              icon="!"
-            >
-              {nextActions.length === 0 ? (
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tout est sous contrôle</span>
-              ) : (
-                <Link href={`/dashboard/clients/${nextActions[0].client.id}`} style={{
-                  fontSize: '0.75rem', color: 'var(--text-mid)', textDecoration: 'none',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block',
-                }}>
-                  {nextActions[0].client.business_name} — {nextActions[0].label}
-                </Link>
-              )}
-            </KpiCard>
-          </div>
-
-          {/* Compact metrics strip */}
-          <div style={{
-            display: 'flex', gap: 0,
-            background: 'var(--night-card)', borderRadius: 12,
-            border: '1px solid var(--border)',
-            marginBottom: 20, overflow: 'hidden',
-          }}>
-            <MetricCell label="Clients actifs" value={activeClients.toString()} color="var(--orange)" />
-            <MetricCell label="Revenus totaux" value={`${totalRevenue.toLocaleString('fr-FR')} €`} color="var(--green)" />
-            <MetricCell label="Délai moyen" value={avgDeliveryDays > 0 ? `${avgDeliveryDays} j` : '—'} color="#3B82F6" />
-            <MetricCell label="Bloqués" value={stuckClients.toString()} color={stuckClients > 0 ? 'var(--red)' : 'var(--green)'} last />
-          </div>
-
-          {/* Needs attention */}
-          {needsAttention.length > 0 && (
-            <div style={{
-              background: 'var(--night-card)', borderRadius: 12,
-              border: '1px solid var(--border-orange)',
-              padding: '16px 20px', marginBottom: 20,
+            <h2 style={{
+              fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-mid)',
+              margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8,
+              textTransform: 'uppercase', letterSpacing: 0.5,
             }}>
-              <div style={{
-                fontSize: '0.82rem', fontWeight: 600, color: 'var(--orange)',
-                marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6,
-              }}>
-                <span>⚠</span> À traiter — {needsAttention.length}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {needsAttention.slice(0, 4).map(a => (
-                  <Link key={a.client.id} href={`/dashboard/clients/${a.client.id}`} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-                    padding: '8px 12px', borderRadius: 8,
-                    background: 'var(--night-mid)', textDecoration: 'none',
-                  }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.82rem', color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {a.client.business_name}
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{a.reason}</div>
-                    </div>
-                    <span style={{
-                      fontSize: '0.65rem', padding: '2px 8px', borderRadius: 20,
-                      background: a.urgency === 'high' ? 'rgba(239,68,68,.12)' : 'rgba(250,204,21,.1)',
-                      color: a.urgency === 'high' ? 'var(--red)' : 'var(--yellow)',
-                      fontWeight: 600, whiteSpace: 'nowrap',
-                    }}>{a.urgency === 'high' ? 'Urgent' : 'À voir'}</span>
-                  </Link>
-                ))}
-                {needsAttention.length > 4 && (
-                  <Link href="/dashboard/pipeline" style={{
-                    fontSize: '0.72rem', color: 'var(--orange)', textDecoration: 'none',
-                    textAlign: 'center', padding: '6px 0',
-                  }}>
-                    Voir les {needsAttention.length - 4} autres →
-                  </Link>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Two-column: Chart + Filming */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: 16, marginBottom: 20,
-          }}>
-            {/* Monthly chart */}
+              <span aria-hidden>✅</span> Récap business
+            </h2>
             <div style={{
-              background: 'var(--night-card)', borderRadius: 12,
-              border: '1px solid var(--border)', padding: '18px 20px',
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12,
             }}>
-              <h2 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)', margin: '0 0 16px' }}>
-                Performance — 6 mois
-              </h2>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 120, padding: '0 2px' }}>
-                {months.map(m => {
-                  const heightPct = (m.revenue / maxRevenue) * 100;
-                  return (
-                    <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                        {m.revenue > 0 ? `${m.revenue.toLocaleString('fr-FR')} €` : '—'}
-                      </div>
-                      <div style={{ width: '100%', height: 70, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-                        <div style={{
-                          width: '65%',
-                          height: `${Math.max(heightPct, m.revenue > 0 ? 4 : 0)}%`,
-                          background: m.revenue > 0 ? 'linear-gradient(180deg, var(--orange) 0%, #C45520 100%)' : 'var(--night-mid)',
-                          borderRadius: '3px 3px 0 0',
-                          minHeight: m.revenue > 0 ? 4 : 0,
-                          transition: 'height .4s ease',
-                        }} />
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{m.label}</div>
-                      <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', display: 'flex', gap: 4 }}>
-                        <span title="Livrées">🎬{m.delivered}</span>
-                        <span title="Nouveaux">+{m.created}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Upcoming filming */}
-            <div style={{
-              background: 'var(--night-card)', borderRadius: 12,
-              border: '1px solid var(--border)', padding: '18px 20px',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <h2 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)', margin: 0 }}>
-                  Prochains tournages
-                </h2>
-                <Link href="/dashboard/scripts" style={{
-                  fontSize: '0.72rem', color: 'var(--orange)', textDecoration: 'none', fontWeight: 500,
-                }}>Tout voir →</Link>
-              </div>
-              {upcomingFilming.length === 0 ? (
-                <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                  Aucun tournage planifié.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {upcomingFilming.map(c => {
-                    const countdown = getCountdownLabel(c.filming_date!);
-                    const daysUntil = getDaysUntil(c.filming_date!);
-                    const isUrgent = daysUntil <= 3;
-                    return (
-                      <Link key={c.id} href={`/dashboard/clients/${c.id}`} style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '10px 12px', borderRadius: 8,
-                        background: 'var(--night-mid)', textDecoration: 'none',
-                        transition: 'background .15s',
-                      }}>
-                        <div>
-                          <div style={{ fontSize: '0.82rem', color: 'var(--text)', fontWeight: 500 }}>{c.business_name}</div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                            {new Date(c.filming_date!).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
-                          </div>
-                        </div>
-                        <span style={{
-                          fontSize: '0.7rem', fontWeight: 600,
-                          color: isUrgent ? 'var(--orange)' : 'var(--text-mid)',
-                          background: isUrgent ? 'rgba(232,105,43,.1)' : 'transparent',
-                          padding: isUrgent ? '2px 8px' : '2px 0', borderRadius: 16,
-                        }}>{countdown}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
+              <Stat emoji="🚀" label="Leads aujourd'hui" value={leadsToday.length.toString()} color="var(--orange)" />
+              <Stat emoji="💸" label="Encaissé ce mois" value={`${(monthlyRevenueCents / 100).toLocaleString('fr-FR')} €`} color="var(--green)" extra={
+                revenueDelta !== null
+                  ? <span style={{ color: revenueDelta >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                      {revenueDelta >= 0 ? '+' : ''}{revenueDelta}% vs M-1
+                    </span>
+                  : 'Premier mois'
+              } />
+              <Stat emoji="🎬" label="Vidéos livrées (mois)" value={deliveredThisMonth.toString()} color="#3B82F6" />
+              <Stat emoji="👥" label="Clients actifs" value={activeClients.toString()} color="var(--orange)" />
+              <Stat emoji="⏳" label="Sans paiement" value={pendingPayment.toString()} color={pendingPayment > 0 ? 'var(--yellow)' : 'var(--green)'} />
             </div>
           </div>
 
           {/* Activity feed */}
           {activity.length > 0 && (
             <div style={{
-              background: 'var(--night-card)', borderRadius: 12,
+              background: 'var(--night-card)', borderRadius: 14,
               border: '1px solid var(--border)', padding: '18px 20px',
             }}>
-              <h2 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)', margin: '0 0 12px' }}>
-                Activité récente
+              <h2 style={{
+                fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-mid)',
+                margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8,
+                textTransform: 'uppercase', letterSpacing: 0.5,
+              }}>
+                <span aria-hidden>📈</span> Activité récente
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {activity.slice(0, 8).map(ev => {
-                  const meta = ACTIVITY_LABELS[ev.type] || { label: ev.type, icon: '•', color: 'var(--text-muted)' };
+                  const meta = ACTIVITY_LABELS[ev.type] || { label: ev.type, emoji: '•', color: 'var(--text-muted)' };
                   return (
                     <Link key={ev.id} href={`/dashboard/clients/${ev.client_id}`} style={{
-                      display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px',
-                      borderRadius: 6, textDecoration: 'none', transition: 'background .15s',
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                      borderRadius: 8, textDecoration: 'none', transition: 'background .15s',
                     }}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--night-mid)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <span style={{
-                        width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+                      <span aria-hidden style={{
+                        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
                         background: 'var(--night-mid)', border: `1.5px solid ${meta.color}`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '0.7rem', color: meta.color,
-                      }}>{meta.icon}</span>
+                        fontSize: '0.85rem',
+                      }}>{meta.emoji}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text)' }}>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text)' }}>
                           {ev.clients?.business_name || 'Client'}
                         </span>
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}> — {meta.label}</span>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}> — {meta.label}</span>
                       </div>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                         {relativeTime(ev.created_at)}
                       </span>
                     </Link>
@@ -531,50 +364,113 @@ export default function DashboardPage() {
 
 /* ---------- Sub-components ---------- */
 
-function KpiCard({ title, value, accent, icon, children }: {
-  title: string; value: string; accent: string; icon: string; children?: React.ReactNode;
+const TONES: Record<'red' | 'orange' | 'yellow' | 'green', { bg: string; border: string; color: string }> = {
+  red: { bg: 'rgba(239,68,68,.08)', border: 'rgba(239,68,68,.30)', color: '#FCA5A5' },
+  orange: { bg: 'rgba(232,105,43,.08)', border: 'rgba(232,105,43,.30)', color: '#FFB58A' },
+  yellow: { bg: 'rgba(250,204,21,.08)', border: 'rgba(250,204,21,.35)', color: '#FDE68A' },
+  green: { bg: 'rgba(34,197,94,.08)', border: 'rgba(34,197,94,.30)', color: '#86EFAC' },
+};
+
+function UrgencySection({
+  tone, emoji, title, subtitle, items, emptyMessage,
+}: {
+  tone: 'red' | 'orange' | 'yellow' | 'green';
+  emoji: string;
+  title: string;
+  subtitle: string;
+  items: Bucket[];
+  emptyMessage: string;
 }) {
+  const t = TONES[tone];
+  const isEmpty = items.length === 0;
   return (
     <div style={{
-      background: 'var(--night-card)', borderRadius: 12,
-      border: '1px solid var(--border)', padding: '16px 18px',
-      display: 'flex', flexDirection: 'column', gap: 8,
+      background: 'var(--night-card)', borderRadius: 14,
+      border: `1px solid ${isEmpty ? 'var(--border)' : t.border}`,
+      padding: '16px 20px', marginBottom: 14,
+      opacity: isEmpty ? 0.7 : 1,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{
-          fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600,
-          textTransform: 'uppercase', letterSpacing: '0.06em',
-        }}>{title}</div>
-        <div style={{
-          width: 26, height: 26, borderRadius: 7,
-          background: `${accent}12`, color: accent,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '0.8rem', fontWeight: 700,
-        }}>{icon}</div>
-      </div>
       <div style={{
-        fontSize: '1.5rem', fontWeight: 800, color: accent,
-        fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1,
-      }}>{value}</div>
-      <div>{children}</div>
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: isEmpty ? 4 : 12, gap: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span aria-hidden style={{ fontSize: '1.1rem' }}>{emoji}</span>
+          <div>
+            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>{title}</div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{subtitle}</div>
+          </div>
+        </div>
+        {!isEmpty && (
+          <span style={{
+            padding: '3px 10px', borderRadius: 999,
+            background: t.bg, border: `1px solid ${t.border}`, color: t.color,
+            fontSize: '0.72rem', fontWeight: 700,
+          }}>{items.length}</span>
+        )}
+      </div>
+      {isEmpty ? (
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', paddingLeft: 30 }}>
+          {emptyMessage}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {items.slice(0, 6).map((b, i) => (
+            <Link key={`${b.client.id}-${i}`} href={`/dashboard/clients/${b.client.id}`} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+              padding: '10px 12px', borderRadius: 10,
+              background: 'var(--night-mid)', textDecoration: 'none',
+              transition: 'background .15s',
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--night-raised)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--night-mid)'}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {b.client.business_name}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-mid)' }}>{b.reason}</div>
+              </div>
+              {b.cta && (
+                <span style={{
+                  fontSize: '0.7rem', padding: '4px 10px', borderRadius: 999,
+                  background: t.bg, border: `1px solid ${t.border}`, color: t.color,
+                  fontWeight: 700, whiteSpace: 'nowrap',
+                }}>{b.cta} →</span>
+              )}
+            </Link>
+          ))}
+          {items.length > 6 && (
+            <Link href="/dashboard/pipeline" style={{
+              fontSize: '0.74rem', color: 'var(--orange)', textDecoration: 'none',
+              textAlign: 'center', padding: '6px 0', fontWeight: 600,
+            }}>
+              Voir les {items.length - 6} autres →
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function MetricCell({ label, value, color, last }: { label: string; value: string; color: string; last?: boolean }) {
+function Stat({ emoji, label, value, color, extra }: {
+  emoji: string; label: string; value: string; color: string; extra?: React.ReactNode;
+}) {
   return (
     <div style={{
-      flex: 1, padding: '14px 16px',
-      borderRight: last ? 'none' : '1px solid var(--border)',
-      textAlign: 'center',
+      padding: '12px 14px', borderRadius: 10,
+      background: 'var(--night-mid)', border: '1px solid var(--border)',
     }}>
-      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-        {label}
+      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span aria-hidden>{emoji}</span>
+        <span style={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</span>
       </div>
       <div style={{
-        fontSize: '1.15rem', fontWeight: 700, color,
-        fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1,
+        fontSize: '1.3rem', fontWeight: 800, color,
+        fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1.1,
       }}>{value}</div>
+      {extra && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>{extra}</div>}
     </div>
   );
 }

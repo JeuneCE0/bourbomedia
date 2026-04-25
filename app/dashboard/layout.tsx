@@ -3,24 +3,25 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { ToastProvider } from '@/components/ui/Toast';
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
     title: 'Pilotage',
     items: [
-      { href: '/dashboard', label: 'Dashboard', icon: '▣' },
-      { href: '/dashboard/pipeline', label: 'Pipeline', icon: '▤' },
-      { href: '/dashboard/tasks', label: 'Tâches', icon: '☑' },
-      { href: '/dashboard/scripts', label: 'Scripts / Tournages', icon: '✎' },
+      { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
+      { href: '/dashboard/pipeline', label: 'Pipeline', icon: '📊' },
+      { href: '/dashboard/tasks', label: 'Tâches', icon: '✅' },
+      { href: '/dashboard/scripts', label: 'Scripts / Tournages', icon: '📝' },
     ],
   },
   {
     title: 'Données',
     items: [
-      { href: '/dashboard/clients', label: 'Clients', icon: '◉' },
-      { href: '/dashboard/calendar', label: 'Calendrier', icon: '▦' },
-      { href: '/dashboard/onboarding', label: 'Onboarding', icon: '◎' },
-      { href: '/dashboard/team', label: 'Équipe', icon: '◐' },
+      { href: '/dashboard/clients', label: 'Clients', icon: '👥' },
+      { href: '/dashboard/calendar', label: 'Calendrier', icon: '📅' },
+      { href: '/dashboard/onboarding', label: 'Onboarding', icon: '🚀' },
+      { href: '/dashboard/team', label: 'Équipe', icon: '👤' },
     ],
   },
 ];
@@ -126,7 +127,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .catch(() => { localStorage.removeItem('bbp_token'); router.replace('/dashboard/login'); });
   }, [router, isLoginPage]);
 
-  if (isLoginPage) return <>{children}</>;
+  if (isLoginPage) return <ToastProvider>{children}</ToastProvider>;
 
   if (checking) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--night)' }}>
@@ -213,7 +214,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             padding: '7px 10px', borderRadius: 8,
             background: 'var(--night)', border: '1px solid var(--border-md)',
           }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1 }}>⌕</span>
+            <span aria-hidden style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1 }}>🔍</span>
             <input
               id="global-search"
               type="text"
@@ -251,7 +252,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     color: r.type === 'client' ? 'var(--orange)' : r.type === 'script' ? 'var(--yellow)' : '#8B5CF6',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '0.7rem', fontWeight: 700,
-                  }}>{r.type === 'client' ? '◉' : r.type === 'script' ? '✎' : '💬'}</span>
+                  }} aria-hidden>{r.type === 'client' ? '👤' : r.type === 'script' ? '📝' : '💬'}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>
@@ -343,7 +344,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             transition: 'all .15s ease',
           }}
         >
-          <span style={{ fontSize: '1rem', lineHeight: 1 }}>⏻</span>
+          <span aria-hidden style={{ fontSize: '1rem', lineHeight: 1 }}>🚪</span>
           {(!(collapsed && !isMobile)) && <span>Déconnexion</span>}
         </button>
       </div>
@@ -351,6 +352,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   return (
+    <ToastProvider>
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--night)' }}>
       {/* Mobile top header bar */}
       {isMobile && (
@@ -477,7 +479,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 padding: '8px 12px', borderRadius: 8,
                 background: 'var(--night-mid)', border: '1px solid var(--border-md)',
               }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1 }}>⌕</span>
+                <span aria-hidden style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1 }}>🔍</span>
                 <input
                   type="text"
                   value={searchQuery}
@@ -514,7 +516,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         color: r.type === 'client' ? 'var(--orange)' : r.type === 'script' ? 'var(--yellow)' : '#8B5CF6',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: '0.7rem', fontWeight: 700,
-                      }}>{r.type === 'client' ? '◉' : r.type === 'script' ? '✎' : '💬'}</span>
+                      }} aria-hidden>{r.type === 'client' ? '👤' : r.type === 'script' ? '📝' : '💬'}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
                         <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>
@@ -529,5 +531,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
+    </ToastProvider>
   );
 }
