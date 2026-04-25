@@ -513,7 +513,7 @@ function ScriptsToFinishSection({ items }: { items: { client: Client; idleDays: 
             };
             const t = toneStyle[tone];
             return (
-              <Link key={client.id} href={`/dashboard/clients/${client.id}`} style={{
+              <Link key={client.id} href={`/dashboard/clients/${client.id}?tab=script`} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
                 padding: '10px 12px', borderRadius: 10,
                 background: 'var(--night-mid)', textDecoration: 'none',

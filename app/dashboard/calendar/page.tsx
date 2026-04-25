@@ -370,7 +370,7 @@ export default function CalendarPage() {
                       </div>
                     );
                     return e.client_id ? (
-                      <Link key={e.id} href={`/dashboard/clients/${e.client_id}`} style={{
+                      <Link key={e.id} href={`/dashboard/clients/${e.client_id}${e.kind === 'filming' ? '?tab=filming' : e.kind === 'script_sent' || e.kind === 'script_due' ? '?tab=script' : ''}`} style={{
                         padding: '8px 10px', borderRadius: 8, textDecoration: 'none',
                         background: 'var(--night-mid)',
                       }}>{inner}</Link>
@@ -398,7 +398,7 @@ export default function CalendarPage() {
                   {tomorrowsEvents.slice(0, 4).map(e => {
                     const meta = KIND_META[e.kind];
                     return (
-                      <Link key={e.id} href={e.client_id ? `/dashboard/clients/${e.client_id}` : '#'} style={{
+                      <Link key={e.id} href={e.client_id ? `/dashboard/clients/${e.client_id}${e.kind === 'filming' ? '?tab=filming' : e.kind === 'script_sent' ? '?tab=script' : ''}` : '#'} style={{
                         display: 'flex', alignItems: 'center', gap: 8,
                         padding: '6px 10px', borderRadius: 8, textDecoration: 'none',
                         background: 'var(--night-mid)',
@@ -668,7 +668,7 @@ export default function CalendarPage() {
                             </>
                           );
                           return e.client_id ? (
-                            <Link key={e.id} href={`/dashboard/clients/${e.client_id}`} style={{
+                            <Link key={e.id} href={`/dashboard/clients/${e.client_id}${e.kind === 'filming' ? '?tab=filming' : e.kind === 'script_sent' || e.kind === 'script_due' ? '?tab=script' : ''}`} style={{
                               display: 'block', padding: '8px 10px', borderRadius: 8,
                               background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
                               marginBottom: 6, textDecoration: 'none',

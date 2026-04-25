@@ -256,7 +256,7 @@ export default function ScriptsPage() {
                 return (
                   <Link
                     key={s.id}
-                    href={`/dashboard/clients/${s.client_id}`}
+                    href={`/dashboard/clients/${s.client_id}?tab=script`}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 16,
                       padding: '14px 18px',
@@ -318,7 +318,7 @@ export default function ScriptsPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {upcomingShoots.map(c => (
-                  <Link key={c.id} href={`/dashboard/clients/${c.id}`} style={{
+                  <Link key={c.id} href={`/dashboard/clients/${c.id}?tab=filming`} style={{
                     display: 'flex', alignItems: 'center', gap: 16,
                     padding: '14px 18px',
                     background: 'var(--night-card)',
@@ -363,7 +363,7 @@ export default function ScriptsPage() {
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {pastShoots.map(c => (
-                  <Link key={c.id} href={`/dashboard/clients/${c.id}`} style={{
+                  <Link key={c.id} href={`/dashboard/clients/${c.id}?tab=filming`} style={{
                     display: 'flex', alignItems: 'center', gap: 14,
                     padding: '10px 14px',
                     background: 'var(--night-card)',

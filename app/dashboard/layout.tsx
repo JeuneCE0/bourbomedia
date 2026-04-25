@@ -245,7 +245,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {searchResults.map(r => (
                 <Link
                   key={`${r.type}-${r.id}`}
-                  href={`/dashboard/clients/${r.client_id}`}
+                  href={`/dashboard/clients/${r.client_id}${r.type === 'script' || r.type === 'script_content' || r.type === 'comment' ? '?tab=script' : ''}`}
                   onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
@@ -509,7 +509,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {searchResults.map(r => (
                     <Link
                       key={`m-${r.type}-${r.id}`}
-                      href={`/dashboard/clients/${r.client_id}`}
+                      href={`/dashboard/clients/${r.client_id}${r.type === 'script' || r.type === 'script_content' || r.type === 'comment' ? '?tab=script' : ''}`}
                       onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); }}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
