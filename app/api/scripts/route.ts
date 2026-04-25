@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
-import { findNextAvailableSlot, bookFilmingSlot, computePublicationDeadline } from '@/lib/filming';
+import { computePublicationDeadline } from '@/lib/filming';
 import { notifyScriptValidated, notifyFilmingScheduled, notifyAnnotationsSent } from '@/lib/slack';
 import { triggerWorkflow } from '@/lib/ghl-workflows';
-import { sendWhatsAppMessage, sendEmailMessage } from '@/lib/ghl';
 
 export async function GET(req: NextRequest) {
   const clientId = req.nextUrl.searchParams.get('client_id');
@@ -139,66 +138,67 @@ export async function PUT(req: NextRequest) {
       }
 
       if (action === 'validate') {
+        // Mark the script as confirmed. We do NOT auto-book the filming slot
+        // anymore — the client chooses the date themselves on the GHL calendar
+        // (3h block) right after validation. We also do NOT send a direct
+        // confirmation email/WA from here; the GHL workflow listening on the
+        // `bbm_script_validated` tag is the single source of truth for that
+        // copy, so the user can edit the message in their GHL UI.
         const sr = await supaFetch(`scripts?client_id=eq.${cid}`, {
           method: 'PATCH',
           body: JSON.stringify({ status: 'confirmed', updated_at: new Date().toISOString() }),
         }, true);
         if (!sr.ok) return NextResponse.json({ error: await sr.text() }, { status: sr.status });
 
-        // Fetch client info for notifications
         const clientR = await supaFetch(`clients?id=eq.${cid}&select=*`, {}, true);
         const clientData = clientR.ok ? await clientR.json() : [];
         const client = clientData[0] || {};
 
-        // Auto-book first available filming slot
-        const filmingDate = await findNextAvailableSlot();
-        const updateFields: Record<string, unknown> = { status: 'script_validated', updated_at: new Date().toISOString() };
-
-        if (filmingDate) {
-          await bookFilmingSlot(filmingDate, cid);
-          updateFields.status = 'filming_scheduled';
-          updateFields.filming_date = filmingDate;
-          updateFields.publication_deadline = computePublicationDeadline(filmingDate);
-        }
-
+        // Move the client to script_validated — filming_date stays null until
+        // they pick a slot via the GHL calendar embed in the portal.
         await supaFetch(`clients?id=eq.${cid}`, {
           method: 'PATCH',
-          body: JSON.stringify(updateFields),
+          body: JSON.stringify({ status: 'script_validated', updated_at: new Date().toISOString() }),
         }, true);
 
-        // Slack notification
         notifyScriptValidated(client.business_name || 'Client', client.contact_name || '');
-        if (filmingDate) {
-          notifyFilmingScheduled(client.business_name || 'Client', filmingDate);
-        }
-        logEvent('script_validated', filmingDate ? { filming_date: filmingDate } : {});
-        // GHL workflows
+        logEvent('script_validated');
         triggerWorkflow(client.ghl_contact_id, 'script_validated').catch(() => {});
-        if (filmingDate) triggerWorkflow(client.ghl_contact_id, 'filming_scheduled').catch(() => {});
-
-        // GHL WhatsApp + Email notifications
-        if (client.ghl_contact_id) {
-          const dateFormatted = filmingDate
-            ? new Date(filmingDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-            : '';
-
-          sendWhatsAppMessage(client.ghl_contact_id,
-            filmingDate
-              ? `Bonjour ${client.contact_name} ! Votre script a été validé. Votre tournage est prévu le ${dateFormatted}. L'équipe BourbonMédia vous contactera pour les détails. À bientôt !`
-              : `Bonjour ${client.contact_name} ! Votre script a été validé. Nous allons planifier votre tournage très prochainement. À bientôt !`
-          );
-
-          sendEmailMessage(client.ghl_contact_id,
-            'Script validé — BourbonMédia',
-            `<p>Bonjour ${client.contact_name},</p>
-            <p>Votre script vidéo a été <strong>validé avec succès</strong> !</p>
-            ${filmingDate ? `<p>Votre tournage est prévu le <strong>${dateFormatted}</strong>.</p>` : '<p>Nous planifions votre tournage et reviendrons vers vous rapidement.</p>'}
-            <p>L'équipe BourbonMédia</p>`
-          );
-        }
 
         const data = await sr.json();
         return NextResponse.json(data[0]);
+      }
+
+      // Client confirms they booked their tournage slot on the GHL calendar.
+      // Optional: pass `date` (ISO string) to record it on the client record;
+      // otherwise the admin reads it from GHL and updates the client manually.
+      if (action === 'confirm_filming_booked') {
+        const body = await req.json().catch(() => ({}));
+        const date = typeof body.date === 'string' ? body.date : null;
+        const updates: Record<string, unknown> = {
+          status: 'filming_scheduled',
+          updated_at: new Date().toISOString(),
+        };
+        if (date) {
+          const d = new Date(date);
+          if (!Number.isNaN(d.getTime())) {
+            updates.filming_date = d.toISOString();
+            try { updates.publication_deadline = computePublicationDeadline(d.toISOString()); } catch { /* */ }
+          }
+        }
+        await supaFetch(`clients?id=eq.${cid}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updates),
+        }, true);
+
+        const cR = await supaFetch(`clients?id=eq.${cid}&select=business_name,ghl_contact_id`, {}, true);
+        const arr = cR.ok ? await cR.json() : [];
+        const cl = arr[0] || {};
+        if (date) notifyFilmingScheduled(cl.business_name || 'Client', date);
+        logEvent('filming_scheduled', date ? { date } : {});
+        triggerWorkflow(cl.ghl_contact_id || null, 'filming_scheduled').catch(() => {});
+
+        return NextResponse.json({ ok: true, filming_date: updates.filming_date || null });
       }
 
       if (action === 'request_changes') {
