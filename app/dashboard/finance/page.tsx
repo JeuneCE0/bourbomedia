@@ -43,6 +43,8 @@ function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('bbp_token')}`, 'Content-Type': 'application/json' };
 }
 
+import { STANDARD_VIDEO_PRICE_TTC_CENTS } from '@/lib/pricing';
+
 function fmtEUR(cents: number): string {
   return `${(cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`;
 }
@@ -174,8 +176,9 @@ export default function FinancePage() {
   });
   const topClients = Object.entries(clientCA).sort((a, b) => b[1].cents - a[1].cents).slice(0, 10);
 
-  // Forecast: clients in pipeline who haven't paid yet — ARR potential
-  const pipelinePotential = unpaidClients.length * (avgTicket || 0);
+  // Forecast: clients in pipeline who haven't paid yet — use the standard
+  // 500€ HT + 8.5% TVA pricing as fallback when avgTicket is unknown.
+  const pipelinePotential = unpaidClients.length * (avgTicket || STANDARD_VIDEO_PRICE_TTC_CENTS);
 
   return (
     <div style={{ padding: 'clamp(20px, 4vw, 32px)', maxWidth: 1200, margin: '0 auto' }}>

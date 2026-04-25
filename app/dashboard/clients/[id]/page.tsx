@@ -261,7 +261,8 @@ export default function ClientDetailPage() {
   const [versions, setVersions] = useState<ScriptVersion[]>([]);
   const [showVersions, setShowVersions] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [paymentForm, setPaymentForm] = useState({ amount: '', description: '' });
+  // Default payment = vidéo unique 500€ HT + 8.5% TVA = 542,50€ TTC
+  const [paymentForm, setPaymentForm] = useState({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)' });
   const [addingPayment, setAddingPayment] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [newTodo, setNewTodo] = useState('');
@@ -906,7 +907,7 @@ export default function ClientDetailPage() {
       });
       if (!r.ok) throw new Error(await parseErr(r));
       notify('success', 'Paiement ajouté');
-      setPaymentForm({ amount: '', description: '' });
+      setPaymentForm({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)' });
       loadPayments();
     } catch (err: unknown) {
       notify('error', (err as Error).message);
