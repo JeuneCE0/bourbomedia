@@ -86,7 +86,7 @@ export default function AppointmentsToDocument() {
           <div>
             <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>Appels à documenter</div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              Renseigner le statut + les notes après chaque appel
+              Appels passés — saisis statut + notes (No Show à marquer dans GHL)
             </div>
           </div>
         </div>

@@ -474,71 +474,30 @@ function UrgencySection({
   );
 }
 
-function DailyMetricsCard({ clients }: { clients: Client[] }) {
-  const today = new Date();
-  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+interface ClosingStats {
+  calls_booked: number;
+  calls_done: number;
+  calls_won: number;
+  calls_no_show: number;
+  closing_rate: number | null;
+  new_prospects: number;
+  revenue_paid_cents: number;
+  revenue_won_ht_cents: number;
+  ads_budget_cents: number;
+  provider_fees_cents: number;
+  gross_profit_cents: number;
+}
 
-  const [metric, setMetric] = useState<{ ads_budget_cents: number; calls_booked: number; calls_closed: number } | null>(null);
+function DailyMetricsCard({ clients: _clients }: { clients: Client[] }) {
+  const [stats, setStats] = useState<ClosingStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({ ads_budget: '', calls_booked: '', calls_closed: '' });
-  const [savedHint, setSavedHint] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/daily-metrics?date=${todayIso}`, { headers: authHeaders() })
+    fetch('/api/closing-stats', { headers: authHeaders() })
       .then(r => r.ok ? r.json() : null)
-      .then((d) => {
-        if (d) {
-          setMetric(d);
-          setDraft({
-            ads_budget: ((d.ads_budget_cents || 0) / 100).toString(),
-            calls_booked: String(d.calls_booked || 0),
-            calls_closed: String(d.calls_closed || 0),
-          });
-        }
-      })
+      .then(d => setStats(d))
       .finally(() => setLoading(false));
-  }, [todayIso]);
-
-  async function save() {
-    setSaving(true);
-    try {
-      const r = await fetch('/api/daily-metrics', {
-        method: 'PUT', headers: authHeaders(),
-        body: JSON.stringify({
-          date: todayIso,
-          ads_budget_cents: Math.round(parseFloat(draft.ads_budget || '0') * 100),
-          calls_booked: parseInt(draft.calls_booked || '0', 10),
-          calls_closed: parseInt(draft.calls_closed || '0', 10),
-        }),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        setMetric(d);
-        setEditing(false);
-        setSavedHint(true);
-        setTimeout(() => setSavedHint(false), 2000);
-      }
-    } finally { setSaving(false); }
-  }
-
-  // Computed metrics — encaissement today, new clients today, gross profit
-  const todayRevenueCents = clients.reduce((sum, c) => {
-    if (c.paid_at && c.paid_at.slice(0, 10) === todayIso) return sum + (c.payment_amount || 0);
-    return sum;
-  }, 0);
-  const newClientsToday = clients.filter(c => c.created_at?.slice(0, 10) === todayIso).length;
-  const todayProviderFeesCents = clients.reduce((sum, c) => {
-    interface PF { amount_cents: number; created_at: string }
-    const fees = ((c as Client & { provider_fees?: PF[] }).provider_fees || []) as PF[];
-    return sum + fees.filter(f => f.created_at?.slice(0, 10) === todayIso).reduce((s, f) => s + (f.amount_cents || 0), 0);
-  }, 0);
-  const adsCents = metric?.ads_budget_cents || 0;
-  const grossProfitCents = todayRevenueCents - adsCents - todayProviderFeesCents;
-  const closingRate = (metric?.calls_booked || 0) > 0
-    ? Math.round(((metric?.calls_closed || 0) / (metric?.calls_booked || 1)) * 100)
-    : null;
+  }, []);
 
   return (
     <div style={{
@@ -552,62 +511,32 @@ function DailyMetricsCard({ clients }: { clients: Client[] }) {
           textTransform: 'uppercase', letterSpacing: 0.5,
         }}>
           <span aria-hidden>📊</span> Aujourd&apos;hui en chiffres
-          {savedHint && <span style={{ fontSize: '0.66rem', color: 'var(--green)', textTransform: 'none', letterSpacing: 0 }}>✅ Enregistré</span>}
+          <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>
+            (auto · GHL + Stripe)
+          </span>
         </h2>
-        <button onClick={() => setEditing(e => !e)} style={{
+        <Link href="/dashboard/settings?tab=ads" style={{
           background: 'transparent', border: '1px solid var(--border-md)', color: 'var(--text-muted)',
-          borderRadius: 8, padding: '4px 10px', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
-        }}>
-          {editing ? '👁️ Voir' : '✏️ Saisir'}
-        </button>
+          borderRadius: 8, padding: '4px 10px', fontSize: '0.72rem', fontWeight: 600,
+          textDecoration: 'none',
+        }}>⚙️ Paramètres</Link>
       </div>
 
-      {loading ? (
+      {loading || !stats ? (
         <div style={{ height: 80, background: 'var(--night-mid)', borderRadius: 8 }} />
-      ) : editing ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
-          <DailyInput label="📞 Appels bookés" value={draft.calls_booked} onChange={v => setDraft({ ...draft, calls_booked: v })} suffix="" />
-          <DailyInput label="✅ Appels réalisés" value={draft.calls_closed} onChange={v => setDraft({ ...draft, calls_closed: v })} suffix="" />
-          <DailyInput label="💰 Budget Ads" value={draft.ads_budget} onChange={v => setDraft({ ...draft, ads_budget: v })} suffix="€" step="0.01" />
-          <button onClick={save} disabled={saving} style={{
-            padding: '11px 16px', borderRadius: 10, background: 'var(--orange)',
-            color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
-            opacity: saving ? 0.5 : 1, alignSelf: 'end',
-          }}>
-            {saving ? '⏳' : '💾'} Enregistrer
-          </button>
-        </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-          <DailyStat emoji="💸" label="Encaissement" value={`${(todayRevenueCents / 100).toLocaleString('fr-FR')} €`} color="var(--green)" />
-          <DailyStat emoji="👥" label="Nouveaux clients" value={newClientsToday.toString()} color="var(--orange)" />
-          <DailyStat emoji="📞" label="Appels bookés" value={(metric?.calls_booked || 0).toString()} color="#3B82F6" />
-          <DailyStat emoji="✅" label="Appels réalisés" value={(metric?.calls_closed || 0).toString()} color="#A855F7" />
-          <DailyStat emoji="🎯" label="Taux closing" value={closingRate !== null ? `${closingRate}%` : '—'} color={closingRate !== null && closingRate >= 30 ? 'var(--green)' : 'var(--yellow)'} />
-          <DailyStat emoji="💰" label="Budget Ads" value={`${(adsCents / 100).toLocaleString('fr-FR')} €`} color="var(--text-mid)" />
-          <DailyStat emoji="📈" label="Bénéfice (brut)" value={`${(grossProfitCents / 100).toLocaleString('fr-FR')} €`} color={grossProfitCents >= 0 ? 'var(--green)' : 'var(--red)'} hint="Encaissement − Ads − Frais presta" />
+          <DailyStat emoji="💸" label="Encaissement" value={`${(stats.revenue_paid_cents / 100).toLocaleString('fr-FR')} €`} color="var(--green)" />
+          <DailyStat emoji="🆕" label="Nouveaux prospects" value={stats.new_prospects.toString()} color="var(--orange)" />
+          <DailyStat emoji="📞" label="Closings bookés" value={stats.calls_booked.toString()} color="#3B82F6" />
+          <DailyStat emoji="✅" label="Closings réalisés" value={stats.calls_done.toString()} color="#A855F7" hint={stats.calls_no_show > 0 ? `${stats.calls_no_show} no-show` : undefined} />
+          <DailyStat emoji="🏆" label="Closings gagnés" value={stats.calls_won.toString()} color="var(--green)" hint={stats.calls_won > 0 ? `+${(stats.revenue_won_ht_cents / 100).toLocaleString('fr-FR')} € HT` : undefined} />
+          <DailyStat emoji="🎯" label="Taux closing" value={stats.closing_rate !== null ? `${stats.closing_rate}%` : '—'} color={stats.closing_rate !== null && stats.closing_rate >= 30 ? 'var(--green)' : 'var(--yellow)'} />
+          <DailyStat emoji="💰" label="Budget Ads (jour)" value={`${(stats.ads_budget_cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`} color="var(--text-mid)" hint="pro-rata mensuel" />
+          <DailyStat emoji="📈" label="Bénéfice (brut)" value={`${(stats.gross_profit_cents / 100).toLocaleString('fr-FR')} €`} color={stats.gross_profit_cents >= 0 ? 'var(--green)' : 'var(--red)'} hint="Encaissement − Ads − Frais presta" />
         </div>
       )}
     </div>
-  );
-}
-
-function DailyInput({ label, value, onChange, suffix, step = '1' }: { label: string; value: string; onChange: (v: string) => void; suffix: string; step?: string }) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <input
-          type="number" min="0" step={step} value={value} onChange={e => onChange(e.target.value)}
-          style={{
-            flex: 1, padding: '8px 10px', borderRadius: 8,
-            background: 'var(--night-mid)', border: '1px solid var(--border-md)',
-            color: 'var(--text)', fontSize: '0.9rem', outline: 'none',
-          }}
-        />
-        {suffix && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{suffix}</span>}
-      </div>
-    </label>
   );
 }
 

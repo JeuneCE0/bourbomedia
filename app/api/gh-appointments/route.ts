@@ -15,7 +15,14 @@ export async function GET(req: NextRequest) {
   if (id) {
     path = `gh_appointments?id=eq.${encodeURIComponent(id)}&select=*&limit=1`;
   } else if (pending) {
-    path = `gh_appointments?status=eq.completed&notes_completed_at=is.null&select=*&order=starts_at.desc&limit=50`;
+    // GHL flow: appointments are auto-confirmed on booking and stay 'scheduled' by
+    // default. Only "No Show" or "Cancelled" are explicit negative signals — anything
+    // else past its starts_at is treated as a call that happened and needs documenting.
+    const nowIso = new Date().toISOString();
+    path = `gh_appointments?starts_at=lt.${encodeURIComponent(nowIso)}`
+      + `&notes_completed_at=is.null`
+      + `&status=in.(scheduled,completed)`
+      + `&select=*&order=starts_at.desc&limit=50`;
   } else if (recent) {
     path = `gh_appointments?select=*&order=starts_at.desc&limit=30`;
   } else {

@@ -16,10 +16,10 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon:
       { href: '/dashboard/shoots',      label: 'Tournage',        icon: '🎬' },
       { href: '/dashboard/clients',     label: 'Clients',         icon: '👥' },
       { href: '/dashboard/calendar',    label: 'Calendriers',     icon: '📅' },
-      { href: '/dashboard/team',        label: 'Équipe',          icon: '👤' },
       { href: '/dashboard/finance',     label: 'Finances',        icon: '💰' },
       { href: '/dashboard/stats',       label: 'Statistiques',    icon: '📈' },
       { href: '/dashboard/automations', label: 'Automatisations', icon: '🤖' },
+      { href: '/dashboard/settings',    label: 'Paramètres',      icon: '⚙️' },
     ],
   },
 ];
