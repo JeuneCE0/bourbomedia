@@ -47,10 +47,40 @@ function fmtEUR(cents: number): string {
   return `${(cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`;
 }
 
+type Range = 'today' | 'week' | 'month' | '90d' | '365d' | 'all';
+const RANGE_LABEL: Record<Range, string> = {
+  today: "Aujourd'hui",
+  week: 'Cette semaine',
+  month: 'Ce mois',
+  '90d': '90 j',
+  '365d': '1 an',
+  all: 'Tout',
+};
+
+function rangeStart(r: Range): number {
+  const now = new Date();
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  if (r === 'today') return d.getTime();
+  if (r === 'week') {
+    // Monday-based week
+    const dow = d.getDay() === 0 ? 7 : d.getDay();
+    d.setDate(d.getDate() - (dow - 1));
+    return d.getTime();
+  }
+  if (r === 'month') {
+    return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  }
+  if (r === '90d') return Date.now() - 90 * 86400000;
+  if (r === '365d') return Date.now() - 365 * 86400000;
+  return 0;
+}
+
 export default function FinancePage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<Range>('month');
 
   useEffect(() => {
     Promise.all([
@@ -113,6 +143,13 @@ export default function FinancePage() {
 
   const maxMonthly = Math.max(...monthly.map(m => m.cents), 1);
   const totalRevenueAllTime = allRevenue.reduce((s, r) => s + r.cents, 0);
+
+  // Range-based KPI (today / week / month / 90d / 365d / all)
+  const rangeStartMs = rangeStart(range);
+  const inRangeRevenue = range === 'all' ? allRevenue : allRevenue.filter(r => new Date(r.date).getTime() >= rangeStartMs);
+  const rangeCents = inRangeRevenue.reduce((s, r) => s + r.cents, 0);
+
+  // Previous-period delta for "this month" only (other ranges are too volatile)
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
   const thisMonthCents = allRevenue.filter(r => new Date(r.date).getTime() >= monthStart).reduce((s, r) => s + r.cents, 0);
@@ -142,17 +179,29 @@ export default function FinancePage() {
 
   return (
     <div style={{ padding: 'clamp(20px, 4vw, 32px)', maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ marginBottom: 22 }}>
-        <h1 style={{
-          fontFamily: "'Bricolage Grotesque', sans-serif",
-          fontWeight: 800, fontSize: '1.7rem', color: 'var(--text)',
-          margin: 0, lineHeight: 1.2,
-        }}>
-          💰 Finance
-        </h1>
-        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-          Encaissements, factures impayées, prévisionnel — tout pour piloter le cash
-        </p>
+      <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h1 style={{
+            fontFamily: "'Bricolage Grotesque', sans-serif",
+            fontWeight: 800, fontSize: '1.7rem', color: 'var(--text)',
+            margin: 0, lineHeight: 1.2,
+          }}>
+            💰 Finance
+          </h1>
+          <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            Encaissements, factures impayées, prévisionnel — tout pour piloter le cash
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 10, background: 'var(--night-card)', border: '1px solid var(--border)' }}>
+          {(Object.keys(RANGE_LABEL) as Range[]).map(r => (
+            <button key={r} onClick={() => setRange(r)} style={{
+              padding: '6px 11px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              background: range === r ? 'var(--orange)' : 'transparent',
+              color: range === r ? '#fff' : 'var(--text-muted)',
+              fontSize: '0.76rem', fontWeight: 600, whiteSpace: 'nowrap',
+            }}>{RANGE_LABEL[r]}</button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -162,10 +211,10 @@ export default function FinancePage() {
           {/* KPI cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18 }}>
             <Kpi
-              emoji="💸" label="Encaissé ce mois" value={fmtEUR(thisMonthCents)} color="var(--green)"
-              extra={monthDelta !== null
+              emoji="💸" label={`Encaissé · ${RANGE_LABEL[range]}`} value={fmtEUR(rangeCents)} color="var(--green)"
+              extra={range === 'month' && monthDelta !== null
                 ? <span style={{ color: monthDelta >= 0 ? 'var(--green)' : 'var(--red)' }}>{monthDelta >= 0 ? '+' : ''}{monthDelta}% vs M-1</span>
-                : 'Premier mois'}
+                : `${inRangeRevenue.length} paiement${inRangeRevenue.length > 1 ? 's' : ''}`}
             />
             <Kpi emoji="📊" label="CA cumulé" value={fmtEUR(totalRevenueAllTime)} color="var(--orange)" extra={`${allRevenue.length} paiement${allRevenue.length > 1 ? 's' : ''}`} />
             <Kpi emoji="🎯" label="Panier moyen" value={fmtEUR(avgTicket)} extra="par paiement" color="#3B82F6" />
