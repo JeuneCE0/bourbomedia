@@ -32,6 +32,7 @@ interface GhAppointmentFromApi {
   contact_email: string | null;
   client_id: string | null;
   notes_completed_at: string | null;
+  opportunity_name?: string | null;
 }
 
 type EventKind = 'filming' | 'publication' | 'script_sent' | 'script_due' | 'task' | 'onboarding_deadline'
@@ -220,9 +221,9 @@ export default function CalendarPage() {
         date: a.starts_at.slice(0, 10),
         time: formatTime(a.starts_at),
         kind,
-        label: a.contact_name || a.contact_email || 'Contact GHL',
+        label: a.opportunity_name || a.contact_name || a.contact_email || 'Sans nom',
         client_id: a.client_id || undefined,
-        client_name: a.contact_name || undefined,
+        client_name: a.opportunity_name || a.contact_name || undefined,
       });
     });
 

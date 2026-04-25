@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { classifyCalendar, matchClientFromContact } from '@/lib/ghl-appointments';
 import { notifyAppointmentCompleted } from '@/lib/slack';
+import { listOpportunitiesByContact, resolveMapping, stageIdToProspectStatus } from '@/lib/ghl-opportunities';
 
 // GHL workflows POST appointment events here. Configure in GHL:
 //   Settings → Webhooks → URL = https://<host>/api/webhooks/ghl/appointment?secret=<GHL_WEBHOOK_SECRET>
@@ -103,8 +104,39 @@ export async function POST(req: NextRequest) {
     }
   } catch { /* tolerate */ }
 
+  // Best-effort enrich with the related GHL opportunity (name + pipeline stage).
+  // Only for closing calls (the others don't live in the sales pipeline).
+  let opportunity_id: string | null = null;
+  let opportunity_name: string | null = null;
+  let pipeline_id: string | null = null;
+  let pipeline_stage_id: string | null = null;
+  let pipeline_stage_name: string | null = null;
+  let prospect_status_from_pipeline: string | null = null;
+
+  if (calendarKind === 'closing' && ghlContactId) {
+    try {
+      const { mapping, pipeline } = await resolveMapping();
+      const opps = await listOpportunitiesByContact(ghlContactId);
+      // Prefer an opportunity in our target pipeline; fallback to the most recent
+      const candidate = (pipeline ? opps.find(o => o.pipelineId === pipeline.id) : null) || opps[0];
+      if (candidate) {
+        opportunity_id = candidate.id;
+        opportunity_name = candidate.name || null;
+        pipeline_id = candidate.pipelineId || null;
+        pipeline_stage_id = candidate.pipelineStageId || null;
+        if (pipeline_stage_id && pipeline) {
+          const stage = pipeline.stages.find(s => s.id === pipeline_stage_id);
+          pipeline_stage_name = stage?.name || null;
+        }
+        if (pipeline_stage_id) {
+          prospect_status_from_pipeline = stageIdToProspectStatus(mapping, pipeline_stage_id);
+        }
+      }
+    } catch { /* best-effort, don't block the webhook on GHL outages */ }
+  }
+
   // Upsert by ghl_appointment_id
-  const row = {
+  const row: Record<string, unknown> = {
     ghl_appointment_id: ghlAppointmentId,
     ghl_calendar_id: ghlCalendarId,
     ghl_contact_id: ghlContactId || null,
@@ -116,9 +148,19 @@ export async function POST(req: NextRequest) {
     contact_phone: phone || null,
     contact_name: fullName,
     client_id: clientId,
+    opportunity_id,
+    opportunity_name,
+    pipeline_id,
+    pipeline_stage_id,
+    pipeline_stage_name,
     raw_payload: payload as unknown as Record<string, unknown>,
     updated_at: new Date().toISOString(),
   };
+  // Reflect the GHL-side stage as our prospect_status only on first insert (the
+  // admin's manual choice in the dashboard wins on subsequent updates).
+  if (prospect_status_from_pipeline && !wasAlreadyCompleted && !existingNotesCompletedAt) {
+    row.prospect_status = prospect_status_from_pipeline;
+  }
 
   const upsert = await supaFetch('gh_appointments?on_conflict=ghl_appointment_id', {
     method: 'POST',
@@ -140,7 +182,7 @@ export async function POST(req: NextRequest) {
         contactName: fullName || email || 'Contact GHL',
         contactEmail: email,
         calendarKind,
-        startsAt: row.starts_at,
+        startsAt: row.starts_at as string,
         appointmentId: ghlAppointmentId,
       });
     } catch { /* tolerate slack failure */ }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import EmptyState from '@/components/ui/EmptyState';
 import AppointmentsToDocument from '@/components/AppointmentsToDocument';
+import ProspectsToFollowUp from '@/components/ProspectsToFollowUp';
 
 interface Client {
   id: string;
@@ -268,6 +269,9 @@ export default function DashboardPage() {
 
           {/* Appels à documenter (notes post-call → bidirectionnel GHL) */}
           <AppointmentsToDocument />
+
+          {/* Prospects à relancer (statuts En réflexion J+2 / Follow-up J+7) */}
+          <ProspectsToFollowUp />
 
           {/* Urgency: Today */}
           <UrgencySection

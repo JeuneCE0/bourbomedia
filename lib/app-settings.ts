@@ -4,12 +4,31 @@ import { supaFetch } from '@/lib/supabase';
 // via getSetting/setSetting, and it shows up in the Settings page automatically
 // if you also add an entry in the SETTINGS_DEFINITIONS array.
 
+export interface GhlPipelineMapping {
+  pipeline_name: string;
+  pipeline_id?: string;
+  stages: Record<string, string>; // GHL stage name → our prospect_status
+  stage_ids?: Record<string, string>; // GHL stage name → GHL stage ID (resolved by backfill)
+}
+
 export interface AppSettings {
   ads_budget_monthly_cents: number;
+  ghl_pipeline_mapping: GhlPipelineMapping;
 }
 
 export const SETTINGS_DEFAULTS: AppSettings = {
   ads_budget_monthly_cents: 0,
+  ghl_pipeline_mapping: {
+    pipeline_name: 'Pipeline Bourbon Média',
+    stages: {
+      'En réflexion': 'reflection',
+      'Ghosting': 'ghosting',
+      'Follow-up': 'follow_up',
+      'Attente signature + paiement': 'awaiting_signature',
+      'Contracté': 'contracted',
+      'Client régulier': 'regular',
+    },
+  },
 };
 
 export type SettingKey = keyof AppSettings;

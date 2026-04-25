@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { pushNotesToGhl } from '@/lib/ghl-appointments';
+import { resolveMapping, prospectStatusToStageId, updateOpportunityStage } from '@/lib/ghl-opportunities';
 
 // GET /api/gh-appointments?pending=1     → appointments completed but not yet documented
+// GET /api/gh-appointments?follow_up=1   → reflection (J+2) / follow_up (J+7) prospects whose
+//                                          relance window is reached (today or overdue)
 // GET /api/gh-appointments?recent=1      → last ~30 appointments (for the admin history view)
 // GET /api/gh-appointments?id=<uuid>     → single appointment
 export async function GET(req: NextRequest) {
@@ -10,6 +13,7 @@ export async function GET(req: NextRequest) {
   const id = url.searchParams.get('id');
   const pending = url.searchParams.get('pending');
   const recent = url.searchParams.get('recent');
+  const followUp = url.searchParams.get('follow_up');
 
   let path: string;
   if (id) {
@@ -23,6 +27,25 @@ export async function GET(req: NextRequest) {
       + `&notes_completed_at=is.null`
       + `&status=in.(scheduled,completed)`
       + `&select=*&order=starts_at.desc&limit=50`;
+  } else if (followUp) {
+    // Reflection (J+2) and follow_up (J+7) prospects whose relance window has been reached.
+    // We pull both statuses and let the API filter by elapsed days vs target.
+    const r = await supaFetch(
+      `gh_appointments?prospect_status=in.(reflection,follow_up)`
+      + `&notes_completed_at=not.is.null`
+      + `&select=*&order=notes_completed_at.asc&limit=50`,
+      {}, true,
+    );
+    if (!r.ok) return NextResponse.json({ error: 'fetch failed' }, { status: 500 });
+    const all = await r.json();
+    const now = Date.now();
+    const TARGET: Record<string, number> = { reflection: 2, follow_up: 7 };
+    const due = all.filter((a: { prospect_status: string; notes_completed_at: string }) => {
+      const target = TARGET[a.prospect_status] || 0;
+      const elapsed = Math.floor((now - new Date(a.notes_completed_at).getTime()) / 86400000);
+      return elapsed >= target;
+    });
+    return NextResponse.json({ appointments: due });
   } else if (recent) {
     path = `gh_appointments?select=*&order=starts_at.desc&limit=30`;
   } else {
@@ -69,16 +92,30 @@ export async function PATCH(req: NextRequest) {
   const row = rows[0];
 
   // Sync back to GHL contact (best effort)
+  let synced = false;
   if (row?.ghl_contact_id && (body.notes !== undefined || body.prospect_status !== undefined)) {
     try {
-      const ok = await pushNotesToGhl(row.ghl_contact_id, body.notes || row.notes || '', body.prospect_status ?? row.prospect_status);
-      if (ok) {
-        await supaFetch(`gh_appointments?id=eq.${encodeURIComponent(id)}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ ghl_synced_at: new Date().toISOString() }),
-        }, true);
+      synced = await pushNotesToGhl(row.ghl_contact_id, body.notes || row.notes || '', body.prospect_status ?? row.prospect_status);
+    } catch { /* tolerate */ }
+  }
+
+  // Push the prospect_status to the GHL opportunity stage (bidirectional pipeline sync)
+  if (row?.opportunity_id && body.prospect_status !== undefined && body.prospect_status) {
+    try {
+      const { mapping } = await resolveMapping();
+      const target = prospectStatusToStageId(mapping, body.prospect_status);
+      if (target.pipelineId && target.stageId) {
+        const ok = await updateOpportunityStage(row.opportunity_id, target.pipelineId, target.stageId);
+        if (ok) synced = true;
       }
     } catch { /* tolerate */ }
+  }
+
+  if (synced) {
+    await supaFetch(`gh_appointments?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ ghl_synced_at: new Date().toISOString() }),
+    }, true);
   }
 
   return NextResponse.json({ appointment: row });

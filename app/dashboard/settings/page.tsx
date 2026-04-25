@@ -219,19 +219,90 @@ function IntegrationsPanel() {
         </p>
       </Card>
 
-      <Card title="🪝 Webhook GHL — URL à configurer">
-        <div style={{
-          padding: '12px 14px', borderRadius: 8, background: 'var(--night-mid)',
-          border: '1px solid var(--border)', fontFamily: 'monospace',
-          fontSize: '0.78rem', color: 'var(--text-mid)', wordBreak: 'break-all',
-        }}>
-          POST https://bourbonmedia.fr/api/webhooks/ghl/appointment?secret=&lt;GHL_WEBHOOK_SECRET&gt;
+      <Card title="🪝 Webhooks GHL — URLs à configurer">
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text)', fontWeight: 600, marginBottom: 4 }}>1. Appointments (RDV)</div>
+          <div style={{
+            padding: '12px 14px', borderRadius: 8, background: 'var(--night-mid)',
+            border: '1px solid var(--border)', fontFamily: 'monospace',
+            fontSize: '0.76rem', color: 'var(--text-mid)', wordBreak: 'break-all',
+          }}>
+            POST https://bourbonmedia.fr/api/webhooks/ghl/appointment?secret=&lt;GHL_WEBHOOK_SECRET&gt;
+          </div>
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
+            Trigger : <em>Appointment Created / Status Changed</em>
+          </p>
         </div>
-        <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: 10, marginBottom: 0 }}>
-          À configurer dans <strong>GHL → Automation → Workflows</strong>, déclenché sur l&apos;événement <em>Appointment Created / Status Changed</em>.
-        </p>
+        <div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text)', fontWeight: 600, marginBottom: 4 }}>2. Opportunities (changement de stage pipeline)</div>
+          <div style={{
+            padding: '12px 14px', borderRadius: 8, background: 'var(--night-mid)',
+            border: '1px solid var(--border)', fontFamily: 'monospace',
+            fontSize: '0.76rem', color: 'var(--text-mid)', wordBreak: 'break-all',
+          }}>
+            POST https://bourbonmedia.fr/api/webhooks/ghl/opportunity?secret=&lt;GHL_WEBHOOK_SECRET&gt;
+          </div>
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
+            Trigger : <em>Pipeline Stage Changed</em> (sync GHL → Bourbomedia)
+          </p>
+        </div>
       </Card>
+
+      <BackfillCard />
     </>
+  );
+}
+
+function BackfillCard() {
+  const [running, setRunning] = useState(false);
+  const [since, setSince] = useState('2026-04-12');
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+
+  async function run() {
+    setRunning(true);
+    setResult(null);
+    try {
+      const r = await fetch(`/api/admin/ghl-backfill?since=${since}`, {
+        method: 'POST', headers: authHeaders(),
+      });
+      const d = await r.json().catch(() => ({}));
+      setResult(d);
+    } finally { setRunning(false); }
+  }
+
+  return (
+    <Card title="🔄 Backfill GHL — historique des appels & opportunités" subtitle="Importe rétroactivement tous les RDV et opportunités du pipeline depuis une date donnée. À lancer une seule fois.">
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 10 }}>
+        <label style={{ flex: '1 1 180px' }}>
+          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Depuis le</span>
+          <input type="date" value={since} onChange={e => setSince(e.target.value)} style={{
+            width: '100%', padding: '8px 12px', borderRadius: 8,
+            background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+            color: 'var(--text)', fontSize: '0.85rem', outline: 'none', fontFamily: 'inherit',
+          }} />
+        </label>
+        <button onClick={run} disabled={running} style={{
+          padding: '10px 18px', borderRadius: 8, background: 'var(--orange)',
+          color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
+          opacity: running ? 0.5 : 1,
+        }}>
+          {running ? '⏳ En cours…' : '🚀 Lancer le backfill'}
+        </button>
+      </div>
+      {result && (
+        <pre style={{
+          padding: '12px 14px', borderRadius: 8,
+          background: 'var(--night-mid)', border: '1px solid var(--border)',
+          fontSize: '0.74rem', color: 'var(--text-mid)', overflow: 'auto', margin: 0,
+          maxHeight: 280,
+        }}>
+          {JSON.stringify(result, null, 2)}
+        </pre>
+      )}
+      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 10, marginBottom: 0 }}>
+        ⚠️ Peut prendre 30 s à 2 min selon le volume. Les RDV existants sont mis à jour, les nouveaux sont insérés.
+      </p>
+    </Card>
   );
 }
 
