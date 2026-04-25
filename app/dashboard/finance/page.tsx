@@ -78,11 +78,34 @@ function rangeStart(r: Range): number {
   return 0;
 }
 
+function rangeToIsoBounds(r: Range): { from: string; to: string } {
+  const startMs = r === 'all' ? new Date('2020-01-01').getTime() : rangeStart(r);
+  const fromDate = new Date(startMs);
+  const toDate = new Date();
+  const toIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return { from: toIso(fromDate), to: toIso(toDate) };
+}
+
+interface ClosingStatsRange {
+  calls_booked: number;
+  calls_done: number;
+  calls_won: number;
+  calls_no_show: number;
+  closing_rate: number | null;
+  new_prospects: number;
+  revenue_paid_cents: number;
+  revenue_won_ht_cents: number;
+  ads_budget_cents: number;
+  provider_fees_cents: number;
+  gross_profit_cents: number;
+}
+
 export default function FinancePage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<Range>('month');
+  const [closingStats, setClosingStats] = useState<ClosingStatsRange | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -93,6 +116,13 @@ export default function FinancePage() {
       if (Array.isArray(p)) setPayments(p);
     }).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const { from, to } = rangeToIsoBounds(range);
+    fetch(`/api/closing-stats?from=${from}&to=${to}`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setClosingStats(d));
+  }, [range]);
 
   const now = new Date();
   const nowMs = Date.now();
@@ -223,6 +253,22 @@ export default function FinancePage() {
             <Kpi emoji="🎯" label="Panier moyen" value={fmtEUR(avgTicket)} extra="par paiement" color="#3B82F6" />
             <Kpi emoji="⏳" label="En attente" value={unpaidClients.length.toString()} color={unpaidClients.length > 0 ? 'var(--yellow)' : 'var(--green)'} extra={unpaidClients.length > 0 ? `${fmtEUR(pipelinePotential)} potentiels` : 'Tout encaissé'} />
           </div>
+
+          {/* Performance commerciale (auto from GHL) */}
+          {closingStats && (
+            <Card title={`📞 Performance commerciale · ${RANGE_LABEL[range]}`}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                <Kpi emoji="🆕" label="Nouveaux prospects" value={closingStats.new_prospects.toString()} color="var(--orange)" />
+                <Kpi emoji="📞" label="Closings bookés" value={closingStats.calls_booked.toString()} color="#3B82F6" />
+                <Kpi emoji="✅" label="Closings réalisés" value={closingStats.calls_done.toString()} color="#A855F7" extra={closingStats.calls_no_show > 0 ? `${closingStats.calls_no_show} no-show` : undefined} />
+                <Kpi emoji="🏆" label="Closings gagnés" value={closingStats.calls_won.toString()} color="var(--green)" extra={closingStats.calls_won > 0 ? `+${fmtEUR(closingStats.revenue_won_ht_cents)} HT` : undefined} />
+                <Kpi emoji="🎯" label="Taux closing" value={closingStats.closing_rate !== null ? `${closingStats.closing_rate}%` : '—'} color={closingStats.closing_rate !== null && closingStats.closing_rate >= 30 ? 'var(--green)' : 'var(--yellow)'} />
+                <Kpi emoji="💰" label="Budget Ads" value={fmtEUR(closingStats.ads_budget_cents)} color="var(--text-mid)" extra="pro-rata" />
+                <Kpi emoji="🛠️" label="Frais presta" value={fmtEUR(closingStats.provider_fees_cents)} color="var(--text-mid)" />
+                <Kpi emoji="📈" label="Bénéfice brut" value={fmtEUR(closingStats.gross_profit_cents)} color={closingStats.gross_profit_cents >= 0 ? 'var(--green)' : 'var(--red)'} extra="Encaissé − Ads − Presta" />
+              </div>
+            </Card>
+          )}
 
           {/* Monthly chart 12 months */}
           <Card title="📈 Encaissements — 12 derniers mois">
