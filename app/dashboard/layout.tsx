@@ -24,6 +24,12 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon:
       { href: '/dashboard/team', label: 'Équipe', icon: '👤' },
     ],
   },
+  {
+    title: 'Configuration',
+    items: [
+      { href: '/dashboard/automations', label: 'Automatisations', icon: '🤖' },
+    ],
+  },
 ];
 
 interface SearchResult {

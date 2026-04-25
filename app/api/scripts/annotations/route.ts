@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
+import { notifyAnnotationCreated } from '@/lib/slack';
 
 // Inline script annotations (highlight + note from the client).
 //
@@ -88,9 +89,43 @@ export async function POST(req: NextRequest) {
     }, true);
     if (!r.ok) {
       const errText = await r.text().catch(() => '');
-      return NextResponse.json({ error: errText || 'Impossible d\'enregistrer l\'annotation', migration_missing: errText.includes('relation') }, { status: r.status || 500 });
+      const migrationMissing = /relation|PGRST205|Could not find the table|does not exist|schema cache/i.test(errText);
+      // Try to extract a clean message from JSON-style errors
+      let cleanMessage = errText;
+      try {
+        const parsed = JSON.parse(errText);
+        cleanMessage = parsed.message || parsed.error || parsed.details || errText;
+      } catch { /* not JSON */ }
+      return NextResponse.json({
+        error: migrationMissing
+          ? "La fonctionnalité d'annotation n'est pas encore activée côté serveur."
+          : cleanMessage || "Impossible d'enregistrer l'annotation",
+        migration_missing: migrationMissing,
+      }, { status: migrationMissing ? 503 : (r.status || 500) });
     }
     const data = await r.json();
+
+    // Slack ping (non-blocking)
+    notifyAnnotationCreated(
+      client.business_name || 'Client',
+      client.contact_name || 'Client',
+      String(body.quote),
+      String(body.note),
+    ).catch(() => {});
+
+    // Activity log
+    try {
+      await supaFetch('client_events', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_id: client.id,
+          type: 'script_annotation_added',
+          payload: { quote_preview: String(body.quote).slice(0, 80) },
+          actor: 'client',
+        }),
+      }, true);
+    } catch { /* */ }
+
     return NextResponse.json(data[0], { status: 201 });
   }
 

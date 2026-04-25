@@ -157,15 +157,14 @@ export default function ScriptAnnotator({
     }
   }, [draftFor, draftNote, onCreate]);
 
-  // Sort annotations: unresolved first, then by created_at
-  const sortedAnnotations = useMemo(() => {
-    const arr = [...annotations];
-    arr.sort((a, b) => {
-      if (a.resolved !== b.resolved) return a.resolved ? 1 : -1;
-      return a.created_at.localeCompare(b.created_at);
-    });
-    return arr;
+  // Split annotations: open vs resolved
+  const { openAnnotations, resolvedAnnotations } = useMemo(() => {
+    const open = annotations.filter(a => !a.resolved).sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const resolved = annotations.filter(a => a.resolved).sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return { openAnnotations: open, resolvedAnnotations: resolved };
   }, [annotations]);
+
+  const [showResolved, setShowResolved] = useState(false);
 
   if (!editor) return null;
 
@@ -208,97 +207,131 @@ export default function ScriptAnnotator({
             <EditorContent editor={editor} />
           </div>
 
-          {/* Floating "Annotate" button on selection */}
-          {canAnnotate && floating && (
+          {/* Floating "Annotate" button on selection — Google Docs style */}
+          {canAnnotate && floating && !draftFor && (
             <button
+              // preventDefault on mouseDown so the editor selection isn't blurred
+              onMouseDown={e => e.preventDefault()}
               onClick={openDraft}
               style={{
                 position: 'absolute',
-                left: Math.max(10, floating.x - 60),
-                top: Math.max(40, floating.y),
+                left: Math.max(10, Math.min(floating.x - 75, (containerRef.current?.clientWidth || 600) - 160)),
+                top: Math.max(48, floating.y),
                 transform: 'translateY(-100%)',
-                background: 'var(--orange)',
+                background: 'linear-gradient(135deg, var(--orange), #C9541E)',
                 color: '#fff',
-                border: 'none',
+                border: '2px solid rgba(255,255,255,.15)',
                 borderRadius: 999,
-                padding: '7px 14px',
-                fontSize: '0.78rem',
-                fontWeight: 700,
+                padding: '9px 18px',
+                fontSize: '0.85rem',
+                fontWeight: 800,
                 cursor: 'pointer',
-                boxShadow: '0 6px 16px rgba(0,0,0,.4)',
+                boxShadow: '0 8px 24px rgba(232,105,43,.55), 0 2px 6px rgba(0,0,0,.3)',
                 zIndex: 50,
                 whiteSpace: 'nowrap',
-                display: 'flex', alignItems: 'center', gap: 6,
+                display: 'flex', alignItems: 'center', gap: 8,
+                animation: 'bm-annot-pop .18s ease-out',
+                letterSpacing: 0.2,
               }}
             >
-              <span aria-hidden>💬</span> Annoter
+              <span aria-hidden style={{ fontSize: '1.05rem' }}>💬</span> Annoter ce passage
+              <style>{`
+                @keyframes bm-annot-pop {
+                  from { transform: translateY(-100%) scale(.85); opacity: 0; }
+                  to   { transform: translateY(-100%) scale(1);    opacity: 1; }
+                }
+              `}</style>
             </button>
           )}
 
-          {/* Draft popover */}
-          {canAnnotate && draftFor && (
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'rgba(0,0,0,.55)', zIndex: 60,
-              display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-              padding: 24,
-            }} onClick={() => setDraftFor(null)}>
-              <div onClick={e => e.stopPropagation()} style={{
-                background: 'var(--night-raised)', border: '1px solid var(--border-orange)',
-                borderRadius: 12, padding: 18, maxWidth: 460, width: '100%',
-                boxShadow: '0 12px 40px rgba(0,0,0,.5)',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)' }}>
-                    💬 Nouveau commentaire
-                  </span>
-                  <button onClick={() => setDraftFor(null)} style={{
-                    background: 'transparent', border: 'none', color: 'var(--text-muted)',
-                    fontSize: '1.1rem', cursor: 'pointer', padding: 4, lineHeight: 1,
-                  }} aria-label="Fermer">✕</button>
-                </div>
-                <blockquote style={{
-                  borderLeft: '3px solid var(--yellow)', padding: '6px 12px', margin: '0 0 12px',
-                  background: 'rgba(250,204,21,.08)', borderRadius: '0 8px 8px 0',
-                  fontSize: '0.82rem', color: 'var(--text-mid)', fontStyle: 'italic',
-                  maxHeight: 80, overflowY: 'auto',
+          {/* Draft popover — anchored near the selection (not full-screen) */}
+          {canAnnotate && draftFor && (() => {
+            const containerW = containerRef.current?.clientWidth || 600;
+            const popW = Math.min(440, containerW - 32);
+            const anchorX = floating?.x ?? containerW / 2;
+            const anchorY = floating?.y ?? 80;
+            const left = Math.max(16, Math.min(anchorX - popW / 2, containerW - popW - 16));
+            return (
+              <>
+                {/* Soft scrim */}
+                <div onClick={() => setDraftFor(null)} style={{
+                  position: 'absolute', inset: 0, background: 'rgba(0,0,0,.25)', zIndex: 55,
+                  backdropFilter: 'blur(2px)',
+                }} />
+                <div onClick={e => e.stopPropagation()} style={{
+                  position: 'absolute', left, top: Math.max(60, anchorY + 18),
+                  width: popW, zIndex: 60,
+                  background: 'var(--night-raised)', border: '1px solid var(--border-orange)',
+                  borderRadius: 14, padding: 16,
+                  boxShadow: '0 16px 48px rgba(0,0,0,.6)',
+                  animation: 'bm-pop-slide .2s ease-out',
                 }}>
-                  « {draftFor.quote} »
-                </blockquote>
-                <textarea
-                  value={draftNote}
-                  onChange={e => setDraftNote(e.target.value)}
-                  placeholder="Que faut-il modifier ? (ex: trop long, j'aimerais qu'on parle plutôt de…)"
-                  rows={4}
-                  autoFocus
-                  style={{
-                    width: '100%', boxSizing: 'border-box', padding: '10px 12px',
-                    borderRadius: 8, background: 'var(--night-mid)',
-                    border: '1px solid var(--border-md)', color: 'var(--text)',
-                    fontSize: '0.88rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none',
-                  }}
-                />
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-                  <button onClick={() => setDraftFor(null)} style={{
-                    padding: '8px 16px', borderRadius: 8, background: 'transparent',
-                    border: '1px solid var(--border-md)', color: 'var(--text-muted)',
-                    cursor: 'pointer', fontSize: '0.82rem',
-                  }}>Annuler</button>
-                  <button
-                    onClick={submitDraft}
-                    disabled={!draftNote.trim() || submitting}
-                    style={{
-                      padding: '8px 18px', borderRadius: 8, background: 'var(--orange)',
-                      color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.82rem',
-                      fontWeight: 700, opacity: !draftNote.trim() || submitting ? 0.5 : 1,
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span aria-hidden style={{ fontSize: '1rem' }}>💬</span> Votre commentaire
+                    </span>
+                    <button onClick={() => setDraftFor(null)} style={{
+                      background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                      fontSize: '1.1rem', cursor: 'pointer', padding: 4, lineHeight: 1,
+                    }} aria-label="Fermer">✕</button>
+                  </div>
+                  <blockquote style={{
+                    borderLeft: '3px solid var(--yellow)', padding: '8px 12px', margin: '0 0 12px',
+                    background: 'rgba(250,204,21,.08)', borderRadius: '0 8px 8px 0',
+                    fontSize: '0.8rem', color: 'var(--text-mid)', fontStyle: 'italic',
+                    maxHeight: 80, overflowY: 'auto',
+                  }}>
+                    « {draftFor.quote.length > 200 ? draftFor.quote.slice(0, 200) + '…' : draftFor.quote} »
+                  </blockquote>
+                  <textarea
+                    value={draftNote}
+                    onChange={e => setDraftNote(e.target.value)}
+                    onKeyDown={e => {
+                      // Ctrl/Cmd+Enter to submit
+                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitDraft();
+                      if (e.key === 'Escape') setDraftFor(null);
                     }}
-                  >
-                    {submitting ? '⏳ Envoi…' : '💾 Enregistrer'}
-                  </button>
+                    placeholder="Que voulez-vous changer ?"
+                    rows={3}
+                    autoFocus
+                    style={{
+                      width: '100%', boxSizing: 'border-box', padding: '10px 12px',
+                      borderRadius: 8, background: 'var(--night-mid)',
+                      border: '1px solid var(--border-md)', color: 'var(--text)',
+                      fontSize: '0.88rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none',
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', flex: 1 }}>
+                      ⌘/Ctrl + ↵ pour valider
+                    </span>
+                    <button onClick={() => setDraftFor(null)} style={{
+                      padding: '7px 14px', borderRadius: 8, background: 'transparent',
+                      border: '1px solid var(--border-md)', color: 'var(--text-muted)',
+                      cursor: 'pointer', fontSize: '0.78rem',
+                    }}>Annuler</button>
+                    <button
+                      onClick={submitDraft}
+                      disabled={!draftNote.trim() || submitting}
+                      style={{
+                        padding: '7px 16px', borderRadius: 8, background: 'var(--orange)',
+                        color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.78rem',
+                        fontWeight: 700, opacity: !draftNote.trim() || submitting ? 0.5 : 1,
+                      }}
+                    >
+                      {submitting ? '⏳ Envoi…' : '💾 Enregistrer'}
+                    </button>
+                  </div>
+                  <style>{`
+                    @keyframes bm-pop-slide {
+                      from { transform: translateY(-6px); opacity: 0; }
+                      to   { transform: translateY(0);     opacity: 1; }
+                    }
+                  `}</style>
                 </div>
-              </div>
-            </div>
-          )}
+              </>
+            );
+          })()}
         </div>
 
         {/* Sidebar */}
@@ -315,11 +348,11 @@ export default function ScriptAnnotator({
               <span aria-hidden>💬</span> Annotations
             </span>
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              {sortedAnnotations.filter(a => !a.resolved).length} ouvertes
+              {openAnnotations.length} ouverte{openAnnotations.length !== 1 ? 's' : ''}
             </span>
           </div>
 
-          {sortedAnnotations.length === 0 ? (
+          {openAnnotations.length === 0 && resolvedAnnotations.length === 0 ? (
             <div style={{
               padding: '22px 14px', textAlign: 'center',
               fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5,
@@ -332,16 +365,52 @@ export default function ScriptAnnotator({
                 : 'Aucune annotation pour le moment.')}
             </div>
           ) : (
-            sortedAnnotations.map(a => (
-              <AnnotationCard
-                key={a.id}
-                annotation={a}
-                onUpdate={onUpdate}
-                onDelete={canAnnotate && a.author_type === 'client' ? onDelete : undefined}
-                hideResolveButton={hideResolveButton}
-                canEdit={canAnnotate && a.author_type === 'client'}
-              />
-            ))
+            <>
+              {openAnnotations.map(a => (
+                <AnnotationCard
+                  key={a.id}
+                  annotation={a}
+                  onUpdate={onUpdate}
+                  onDelete={canAnnotate && a.author_type === 'client' ? onDelete : undefined}
+                  hideResolveButton={hideResolveButton}
+                  canEdit={canAnnotate && a.author_type === 'client'}
+                />
+              ))}
+
+              {resolvedAnnotations.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setShowResolved(s => !s)}
+                    style={{
+                      marginTop: 4, padding: '8px 12px', borderRadius: 8,
+                      background: 'transparent', border: '1px dashed var(--border-md)',
+                      color: 'var(--text-muted)', cursor: 'pointer',
+                      fontSize: '0.74rem', fontWeight: 600,
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span aria-hidden>{showResolved ? '▼' : '▶'}</span>
+                      Résolues
+                    </span>
+                    <span style={{
+                      background: 'var(--night-mid)', color: 'var(--text-muted)',
+                      borderRadius: 999, padding: '1px 7px', fontSize: '0.66rem',
+                    }}>{resolvedAnnotations.length}</span>
+                  </button>
+                  {showResolved && resolvedAnnotations.map(a => (
+                    <AnnotationCard
+                      key={a.id}
+                      annotation={a}
+                      onUpdate={onUpdate}
+                      onDelete={canAnnotate && a.author_type === 'client' ? onDelete : undefined}
+                      hideResolveButton={hideResolveButton}
+                      canEdit={canAnnotate && a.author_type === 'client'}
+                    />
+                  ))}
+                </>
+              )}
+            </>
           )}
         </aside>
       </div>

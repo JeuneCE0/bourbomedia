@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
 import { sendWhatsAppMessage, sendEmailMessage } from '@/lib/ghl';
+import { triggerWorkflow } from '@/lib/ghl-workflows';
 import crypto from 'crypto';
 
 async function logEvent(clientId: string, type: string, payload?: Record<string, unknown>) {
@@ -81,6 +82,8 @@ export async function PUT(req: NextRequest) {
       if (prev && fields.status === 'script_review' && prev.status !== 'script_review') {
         logEvent(id, 'script_sent_to_client', { version: updated.script_version });
         pushNotification(id, 'script_ready', 'Votre script est prêt à relire ✍', 'Connectez-vous pour le consulter et le valider.');
+        // GHL workflow trigger (tag-based) — runs whether or not direct sends are enabled
+        triggerWorkflow(updated.ghl_contact_id, 'script_ready').catch(() => {});
         if (notifyEnabled && updated.ghl_contact_id) {
           const portalUrl = updated.portal_token ? `https://bourbonmedia.fr/portal?token=${updated.portal_token}` : '';
           await sendWhatsAppMessage(updated.ghl_contact_id,
@@ -101,6 +104,7 @@ export async function PUT(req: NextRequest) {
       if (prev && fields.delivered_at && !prev.delivered_at) {
         logEvent(id, 'video_delivered', { video_url: updated.video_url });
         pushNotification(id, 'video_delivered', 'Votre vidéo est prête 🎬', 'Découvrez le résultat final dans votre espace.');
+        triggerWorkflow(updated.ghl_contact_id, 'video_delivered').catch(() => {});
         if (notifyEnabled && updated.ghl_contact_id) {
           const portalUrl = updated.portal_token ? `https://bourbonmedia.fr/portal?token=${updated.portal_token}` : '';
           await sendWhatsAppMessage(updated.ghl_contact_id,
@@ -123,6 +127,12 @@ export async function PUT(req: NextRequest) {
         const d = new Date(fields.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
         pushNotification(id, 'filming_scheduled', `Tournage planifié 🎥`, `Votre tournage est prévu le ${d}.`);
         logEvent(id, 'filming_scheduled', { date: fields.filming_date });
+        triggerWorkflow(updated.ghl_contact_id, 'filming_scheduled').catch(() => {});
+      }
+
+      // Project published
+      if (prev && fields.status === 'published' && prev.status !== 'published') {
+        triggerWorkflow(updated.ghl_contact_id, 'project_published').catch(() => {});
       }
 
       // Generic status change logging

@@ -98,6 +98,36 @@ export function notifyTaskDeadline(clientName: string, taskText: string, dueDate
   });
 }
 
+export function notifyAnnotationsSent(clientName: string, count: number, samples: string[]) {
+  const sample = samples.slice(0, 3).map(s => `• ${s.slice(0, 140)}${s.length > 140 ? '…' : ''}`).join('\n');
+  return sendSlackNotification({
+    text: `${clientName} a envoyé ${count} modification${count > 1 ? 's' : ''} sur le script`,
+    blocks: [
+      { type: 'header', text: { type: 'plain_text', text: '✏️ Modifications demandées', emoji: true } },
+      { type: 'section', fields: [
+        { type: 'mrkdwn', text: `*Commerce:*\n${clientName}` },
+        { type: 'mrkdwn', text: `*Annotations:*\n${count}` },
+      ]},
+      ...(sample ? [{ type: 'section' as const, text: { type: 'mrkdwn' as const, text: `*Premières annotations :*\n${sample}` } }] : []),
+    ],
+  });
+}
+
+export function notifyAnnotationCreated(clientName: string, contactName: string, quote: string, note: string) {
+  return sendSlackNotification({
+    text: `📝 ${clientName} a annoté le script`,
+    blocks: [
+      { type: 'header', text: { type: 'plain_text', text: '🖍️ Nouvelle annotation client', emoji: true } },
+      { type: 'section', fields: [
+        { type: 'mrkdwn', text: `*Commerce:*\n${clientName}` },
+        { type: 'mrkdwn', text: `*Par:*\n${contactName}` },
+      ]},
+      { type: 'section', text: { type: 'mrkdwn', text: `*Sur ce passage :*\n> ${quote.slice(0, 200)}${quote.length > 200 ? '…' : ''}` } },
+      { type: 'section', text: { type: 'mrkdwn', text: `*Commentaire :*\n${note.slice(0, 400)}${note.length > 400 ? '…' : ''}` } },
+    ],
+  });
+}
+
 export function notifyPublished(clientName: string) {
   return sendSlackNotification({
     text: `Vidéo publiée — ${clientName}`,
