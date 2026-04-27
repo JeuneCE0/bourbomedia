@@ -349,6 +349,7 @@ export default function PipelinePage() {
                       dragging={dragClientId === c.id}
                       onDragStart={onDragStart}
                       onDragEnd={onDragEnd}
+                      onMove={moveClient}
                     />
                   ))}
                 </div>
@@ -413,7 +414,7 @@ export default function PipelinePage() {
 
 /* Card component */
 function PipelineCard({
-  client: c, fields, moving, dragging, onDragStart, onDragEnd,
+  client: c, fields, moving, dragging, onDragStart, onDragEnd, onMove,
 }: {
   client: Client;
   fields: CardField[];
@@ -421,9 +422,11 @@ function PipelineCard({
   dragging: boolean;
   onDragStart: (e: React.DragEvent, id: string) => void;
   onDragEnd: (e: React.DragEvent) => void;
+  onMove: (clientId: string, newStatus: string) => void;
 }) {
   const days = daysIn(c);
   const stale = days > 7;
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div
@@ -438,6 +441,7 @@ function PipelineCard({
         opacity: moving ? 0.4 : dragging ? 0.5 : 1,
         cursor: 'grab',
         transition: 'opacity .15s, box-shadow .15s',
+        position: 'relative',
       }}
     >
       <Link href={`/dashboard/clients/${c.id}`} style={{
@@ -493,6 +497,57 @@ function PipelineCard({
           {days === 0 ? "Aujourd'hui" : `${days} j`}
         </div>
       )}
+
+      {/* Move-to button — explicit alternative to drag-and-drop */}
+      <div
+        onMouseDown={e => e.stopPropagation()}
+        style={{ marginTop: 6, paddingTop: 6, borderTop: '1px dashed var(--border)', position: 'relative' }}
+      >
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); setMenuOpen(o => !o); }}
+          style={{
+            width: '100%', padding: '4px 8px', borderRadius: 6,
+            background: menuOpen ? 'var(--orange)' : 'transparent',
+            color: menuOpen ? '#fff' : 'var(--text-muted)',
+            border: '1px solid var(--border-md)',
+            cursor: 'pointer', fontSize: '0.66rem', fontWeight: 600,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+          }}
+        >
+          <span>↗ Déplacer vers</span>
+          <span style={{ fontSize: '0.66rem' }}>{menuOpen ? '×' : '▾'}</span>
+        </button>
+        {menuOpen && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+            marginTop: 4, padding: 4, borderRadius: 8,
+            background: 'var(--night-card)', border: '1px solid var(--border-md)',
+            boxShadow: '0 8px 24px rgba(0,0,0,.5)',
+            display: 'flex', flexDirection: 'column', gap: 1,
+            maxHeight: 280, overflowY: 'auto',
+          }}>
+            {STAGES.filter(s => s.key !== c.status).map(stage => (
+              <button
+                key={stage.key}
+                type="button"
+                onClick={e => { e.stopPropagation(); setMenuOpen(false); onMove(c.id, stage.key); }}
+                style={{
+                  textAlign: 'left', padding: '6px 8px', borderRadius: 4,
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  fontSize: '0.74rem', color: 'var(--text)',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--night-mid)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
+                <span style={{ flex: 1 }}>{stage.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
