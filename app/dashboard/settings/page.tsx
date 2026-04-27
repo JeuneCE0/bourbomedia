@@ -865,25 +865,37 @@ function DataSyncPanel() {
 }
 
 function SyncCard({
-  emoji, title, description, endpoint, confirmText,
-}: { emoji: string; title: string; description: string; endpoint: string; confirmText: string }) {
+  emoji, title, description, endpoint,
+}: { emoji: string; title: string; description: string; endpoint: string; confirmText?: string }) {
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [issues, setIssues] = useState<string[]>([]);
-  const [showDetails, setShowDetails] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; msg: string; issues: string[]; raw?: unknown } | null>(null);
 
   async function run() {
-    if (!confirm(confirmText)) return;
-    setBusy(true); setMsg(null); setIssues([]); setShowDetails(false);
+    setBusy(true); setResult(null);
     try {
+      console.log('[sync]', endpoint);
       const r = await fetch(endpoint, { method: 'POST', headers: authHeaders() });
-      const d = await r.json();
+      let d: { message?: string; error?: string; imported?: number; issues?: string[] } = {};
+      try { d = await r.json(); } catch { /* non-JSON */ }
+      console.log('[sync] response', r.status, d);
       if (r.ok) {
-        setMsg(d.message || 'Sync OK');
-        if (Array.isArray(d.issues) && d.issues.length > 0) setIssues(d.issues);
-      } else setMsg(d.error || 'Erreur');
+        setResult({
+          ok: true,
+          msg: d.message || `OK (${d.imported || 0} importé${(d.imported || 0) > 1 ? 's' : ''})`,
+          issues: Array.isArray(d.issues) ? d.issues : [],
+          raw: d,
+        });
+      } else {
+        setResult({
+          ok: false,
+          msg: d.error || `HTTP ${r.status}`,
+          issues: Array.isArray(d.issues) ? d.issues : [],
+          raw: d,
+        });
+      }
     } catch (e: unknown) {
-      setMsg((e as Error).message);
+      console.error('[sync] error', e);
+      setResult({ ok: false, msg: 'Erreur réseau : ' + (e as Error).message, issues: [] });
     } finally { setBusy(false); }
   }
 
@@ -902,39 +914,31 @@ function SyncCard({
           </p>
         </div>
         <button onClick={run} disabled={busy} style={{
-          padding: '9px 16px', borderRadius: 8, background: 'var(--orange)',
+          padding: '9px 16px', borderRadius: 8, background: busy ? 'var(--text-muted)' : 'var(--orange)',
           border: 'none', color: '#fff', cursor: busy ? 'wait' : 'pointer',
-          fontSize: '0.84rem', fontWeight: 700, opacity: busy ? 0.6 : 1, whiteSpace: 'nowrap',
+          fontSize: '0.84rem', fontWeight: 700, whiteSpace: 'nowrap',
         }}>
           {busy ? '⏳ En cours…' : '🔄 Lancer'}
         </button>
       </div>
-      {msg && (
+      {result && (
         <div style={{
-          marginTop: 12, padding: '8px 12px', borderRadius: 8,
-          background: 'var(--night-mid)', fontSize: '0.78rem', color: 'var(--text-mid)',
+          marginTop: 12, padding: '10px 12px', borderRadius: 8,
+          background: result.ok ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.10)',
+          border: `1px solid ${result.ok ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)'}`,
+          fontSize: '0.8rem', color: result.ok ? '#86EFAC' : '#FCA5A5', lineHeight: 1.5,
         }}>
-          {msg}
-          {issues.length > 0 && (
-            <>
-              {' · '}
-              <button onClick={() => setShowDetails(s => !s)} style={{
-                background: 'none', border: 'none', color: 'var(--orange)', cursor: 'pointer',
-                fontSize: '0.78rem', textDecoration: 'underline', padding: 0,
-              }}>
-                {showDetails ? 'masquer détails' : `voir ${issues.length} détail${issues.length > 1 ? 's' : ''}`}
-              </button>
-            </>
+          <div style={{ fontWeight: 600 }}>{result.ok ? '✓' : '✕'} {result.msg}</div>
+          {result.issues.length > 0 && (
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: 'pointer', color: 'var(--text-mid)', fontWeight: 500 }}>
+                Voir {result.issues.length} détail{result.issues.length > 1 ? 's' : ''}
+              </summary>
+              <div style={{ marginTop: 6, color: 'var(--text-mid)', fontWeight: 400 }}>
+                {result.issues.map((iss, i) => <div key={i} style={{ marginBottom: 3 }}>• {iss}</div>)}
+              </div>
+            </details>
           )}
-        </div>
-      )}
-      {showDetails && issues.length > 0 && (
-        <div style={{
-          marginTop: 8, padding: '10px 12px', borderRadius: 8,
-          background: 'var(--night-mid)', border: '1px solid var(--border)',
-          fontSize: '0.74rem', color: 'var(--text-mid)', lineHeight: 1.6,
-        }}>
-          {issues.map((iss, i) => <div key={i} style={{ marginBottom: 3 }}>• {iss}</div>)}
         </div>
       )}
     </div>

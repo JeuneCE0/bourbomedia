@@ -26,8 +26,23 @@ export async function POST(req: NextRequest) {
   let invoices;
   try {
     invoices = await listGhlInvoices({ status: 'paid', daysBack: days, limit: 500 });
+    console.log(`[ghl-sync-invoices] Retrieved ${invoices.length} invoices from GHL (status=paid, daysBack=${days})`);
   } catch (e: unknown) {
-    return NextResponse.json({ error: 'GHL fetch failed: ' + (e as Error).message }, { status: 500 });
+    console.error('[ghl-sync-invoices] GHL API error:', e);
+    return NextResponse.json({
+      error: 'GHL fetch failed: ' + (e as Error).message,
+      hint: 'Vérifie GHL_API_KEY (scope invoices.readonly requis) et GHL_LOCATION_ID',
+    }, { status: 500 });
+  }
+
+  if (invoices.length === 0) {
+    return NextResponse.json({
+      days,
+      imported: 0, skipped: 0, unmatched: 0, createdClients: 0,
+      total_seen: 0,
+      issues: [`Aucune facture en statut 'paid' retournée par GHL sur les ${days} derniers jours. Vérifie : (1) qu'il y a bien des factures payées dans GHL · Payments · Invoices, (2) que la clé API a le scope 'invoices.readonly', (3) que GHL_LOCATION_ID pointe vers la bonne sous-location.`],
+      message: `Aucune facture trouvée sur les ${days} derniers jours.`,
+    });
   }
 
   for (const inv of invoices) {
