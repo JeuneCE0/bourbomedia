@@ -82,11 +82,16 @@ export default function ClosingRoomPage() {
   const [transcribing, setTranscribing] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [audioLevel, setAudioLevel] = useState(0); // 0-100 (RMS volume)
+  const [maxLevelSeen, setMaxLevelSeen] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const startTsRef = useRef<number>(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const meterRafRef = useRef<number | null>(null);
 
   // AI summary
   const [summarizing, setSummarizing] = useState(false);
@@ -140,9 +145,44 @@ export default function ClosingRoomPage() {
   // ── Audio recording ───────────────────────────────────────────────
   async function startRecording() {
     setRecordError(null);
+    setMaxLevelSeen(0);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       streamRef.current = stream;
+
+      // Audio level meter via Web Audio API
+      try {
+        type WindowWithWebkitAudio = Window & { webkitAudioContext?: typeof AudioContext };
+        const Ctor = window.AudioContext || (window as WindowWithWebkitAudio).webkitAudioContext;
+        if (Ctor) {
+          const ctx = new Ctor();
+          audioCtxRef.current = ctx;
+          const source = ctx.createMediaStreamSource(stream);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 1024;
+          source.connect(analyser);
+          analyserRef.current = analyser;
+          const data = new Uint8Array(analyser.fftSize);
+          const tick = () => {
+            analyser.getByteTimeDomainData(data);
+            // RMS sur le signal normalisé [-1, 1]
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) {
+              const v = (data[i] - 128) / 128;
+              sum += v * v;
+            }
+            const rms = Math.sqrt(sum / data.length);
+            const level = Math.min(100, Math.round(rms * 250)); // 0-100
+            setAudioLevel(level);
+            setMaxLevelSeen(prev => Math.max(prev, level));
+            meterRafRef.current = requestAnimationFrame(tick);
+          };
+          tick();
+        }
+      } catch { /* meter optionnel */ }
+
       const mr = new MediaRecorder(stream);
       chunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
@@ -165,7 +205,10 @@ export default function ClosingRoomPage() {
       mediaRecorderRef.current.stop();
     }
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+    if (meterRafRef.current) { cancelAnimationFrame(meterRafRef.current); meterRafRef.current = null; }
+    if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => null); audioCtxRef.current = null; }
     setRecording(false);
+    setAudioLevel(0);
   }
 
   async function handleStop() {
@@ -173,6 +216,14 @@ export default function ClosingRoomPage() {
     streamRef.current = null;
     const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
     chunksRef.current = [];
+
+    // Garde-fou : si aucun son détecté pendant tout l'enregistrement, on évite
+    // d'envoyer à Whisper (qui hallucinerait des sous-titres random)
+    if (maxLevelSeen < 5) {
+      setRecordError(`Aucun son détecté (volume max ${maxLevelSeen}/100). Vérifie : autorisation micro Chrome/Safari, le bon micro sélectionné dans les Réglages système, volume d'entrée pas à zéro.`);
+      return;
+    }
+
     setTranscribing(true);
     setRecordError(null);
     try {
@@ -187,6 +238,8 @@ export default function ClosingRoomPage() {
           const block = `[Vocal ${stamp}] ${d.text}`;
           return prev.trim() ? `${prev}\n\n${block}` : block;
         });
+      } else if (d.empty) {
+        setRecordError(d.hint || 'Audio trop faible — Whisper n\'a rien compris.');
       } else {
         setRecordError(d.error || 'Transcription échouée');
       }
@@ -321,19 +374,52 @@ export default function ClosingRoomPage() {
                   {transcribing ? '⏳ Transcription…' : '🎙️ Enregistrer (vocal → texte)'}
                 </button>
               ) : (
-                <button onClick={stopRecording} style={{
-                  padding: '12px 18px', borderRadius: 10,
-                  background: '#EF4444', border: 'none',
-                  color: '#fff', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer',
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  animation: 'bm-pulse 1.5s infinite',
-                }}>
-                  <style>{`@keyframes bm-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.6 } }`}</style>
-                  ⏹ Arrêter ({Math.floor(elapsedSec / 60)}:{String(elapsedSec % 60).padStart(2, '0')})
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <button onClick={stopRecording} style={{
+                    padding: '12px 18px', borderRadius: 10,
+                    background: '#EF4444', border: 'none',
+                    color: '#fff', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer',
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    animation: 'bm-pulse 1.5s infinite',
+                  }}>
+                    <style>{`@keyframes bm-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.6 } }`}</style>
+                    ⏹ Arrêter ({Math.floor(elapsedSec / 60)}:{String(elapsedSec % 60).padStart(2, '0')})
+                  </button>
+                  {/* Audio level meter */}
+                  <div style={{
+                    flex: 1, minWidth: 160, maxWidth: 280,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <span aria-hidden style={{ fontSize: '0.85rem' }}>{audioLevel < 5 ? '🔇' : audioLevel < 30 ? '🔈' : audioLevel < 60 ? '🔉' : '🔊'}</span>
+                    <div style={{
+                      flex: 1, height: 10, borderRadius: 5,
+                      background: 'var(--night-mid)', border: '1px solid var(--border)',
+                      overflow: 'hidden', position: 'relative',
+                    }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${audioLevel}%`,
+                        background: audioLevel < 5
+                          ? '#EF4444'
+                          : audioLevel < 20
+                            ? '#F97316'
+                            : 'linear-gradient(90deg, #22C55E 0%, #84CC16 100%)',
+                        transition: 'width 80ms ease-out',
+                      }} />
+                    </div>
+                    <span style={{ fontSize: '0.7rem', color: audioLevel < 5 ? '#FCA5A5' : 'var(--text-muted)', fontWeight: 600, minWidth: 36, textAlign: 'right' }}>
+                      {audioLevel < 5 ? 'silence' : `${audioLevel}%`}
+                    </span>
+                  </div>
+                </div>
               )}
               {recordError && (
-                <span style={{ fontSize: '0.74rem', color: '#FCA5A5' }}>{recordError}</span>
+                <div style={{
+                  fontSize: '0.78rem', color: '#FCA5A5',
+                  padding: '8px 10px', borderRadius: 8,
+                  background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)',
+                  width: '100%', boxSizing: 'border-box',
+                }}>⚠️ {recordError}</div>
               )}
             </div>
 
