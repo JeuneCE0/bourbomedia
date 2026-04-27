@@ -167,12 +167,29 @@ function computeNextAction(
   scriptStatus: string | null,
   hasDelivery: boolean,
   hasFeedback: boolean,
-  client?: { status?: string; video_validated_at?: string | null; publication_date_confirmed?: boolean; video_changes_requested?: boolean; updated_at?: string; created_at?: string; filming_date?: string } | null,
+  client?: { status?: string; video_validated_at?: string | null; publication_date_confirmed?: boolean; video_changes_requested?: boolean; updated_at?: string; created_at?: string; filming_date?: string; publication_deadline?: string } | null,
 ): NextAction {
   // Helper : pick the most recent timestamp we can rely on as "stage entered"
   const stageEnteredAt = client?.updated_at ? new Date(client.updated_at)
     : client?.created_at ? new Date(client.created_at)
     : new Date();
+
+  // Highest-priority: if the project is already published, nothing else
+  // matters — show the celebration state. (Without this guard, an old
+  // 'Réservez votre tournage' message can leak in when hasDelivery is false
+  // on a published client.)
+  if (client?.status === 'published') {
+    const pubDate = client.publication_deadline ? new Date(client.publication_deadline) : null;
+    const isFuture = pubDate ? pubDate.getTime() > Date.now() : false;
+    return {
+      pill: { tone: 'green', emoji: '🎉', label: isFuture ? 'Bientôt en ligne' : 'Vidéo publiée' },
+      description: pubDate
+        ? (isFuture
+            ? `Votre vidéo va bientôt être publiée — ${fmtDate(pubDate)}.`
+            : `Votre vidéo est en ligne depuis le ${fmtDate(pubDate)}. Merci pour votre confiance !`)
+        : 'Votre vidéo est publiée — merci pour votre confiance !',
+    };
+  }
   // Video delivered but not yet validated → ask the client to review
   if (hasDelivery && !client?.video_validated_at) {
     if (client?.video_changes_requested) {
@@ -884,7 +901,7 @@ function PortalContent() {
         {/* Published celebration — visible once status='published' */}
         {clientInfo?.status === 'published' && (
           <PublishedCelebration
-            businessName={clientInfo?.business_name || 'votre vidéo'}
+            publicationDate={clientInfo?.publication_deadline}
             videoUrl={deliveredVideos[0]?.video_url || clientInfo?.video_url}
           />
         )}
@@ -2172,21 +2189,12 @@ function FilmingPrepBanner({ filmingDate }: { filmingDate?: string }) {
 
 /* ── Published celebration ─────────────────────────────────────────────── */
 
-function PublishedCelebration({ businessName, videoUrl }: { businessName: string; videoUrl?: string }) {
-  const [copied, setCopied] = useState<string | null>(null);
-
-  function copy(text: string, key: string) {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(key);
-      setTimeout(() => setCopied(null), 2000);
-    });
-  }
-
-  const captions = {
-    instagram: `🎬 Notre nouvelle vidéo est en ligne !\n\nUn grand merci à @bourbonmedia pour ce résultat 🙌\n\n#bourbonmedia #lareunion974 #videopro`,
-    tiktok: `Découvrez notre nouvelle vidéo 🎥\n\n#fyp #pourtoi #lareunion #974`,
-    linkedin: `Nous sommes fiers de partager notre dernière vidéo, réalisée par les équipes de Bourbon Média.\n\nUne approche professionnelle et un rendu qui parle vraiment à notre audience.\n\n#video #marketing #lareunion`,
-  };
+function PublishedCelebration({ publicationDate, videoUrl }: { publicationDate?: string; videoUrl?: string }) {
+  const pubDate = publicationDate ? new Date(publicationDate) : null;
+  const isFuture = pubDate ? pubDate.getTime() > Date.now() : false;
+  const formattedDate = pubDate
+    ? pubDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
 
   return (
     <div style={{
@@ -2200,15 +2208,20 @@ function PublishedCelebration({ businessName, videoUrl }: { businessName: string
           fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
           fontSize: '1.25rem', color: 'var(--green)', margin: '0 0 4px',
         }}>
-          Bravo, {businessName} est en ligne !
+          {isFuture ? 'Bravo, votre vidéo va bientôt être publiée !' : 'Bravo, votre vidéo est en ligne !'}
         </h2>
-        <p style={{ fontSize: '0.86rem', color: 'var(--text-mid)', margin: 0 }}>
-          Maintenant maximisez sa portée — voici tout ce qu&apos;il faut faire.
+        {formattedDate && (
+          <p style={{ fontSize: '0.92rem', color: 'var(--text)', margin: '0 0 4px', fontWeight: 600 }}>
+            📅 {isFuture ? 'Publication prévue' : 'Publiée'} le {formattedDate}
+          </p>
+        )}
+        <p style={{ fontSize: '0.86rem', color: 'var(--text-mid)', margin: '6px 0 0' }}>
+          On s&apos;occupe de la diffusion sur nos réseaux — vous n&apos;avez rien à faire.
         </p>
       </div>
 
       {/* Quick actions */}
-      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 18 }}>
+      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         {videoUrl && (
           <a href={videoUrl} target="_blank" rel="noreferrer" style={{
             padding: '12px 14px', borderRadius: 10, textDecoration: 'none',
@@ -2227,44 +2240,6 @@ function PublishedCelebration({ businessName, videoUrl }: { businessName: string
           <span aria-hidden style={{ fontSize: '1.1rem' }}>🚀</span>
           <span>Commander une autre vidéo</span>
         </a>
-      </div>
-
-      {/* Captions à copier */}
-      <div>
-        <h3 style={{
-          fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)',
-          margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em',
-        }}>
-          📝 Captions prêtes à copier
-        </h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(['instagram', 'tiktok', 'linkedin'] as const).map(network => {
-            const label = network === 'instagram' ? '📸 Instagram' : network === 'tiktok' ? '🎵 TikTok' : '💼 LinkedIn';
-            const isCopied = copied === network;
-            return (
-              <div key={network} style={{
-                background: 'var(--night-card)', border: '1px solid var(--border)',
-                borderRadius: 10, padding: '10px 12px',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)' }}>{label}</span>
-                  <button onClick={() => copy(captions[network], network)} style={{
-                    padding: '4px 10px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 600,
-                    background: isCopied ? 'var(--green)' : 'var(--night-mid)',
-                    color: isCopied ? '#fff' : 'var(--text-mid)',
-                    border: '1px solid var(--border-md)', cursor: 'pointer',
-                  }}>
-                    {isCopied ? '✓ Copié' : '📋 Copier'}
-                  </button>
-                </div>
-                <pre style={{
-                  margin: 0, fontFamily: 'inherit', fontSize: '0.78rem',
-                  color: 'var(--text-mid)', whiteSpace: 'pre-wrap', lineHeight: 1.5,
-                }}>{captions[network]}</pre>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );
