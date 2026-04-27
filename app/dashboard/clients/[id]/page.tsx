@@ -56,6 +56,8 @@ interface Client {
   todos?: TodoItem[];
   videos?: VideoItem[];
   provider_fees?: ProviderFee[];
+  paid_at?: string;
+  payment_amount?: number;
 }
 
 interface ProviderFee {
@@ -304,7 +306,7 @@ export default function ClientDetailPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [ghlData, setGhlData] = useState<{ opportunities: GhlOpportunityRow[]; appointments: GhlAppointmentRow[] }>({ opportunities: [], appointments: [] });
   // Default payment = vidéo unique 500€ HT + 8.5% TVA = 542,50€ TTC
-  const [paymentForm, setPaymentForm] = useState({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)' });
+  const [paymentForm, setPaymentForm] = useState({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)', method: 'virement' as 'virement' | 'especes' | 'cheque' | 'autre' });
   const [addingPayment, setAddingPayment] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [newTodo, setNewTodo] = useState('');
@@ -973,18 +975,36 @@ export default function ClientDetailPage() {
     if (!amountNum || amountNum <= 0) { notify('error', 'Montant invalide'); return; }
     setAddingPayment(true);
     try {
+      const methodLabel = paymentForm.method === 'virement' ? '🏦 Virement bancaire'
+        : paymentForm.method === 'especes' ? '💵 Espèces'
+        : paymentForm.method === 'cheque' ? '📝 Chèque'
+        : '📌 Autre';
+      const desc = paymentForm.description ? `${methodLabel} · ${paymentForm.description}` : methodLabel;
       const r = await fetch('/api/payments', {
         method: 'POST', headers: authHeaders(),
         body: JSON.stringify({
           client_id: id,
           amount: Math.round(amountNum * 100),
-          description: paymentForm.description || 'Paiement manuel',
+          description: desc,
         }),
       });
       if (!r.ok) throw new Error(await parseErr(r));
-      notify('success', 'Paiement ajouté');
-      setPaymentForm({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)' });
+      // Also bump client.payment_amount + paid_at if not already set, so the
+      // CA/finance KPIs reflect this manual payment immediately.
+      if (!client?.paid_at) {
+        await fetch('/api/clients', {
+          method: 'PUT', headers: authHeaders(),
+          body: JSON.stringify({
+            id,
+            payment_amount: Math.round(amountNum * 100),
+            paid_at: new Date().toISOString(),
+          }),
+        }).catch(() => null);
+      }
+      notify('success', `${methodLabel} ajouté · ${amountNum} €`);
+      setPaymentForm({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)', method: 'virement' });
       loadPayments();
+      loadClient();
     } catch (err: unknown) {
       notify('error', (err as Error).message);
     } finally { setAddingPayment(false); }
@@ -1766,9 +1786,27 @@ export default function ClientDetailPage() {
 
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
             <h4 style={{ margin: '0 0 12px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)' }}>
-              Ajouter un paiement manuel
+              Ajouter un paiement manuel (virement, espèces, chèque…)
             </h4>
             <form onSubmit={handleAddPayment} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <label style={{ flex: '0 0 160px' }}>
+                <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Méthode</span>
+                <select
+                  value={paymentForm.method}
+                  onChange={e => setPaymentForm({ ...paymentForm, method: e.target.value as 'virement' | 'especes' | 'cheque' | 'autre' })}
+                  style={{
+                    width: '100%', padding: '8px 12px', borderRadius: 6,
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <option value="virement">🏦 Virement bancaire</option>
+                  <option value="especes">💵 Espèces</option>
+                  <option value="cheque">📝 Chèque</option>
+                  <option value="autre">📌 Autre</option>
+                </select>
+              </label>
               <label style={{ flex: '0 0 140px' }}>
                 <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Montant (€)</span>
                 <input
