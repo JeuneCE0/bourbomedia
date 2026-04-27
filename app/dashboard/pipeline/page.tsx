@@ -295,6 +295,7 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<string>(opp.prospect_status || '');
   const [stageId, setStageId] = useState<string>(opp.pipeline_stage_id);
+  const [valueEUR, setValueEUR] = useState<string>(opp.monetary_value_cents ? (opp.monetary_value_cents / 100).toString() : '');
   const [saving, setSaving] = useState(false);
 
   // Try to load the related appointment to surface notes (closing only)
@@ -322,11 +323,15 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
           body: JSON.stringify({ id: appointment.id, notes: notes.trim() || null, prospect_status: status || null }),
         });
       }
-      // 2. Optionally move the opportunity to a different GHL stage (admin override)
-      if (stageId !== opp.pipeline_stage_id) {
+      // 2. Update the opportunity (stage + monetary value) → push to GHL
+      const newValueCents = valueEUR.trim() === '' ? null : Math.round(parseFloat(valueEUR) * 100);
+      const oppPatch: Record<string, unknown> = { id: opp.id };
+      if (stageId !== opp.pipeline_stage_id) oppPatch.pipeline_stage_id = stageId;
+      if (newValueCents !== opp.monetary_value_cents) oppPatch.monetary_value_cents = newValueCents;
+      if (Object.keys(oppPatch).length > 1) {
         await fetch('/api/gh-opportunities', {
           method: 'PATCH', headers: authHeaders(),
-          body: JSON.stringify({ id: opp.id, pipeline_stage_id: stageId }),
+          body: JSON.stringify(oppPatch),
         });
       }
       onSaved();
@@ -379,6 +384,29 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
             {opp.contact_phone && <InfoRow icon="📱" value={opp.contact_phone} />}
             {opp.contact_name && opp.contact_name !== opp.name && <InfoRow icon="👤" value={opp.contact_name} />}
             {opp.ghl_created_at && <InfoRow icon="📅" value={`Créé ${relativeDate(opp.ghl_created_at)}`} />}
+          </div>
+
+          {/* Valeur de l'opportunité (sync GHL bidirectionnel) */}
+          <div>
+            <label style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              💰 Valeur de l&apos;opportunité (€)
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="number" min="0" step="50" value={valueEUR}
+                onChange={e => setValueEUR(e.target.value)}
+                placeholder="500"
+                style={{
+                  flex: 1, padding: '9px 12px', borderRadius: 8,
+                  background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                  color: 'var(--text)', fontSize: '0.95rem', outline: 'none', fontFamily: 'inherit',
+                }}
+              />
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem', padding: '0 4px' }}>€ HT</span>
+            </div>
+            <p style={{ fontSize: '0.66rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+              Vide = utilise le tarif standard (500 € HT) dans les calculs de pipeline
+            </p>
           </div>
 
           {/* Stage GHL (déplacer dans le pipeline) */}

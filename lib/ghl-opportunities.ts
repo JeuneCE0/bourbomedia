@@ -137,6 +137,19 @@ export async function updateOpportunityStage(opportunityId: string, pipelineId: 
   }
 }
 
+// Generic opportunity update — used to push back monetary value, name, etc.
+// Honors AUTOMATIONS_PAUSED for safety even though this isn't client-facing.
+export async function updateOpportunity(opportunityId: string, fields: { monetaryValue?: number; name?: string; pipelineStageId?: string; pipelineId?: string }): Promise<boolean> {
+  if (process.env.AUTOMATIONS_PAUSED === 'true') return false;
+  if (!opportunityId) return false;
+  try {
+    await ghlRequest('PUT', `/opportunities/${opportunityId}`, fields as Record<string, unknown>);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Resolve {pipeline_name → pipeline_id} and {stage_name → stage_id} from live GHL data.
 // Returns the augmented mapping (with stage_ids filled in) ready to compare against ours.
 export async function resolveMapping(): Promise<{ mapping: GhlPipelineMapping; pipeline: GhlPipeline | null }> {

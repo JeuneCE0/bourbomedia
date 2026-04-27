@@ -1111,14 +1111,16 @@ function PortalContent() {
           </div>
         )}
 
-        {/* Script view */}
-        {tab === 'script' && (() => {
-          const canAnnotate = script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes';
+        {/* Script view — only when actually in review (proposition/modified/awaiting_changes).
+            Outside that window, the script content (with its 'Lecture seule' / annotations
+            UI) must stay hidden to keep the portal clean for the client. */}
+        {tab === 'script' && (script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes') && (() => {
+          // Always editable inside this gate (the outer condition ensures it)
           const openCount = annotations.filter(a => !a.resolved).length;
           return (
             <div key="tab-script" className="bm-fade-in">
-              {/* Helper bar — only when client can annotate AND nothing yet */}
-              {canAnnotate && annotations.length === 0 && (
+              {/* Helper bar — only when nothing yet annotated */}
+              {annotations.length === 0 && (
                 <div style={{
                   marginBottom: 14, padding: '12px 16px', borderRadius: 12,
                   background: 'linear-gradient(135deg, rgba(250,204,21,.10), rgba(232,105,43,.08))',
@@ -1136,17 +1138,13 @@ function PortalContent() {
               <ScriptAnnotator
                 content={script.content}
                 annotations={annotations}
-                onCreate={canAnnotate ? createAnnotation : undefined}
+                onCreate={createAnnotation}
                 onUpdate={updateAnnotation}
-                onDelete={canAnnotate ? deleteAnnotation : undefined}
-                canAnnotate={canAnnotate}
-                canReply={canAnnotate}
+                onDelete={deleteAnnotation}
+                canAnnotate
+                canReply
                 hideResolveButton
-                emptyHint={canAnnotate
-                  ? 'Sélectionnez un passage du script pour y attacher un commentaire.'
-                  : script.status === 'confirmed'
-                    ? 'Le script est validé. ✅'
-                    : 'Aucune annotation pour le moment.'}
+                emptyHint="Sélectionnez un passage du script pour y attacher un commentaire."
               />
 
               {/* ───────── BOTTOM ACTION BAR ───────── */}
@@ -1204,21 +1202,12 @@ function PortalContent() {
                 </div>
               )}
 
-              {script.status === 'confirmed' && (
-                <div style={{ marginTop: 16, textAlign: 'center' }}>
-                  <a href={`/portal/print?token=${token}`} target="_blank" rel="noreferrer" style={{
-                    display: 'inline-block', padding: '9px 18px', borderRadius: 8,
-                    background: 'var(--night-card)', border: '1px solid var(--border-md)',
-                    color: 'var(--text)', textDecoration: 'none', fontSize: '0.82rem',
-                  }}>⬇️ Télécharger le script (PDF)</a>
-                </div>
-              )}
             </div>
           );
         })()}
 
-        {/* Comments */}
-        {tab === 'comments' && (
+        {/* Comments — same gate as Script view */}
+        {tab === 'comments' && (script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes') && (
           <div key="tab-comments" className="bm-fade-in">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
               {script.script_comments && script.script_comments.length > 0 ? (
