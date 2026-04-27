@@ -5,15 +5,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { ToastProvider } from '@/components/ui/Toast';
 import WelcomeWizard from '@/components/WelcomeWizard';
+import NotificationBell from '@/components/NotificationBell';
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
     title: '',
     items: [
       { href: '/dashboard',             label: 'Dashboard',       icon: '🏠' },
-      { href: '/dashboard/today',       label: "Aujourd'hui",     icon: '📞' },
-      { href: '/dashboard/inbox',       label: 'Inbox',           icon: '📥' },
-      { href: '/dashboard/pipeline',    label: 'Pipeline & clients', icon: '🌊' },
+      { href: '/dashboard/pipeline',    label: 'Pipeline',        icon: '🌊' },
       { href: '/dashboard/tasks',       label: 'Tâches',          icon: '✅' },
       { href: '/dashboard/scripts',     label: 'Scripts',         icon: '📝' },
       { href: '/dashboard/calendar',    label: 'Calendriers',     icon: '📅' },
@@ -558,6 +557,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+      <NotificationBell />
       <WelcomeWizard />
     </div>
     </ToastProvider>
