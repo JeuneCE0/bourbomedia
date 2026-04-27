@@ -555,63 +555,70 @@ function PipelineAnalyticsCard() {
 
 function SyncButton({ label, emoji, endpoint, confirmText }: { label: string; emoji: string; endpoint: string; confirmText: string }) {
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [issues, setIssues] = useState<string[]>([]);
-  const [showDetails, setShowDetails] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; msg: string; issues: string[] } | null>(null);
 
   async function sync() {
-    if (!confirm(confirmText)) return;
-    setBusy(true); setMsg(null); setIssues([]); setShowDetails(false);
+    setBusy(true); setResult(null);
     try {
+      console.log('[sync] POST', endpoint);
       const r = await fetch(endpoint, { method: 'POST', headers: authHeaders() });
-      const d = await r.json();
+      let d: { message?: string; error?: string; imported?: number; issues?: string[] } = {};
+      try { d = await r.json(); } catch { /* non-JSON response */ }
+      console.log('[sync] response', r.status, d);
       if (r.ok) {
-        setMsg(d.message || 'Sync OK');
-        if (Array.isArray(d.issues) && d.issues.length > 0) setIssues(d.issues);
-        if (d.imported > 0) setTimeout(() => window.location.reload(), 1500);
+        setResult({
+          ok: true,
+          msg: d.message || `OK (${d.imported || 0} importé${(d.imported || 0) > 1 ? 's' : ''})`,
+          issues: Array.isArray(d.issues) ? d.issues : [],
+        });
+        if ((d.imported || 0) > 0) setTimeout(() => window.location.reload(), 2000);
       } else {
-        setMsg(d.error || 'Erreur sync');
+        setResult({
+          ok: false,
+          msg: d.error || `HTTP ${r.status}`,
+          issues: Array.isArray(d.issues) ? d.issues : [],
+        });
       }
     } catch (e: unknown) {
-      setMsg((e as Error).message);
+      console.error('[sync] error', e);
+      setResult({ ok: false, msg: 'Erreur réseau : ' + (e as Error).message, issues: [] });
     } finally { setBusy(false); }
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-      <button onClick={sync} disabled={busy} title={`Importer depuis ${label}`} style={{
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, position: 'relative' }}>
+      <button onClick={sync} disabled={busy} title={confirmText} style={{
         padding: '8px 14px', borderRadius: 8,
-        background: 'var(--night-card)', border: '1px solid var(--border-md)',
-        color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 600,
-        cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1,
-        whiteSpace: 'nowrap',
+        background: busy ? 'var(--orange)' : 'var(--night-card)',
+        border: `1px solid ${busy ? 'var(--orange)' : 'var(--border-md)'}`,
+        color: busy ? '#fff' : 'var(--text-mid)',
+        fontSize: '0.78rem', fontWeight: 600,
+        cursor: busy ? 'wait' : 'pointer',
+        whiteSpace: 'nowrap', minWidth: 130,
       }}>
-        {busy ? '⏳ Sync…' : `${emoji} Sync ${label}`}
+        {busy ? '⏳ Sync en cours…' : `${emoji} Sync ${label}`}
       </button>
-      {msg && (
-        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', maxWidth: 280, textAlign: 'right' }}>
-          {msg}
-          {issues.length > 0 && (
-            <>
-              {' · '}
-              <button onClick={() => setShowDetails(s => !s)} style={{
-                background: 'none', border: 'none', color: 'var(--orange)',
-                cursor: 'pointer', fontSize: '0.7rem', textDecoration: 'underline', padding: 0,
-              }}>
-                {showDetails ? 'masquer' : `voir ${issues.length} détail${issues.length > 1 ? 's' : ''}`}
-              </button>
-            </>
-          )}
-        </span>
-      )}
-      {showDetails && issues.length > 0 && (
+      {result && (
         <div style={{
-          maxWidth: 360, padding: '8px 10px', borderRadius: 8,
-          background: 'var(--night-card)', border: '1px solid var(--border-md)',
-          fontSize: '0.7rem', color: 'var(--text-mid)', lineHeight: 1.5,
-          textAlign: 'left',
+          maxWidth: 360, padding: '10px 12px', borderRadius: 8,
+          background: result.ok ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.10)',
+          border: `1px solid ${result.ok ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)'}`,
+          fontSize: '0.74rem', color: result.ok ? '#86EFAC' : '#FCA5A5',
+          lineHeight: 1.5, textAlign: 'left',
         }}>
-          {issues.map((iss, i) => <div key={i} style={{ marginBottom: 4 }}>• {iss}</div>)}
+          <div style={{ fontWeight: 600 }}>
+            {result.ok ? '✓' : '✕'} {result.msg}
+          </div>
+          {result.issues.length > 0 && (
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: 'pointer', color: 'var(--text-mid)', fontWeight: 500 }}>
+                Voir {result.issues.length} détail{result.issues.length > 1 ? 's' : ''}
+              </summary>
+              <div style={{ marginTop: 6, color: 'var(--text-mid)', fontWeight: 400 }}>
+                {result.issues.map((iss, i) => <div key={i} style={{ marginBottom: 3 }}>• {iss}</div>)}
+              </div>
+            </details>
+          )}
         </div>
       )}
     </div>
