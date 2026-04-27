@@ -137,6 +137,8 @@ interface Payment {
   stripe_session_id?: string;
   stripe_payment_intent?: string;
   receipt_url?: string;
+  invoice_pdf_url?: string;
+  invoice_number?: string;
   created_at: string;
 }
 
@@ -1760,7 +1762,21 @@ export default function ClientDetailPage() {
                       {p.description || 'Paiement'} · {new Date(p.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {p.invoice_pdf_url && (
+                      <a href={p.invoice_pdf_url} target="_blank" rel="noreferrer" title="Télécharger la facture PDF" style={{
+                        fontSize: '0.66rem', padding: '4px 10px', borderRadius: 8,
+                        background: 'var(--orange)', color: '#fff',
+                        textDecoration: 'none', fontWeight: 600,
+                      }}>📄 Facture</a>
+                    )}
+                    {p.receipt_url && (
+                      <a href={p.receipt_url} target="_blank" rel="noreferrer" title="Voir le reçu Stripe" style={{
+                        fontSize: '0.66rem', padding: '4px 10px', borderRadius: 8,
+                        background: 'transparent', border: '1px solid var(--border-md)',
+                        color: 'var(--text-mid)', textDecoration: 'none', fontWeight: 600,
+                      }}>🧾 Reçu</a>
+                    )}
                     {p.stripe_payment_intent && (
                       <span style={{
                         fontSize: '0.65rem', padding: '3px 8px', borderRadius: 12,

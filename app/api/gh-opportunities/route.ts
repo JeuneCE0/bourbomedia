@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
-import { resolveMapping, updateOpportunityStage, updateOpportunity, deleteOpportunity, stageIdToProspectStatus } from '@/lib/ghl-opportunities';
+import { resolveMapping, updateOpportunityStage, updateOpportunity, deleteOpportunity, createOpportunity, stageIdToProspectStatus } from '@/lib/ghl-opportunities';
+import { createGhlContact, findGhlContactByEmail } from '@/lib/ghl';
 
 // GET /api/gh-opportunities
 //   - Returns all opportunities mirrored from the GHL "Pipeline Bourbon Media"
@@ -22,6 +23,81 @@ export async function GET(req: NextRequest) {
     stages: pipeline ? pipeline.stages.map(s => ({ id: s.id, name: s.name })) : [],
     opportunities,
   });
+}
+
+// POST /api/gh-opportunities — Quick-add prospect manuellement
+// body : { name, email, phone?, monetary_value_cents?, stage_name? }
+//   1. Find or create the GHL contact (by email)
+//   2. Create the opportunity in GHL on the first stage of Pipeline Bourbon
+//   3. Mirror dans gh_opportunities (le webhook GHL le fera aussi mais on
+//      le crée tout de suite pour réactivité immédiate)
+export async function POST(req: NextRequest) {
+  if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const body = await req.json().catch(() => ({}));
+  const name = (body.name as string || '').trim();
+  const email = (body.email as string || '').trim();
+  const phone = (body.phone as string || '').trim();
+  const monetaryCents = body.monetary_value_cents as number | undefined;
+  const stageName = body.stage_name as string | undefined;
+
+  if (!name || !email) return NextResponse.json({ error: 'name et email requis' }, { status: 400 });
+
+  const { pipeline } = await resolveMapping();
+  if (!pipeline) return NextResponse.json({ error: 'Pipeline GHL introuvable' }, { status: 500 });
+
+  // Find or create the GHL contact
+  let contactId: string | null = null;
+  try {
+    contactId = await findGhlContactByEmail(email);
+    if (!contactId) {
+      const parts = name.trim().split(/\s+/);
+      const firstName = parts[0] || name;
+      const lastName = parts.slice(1).join(' ') || '';
+      contactId = await createGhlContact({ firstName, lastName, email, phone: phone || undefined });
+    }
+  } catch (e: unknown) {
+    return NextResponse.json({ error: 'Création contact GHL échouée: ' + (e as Error).message }, { status: 500 });
+  }
+  if (!contactId) return NextResponse.json({ error: 'Impossible de créer le contact GHL' }, { status: 500 });
+
+  // Pick stage (default first)
+  const targetStage = stageName
+    ? pipeline.stages.find(s => s.name.toLowerCase().includes(stageName.toLowerCase())) || pipeline.stages[0]
+    : pipeline.stages[0];
+  if (!targetStage) return NextResponse.json({ error: 'Aucun stage GHL disponible' }, { status: 500 });
+
+  // Create opportunity in GHL
+  const created = await createOpportunity({
+    pipelineId: pipeline.id,
+    pipelineStageId: targetStage.id,
+    contactId,
+    name,
+    monetaryValue: monetaryCents ? monetaryCents / 100 : undefined,
+  });
+  if (!created) return NextResponse.json({ error: 'Création opportunité GHL échouée' }, { status: 500 });
+
+  // Mirror in our DB
+  await supaFetch('gh_opportunities?on_conflict=ghl_opportunity_id', {
+    method: 'POST',
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({
+      ghl_opportunity_id: created.id,
+      ghl_contact_id: contactId,
+      pipeline_id: pipeline.id,
+      pipeline_stage_id: targetStage.id,
+      pipeline_stage_name: targetStage.name,
+      name,
+      contact_email: email,
+      contact_phone: phone || null,
+      contact_name: name,
+      monetary_value_cents: monetaryCents || null,
+      ghl_created_at: new Date().toISOString(),
+      ghl_updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }),
+  }, true).catch(() => null);
+
+  return NextResponse.json({ ok: true, opportunityId: created.id, contactId });
 }
 
 // PATCH /api/gh-opportunities  body: { id, pipeline_stage_id?, monetary_value_cents?, name? }

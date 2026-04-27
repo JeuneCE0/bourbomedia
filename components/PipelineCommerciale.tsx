@@ -94,6 +94,7 @@ export default function PipelineCommerciale() {
   const [selectMode, setSelectMode] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const load = useCallback(() => {
     fetch('/api/gh-opportunities', { headers: authHeaders() })
@@ -186,6 +187,15 @@ export default function PipelineCommerciale() {
             cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
           }}
         >{selectMode ? '✓ Sélection' : '☐ Sélection'}</button>
+        <button
+          onClick={() => setShowAddForm(true)}
+          style={{
+            padding: '8px 14px', borderRadius: 10,
+            background: 'var(--orange)', border: 'none', color: '#fff',
+            cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700,
+            boxShadow: '0 4px 14px rgba(232,105,43,.30)',
+          }}
+        >+ Nouveau prospect</button>
       </div>
 
       {loading ? (
@@ -233,6 +243,14 @@ export default function PipelineCommerciale() {
           stages={stages}
           onClose={() => setSelectedId(null)}
           onSaved={() => { setSelectedId(null); load(); }}
+        />
+      )}
+
+      {showAddForm && (
+        <QuickAddProspectModal
+          stages={stages}
+          onClose={() => setShowAddForm(false)}
+          onCreated={() => { setShowAddForm(false); load(); }}
         />
       )}
 
@@ -973,6 +991,135 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
         </div>
       </div>
     </div>
+  );
+}
+
+function QuickAddProspectModal({ stages, onClose, onCreated }: {
+  stages: PipelineStage[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: '', email: '', phone: '', valueEUR: '500',
+    stageName: stages[0]?.name || '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit() {
+    if (!form.name.trim() || !form.email.trim()) {
+      setError('Nom et email obligatoires');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      const r = await fetch('/api/gh-opportunities', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim() || undefined,
+          monetary_value_cents: form.valueEUR ? Math.round(parseFloat(form.valueEUR) * 100) : undefined,
+          stage_name: form.stageName,
+        }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        setError(d.error || 'Erreur');
+        return;
+      }
+      onCreated();
+    } finally { setSubmitting(false); }
+  }
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(3px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 480, padding: 24, borderRadius: 14,
+        background: 'var(--night-card)', border: '1px solid var(--border-md)',
+        boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+        animation: 'bm-modal-pop var(--t-base) var(--ease-bounce) both',
+      }}>
+        <h2 style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+          fontSize: '1.2rem', color: 'var(--text)', margin: '0 0 6px',
+        }}>
+          ➕ Nouveau prospect
+        </h2>
+        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 18px' }}>
+          Crée le contact + l&apos;opportunité dans GHL en un clic.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Field label="Nom *" value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder="Boulangerie de Jonas" />
+          <Field label="Email *" value={form.email} onChange={v => setForm({ ...form, email: v })} placeholder="contact@boulangerie.fr" type="email" />
+          <Field label="Téléphone" value={form.phone} onChange={v => setForm({ ...form, phone: v })} placeholder="+262 XXX XX XX XX" type="tel" />
+          <Field label="Valeur (€)" value={form.valueEUR} onChange={v => setForm({ ...form, valueEUR: v })} type="number" />
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Stage de départ</span>
+            <select
+              value={form.stageName}
+              onChange={e => setForm({ ...form, stageName: e.target.value })}
+              style={{
+                padding: '9px 12px', borderRadius: 8,
+                background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                color: 'var(--text)', fontSize: '0.88rem', outline: 'none', fontFamily: 'inherit',
+              }}
+            >
+              {stages.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
+          </label>
+        </div>
+
+        {error && (
+          <div style={{
+            marginTop: 12, padding: '8px 12px', borderRadius: 8,
+            background: 'rgba(239,68,68,.10)', color: '#FCA5A5', fontSize: '0.82rem',
+          }}>❌ {error}</div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
+          <button onClick={onClose} disabled={submitting} style={{
+            padding: '9px 16px', borderRadius: 8, background: 'transparent',
+            border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+            cursor: 'pointer', fontSize: '0.84rem', fontWeight: 600,
+          }}>Annuler</button>
+          <button onClick={submit} disabled={submitting} style={{
+            padding: '9px 18px', borderRadius: 8, background: 'var(--orange)',
+            color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.84rem', fontWeight: 700,
+            opacity: submitting ? 0.5 : 1,
+          }}>
+            {submitting ? '⏳ Création…' : '➕ Créer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, placeholder, type = 'text' }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
+}) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          padding: '9px 12px', borderRadius: 8,
+          background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+          color: 'var(--text)', fontSize: '0.88rem', outline: 'none', fontFamily: 'inherit',
+        }}
+      />
+    </label>
   );
 }
 
