@@ -246,21 +246,49 @@ function Column({ stage, items, onSelect }: { stage: PipelineStage; items: Oppor
   );
 }
 
+function stageColorFromName(name: string | null | undefined): string {
+  const n = (name || '').toLowerCase();
+  if (n.includes('contract') || n.includes('régulier')) return '#22C55E';
+  if (n.includes('attente signature')) return '#3B82F6';
+  if (n.includes('réflexion')) return '#FACC15';
+  if (n.includes('follow-up')) return '#F97316';
+  if (n.includes('ghosting')) return '#94A3B8';
+  if (n.includes('non-qualif')) return '#EF4444';
+  if (n.includes('appel')) return '#A855F7';
+  if (n.includes('lead')) return '#E8692B';
+  return 'var(--text-mid)';
+}
+
 function Card({ opp, onSelect }: { opp: Opportunity; onSelect: (id: string) => void }) {
+  const stageColor = stageColorFromName(opp.pipeline_stage_name);
   return (
     <button
       type="button"
       onClick={() => onSelect(opp.id)}
       style={{
-        padding: '7px 10px', borderRadius: 6,
+        padding: '8px 10px', borderRadius: 6,
         background: 'var(--night-mid)', border: '1px solid var(--border)',
-        display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'stretch',
+        display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch',
         cursor: 'pointer', textAlign: 'left', width: '100%', color: 'var(--text)',
+        transition: 'background .15s, border-color .15s',
       }}
       onMouseEnter={e => { e.currentTarget.style.background = 'var(--night-raised)'; e.currentTarget.style.borderColor = 'var(--border-md)'; }}
       onMouseLeave={e => { e.currentTarget.style.background = 'var(--night-mid)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
     >
-      <div style={{ fontSize: '0.78rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      {/* Stage pastille — visible au coup d'œil */}
+      {opp.pipeline_stage_name && (
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+          padding: '2px 7px', borderRadius: 999,
+          background: stageColor + '20', border: `1px solid ${stageColor}40`,
+          color: stageColor, fontSize: '0.6rem', fontWeight: 700,
+          textTransform: 'uppercase', letterSpacing: '0.04em',
+        }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: stageColor }} />
+          {opp.pipeline_stage_name}
+        </div>
+      )}
+      <div style={{ fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {opp.name || opp.contact_name || opp.contact_email || 'Sans nom'}
       </div>
       <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', gap: 6 }}>
