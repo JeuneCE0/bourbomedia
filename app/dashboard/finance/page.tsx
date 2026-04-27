@@ -248,9 +248,9 @@ export default function FinancePage() {
       {loading ? (
         <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 60 }}>Chargement…</div>
       ) : (
-        <>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {/* KPI cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <Kpi
               emoji="💸" label={`Encaissé · ${RANGE_LABEL[range]}`} value={fmtEUR(rangeCents)} color="var(--green)"
               extra={range === 'month' && monthDelta !== null
@@ -317,7 +317,7 @@ export default function FinancePage() {
           </Card>
 
           {/* Two cols: top clients + unpaid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12, marginTop: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
             <Card title="🏆 Top 10 clients (CA cumulé)">
               {topClients.length === 0 ? (
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Aucun paiement enregistré</div>
@@ -425,7 +425,7 @@ export default function FinancePage() {
               </div>
             )}
           </Card>
-        </>
+        </div>
       )}
     </div>
   );
