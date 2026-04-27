@@ -293,25 +293,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 10,
-                    padding: collapsed && !isMobile ? '10px 0' : '10px 12px',
+                    gap: 11,
+                    padding: collapsed && !isMobile ? '11px 0' : '10px 14px',
                     justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
-                    borderRadius: 8,
-                    marginBottom: 2,
+                    borderRadius: 10,
+                    marginBottom: 3,
                     textDecoration: 'none',
-                    fontSize: '0.85rem',
-                    fontWeight: active ? 600 : 400,
-                    color: active ? 'var(--orange)' : hovered ? 'var(--text)' : 'var(--text-mid)',
+                    fontSize: '0.86rem',
+                    fontWeight: active ? 700 : 500,
+                    color: active ? '#fff' : hovered ? 'var(--text)' : 'var(--text-mid)',
                     background: active
-                      ? 'rgba(232,105,43,.1)'
+                      ? 'linear-gradient(180deg, rgba(232,105,43,.22), rgba(232,105,43,.10))'
                       : hovered
-                        ? 'rgba(255,255,255,.04)'
+                        ? 'rgba(255,255,255,.05)'
                         : 'transparent',
-                    transition: 'all 220ms cubic-bezier(0.16, 1, 0.3, 1)',
+                    transform: hovered && !active ? 'translateX(2px)' : 'none',
+                    transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
                     borderLeft: active ? '3px solid var(--orange)' : '3px solid transparent',
+                    boxShadow: active ? '0 4px 14px rgba(232,105,43,.15)' : 'none',
+                    position: 'relative',
                   }}
                 >
-                  <span style={{ fontSize: '1rem', lineHeight: 1 }}>{item.icon}</span>
+                  <span style={{
+                    fontSize: '1.05rem', lineHeight: 1,
+                    filter: active ? 'none' : hovered ? 'none' : 'grayscale(20%)',
+                    transition: 'filter 200ms',
+                  }}>{item.icon}</span>
                   {(!(collapsed && !isMobile)) && <span>{item.label}</span>}
                 </Link>
               );

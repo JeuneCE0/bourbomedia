@@ -122,14 +122,19 @@ function PipelinePageInner() {
                 key={t.key}
                 onClick={() => switchTab(t.key)}
                 style={{
-                  padding: '10px 18px', borderRadius: 8,
-                  background: active ? 'var(--night-mid)' : 'transparent',
+                  padding: '11px 20px', borderRadius: 9,
+                  background: active
+                    ? 'linear-gradient(180deg, rgba(232,105,43,.18), rgba(232,105,43,.08))'
+                    : 'transparent',
                   color: active ? 'var(--text)' : 'var(--text-muted)',
-                  border: 'none', cursor: 'pointer',
+                  border: active ? '1px solid rgba(232,105,43,.35)' : '1px solid transparent',
+                  cursor: 'pointer',
                   fontSize: '0.86rem', fontWeight: active ? 700 : 500,
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  whiteSpace: 'nowrap', transition: 'all .15s',
+                  display: 'flex', alignItems: 'center', gap: 9,
+                  whiteSpace: 'nowrap',
+                  transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
                   textAlign: 'left',
+                  boxShadow: active ? '0 4px 14px rgba(232,105,43,.15)' : 'none',
                 }}
               >
                 <span aria-hidden>{t.emoji}</span>

@@ -217,16 +217,19 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: 'clamp(20px, 4vw, 32px)', maxWidth: 1100, margin: '0 auto' }}>
-      {/* Header */}
+      {/* Header — warm gradient on the greeting, calm date below */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{
           fontFamily: "'Bricolage Grotesque', sans-serif",
-          fontWeight: 800, fontSize: '1.7rem', color: 'var(--text)',
-          margin: 0, lineHeight: 1.2,
+          fontWeight: 800, fontSize: 'clamp(1.5rem, 3vw, 2rem)', margin: 0, lineHeight: 1.15,
+          background: 'linear-gradient(135deg, var(--text) 0%, var(--orange) 110%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
         }}>
           {getGreeting()} 👋
         </h1>
-        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '6px 0 0 0', textTransform: 'capitalize' }}>
           {getFrenchDate()}
         </p>
       </div>
