@@ -189,23 +189,29 @@ function formatEventDetails(type: string, payload: Record<string, unknown> | nul
 
 const STATUS_LABELS: Record<string, string> = {
   onboarding: 'Onboarding',
+  onboarding_call: 'Appel onboarding',
   script_writing: 'Écriture script',
   script_review: 'Relecture client',
   script_validated: 'Script validé',
   filming_scheduled: 'Tournage planifié',
   filming_done: 'Tournage terminé',
   editing: 'Montage',
+  video_review: 'Vidéo à valider',
+  publication_pending: 'Date publication',
   published: 'Publié',
 };
 
 const STATUS_COLORS: Record<string, string> = {
   onboarding: '#8A7060',
+  onboarding_call: '#14B8A6',
   script_writing: '#FACC15',
   script_review: '#F28C55',
   script_validated: '#22C55E',
   filming_scheduled: '#3B82F6',
   filming_done: '#8B5CF6',
   editing: '#EC4899',
+  video_review: '#F97316',
+  publication_pending: '#FB923C',
   published: '#22C55E',
 };
 

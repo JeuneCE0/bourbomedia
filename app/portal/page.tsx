@@ -86,6 +86,7 @@ interface SatisfactionData {
 
 const STATUS_LABELS_PORTAL: Record<string, string> = {
   onboarding: 'Onboarding',
+  onboarding_call: 'Appel onboarding',
   script_writing: 'Écriture du script',
   script_review: 'Relecture du script',
   script_validated: 'Script validé',
@@ -99,6 +100,7 @@ const STATUS_LABELS_PORTAL: Record<string, string> = {
 
 const PROJECT_STAGES = [
   { key: 'onboarding',          label: 'Inscription',           emoji: '👋',  description: 'Vous êtes inscrit·e — bienvenue !' },
+  { key: 'onboarding_call',     label: 'Appel onboarding',      emoji: '📞',  description: 'Réservez votre appel de cadrage avec notre équipe.' },
   { key: 'script_writing',      label: 'Écriture du script',     emoji: '✍️',  description: 'Notre équipe écrit votre script sur mesure.' },
   { key: 'script_review',       label: 'Relecture du script',    emoji: '📝',  description: 'Le script vous est proposé pour relecture.' },
   { key: 'script_validated',    label: 'Réservez votre tournage', emoji: '✅', description: 'Choisissez votre créneau de tournage dans le calendrier ci-dessous.' },

@@ -26,6 +26,7 @@ interface Client {
 
 const STAGES: { key: string; label: string; color: string }[] = [
   { key: 'onboarding',          label: 'Onboarding',     color: '#8A7060' },
+  { key: 'onboarding_call',     label: 'Appel onboarding', color: '#14B8A6' },
   { key: 'script_writing',      label: 'Script',         color: '#FACC15' },
   { key: 'script_review',       label: 'Relecture',      color: '#F28C55' },
   { key: 'script_validated',    label: 'Validé',         color: '#22C55E' },
