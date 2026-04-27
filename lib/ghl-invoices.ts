@@ -45,6 +45,11 @@ interface RawInvoice {
     phone?: string;
     companyName?: string;
   };
+  // GHL renvoie tantôt 'contactDetails', tantôt 'contact', tantôt à plat
+  contact?: { id?: string; email?: string; phone?: string; name?: string; companyName?: string };
+  contactId?: string;
+  customerId?: string;
+  customerEmail?: string;
   issueDate?: string;
   dueDate?: string;
   invoiceDate?: string;
@@ -55,6 +60,13 @@ interface RawInvoice {
 }
 
 function normalize(raw: RawInvoice): GhlInvoice {
+  // Cherche le contact où qu'il soit dans le payload
+  const contactId = raw.contactDetails?.id || raw.contact?.id || raw.contactId || raw.customerId || null;
+  const email = raw.contactDetails?.email || raw.contact?.email || raw.customerEmail || null;
+  const name = raw.contactDetails?.name || raw.contact?.name || null;
+  const phone = raw.contactDetails?.phoneNo || raw.contactDetails?.phone || raw.contact?.phone || null;
+  const companyName = raw.contactDetails?.companyName || raw.contact?.companyName || null;
+
   return {
     id: raw._id || raw.id || '',
     name: raw.name || null,
@@ -63,13 +75,7 @@ function normalize(raw: RawInvoice): GhlInvoice {
     total: typeof raw.total === 'number' ? raw.total : 0,
     amountPaid: typeof raw.amountPaid === 'number' ? raw.amountPaid : 0,
     status: raw.status || 'draft',
-    contactDetails: {
-      id: raw.contactDetails?.id || null,
-      name: raw.contactDetails?.name || null,
-      email: raw.contactDetails?.email || null,
-      phoneNo: raw.contactDetails?.phoneNo || raw.contactDetails?.phone || null,
-      companyName: raw.contactDetails?.companyName || null,
-    },
+    contactDetails: { id: contactId, name, email, phoneNo: phone, companyName },
     issueDate: raw.issueDate || raw.invoiceDate || null,
     dueDate: raw.dueDate || null,
     paidAt: raw.paidAt || raw.paymentDate || raw.updatedAt || null,

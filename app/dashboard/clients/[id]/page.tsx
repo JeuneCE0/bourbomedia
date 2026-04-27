@@ -974,17 +974,18 @@ export default function ClientDetailPage() {
 
   async function handleDelete() {
     if (!client) return;
-    const first = confirm(`⚠️ Vous allez supprimer DÉFINITIVEMENT le client :\n\n"${client.business_name}"\n\nToutes les données associées (script, commentaires, paiements, etc.) seront perdues.\n\nContinuer ?`);
-    if (!first) return;
-    const typed = prompt(`Pour confirmer, retapez le nom exact du commerce :\n\n${client.business_name}`);
-    if (typed?.trim() !== client.business_name) {
-      notify('error', 'Suppression annulée — la confirmation ne correspond pas.');
-      return;
-    }
+    const ok = confirm(
+      `Retirer "${client.business_name}" du pipeline onboarding ?\n\n`
+      + '✓ Le prospect reste dans le pipeline commercial (GHL)\n'
+      + '✓ L\'historique d\'opportunité, statut et notes sont préservés\n'
+      + '✓ Tu peux le restaurer depuis Paramètres → Synchronisations\n\n'
+      + 'Le client disparaît juste de la liste et du kanban onboarding.'
+    );
+    if (!ok) return;
     try {
       const r = await fetch('/api/clients', { method: 'DELETE', headers: authHeaders(), body: JSON.stringify({ id }) });
       if (!r.ok) throw new Error(await parseErr(r));
-      router.push('/dashboard/clients');
+      router.push('/dashboard/pipeline?tab=clients');
     } catch (err: unknown) {
       notify('error', (err as Error).message);
     }
@@ -1101,8 +1102,8 @@ export default function ClientDetailPage() {
                 <button onClick={() => { navigator.clipboard.writeText(portalUrl); notify('success', 'Lien portail copié'); }}
                   title="Copier lien portail" style={{ ...miniActionStyle, cursor: 'pointer' }}>🔗</button>
               )}
-              <button onClick={handleDelete} title="Supprimer le client"
-                style={{ ...miniActionStyle, cursor: 'pointer', color: 'var(--red)', opacity: 0.6 }}>✕</button>
+              <button onClick={handleDelete} title="Retirer du pipeline onboarding (préserve l'opportunité GHL)"
+                style={{ ...miniActionStyle, cursor: 'pointer', color: 'var(--text-muted)', opacity: 0.7 }}>📦</button>
             </div>
           </div>
         </div>
@@ -1286,10 +1287,10 @@ export default function ClientDetailPage() {
                   padding: '8px 16px', borderRadius: 8, background: 'var(--night-mid)',
                   border: '1px solid var(--border-md)', color: 'var(--text)', cursor: 'pointer', fontSize: '0.8rem',
                 }}>Modifier</button>
-                <button onClick={handleDelete} style={{
-                  padding: '8px 16px', borderRadius: 8, background: 'rgba(239,68,68,.1)',
-                  border: '1px solid rgba(239,68,68,.3)', color: 'var(--red)', cursor: 'pointer', fontSize: '0.8rem',
-                }}>Supprimer</button>
+                <button onClick={handleDelete} title="Retire du pipeline onboarding · préserve l'opportunité GHL" style={{
+                  padding: '8px 16px', borderRadius: 8, background: 'var(--night-mid)',
+                  border: '1px solid var(--border-md)', color: 'var(--text-mid)', cursor: 'pointer', fontSize: '0.8rem',
+                }}>📦 Archiver</button>
               </div>
             </>
           ) : (

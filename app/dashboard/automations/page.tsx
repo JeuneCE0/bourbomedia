@@ -24,6 +24,11 @@ interface AutomationsData {
 const CHANNEL_EMOJI: Record<string, string> = { email: '✉️', whatsapp: '💬', sms: '📱' };
 
 export default function AutomationsPage() {
+  return <AutomationsView />;
+}
+
+// Reusable component, embedded in /dashboard/settings as the "Automatisations" tab.
+export function AutomationsView() {
   const [data, setData] = useState<AutomationsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);

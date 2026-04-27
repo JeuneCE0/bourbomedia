@@ -40,7 +40,11 @@ export async function GET(req: NextRequest) {
     const search = req.nextUrl.searchParams.get('q');
     const status = req.nextUrl.searchParams.get('status');
 
+    // Par défaut on exclut les clients archivés (soft-delete). ?include_archived=1
+    // pour les inclure (page archives, audit, etc.).
+    const includeArchived = req.nextUrl.searchParams.get('include_archived') === '1';
     let path = 'clients?select=*&order=created_at.desc';
+    if (!includeArchived) path += `&archived_at=is.null`;
     if (status) path += `&status=eq.${encodeURIComponent(status)}`;
     if (search && search.trim()) {
       const enc = encodeURIComponent(`%${search.trim()}%`);
@@ -211,14 +215,32 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+// DELETE /api/clients
+//   body : { id, hard?: boolean }
+//   - hard=false (défaut) : SOFT delete → archived_at = now()
+//     L'opportunité GHL liée et l'historique commercial restent intacts —
+//     le client disparaît juste des vues onboarding / liste clients.
+//   - hard=true : suppression définitive (hard delete) — usage rare, audit only.
 export async function DELETE(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   try {
-    const { id } = await req.json();
+    const { id, hard } = await req.json();
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });
-    const r = await supaFetch(`clients?id=eq.${id}`, { method: 'DELETE' }, true);
+
+    if (hard) {
+      const r = await supaFetch(`clients?id=eq.${id}`, { method: 'DELETE' }, true);
+      if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
+      return NextResponse.json({ success: true, hard: true });
+    }
+
+    // Soft delete : marque archived_at + délie l'opportunité GHL pour qu'elle
+    // ne reste pas pointée sur un client invisible (mais reste dans gh_opportunities)
+    const r = await supaFetch(`clients?id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ archived_at: new Date().toISOString() }),
+    }, true);
     if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, archived: true });
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

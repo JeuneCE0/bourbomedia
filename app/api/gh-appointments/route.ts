@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { pushNotesToGhl } from '@/lib/ghl-appointments';
 import { resolveMapping, prospectStatusToStageId, updateOpportunityStage, updateGhlAppointment } from '@/lib/ghl-opportunities';
+import { ghlRequest } from '@/lib/ghl';
 
 // GET /api/gh-appointments?pending=1            → completed appointments awaiting notes
 // GET /api/gh-appointments?follow_up=1          → reflection (J+2) / follow_up (J+7) due today
@@ -39,11 +40,65 @@ export async function GET(req: NextRequest) {
     // GHL flow: appointments are auto-confirmed on booking and stay 'scheduled' by
     // default. Only "No Show" or "Cancelled" are explicit negative signals — anything
     // else past its starts_at is treated as a call that happened and needs documenting.
+    //
+    // En plus du filtre notes_completed_at IS NULL côté DB, on cross-check la
+    // fiche contact GHL : si une note a été ajoutée à GHL après la date du RDV
+    // (ex: Siméon a documenté directement sur GHL), on considère le RDV
+    // documenté → on patch notes_completed_at en local pour ne plus le pousser.
     const nowIso = new Date().toISOString();
-    path = `gh_appointments?starts_at=lt.${encodeURIComponent(nowIso)}`
+    const r = await supaFetch(
+      `gh_appointments?starts_at=lt.${encodeURIComponent(nowIso)}`
       + `&notes_completed_at=is.null`
       + `&status=in.(scheduled,completed)`
-      + `&select=*&order=starts_at.desc&limit=50`;
+      + `&select=*&order=starts_at.desc&limit=50`,
+      {}, true,
+    );
+    if (!r.ok) return NextResponse.json({ error: 'fetch failed' }, { status: 500 });
+    const candidates: Array<{ id: string; starts_at: string; ghl_contact_id: string | null }> = await r.json();
+
+    // Pour chaque candidat avec ghl_contact_id, fetch les notes GHL et check si
+    // une a été créée >= starts_at. Concurrence limitée à 5 pour ménager GHL.
+    type GhlNote = { id?: string; body?: string; userId?: string; dateAdded?: string; createdAt?: string };
+    async function isDocumentedOnGhl(contactId: string, startsAt: string): Promise<boolean> {
+      try {
+        const data = await ghlRequest('GET', `/contacts/${encodeURIComponent(contactId)}/notes`);
+        const notes: GhlNote[] = data?.notes || [];
+        const start = new Date(startsAt).getTime();
+        for (const n of notes) {
+          const ts = n.dateAdded || n.createdAt;
+          if (!ts) continue;
+          const t = new Date(ts).getTime();
+          if (!Number.isNaN(t) && t >= start) return true;
+        }
+        return false;
+      } catch { return false; }
+    }
+
+    const stillPending: typeof candidates = [];
+    const concurrency = 5;
+    for (let i = 0; i < candidates.length; i += concurrency) {
+      const batch = candidates.slice(i, i + concurrency);
+      const flags = await Promise.all(batch.map(async (a) => {
+        if (!a.ghl_contact_id) return false;
+        return await isDocumentedOnGhl(a.ghl_contact_id, a.starts_at);
+      }));
+      batch.forEach((a, idx) => {
+        if (flags[idx]) {
+          // Patch local en best-effort pour cacher définitivement l'item
+          supaFetch(`gh_appointments?id=eq.${encodeURIComponent(a.id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              notes_completed_at: new Date().toISOString(),
+              notes: '✓ Documenté côté GHL (sync auto)',
+              ghl_synced_at: new Date().toISOString(),
+            }),
+          }, true).catch(() => null);
+        } else {
+          stillPending.push(a);
+        }
+      });
+    }
+    return NextResponse.json({ appointments: stillPending });
   } else if (followUp) {
     // Reflection (J+2) and follow_up (J+7) prospects whose relance window has been reached.
     // We pull both statuses and let the API filter by elapsed days vs target.

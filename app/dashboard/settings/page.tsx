@@ -1,15 +1,19 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { AutomationsView } from '@/app/dashboard/automations/page';
 
-type TabKey = 'team' | 'ads' | 'pricing' | 'integrations' | 'notifications';
+type TabKey = 'team' | 'ads' | 'pricing' | 'integrations' | 'notifications' | 'automations' | 'data';
 
 const TABS: { key: TabKey; emoji: string; label: string }[] = [
   { key: 'team',          emoji: '👥', label: 'Équipe' },
   { key: 'notifications', emoji: '🔔', label: 'Notifications' },
+  { key: 'automations',   emoji: '🤖', label: 'Automatisations' },
+  { key: 'integrations',  emoji: '🔌', label: 'Intégrations' },
+  { key: 'data',          emoji: '🔄', label: 'Synchronisations' },
   { key: 'ads',           emoji: '💰', label: 'Budget Ads' },
   { key: 'pricing',       emoji: '💵', label: 'Tarifs' },
-  { key: 'integrations',  emoji: '🔌', label: 'Intégrations' },
 ];
 
 function authHeaders() {
@@ -17,7 +21,30 @@ function authHeaders() {
 }
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<TabKey>('team');
+  return (
+    <Suspense fallback={<div style={{ padding: 32, color: 'var(--text-muted)' }}>Chargement…</div>}>
+      <SettingsPageInner />
+    </Suspense>
+  );
+}
+
+function SettingsPageInner() {
+  const sp = useSearchParams();
+  const initialTab = (() => {
+    const t = sp.get('tab');
+    const valid = ['team', 'notifications', 'automations', 'integrations', 'data', 'ads', 'pricing'];
+    return valid.includes(t || '') ? (t as TabKey) : 'team';
+  })();
+  const [tab, setTabState] = useState<TabKey>(initialTab);
+  const setTab = useCallback((next: TabKey) => {
+    setTabState(next);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (next === 'team') url.searchParams.delete('tab');
+      else url.searchParams.set('tab', next);
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
 
   return (
     <div style={{ padding: 'clamp(20px, 4vw, 32px)', maxWidth: 1000, margin: '0 auto' }}>
@@ -62,9 +89,11 @@ export default function SettingsPage() {
       <div className="bm-fade-in" key={tab}>
         {tab === 'team' && <TeamPanel />}
         {tab === 'notifications' && <NotificationsPanel />}
+        {tab === 'automations' && <AutomationsView />}
+        {tab === 'integrations' && <IntegrationsPanel />}
+        {tab === 'data' && <DataSyncPanel />}
         {tab === 'ads' && <AdsBudgetPanel />}
         {tab === 'pricing' && <PricingPanel />}
-        {tab === 'integrations' && <IntegrationsPanel />}
       </div>
     </div>
   );
@@ -801,6 +830,113 @@ VAPID_SUBJECT=mailto:tu@bourbomedia.fr`}
       }}>
         💡 Sur iPhone, installe d&apos;abord le PWA depuis Safari (Partager → Sur l&apos;écran d&apos;accueil) puis active depuis l&apos;app.
       </div>
+    </div>
+  );
+}
+
+/* ========== SYNCHRONISATIONS (data backfill) ========== */
+
+function DataSyncPanel() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <SyncCard
+        emoji="💳"
+        title="Stripe"
+        description="Importe les paiements Stripe (Checkout, Payment Links, factures, charges directes) des 90 derniers jours dans la base. Auto-création client depuis GHL si absent. Idempotent."
+        endpoint="/api/stripe/sync?days=90"
+        confirmText="Récupérer les paiements Stripe des 90 derniers jours ?"
+      />
+      <SyncCard
+        emoji="📄"
+        title="Factures GHL"
+        description="Importe les factures payées sur GHL des 180 derniers jours dans la base. Auto-bascule l'opportunité en 'Contracté'. Idempotent."
+        endpoint="/api/ghl/sync-invoices?days=180"
+        confirmText="Récupérer les factures GHL payées des 180 derniers jours ?"
+      />
+      <div style={{
+        padding: 14, borderRadius: 10, background: 'var(--night-card)', border: '1px solid var(--border)',
+        fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.6,
+      }}>
+        ℹ️ Ces sync sont automatiques au quotidien (webhooks Stripe + cron GHL). Le bouton manuel
+        sert au backfill historique ou pour récupérer après une indisponibilité du webhook.
+      </div>
+    </div>
+  );
+}
+
+function SyncCard({
+  emoji, title, description, endpoint, confirmText,
+}: { emoji: string; title: string; description: string; endpoint: string; confirmText: string }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [issues, setIssues] = useState<string[]>([]);
+  const [showDetails, setShowDetails] = useState(false);
+
+  async function run() {
+    if (!confirm(confirmText)) return;
+    setBusy(true); setMsg(null); setIssues([]); setShowDetails(false);
+    try {
+      const r = await fetch(endpoint, { method: 'POST', headers: authHeaders() });
+      const d = await r.json();
+      if (r.ok) {
+        setMsg(d.message || 'Sync OK');
+        if (Array.isArray(d.issues) && d.issues.length > 0) setIssues(d.issues);
+      } else setMsg(d.error || 'Erreur');
+    } catch (e: unknown) {
+      setMsg((e as Error).message);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div style={{
+      padding: 18, borderRadius: 12,
+      background: 'var(--night-card)', border: '1px solid var(--border)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 4px', color: 'var(--text)' }}>
+            <span aria-hidden style={{ marginRight: 6 }}>{emoji}</span> {title}
+          </h3>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+            {description}
+          </p>
+        </div>
+        <button onClick={run} disabled={busy} style={{
+          padding: '9px 16px', borderRadius: 8, background: 'var(--orange)',
+          border: 'none', color: '#fff', cursor: busy ? 'wait' : 'pointer',
+          fontSize: '0.84rem', fontWeight: 700, opacity: busy ? 0.6 : 1, whiteSpace: 'nowrap',
+        }}>
+          {busy ? '⏳ En cours…' : '🔄 Lancer'}
+        </button>
+      </div>
+      {msg && (
+        <div style={{
+          marginTop: 12, padding: '8px 12px', borderRadius: 8,
+          background: 'var(--night-mid)', fontSize: '0.78rem', color: 'var(--text-mid)',
+        }}>
+          {msg}
+          {issues.length > 0 && (
+            <>
+              {' · '}
+              <button onClick={() => setShowDetails(s => !s)} style={{
+                background: 'none', border: 'none', color: 'var(--orange)', cursor: 'pointer',
+                fontSize: '0.78rem', textDecoration: 'underline', padding: 0,
+              }}>
+                {showDetails ? 'masquer détails' : `voir ${issues.length} détail${issues.length > 1 ? 's' : ''}`}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {showDetails && issues.length > 0 && (
+        <div style={{
+          marginTop: 8, padding: '10px 12px', borderRadius: 8,
+          background: 'var(--night-mid)', border: '1px solid var(--border)',
+          fontSize: '0.74rem', color: 'var(--text-mid)', lineHeight: 1.6,
+        }}>
+          {issues.map((iss, i) => <div key={i} style={{ marginBottom: 3 }}>• {iss}</div>)}
+        </div>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { supaFetch } from '@/lib/supabase';
 import { listGhlInvoices } from '@/lib/ghl-invoices';
 import { findOrCreateClientByEmail } from '@/lib/client-resolver';
 import { markProspectContracted } from '@/lib/mark-contracted';
+import { ghlRequest } from '@/lib/ghl';
 
 // POST /api/ghl/sync-invoices?days=180
 //   Importe les factures GHL en statut 'paid' dans la table payments locale.
@@ -45,17 +46,28 @@ export async function POST(req: NextRequest) {
       if (arr.length > 0) { skipped++; continue; }
     }
 
-    const email = inv.contactDetails.email;
+    // 1. Email direct sur la facture
+    let email = inv.contactDetails.email;
+
+    // 2. Fallback : fetch le contact GHL via son contactId pour récupérer l'email
+    if (!email && inv.contactDetails.id) {
+      try {
+        const data = await ghlRequest('GET', `/contacts/${encodeURIComponent(inv.contactDetails.id)}`);
+        const c = data?.contact || data;
+        email = c?.email || null;
+      } catch { /* tolerate */ }
+    }
+
     if (!email) {
       unmatched++;
-      if (issues.length < 10) issues.push(`Facture ${inv.invoiceNumber || inv.id} : aucun email sur la fiche contact GHL`);
+      if (issues.length < 10) issues.push(`Facture ${inv.invoiceNumber || inv.id} : aucun email (contactId=${inv.contactDetails.id || 'aucun'})`);
       continue;
     }
 
     const resolved = await findOrCreateClientByEmail(email);
     if (!resolved) {
       unmatched++;
-      if (issues.length < 10) issues.push(`Facture ${inv.invoiceNumber || inv.id} : email ${email} introuvable`);
+      if (issues.length < 10) issues.push(`Facture ${inv.invoiceNumber || inv.id} : email ${email} introuvable (ni clients ni gh_opportunities)`);
       continue;
     }
     if (resolved.created) createdClients++;
