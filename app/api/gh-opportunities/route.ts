@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
-import { resolveMapping, updateOpportunityStage, updateOpportunity, stageIdToProspectStatus } from '@/lib/ghl-opportunities';
+import { resolveMapping, updateOpportunityStage, updateOpportunity, deleteOpportunity, stageIdToProspectStatus } from '@/lib/ghl-opportunities';
 
 // GET /api/gh-opportunities
 //   - Returns all opportunities mirrored from the GHL "Pipeline Bourbon Media"
@@ -96,4 +96,44 @@ export async function PATCH(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, prospect_status, stage_name: stage?.name || null });
+}
+
+// DELETE /api/gh-opportunities  body: { id }
+//   - Deletes the opportunity in our DB
+//   - Pushes DELETE to GHL (best effort)
+//   - Cascade : un-link gh_appointments (set opportunity_id to NULL)
+export async function DELETE(req: NextRequest) {
+  if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  const body = await req.json().catch(() => ({}));
+  const id = body.id as string | undefined;
+  if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
+
+  // Fetch ghl_opportunity_id for the GHL-side delete
+  const lookupRes = await supaFetch(`gh_opportunities?id=eq.${encodeURIComponent(id)}&select=ghl_opportunity_id&limit=1`, {}, true);
+  if (!lookupRes.ok) return NextResponse.json({ error: 'fetch failed' }, { status: 500 });
+  const rows = await lookupRes.json();
+  const opp = rows[0];
+  if (!opp) return NextResponse.json({ error: 'not found' }, { status: 404 });
+
+  // Un-link any appointments pointing to this opportunity (don't delete them)
+  if (opp.ghl_opportunity_id) {
+    await supaFetch(
+      `gh_appointments?opportunity_id=eq.${encodeURIComponent(opp.ghl_opportunity_id)}`,
+      { method: 'PATCH', body: JSON.stringify({ opportunity_id: null }) },
+      true,
+    ).catch(() => null);
+  }
+
+  // Delete from our DB
+  const r = await supaFetch(`gh_opportunities?id=eq.${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  }, true);
+  if (!r.ok) return NextResponse.json({ error: 'delete failed' }, { status: 500 });
+
+  // Best-effort delete in GHL (will resync on next backfill if user undoes)
+  if (opp.ghl_opportunity_id) {
+    await deleteOpportunity(opp.ghl_opportunity_id).catch(() => null);
+  }
+
+  return NextResponse.json({ ok: true });
 }

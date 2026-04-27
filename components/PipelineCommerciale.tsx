@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { downloadCsv } from '@/lib/csv-export';
 
 interface Opportunity {
   id: string;
@@ -73,8 +75,25 @@ export default function PipelineCommerciale() {
   const [opps, setOpps] = useState<Opportunity[]>([]);
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const sp = useSearchParams();
+  const initialQ = sp?.get('q') || '';
+  const [search, setSearch] = useState(initialQ);
+
+  // Pre-open the matching prospect modal if ?q=... matches exactly one opp
+  useEffect(() => {
+    if (!initialQ || opps.length === 0) return;
+    const matches = opps.filter(o => {
+      const hay = [o.name, o.contact_name, o.contact_email].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(initialQ.toLowerCase());
+    });
+    if (matches.length === 1 && !selectedId) setSelectedId(matches[0].id);
+    // Only run on initial mount with q param
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opps]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(() => {
     fetch('/api/gh-opportunities', { headers: authHeaders() })
@@ -125,16 +144,48 @@ export default function PipelineCommerciale() {
   return (
     <div style={{ padding: 'clamp(16px, 2.5vw, 28px)', maxWidth: '100%', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ marginBottom: 14 }}>
+      <div style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <input
           type="text" placeholder="🔍 Rechercher un prospect / opportunité…"
           value={search} onChange={e => setSearch(e.target.value)}
           style={{
-            width: '100%', maxWidth: 420, padding: '9px 14px', borderRadius: 10,
+            flex: 1, maxWidth: 420, padding: '9px 14px', borderRadius: 10,
             background: 'var(--night-card)', border: '1px solid var(--border)',
             color: 'var(--text)', fontSize: '0.85rem', outline: 'none',
           }}
         />
+        <button
+          onClick={() => {
+            const rows = filtered.map(o => ({
+              Nom: o.name || '',
+              Stage: o.pipeline_stage_name || '',
+              'Statut prospect': o.prospect_status || '',
+              Contact: o.contact_name || '',
+              Email: o.contact_email || '',
+              Téléphone: o.contact_phone || '',
+              'Valeur (€)': o.monetary_value_cents ? (o.monetary_value_cents / 100).toFixed(2) : '',
+              'Créée le': o.ghl_created_at ? new Date(o.ghl_created_at).toLocaleDateString('fr-FR') : '',
+              'MAJ': o.ghl_updated_at ? new Date(o.ghl_updated_at).toLocaleDateString('fr-FR') : '',
+            }));
+            const date = new Date().toISOString().slice(0, 10);
+            downloadCsv(`pipeline-commerciale-${date}.csv`, rows);
+          }}
+          style={{
+            padding: '8px 14px', borderRadius: 10, background: 'var(--night-card)',
+            border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+            cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+          }}
+        >📊 Exporter CSV</button>
+        <button
+          onClick={() => { setSelectMode(s => !s); setBulkSelected(new Set()); }}
+          style={{
+            padding: '8px 14px', borderRadius: 10,
+            background: selectMode ? 'var(--orange)' : 'var(--night-card)',
+            border: `1px solid ${selectMode ? 'var(--orange)' : 'var(--border-md)'}`,
+            color: selectMode ? '#fff' : 'var(--text-mid)',
+            cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+          }}
+        >{selectMode ? '✓ Sélection' : '☐ Sélection'}</button>
       </div>
 
       {loading ? (
@@ -163,6 +214,14 @@ export default function PipelineCommerciale() {
               stage={stage}
               items={grouped[stage.id] || []}
               onSelect={setSelectedId}
+              selectMode={selectMode}
+              bulkSelected={bulkSelected}
+              onToggleSelect={(id) => setBulkSelected(prev => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              })}
             />
           ))}
         </div>
@@ -176,11 +235,115 @@ export default function PipelineCommerciale() {
           onSaved={() => { setSelectedId(null); load(); }}
         />
       )}
+
+      {/* Floating bulk action bar — visible quand selectMode + au moins 1 sélectionné */}
+      {selectMode && bulkSelected.size > 0 && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 100, padding: '10px 16px', borderRadius: 14,
+          background: 'var(--night-card)', border: '1px solid var(--orange)',
+          boxShadow: '0 10px 30px rgba(0,0,0,.5)',
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+          maxWidth: 'calc(100vw - 32px)',
+        }}>
+          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)' }}>
+            {bulkSelected.size} sélectionné{bulkSelected.size > 1 ? 's' : ''}
+          </span>
+
+          <select
+            disabled={bulkBusy}
+            defaultValue=""
+            onChange={async (e) => {
+              const stageId = e.target.value;
+              if (!stageId) return;
+              setBulkBusy(true);
+              try {
+                const ids = Array.from(bulkSelected);
+                await Promise.all(ids.map(id =>
+                  fetch('/api/gh-opportunities', {
+                    method: 'PATCH', headers: authHeaders(),
+                    body: JSON.stringify({ id, pipeline_stage_id: stageId }),
+                  }).catch(() => null)
+                ));
+                setBulkSelected(new Set());
+                load();
+              } finally { setBulkBusy(false); e.target.value = ''; }
+            }}
+            style={{
+              padding: '7px 10px', borderRadius: 8,
+              background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+              color: 'var(--text)', fontSize: '0.78rem', cursor: 'pointer',
+            }}
+          >
+            <option value="">↗ Déplacer vers…</option>
+            {stages.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+
+          <button
+            disabled={bulkBusy}
+            onClick={() => {
+              const rows = Array.from(bulkSelected).map(id => opps.find(o => o.id === id)).filter(Boolean).map(o => ({
+                Nom: o!.name || '',
+                Stage: o!.pipeline_stage_name || '',
+                Email: o!.contact_email || '',
+                'Valeur (€)': o!.monetary_value_cents ? (o!.monetary_value_cents / 100).toFixed(2) : '',
+              }));
+              const date = new Date().toISOString().slice(0, 10);
+              downloadCsv(`pipeline-selection-${date}.csv`, rows);
+            }}
+            style={{
+              padding: '7px 12px', borderRadius: 8,
+              background: 'transparent', border: '1px solid var(--border-md)',
+              color: 'var(--text-mid)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
+            }}
+          >📊 Export</button>
+
+          <button
+            disabled={bulkBusy}
+            onClick={async () => {
+              if (!confirm(`Supprimer ${bulkSelected.size} prospect(s) ? Action irréversible.`)) return;
+              setBulkBusy(true);
+              try {
+                const ids = Array.from(bulkSelected);
+                await Promise.all(ids.map(id =>
+                  fetch('/api/gh-opportunities', {
+                    method: 'DELETE', headers: authHeaders(),
+                    body: JSON.stringify({ id }),
+                  }).catch(() => null)
+                ));
+                setBulkSelected(new Set());
+                load();
+              } finally { setBulkBusy(false); }
+            }}
+            style={{
+              padding: '7px 12px', borderRadius: 8,
+              background: 'transparent', border: '1px solid rgba(239,68,68,.40)',
+              color: '#FCA5A5', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
+            }}
+          >🗑️ Supprimer</button>
+
+          <button
+            onClick={() => { setBulkSelected(new Set()); }}
+            style={{
+              padding: '7px 12px', borderRadius: 8,
+              background: 'transparent', border: 'none',
+              color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.78rem',
+            }}
+          >Annuler</button>
+        </div>
+      )}
     </div>
   );
 }
 
-function Column({ stage, items, onSelect }: { stage: PipelineStage; items: Opportunity[]; onSelect: (id: string) => void }) {
+function Column({ stage, items, onSelect, selectMode, bulkSelected, onToggleSelect }: {
+  stage: PipelineStage; items: Opportunity[]; onSelect: (id: string) => void;
+  selectMode: boolean;
+  bulkSelected: Set<string>;
+  onToggleSelect: (id: string) => void;
+}) {
   const colorOf = stage.name.toLowerCase();
   const color = colorOf.includes('contract') || colorOf.includes('régulier') ? '#22C55E'
     : colorOf.includes('attente signature') ? '#3B82F6'
@@ -220,7 +383,16 @@ function Column({ stage, items, onSelect }: { stage: PipelineStage; items: Oppor
             Vide
           </div>
         ) : (
-          items.map(o => <Card key={o.id} opp={o} onSelect={onSelect} />)
+          items.map(o => (
+            <Card
+              key={o.id}
+              opp={o}
+              onSelect={onSelect}
+              selectMode={selectMode}
+              isSelected={bulkSelected.has(o.id)}
+              onToggleSelect={onToggleSelect}
+            />
+          ))
         )}
       </div>
     </div>
@@ -240,22 +412,43 @@ function stageColorFromName(name: string | null | undefined): string {
   return 'var(--text-mid)';
 }
 
-function Card({ opp, onSelect }: { opp: Opportunity; onSelect: (id: string) => void }) {
+function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect }: {
+  opp: Opportunity;
+  onSelect: (id: string) => void;
+  selectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
+}) {
   const stageColor = stageColorFromName(opp.pipeline_stage_name);
   return (
     <button
       type="button"
-      onClick={() => onSelect(opp.id)}
+      onClick={() => {
+        if (selectMode && onToggleSelect) onToggleSelect(opp.id);
+        else onSelect(opp.id);
+      }}
       style={{
         padding: '8px 10px', borderRadius: 6,
-        background: 'var(--night-mid)', border: '1px solid var(--border)',
+        background: isSelected ? 'rgba(232,105,43,.18)' : 'var(--night-mid)',
+        border: `1px solid ${isSelected ? 'var(--orange)' : 'var(--border)'}`,
         display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch',
         cursor: 'pointer', textAlign: 'left', width: '100%', color: 'var(--text)',
         transition: 'background .15s, border-color .15s',
       }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'var(--night-raised)'; e.currentTarget.style.borderColor = 'var(--border-md)'; }}
-      onMouseLeave={e => { e.currentTarget.style.background = 'var(--night-mid)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+      onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.background = 'var(--night-raised)'; e.currentTarget.style.borderColor = 'var(--border-md)'; } }}
+      onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.background = 'var(--night-mid)'; e.currentTarget.style.borderColor = 'var(--border)'; } }}
     >
+      {selectMode && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+          <span style={{
+            width: 14, height: 14, borderRadius: 4,
+            background: isSelected ? 'var(--orange)' : 'transparent',
+            border: `1.5px solid ${isSelected ? 'var(--orange)' : 'var(--border-md)'}`,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: '0.65rem', fontWeight: 700,
+          }}>{isSelected ? '✓' : ''}</span>
+        </div>
+      )}
       {/* Stage pastille — visible au coup d'œil */}
       {opp.pipeline_stage_name && (
         <div style={{
@@ -330,6 +523,8 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
       })
       .finally(() => setLoadingAppt(false));
   }, [opp.ghl_opportunity_id, opp.contact_email, status]);
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function save() {
     setSaving(true);
@@ -467,26 +662,76 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
                     : a.notes_completed_at ? { l: '✅ Documenté', c: 'var(--green)' }
                     : new Date(a.starts_at).getTime() < Date.now() ? { l: 'À documenter', c: '#D8B4FE' }
                     : { l: 'À venir', c: 'var(--text-mid)' };
+                  const isFuture = new Date(a.starts_at).getTime() > Date.now();
+                  const isActionable = a.status !== 'cancelled' && a.status !== 'no_show';
                   return (
                     <div key={a.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                      borderRadius: 6, background: 'var(--night-mid)', border: '1px solid var(--border)',
+                      display: 'flex', flexDirection: 'column', gap: 6,
+                      padding: '8px 10px', borderRadius: 6,
+                      background: 'var(--night-mid)', border: '1px solid var(--border)',
                     }}>
-                      <span aria-hidden style={{
-                        width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                        background: 'var(--night-raised)', border: `1.5px solid ${m.c}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem',
-                      }}>{m.e}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text)' }}>{m.l}</div>
-                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
-                          {new Date(a.starts_at).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span aria-hidden style={{
+                          width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                          background: 'var(--night-raised)', border: `1.5px solid ${m.c}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem',
+                        }}>{m.e}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text)' }}>{m.l}</div>
+                          <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                            {new Date(a.starts_at).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </div>
                         </div>
+                        <span style={{
+                          fontSize: '0.6rem', padding: '2px 8px', borderRadius: 999, fontWeight: 600, whiteSpace: 'nowrap',
+                          background: pastBadge.c + '20', color: pastBadge.c, border: `1px solid ${pastBadge.c}40`,
+                        }}>{pastBadge.l}</span>
                       </div>
-                      <span style={{
-                        fontSize: '0.6rem', padding: '2px 8px', borderRadius: 999, fontWeight: 600, whiteSpace: 'nowrap',
-                        background: pastBadge.c + '20', color: pastBadge.c, border: `1px solid ${pastBadge.c}40`,
-                      }}>{pastBadge.l}</span>
+                      {/* Actions GHL : Annuler / No-show / Replanifier */}
+                      {isActionable && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Annuler ce RDV ? Le client sera notifié côté GHL.')) return;
+                              await fetch('/api/gh-appointments', {
+                                method: 'PATCH', headers: authHeaders(),
+                                body: JSON.stringify({ id: a.id, status: 'cancelled' }),
+                              });
+                              setAllAppts(prev => prev.map(x => x.id === a.id ? { ...x, status: 'cancelled' } : x));
+                            }}
+                            style={{
+                              padding: '4px 9px', borderRadius: 5, fontSize: '0.66rem', fontWeight: 600,
+                              background: 'transparent', border: '1px solid rgba(239,68,68,.30)',
+                              color: '#FCA5A5', cursor: 'pointer',
+                            }}
+                          >❌ Annuler</button>
+                          {!isFuture && (
+                            <button
+                              onClick={async () => {
+                                await fetch('/api/gh-appointments', {
+                                  method: 'PATCH', headers: authHeaders(),
+                                  body: JSON.stringify({ id: a.id, status: 'no_show' }),
+                                });
+                                setAllAppts(prev => prev.map(x => x.id === a.id ? { ...x, status: 'no_show' } : x));
+                              }}
+                              style={{
+                                padding: '4px 9px', borderRadius: 5, fontSize: '0.66rem', fontWeight: 600,
+                                background: 'transparent', border: '1px solid var(--border-md)',
+                                color: 'var(--text-muted)', cursor: 'pointer',
+                              }}
+                            >👻 No show</button>
+                          )}
+                          <a
+                            href={`https://app.gohighlevel.com/v2/location/${(opp as { location_id?: string }).location_id || ''}/appointments`}
+                            target="_blank" rel="noreferrer"
+                            style={{
+                              padding: '4px 9px', borderRadius: 5, fontSize: '0.66rem', fontWeight: 600,
+                              background: 'transparent', border: '1px solid var(--border-md)',
+                              color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'none',
+                            }}
+                          >📅 Replanifier dans GHL ↗</a>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -584,9 +829,48 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
 
         {/* Footer */}
         <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-            🔁 Sync auto vers GHL
-          </span>
+          {/* Bouton suppression — confirmation inline */}
+          {confirmDelete ? (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: '0.74rem', color: 'var(--red)', fontWeight: 600 }}>Sûr ?</span>
+              <button
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    const r = await fetch('/api/gh-opportunities', {
+                      method: 'DELETE', headers: authHeaders(),
+                      body: JSON.stringify({ id: opp.id }),
+                    });
+                    if (r.ok) onSaved();
+                    else alert('Suppression échouée');
+                  } finally { setSaving(false); setConfirmDelete(false); }
+                }}
+                disabled={saving}
+                style={{
+                  padding: '6px 12px', borderRadius: 6,
+                  background: 'var(--red)', color: '#fff', border: 'none',
+                  cursor: 'pointer', fontSize: '0.74rem', fontWeight: 700,
+                }}
+              >🗑️ Confirmer</button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                style={{
+                  padding: '6px 10px', borderRadius: 6,
+                  background: 'transparent', border: '1px solid var(--border-md)',
+                  color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.74rem',
+                }}
+              >Non</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              style={{
+                padding: '7px 12px', borderRadius: 8,
+                background: 'transparent', border: '1px solid rgba(239,68,68,.30)',
+                color: 'var(--red)', cursor: 'pointer', fontSize: '0.74rem', fontWeight: 600,
+              }}
+            >🗑️ Supprimer</button>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={onClose} style={{
               padding: '9px 16px', borderRadius: 8,

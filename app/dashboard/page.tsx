@@ -507,13 +507,30 @@ interface ClosingStats {
 function DailyMetricsCard({ clients: _clients }: { clients: Client[] }) {
   const [stats, setStats] = useState<ClosingStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<'today' | 'week' | 'month'>('today');
 
   useEffect(() => {
-    fetch('/api/closing-stats', { headers: authHeaders() })
+    setLoading(true);
+    let url = '/api/closing-stats';
+    if (range !== 'today') {
+      const now = new Date();
+      const fromDate = new Date(now);
+      if (range === 'week') {
+        const dow = fromDate.getDay() === 0 ? 7 : fromDate.getDay();
+        fromDate.setDate(fromDate.getDate() - (dow - 1));
+      } else if (range === 'month') {
+        fromDate.setDate(1);
+      }
+      const toIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      url = `/api/closing-stats?from=${toIso(fromDate)}&to=${toIso(now)}`;
+    }
+    fetch(url, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : null)
       .then(d => setStats(d))
       .finally(() => setLoading(false));
-  }, []);
+  }, [range]);
+
+  const rangeLabel = range === 'today' ? "Aujourd'hui" : range === 'week' ? 'Cette semaine' : 'Ce mois';
 
   return (
     <div style={{
@@ -526,16 +543,35 @@ function DailyMetricsCard({ clients: _clients }: { clients: Client[] }) {
           margin: 0, display: 'flex', alignItems: 'center', gap: 8,
           textTransform: 'uppercase', letterSpacing: 0.5,
         }}>
-          <span aria-hidden>📊</span> Aujourd&apos;hui en chiffres
+          <span aria-hidden>📊</span> {rangeLabel} en chiffres
           <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>
             (auto · GHL + Stripe)
           </span>
         </h2>
-        <Link href="/dashboard/settings?tab=ads" style={{
-          background: 'transparent', border: '1px solid var(--border-md)', color: 'var(--text-muted)',
-          borderRadius: 8, padding: '4px 10px', fontSize: '0.72rem', fontWeight: 600,
-          textDecoration: 'none',
-        }}>⚙️ Paramètres</Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 8, background: 'var(--night-mid)', border: '1px solid var(--border-md)' }}>
+            {(['today', 'week', 'month'] as const).map(r => {
+              const labels = { today: 'Jour', week: 'Semaine', month: 'Mois' };
+              return (
+                <button
+                  key={r}
+                  onClick={() => setRange(r)}
+                  style={{
+                    padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                    background: range === r ? 'var(--orange)' : 'transparent',
+                    color: range === r ? '#fff' : 'var(--text-muted)',
+                    fontSize: '0.72rem', fontWeight: 600,
+                  }}
+                >{labels[r]}</button>
+              );
+            })}
+          </div>
+          <Link href="/dashboard/settings?tab=ads" style={{
+            background: 'transparent', border: '1px solid var(--border-md)', color: 'var(--text-muted)',
+            borderRadius: 8, padding: '4px 10px', fontSize: '0.72rem', fontWeight: 600,
+            textDecoration: 'none',
+          }}>⚙️</Link>
+        </div>
       </div>
 
       {loading || !stats ? (

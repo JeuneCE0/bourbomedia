@@ -101,6 +101,16 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'month' | 'list'>(() => {
+    if (typeof window === 'undefined') return 'month';
+    const saved = localStorage.getItem('cal_view');
+    if (saved === 'list' || saved === 'month') return saved;
+    return window.innerWidth < 768 ? 'list' : 'month';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem('cal_view', viewMode);
+  }, [viewMode]);
   const [activeKinds, setActiveKinds] = useState<EventKind[]>([]); // empty = all
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
@@ -542,8 +552,29 @@ export default function CalendarPage() {
             }}>
               📍 Aujourd&apos;hui
             </button>
+            {/* View mode toggle : month grid / list (mobile-friendly) */}
+            <div style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 8, background: 'var(--night-mid)', border: '1px solid var(--border-md)', marginLeft: 'auto' }}>
+              {(['month', 'list'] as const).map(v => (
+                <button
+                  key={v}
+                  onClick={() => setViewMode(v)}
+                  style={{
+                    padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                    background: viewMode === v ? 'var(--orange)' : 'transparent',
+                    color: viewMode === v ? '#fff' : 'var(--text-muted)',
+                    fontSize: '0.74rem', fontWeight: 600,
+                  }}
+                >
+                  {v === 'month' ? '📆 Grille' : '📋 Liste'}
+                </button>
+              ))}
+            </div>
           </div>
 
+          {viewMode === 'list' ? (
+            <CalendarListView events={filteredEvents} monthKey={monthKey} />
+          ) : (
+          <>
           {/* Day headers */}
           <div style={{
             display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
@@ -630,6 +661,18 @@ export default function CalendarPage() {
                     {dayEvents.slice(0, 3).map(e => {
                       const meta = KIND_META[e.kind];
                       const draggable = e.kind === 'filming' && !rescheduling;
+                      // Compute the target URL — same logic as expanded view
+                      const eventHref =
+                        e.kind === 'closing_call'
+                          ? `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`
+                          : e.client_id
+                            ? `/dashboard/clients/${e.client_id}${
+                                e.kind === 'filming' ? '?tab=delivery'
+                                : e.kind === 'onboarding_call' || e.kind === 'appt_other' ? '?tab=ghl'
+                                : e.kind === 'script_sent' || e.kind === 'script_due' ? '?tab=script'
+                                : ''
+                              }`
+                            : `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`;
                       return (
                         <div
                           key={e.id}
@@ -641,7 +684,13 @@ export default function CalendarPage() {
                             setDraggingEventId(e.id);
                           }}
                           onDragEnd={() => { setDraggingEventId(null); setDragOverDate(null); }}
-                          title={draggable ? 'Glissez sur un autre jour pour reprogrammer' : undefined}
+                          onClick={(ev) => {
+                            // Don't navigate if drag is in progress
+                            if (draggingEventId) return;
+                            ev.stopPropagation();
+                            if (typeof window !== 'undefined') window.location.href = eventHref;
+                          }}
+                          title={draggable ? 'Glissez sur un autre jour pour reprogrammer · clic pour ouvrir' : 'Clic pour ouvrir'}
                           style={{
                             fontSize: 'var(--cal-font-slot)', padding: '2px 5px',
                             borderRadius: 4, marginBottom: 2,
@@ -715,22 +764,35 @@ export default function CalendarPage() {
                               </div>
                             </>
                           );
-                          return e.client_id ? (
-                            <Link key={e.id} href={`/dashboard/clients/${e.client_id}${e.kind === 'filming' ? '?tab=filming' : e.kind === 'script_sent' || e.kind === 'script_due' ? '?tab=script' : ''}`} style={{
+                          // Route the click to the page where the user can take action :
+                          //  - GHL closing call : /pipeline (modal d'édition avec actions GHL)
+                          //  - GHL appointment lié à un client : /clients/[id]?tab=ghl
+                          //  - Filming (clients table) : /clients/[id]?tab=delivery
+                          //  - Script events : /clients/[id]?tab=script
+                          //  - Otherwise : /pipeline (search-friendly)
+                          const targetHref =
+                            e.kind === 'closing_call'
+                              ? `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`
+                              : e.client_id
+                                ? `/dashboard/clients/${e.client_id}${
+                                    e.kind === 'filming' ? '?tab=delivery'
+                                    : e.kind === 'onboarding_call' || e.kind === 'appt_other' ? '?tab=ghl'
+                                    : e.kind === 'script_sent' || e.kind === 'script_due' ? '?tab=script'
+                                    : ''
+                                  }`
+                                : `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`;
+                          return (
+                            <Link key={e.id} href={targetHref} style={{
                               display: 'block', padding: '8px 10px', borderRadius: 8,
                               background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
                               marginBottom: 6, textDecoration: 'none',
-                            }}>
+                              transition: 'background .15s, transform .15s',
+                            }}
+                              onMouseEnter={ev => { (ev.currentTarget as HTMLElement).style.background = meta.color + '20'; (ev.currentTarget as HTMLElement).style.transform = 'translateX(2px)'; }}
+                              onMouseLeave={ev => { (ev.currentTarget as HTMLElement).style.background = meta.color + '10'; (ev.currentTarget as HTMLElement).style.transform = 'none'; }}
+                            >
                               {inner}
                             </Link>
-                          ) : (
-                            <div key={e.id} style={{
-                              padding: '8px 10px', borderRadius: 8,
-                              background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
-                              marginBottom: 6,
-                            }}>
-                              {inner}
-                            </div>
                           );
                         })
                       )}
@@ -740,6 +802,8 @@ export default function CalendarPage() {
               );
             })}
           </div>
+          </>
+          )}
 
           {/* Legend */}
           <div style={{
@@ -784,5 +848,120 @@ function NavBtn({ onClick, label, title }: { onClick: () => void; label: string;
     >
       {label}
     </button>
+  );
+}
+
+/* Agenda-style list view — chronological, mobile-friendly */
+function CalendarListView({ events, monthKey }: { events: CalEvent[]; monthKey: string }) {
+  // Show events from the visible month, grouped by date
+  const monthEvents = events.filter(e => e.date.startsWith(monthKey));
+  if (monthEvents.length === 0) {
+    return (
+      <div style={{
+        padding: '60px 20px', textAlign: 'center',
+        background: 'var(--night-card)', borderRadius: 12, border: '1px dashed var(--border-md)',
+        color: 'var(--text-muted)',
+      }}>
+        <div style={{ fontSize: '2.5rem', marginBottom: 10, opacity: 0.5 }}>📭</div>
+        <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+          Aucun évènement ce mois
+        </div>
+        <div style={{ fontSize: '0.78rem' }}>
+          Naviguez avec ◀ / ▶ ou choisissez la vue Grille
+        </div>
+      </div>
+    );
+  }
+
+  // Group by date
+  const byDate: Record<string, CalEvent[]> = {};
+  monthEvents.forEach(e => {
+    if (!byDate[e.date]) byDate[e.date] = [];
+    byDate[e.date].push(e);
+  });
+  const sortedDates = Object.keys(byDate).sort();
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {sortedDates.map(date => {
+        const d = new Date(date);
+        const isToday = date === today;
+        const evs = byDate[date];
+        return (
+          <div key={date} style={{
+            background: 'var(--night-card)',
+            borderRadius: 12,
+            border: `1px solid ${isToday ? 'var(--border-orange)' : 'var(--border)'}`,
+            padding: '14px 16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+              <span style={{
+                fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+                fontSize: '1.4rem', color: isToday ? 'var(--orange)' : 'var(--text)', lineHeight: 1,
+              }}>
+                {d.getDate()}
+              </span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-mid)', fontWeight: 600, textTransform: 'capitalize' }}>
+                {d.toLocaleDateString('fr-FR', { weekday: 'long', month: 'long' })}
+              </span>
+              {isToday && (
+                <span style={{
+                  fontSize: '0.66rem', padding: '2px 8px', borderRadius: 999, fontWeight: 700,
+                  background: 'rgba(232,105,43,.18)', color: 'var(--orange)', border: '1px solid var(--border-orange)',
+                }}>Aujourd&apos;hui</span>
+              )}
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                {evs.length} évènement{evs.length > 1 ? 's' : ''}
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {evs.map(e => {
+                const meta = KIND_META[e.kind];
+                const targetHref =
+                  e.kind === 'closing_call'
+                    ? `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`
+                    : e.client_id
+                      ? `/dashboard/clients/${e.client_id}${
+                          e.kind === 'filming' ? '?tab=delivery'
+                          : e.kind === 'onboarding_call' || e.kind === 'appt_other' ? '?tab=ghl'
+                          : e.kind === 'script_sent' || e.kind === 'script_due' ? '?tab=script'
+                          : ''
+                        }`
+                      : `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`;
+                return (
+                  <Link key={e.id} href={targetHref} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                    borderRadius: 8, background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
+                    textDecoration: 'none',
+                  }}>
+                    <span aria-hidden style={{ fontSize: '1rem' }}>{meta.emoji}</span>
+                    {e.time && (
+                      <span style={{
+                        fontSize: '0.74rem', color: meta.color, fontWeight: 700,
+                        fontFamily: "'Bricolage Grotesque', sans-serif", minWidth: 44,
+                      }}>{e.time}</span>
+                    )}
+                    <span style={{
+                      flex: 1, fontSize: '0.84rem', color: 'var(--text)', fontWeight: 600,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      textDecoration: e.done ? 'line-through' : 'none',
+                    }}>
+                      {e.label}
+                    </span>
+                    <span style={{
+                      fontSize: '0.66rem', padding: '2px 8px', borderRadius: 999, fontWeight: 600,
+                      background: meta.color + '20', color: meta.color, whiteSpace: 'nowrap',
+                    }}>
+                      {meta.label}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
