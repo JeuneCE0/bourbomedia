@@ -3,21 +3,38 @@ import { supaFetch } from '@/lib/supabase';
 import { pushNotesToGhl } from '@/lib/ghl-appointments';
 import { resolveMapping, prospectStatusToStageId, updateOpportunityStage } from '@/lib/ghl-opportunities';
 
-// GET /api/gh-appointments?pending=1     → appointments completed but not yet documented
-// GET /api/gh-appointments?follow_up=1   → reflection (J+2) / follow_up (J+7) prospects whose
-//                                          relance window is reached (today or overdue)
-// GET /api/gh-appointments?recent=1      → last ~30 appointments (for the admin history view)
-// GET /api/gh-appointments?id=<uuid>     → single appointment
+// GET /api/gh-appointments?pending=1            → completed appointments awaiting notes
+// GET /api/gh-appointments?follow_up=1          → reflection (J+2) / follow_up (J+7) due today
+// GET /api/gh-appointments?recent=1             → last ~500 appointments (calendar / pipeline)
+// GET /api/gh-appointments?from=YYYY-MM-DD&to=  → date range on starts_at (for calendar month)
+// GET /api/gh-appointments?today=1              → today's appointments only
+// GET /api/gh-appointments?id=<uuid>            → single appointment
 export async function GET(req: NextRequest) {
   const url = req.nextUrl;
   const id = url.searchParams.get('id');
   const pending = url.searchParams.get('pending');
   const recent = url.searchParams.get('recent');
   const followUp = url.searchParams.get('follow_up');
+  const from = url.searchParams.get('from');
+  const to = url.searchParams.get('to');
+  const today = url.searchParams.get('today');
 
   let path: string;
   if (id) {
     path = `gh_appointments?id=eq.${encodeURIComponent(id)}&select=*&limit=1`;
+  } else if (today) {
+    const now = new Date();
+    const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(now);   dayEnd.setHours(23, 59, 59, 999);
+    path = `gh_appointments?starts_at=gte.${encodeURIComponent(dayStart.toISOString())}`
+      + `&starts_at=lte.${encodeURIComponent(dayEnd.toISOString())}`
+      + `&select=*&order=starts_at.asc&limit=200`;
+  } else if (from && to) {
+    const fromIso = new Date(`${from}T00:00:00`).toISOString();
+    const toIso = new Date(`${to}T23:59:59.999`).toISOString();
+    path = `gh_appointments?starts_at=gte.${encodeURIComponent(fromIso)}`
+      + `&starts_at=lte.${encodeURIComponent(toIso)}`
+      + `&select=*&order=starts_at.asc&limit=2000`;
   } else if (pending) {
     // GHL flow: appointments are auto-confirmed on booking and stay 'scheduled' by
     // default. Only "No Show" or "Cancelled" are explicit negative signals — anything
@@ -47,9 +64,9 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json({ appointments: due });
   } else if (recent) {
-    path = `gh_appointments?select=*&order=starts_at.desc&limit=30`;
+    path = `gh_appointments?select=*&order=starts_at.desc&limit=500`;
   } else {
-    path = `gh_appointments?select=*&order=starts_at.desc&limit=30`;
+    path = `gh_appointments?select=*&order=starts_at.desc&limit=500`;
   }
 
   const r = await supaFetch(path, {}, true);
