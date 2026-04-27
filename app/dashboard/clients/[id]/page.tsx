@@ -272,16 +272,16 @@ export default function ClientDetailPage() {
   const searchParams = useSearchParams();
   const initialTab = (() => {
     const t = searchParams.get('tab');
-    return (['info', 'ghl', 'script', 'filming', 'delivery', 'payments'] as const).includes(t as 'info') ? (t as 'info' | 'ghl' | 'script' | 'filming' | 'delivery' | 'payments') : 'info';
+    return (['info', 'ghl', 'script', 'filming', 'delivery', 'payments'] as const).includes(t as 'info') ? (t as 'info' | 'ghl' | 'script' | 'delivery' | 'payments') : 'info';
   })();
 
   const [client, setClient] = useState<Client | null>(null);
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTabState] = useState<'info' | 'ghl' | 'script' | 'filming' | 'delivery' | 'payments'>(initialTab);
+  const [tab, setTabState] = useState<'info' | 'ghl' | 'script' | 'delivery' | 'payments'>(initialTab);
 
   // Sync tab → URL so admin can share / refresh and stay on the right tab
-  const setTab = useCallback((next: 'info' | 'ghl' | 'script' | 'filming' | 'delivery' | 'payments') => {
+  const setTab = useCallback((next: 'info' | 'ghl' | 'script' | 'delivery' | 'payments') => {
     setTabState(next);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
@@ -1029,7 +1029,6 @@ export default function ClientDetailPage() {
     { key: 'info', label: 'Aperçu' },
     { key: 'ghl', label: 'Closing & RDV' },
     { key: 'script', label: 'Script', badge: script?.script_comments?.length ? `${script.script_comments.length}` : undefined },
-    { key: 'filming', label: 'Tournage' },
     { key: 'delivery', label: 'Montage', badge: pendingFeedbackCount > 0 ? `${pendingFeedbackCount}` : (client.delivered_at ? '✓' : undefined) },
     { key: 'payments', label: 'Paiements', badge: payments.length > 0 ? `${payments.length}` : undefined },
   ];
@@ -1566,145 +1565,6 @@ export default function ClientDetailPage() {
         </div>
       )}
 
-      {/* Filming tab */}
-      {tab === 'filming' && (
-        <div key="tab-filming" className="bm-fade-in" style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
-          <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>Jour de tournage</h3>
-              <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                {client.filming_date
-                  ? `Prévu le ${new Date(client.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}`
-                  : 'Aucune date planifiée'}
-              </p>
-            </div>
-            {client.status !== 'filming_done' && client.status !== 'editing' && client.status !== 'published' && (
-              <button onClick={handleMarkFilmingDone} style={{
-                padding: '8px 16px', borderRadius: 8, background: 'var(--green)',
-                color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem',
-              }}>✓ Marquer tournage terminé</button>
-            )}
-          </div>
-
-          {/* Shot list / checklist */}
-          <div style={{ marginBottom: 24 }}>
-            <h4 style={{ margin: '0 0 10px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)' }}>Shot list / checklist</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-              {(client.filming_checklist || []).length === 0 ? (
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>Aucun item. Ajoutez des plans/prises à filmer ci-dessous.</p>
-              ) : (
-                (client.filming_checklist || []).map(item => (
-                  <div key={item.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 12px', borderRadius: 8,
-                    background: item.done ? 'rgba(34,197,94,.06)' : 'var(--night-mid)',
-                    border: `1px solid ${item.done ? 'rgba(34,197,94,.2)' : 'var(--border)'}`,
-                  }}>
-                    <button onClick={() => handleToggleChecklist(item.id)} style={{
-                      width: 20, height: 20, borderRadius: 5, flexShrink: 0,
-                      background: item.done ? 'var(--green)' : 'transparent',
-                      border: `1.5px solid ${item.done ? 'var(--green)' : 'var(--border-md)'}`,
-                      color: '#fff', cursor: 'pointer', fontSize: '0.7rem',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>{item.done ? '✓' : ''}</button>
-                    <span style={{
-                      flex: 1, fontSize: '0.85rem',
-                      color: item.done ? 'var(--text-muted)' : 'var(--text)',
-                      textDecoration: item.done ? 'line-through' : 'none',
-                    }}>{item.text}</span>
-                    <button onClick={() => handleRemoveChecklist(item.id)} style={{
-                      background: 'none', border: 'none', color: 'var(--text-muted)',
-                      cursor: 'pointer', fontSize: '0.9rem', padding: 4,
-                    }}>✕</button>
-                  </div>
-                ))
-              )}
-            </div>
-            <form onSubmit={(e) => { e.preventDefault(); handleAddChecklistItem(); }} style={{ display: 'flex', gap: 8 }}>
-              <input
-                value={newChecklistItem}
-                onChange={e => setNewChecklistItem(e.target.value)}
-                placeholder="Ajouter un plan / prise…"
-                style={{
-                  flex: 1, padding: '9px 12px', borderRadius: 6,
-                  background: 'var(--night-mid)', border: '1px solid var(--border-md)',
-                  color: 'var(--text)', fontSize: '0.85rem',
-                }}
-              />
-              <button type="submit" disabled={!newChecklistItem.trim()} style={{
-                padding: '9px 14px', borderRadius: 6, background: 'var(--orange)',
-                color: '#fff', border: 'none', fontSize: '0.82rem', cursor: 'pointer', fontWeight: 600,
-                opacity: newChecklistItem.trim() ? 1 : 0.5,
-              }}>+ Ajouter</button>
-            </form>
-          </div>
-
-          {/* Filming photos */}
-          <div style={{ marginBottom: 24 }}>
-            <h4 style={{ margin: '0 0 10px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)' }}>Photos du tournage</h4>
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-              gap: 8, marginBottom: 12,
-            }}>
-              {(client.filming_photos || []).map(url => (
-                <div key={url} style={{
-                  position: 'relative', borderRadius: 8, overflow: 'hidden',
-                  aspectRatio: '4/3', background: 'var(--night-mid)',
-                }}>
-                  <a href={url} target="_blank" rel="noreferrer">
-                    <img src={url} alt="" style={{
-                      width: '100%', height: '100%', objectFit: 'cover', display: 'block',
-                    }} />
-                  </a>
-                  <button onClick={() => handleRemovePhoto(url)} style={{
-                    position: 'absolute', top: 4, right: 4,
-                    background: 'rgba(0,0,0,.7)', border: 'none', color: '#fff',
-                    width: 22, height: 22, borderRadius: 4, cursor: 'pointer', fontSize: '0.7rem',
-                  }}>✕</button>
-                </div>
-              ))}
-              <label style={{
-                aspectRatio: '4/3', borderRadius: 8,
-                border: '2px dashed var(--border-md)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.75rem',
-                background: 'var(--night-mid)',
-              }}>
-                <input type="file" accept="image/*" style={{ display: 'none' }}
-                  disabled={uploadingPhoto}
-                  onChange={e => {
-                    const f = e.target.files?.[0];
-                    if (f) handleUploadPhoto(f);
-                    e.target.value = '';
-                  }}
-                />
-                <span style={{ fontSize: '1.4rem', marginBottom: 4 }}>{uploadingPhoto ? '⟳' : '+'}</span>
-                <span>{uploadingPhoto ? 'Upload…' : 'Ajouter photo'}</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Filming notes */}
-          <div>
-            <h4 style={{ margin: '0 0 10px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-mid)' }}>Notes du tournage</h4>
-            <textarea
-              defaultValue={client.filming_notes || ''}
-              onBlur={e => handleSaveFilmingNotes(e.target.value)}
-              placeholder="Notes, observations, ajustements à prendre en compte…"
-              rows={4}
-              style={{
-                width: '100%', padding: '10px 12px', borderRadius: 6,
-                background: 'var(--night-mid)', border: '1px solid var(--border-md)',
-                color: 'var(--text)', fontSize: '0.85rem', boxSizing: 'border-box',
-                fontFamily: 'inherit', resize: 'vertical',
-              }}
-            />
-            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-              Enregistrement auto quand vous cliquez ailleurs
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Delivery tab */}
       {tab === 'delivery' && (
