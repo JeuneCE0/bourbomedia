@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { downloadCsv } from '@/lib/csv-export';
 
 interface Opportunity {
   id: string;
@@ -140,16 +141,38 @@ export default function PipelineCommerciale() {
   return (
     <div style={{ padding: 'clamp(16px, 2.5vw, 28px)', maxWidth: '100%', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ marginBottom: 14 }}>
+      <div style={{ marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <input
           type="text" placeholder="🔍 Rechercher un prospect / opportunité…"
           value={search} onChange={e => setSearch(e.target.value)}
           style={{
-            width: '100%', maxWidth: 420, padding: '9px 14px', borderRadius: 10,
+            flex: 1, maxWidth: 420, padding: '9px 14px', borderRadius: 10,
             background: 'var(--night-card)', border: '1px solid var(--border)',
             color: 'var(--text)', fontSize: '0.85rem', outline: 'none',
           }}
         />
+        <button
+          onClick={() => {
+            const rows = filtered.map(o => ({
+              Nom: o.name || '',
+              Stage: o.pipeline_stage_name || '',
+              'Statut prospect': o.prospect_status || '',
+              Contact: o.contact_name || '',
+              Email: o.contact_email || '',
+              Téléphone: o.contact_phone || '',
+              'Valeur (€)': o.monetary_value_cents ? (o.monetary_value_cents / 100).toFixed(2) : '',
+              'Créée le': o.ghl_created_at ? new Date(o.ghl_created_at).toLocaleDateString('fr-FR') : '',
+              'MAJ': o.ghl_updated_at ? new Date(o.ghl_updated_at).toLocaleDateString('fr-FR') : '',
+            }));
+            const date = new Date().toISOString().slice(0, 10);
+            downloadCsv(`pipeline-commerciale-${date}.csv`, rows);
+          }}
+          style={{
+            padding: '8px 14px', borderRadius: 10, background: 'var(--night-card)',
+            border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+            cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+          }}
+        >📊 Exporter CSV</button>
       </div>
 
       {loading ? (

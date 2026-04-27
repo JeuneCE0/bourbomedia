@@ -68,8 +68,58 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Synthesize tasks from prospect follow-ups : reflection (J+2) and
+    // follow_up (J+7) gh_appointments where the relance window has been
+    // reached. Read-only — to mark them done, change the prospect status.
+    try {
+      const r2 = await supaFetch(
+        'gh_appointments?prospect_status=in.(reflection,follow_up)'
+        + '&notes_completed_at=not.is.null'
+        + '&select=id,ghl_appointment_id,prospect_status,notes_completed_at,contact_name,opportunity_name,contact_email,client_id'
+        + '&limit=200',
+        {}, true,
+      );
+      if (r2.ok) {
+        const TARGET: Record<string, number> = { reflection: 2, follow_up: 7 };
+        const LABELS: Record<string, string> = { reflection: 'En réflexion', follow_up: 'Follow-up' };
+        const now = Date.now();
+        const appts: Array<{
+          id: string; ghl_appointment_id: string; prospect_status: string;
+          notes_completed_at: string; contact_name: string | null;
+          opportunity_name: string | null; contact_email: string | null;
+          client_id: string | null;
+        }> = await r2.json();
+        for (const a of appts) {
+          const target = TARGET[a.prospect_status] || 0;
+          const elapsedMs = now - new Date(a.notes_completed_at).getTime();
+          const elapsedDays = Math.floor(elapsedMs / 86400000);
+          // Show the task starting at J+target (don't show before)
+          if (elapsedDays < target) continue;
+          const overdue = elapsedDays - target;
+          const dueDate = new Date(new Date(a.notes_completed_at).getTime() + target * 86400000);
+          const name = a.opportunity_name || a.contact_name || a.contact_email || 'Prospect';
+          tasks.push({
+            id: `prospect-${a.id}`,
+            client_id: a.client_id || a.id, // fallback so the link doesn't break
+            client_name: `🔁 ${name}`,
+            contact_name: null,
+            client_status: a.prospect_status,
+            text: `Relancer (${LABELS[a.prospect_status]}) — ${overdue > 0 ? `${overdue} j de retard` : "aujourd'hui"}`,
+            done: false,
+            due_date: dueDate.toISOString().slice(0, 10),
+            priority: overdue > 2 ? 'high' : overdue >= 0 ? 'medium' : 'low',
+            created_at: a.notes_completed_at,
+          });
+        }
+      }
+    } catch { /* tolerate */ }
+
     tasks.sort((a, b) => {
       if (a.done !== b.done) return a.done ? 1 : -1;
+      // Then by due_date (overdue first), then created
+      const aDue = a.due_date || '';
+      const bDue = b.due_date || '';
+      if (aDue && bDue && aDue !== bDue) return aDue.localeCompare(bDue);
       return (b.created_at || '').localeCompare(a.created_at || '');
     });
 
