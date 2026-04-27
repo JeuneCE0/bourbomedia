@@ -86,6 +86,7 @@ interface SatisfactionData {
 
 const STATUS_LABELS_PORTAL: Record<string, string> = {
   onboarding: 'Onboarding',
+  onboarding_call: 'Appel onboarding',
   script_writing: 'Écriture du script',
   script_review: 'Relecture du script',
   script_validated: 'Script validé',
@@ -99,6 +100,7 @@ const STATUS_LABELS_PORTAL: Record<string, string> = {
 
 const PROJECT_STAGES = [
   { key: 'onboarding',          label: 'Inscription',           emoji: '👋',  description: 'Vous êtes inscrit·e — bienvenue !' },
+  { key: 'onboarding_call',     label: 'Appel onboarding',      emoji: '📞',  description: 'Réservez votre appel de cadrage avec notre équipe.' },
   { key: 'script_writing',      label: 'Écriture du script',     emoji: '✍️',  description: 'Notre équipe écrit votre script sur mesure.' },
   { key: 'script_review',       label: 'Relecture du script',    emoji: '📝',  description: 'Le script vous est proposé pour relecture.' },
   { key: 'script_validated',    label: 'Réservez votre tournage', emoji: '✅', description: 'Choisissez votre créneau de tournage dans le calendrier ci-dessous.' },
@@ -323,6 +325,7 @@ function PortalContent() {
   const lastSeenScriptStatusRef = useRef<string | null>(null);
   const lastSeenNotifIdRef = useRef<string | null>(null);
   const lastSeenDeliveredAtRef = useRef<string | null>(null);
+  const lastSeenClientStatusRef = useRef<string | null>(null);
   const bellRef = useRef<HTMLDivElement>(null);
 
   // Show a transient toast (auto-dismisses after 5s)
@@ -435,13 +438,40 @@ function PortalContent() {
     lastSeenNotifIdRef.current = first.id;
   }, [notifications, showToast]);
 
+  // Toast when the admin moves the client to a new stage (drag/drop on the
+  // production kanban or status dropdown). Lets the client know live that
+  // the project just advanced.
+  useEffect(() => {
+    if (!clientInfo?.status) return;
+    const previous = lastSeenClientStatusRef.current;
+    if (previous !== null && previous !== clientInfo.status) {
+      const stageMessages: Record<string, { emoji: string; message: string }> = {
+        onboarding_call: { emoji: '📞', message: 'Réservez votre appel onboarding pour démarrer.' },
+        script_writing:  { emoji: '✍️', message: 'Notre équipe a commencé à écrire votre script.' },
+        filming_scheduled: { emoji: '🎬', message: 'Votre tournage est confirmé !' },
+        filming_done:    { emoji: '🎞️', message: 'Tournage terminé — montage en cours.' },
+        editing:         { emoji: '🎞️', message: 'Votre vidéo est en montage.' },
+        video_review:    { emoji: '👀', message: 'Votre vidéo est livrée — à vous de la valider !' },
+        publication_pending: { emoji: '🗓️', message: 'Choisissez la date de publication.' },
+        published:       { emoji: '🎉', message: 'Votre vidéo est en ligne — bravo !' },
+      };
+      const msg = stageMessages[clientInfo.status];
+      if (msg) showToast(msg.emoji, msg.message);
+    }
+    lastSeenClientStatusRef.current = clientInfo.status;
+  }, [clientInfo?.status, showToast]);
+
   // Live polling — faster cadence when the user is on the script or comments
   // tab so admin replies and team comments feel instantaneous. We bump from
   // 60s (passive) to 5s (active tab) to stay within Vercel/Supabase quotas
   // while still feeling near-real-time.
   useEffect(() => {
     if (!token) return;
-    const ms = (tab === 'script' || tab === 'comments') ? 5_000 : 30_000;
+    // Polling cadence : faster on script/comments tabs (5s) where the client
+    // expects near-real-time updates from admin annotations & replies. On
+    // other tabs we still poll every 10s so any admin stage change (script
+    // sent, video delivered, status moved manually) is reflected within ~10s.
+    const ms = (tab === 'script' || tab === 'comments') ? 5_000 : 10_000;
     const interval = setInterval(() => {
       loadScript();
       loadNotifications();
