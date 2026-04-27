@@ -369,6 +369,15 @@ export default function ClientDetailPage() {
     if (tab === 'payments') loadPayments();
   }, [tab, loadEvents, loadPayments]);
 
+  // Auto-refresh the activity history while the admin watches the 'info' tab
+  // — every 10s so any new event (script_sent, payment, status change…) shows
+  // up without a manual reload.
+  useEffect(() => {
+    if (tab !== 'info') return;
+    const t = setInterval(() => loadEvents(), 10_000);
+    return () => clearInterval(t);
+  }, [tab, loadEvents]);
+
   async function loadVersions() {
     if (!script) return;
     try {
@@ -617,17 +626,22 @@ export default function ClientDetailPage() {
     if (!script) return;
     setSaving(true);
     try {
-      const r = await fetch('/api/scripts', {
+      const sr = await fetch('/api/scripts', {
         method: 'PUT', headers: authHeaders(),
         body: JSON.stringify({ id: script.id, status: 'proposition' }),
       });
-      if (!r.ok) throw new Error(await parseErr(r));
-      await fetch('/api/clients', {
+      if (!sr.ok) throw new Error(await parseErr(sr));
+      // Bump the client status to 'script_review' so the kanban / portal
+      // reflect that the script is now with the client. Check explicitly
+      // so a silent failure doesn't leave the client stuck in 'onboarding'.
+      const cr = await fetch('/api/clients', {
         method: 'PUT', headers: authHeaders(),
         body: JSON.stringify({ id, status: 'script_review' }),
       });
-      notify('success', 'Script envoyé au client');
+      if (!cr.ok) throw new Error('Script envoyé mais le statut client n\'a pas pu être mis à jour : ' + (await parseErr(cr)));
+      notify('success', 'Script envoyé · client → Relecture');
       loadClient();
+      loadEvents();
     } catch (e: unknown) {
       notify('error', (e as Error).message);
     } finally { setSaving(false); }
@@ -641,6 +655,7 @@ export default function ClientDetailPage() {
       });
       if (!r.ok) throw new Error(await parseErr(r));
       loadClient();
+      loadEvents();
     } catch (e: unknown) {
       notify('error', (e as Error).message);
     }
