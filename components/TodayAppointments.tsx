@@ -282,9 +282,20 @@ function ApptCard({
 
           {!cancelled && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+              {apt.calendar_kind === 'closing' && (
+                <Link href={`/dashboard/closing/${apt.id}`} style={{
+                  padding: '7px 12px', borderRadius: 7,
+                  background: 'linear-gradient(135deg, var(--orange) 0%, #C45520 100%)',
+                  border: 'none', color: '#fff', fontSize: '0.76rem', fontWeight: 700,
+                  textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
+                }}>🎯 Closing Room</Link>
+              )}
               <button onClick={onOpenNotes} disabled={saving} style={{
-                padding: '7px 12px', borderRadius: 7, background: 'var(--orange)',
-                border: 'none', color: '#fff', fontSize: '0.76rem', fontWeight: 700,
+                padding: '7px 12px', borderRadius: 7,
+                background: apt.calendar_kind === 'closing' ? 'var(--night-raised)' : 'var(--orange)',
+                border: apt.calendar_kind === 'closing' ? '1px solid var(--border-md)' : 'none',
+                color: apt.calendar_kind === 'closing' ? 'var(--text-mid)' : '#fff',
+                fontSize: '0.76rem', fontWeight: 700,
                 cursor: saving ? 'wait' : 'pointer',
               }}>
                 {documented ? '✏️ Modifier' : '📝 Documenter'}

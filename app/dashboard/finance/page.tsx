@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 
 interface Client {
   id: string;
@@ -257,11 +258,18 @@ export default function FinancePage() {
       </div>
 
       {loading ? (
-        <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 60 }}>Chargement…</div>
-      ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div className="bm-stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} lines={2} />)}
+          </div>
+          <SkeletonCard lines={4} />
+          <SkeletonCard lines={5} />
+          <SkeletonCard lines={6} />
+        </div>
+      ) : (
+        <div className="bm-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {/* KPI cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          <div className="bm-stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <Kpi
               emoji="💸" label={`Encaissé · ${RANGE_LABEL[range]}`} value={fmtEUR(rangeCents)} color="var(--green)"
               extra={range === 'month' && monthDelta !== null

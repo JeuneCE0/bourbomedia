@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { ToastProvider } from '@/components/ui/Toast';
 import WelcomeWizard from '@/components/WelcomeWizard';
 import NotificationBell from '@/components/NotificationBell';
+import AiCopilot from '@/components/AiCopilot';
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
@@ -557,6 +558,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
       <NotificationBell />
+      <AiCopilot />
       <WelcomeWizard />
     </div>
     </ToastProvider>

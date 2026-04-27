@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 
 interface InboxItem {
   id: string;
@@ -115,7 +116,9 @@ export default function InboxPage() {
 
       {/* List */}
       {loading && items.length === 0 ? (
-        <div style={{ padding: 24, color: 'var(--text-muted)' }}>Chargement…</div>
+        <div className="bm-stagger" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} lines={2} />)}
+        </div>
       ) : filtered.length === 0 ? (
         <div style={{
           padding: '32px 20px', borderRadius: 12, textAlign: 'center',

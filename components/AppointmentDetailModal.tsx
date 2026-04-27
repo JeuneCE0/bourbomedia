@@ -214,6 +214,11 @@ export default function AppointmentDetailModal({
 
               {/* Quick actions */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {apt.calendar_kind === 'closing' && (
+                  <Link href={`/dashboard/closing/${apt.id}`} onClick={onClose} style={btnStyle('linear-gradient(135deg, var(--orange) 0%, #C45520 100%)', '#fff')}>
+                    🎯 Closing Room
+                  </Link>
+                )}
                 {(contact?.phone || apt.contact_phone) && (
                   <a href={`tel:${contact?.phone || apt.contact_phone}`} style={btnStyle()}>📱 Appeler</a>
                 )}
@@ -221,7 +226,7 @@ export default function AppointmentDetailModal({
                   <a href={`mailto:${contact?.email || apt.contact_email}`} style={btnStyle()}>📧 Email</a>
                 )}
                 {apt.client_id && (
-                  <Link href={`/dashboard/clients/${apt.client_id}`} onClick={onClose} style={btnStyle('var(--orange)', '#fff')}>
+                  <Link href={`/dashboard/clients/${apt.client_id}`} onClick={onClose} style={btnStyle()}>
                     → Fiche client
                   </Link>
                 )}

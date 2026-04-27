@@ -235,7 +235,7 @@ export default function DashboardPage() {
       </div>
 
       {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="bm-stagger" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <SkeletonCard lines={3} />
           <SkeletonCard lines={3} />
           <SkeletonCard lines={4} />
