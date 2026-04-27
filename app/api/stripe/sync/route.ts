@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
 import { findOrCreateClientByEmail } from '@/lib/client-resolver';
+import { markProspectContracted } from '@/lib/mark-contracted';
 
 // POST /api/stripe/sync?days=90
 //   Backfille la table payments depuis Stripe pour les charges des N derniers
@@ -120,6 +121,9 @@ export async function POST(req: NextRequest) {
           }),
         }, true).catch(() => null);
       }
+
+      // Bascule l'opportunité GHL + appointments en "Contracté"
+      await markProspectContracted(client.id, email);
 
       imported++;
     }

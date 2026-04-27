@@ -3,8 +3,8 @@ import { verifyWebhookSignature, getPaymentReceipt } from '@/lib/stripe';
 import { supaFetch } from '@/lib/supabase';
 import { notifyClientStatusChange } from '@/lib/slack';
 import { sendPushToAll } from '@/lib/push';
-import { resolveMapping, prospectStatusToStageId, updateOpportunityStage } from '@/lib/ghl-opportunities';
 import { findOrCreateClientByEmail } from '@/lib/client-resolver';
+import { markProspectContracted } from '@/lib/mark-contracted';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -95,39 +95,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Auto-flip the matching gh_appointment(s) to "Contracté" — closing won.
-    // Match by client_id first, fall back to email.
-    try {
-      const matchPath = clientEmail
-        ? `gh_appointments?or=(client_id.eq.${clientId},contact_email.ilike.${encodeURIComponent(clientEmail.toLowerCase().trim())})`
-        : `gh_appointments?client_id=eq.${clientId}`;
-      const lookup = await supaFetch(`${matchPath}&prospect_status=in.(awaiting_signature,reflection,follow_up,ghosting)&select=id,opportunity_id,prospect_status`, {}, true);
-      if (lookup.ok) {
-        const appts = await lookup.json();
-        if (appts.length) {
-          const { mapping } = await resolveMapping();
-          const target = prospectStatusToStageId(mapping, 'contracted');
-          for (const appt of appts) {
-            // Mark as contracted + auto-document so it leaves the "to do" lists
-            await supaFetch(`gh_appointments?id=eq.${encodeURIComponent(appt.id)}`, {
-              method: 'PATCH',
-              body: JSON.stringify({
-                prospect_status: 'contracted',
-                client_id: clientId,
-                notes_completed_at: new Date().toISOString(),
-                notes: '✅ Auto: contrat finalisé + paiement Stripe reçu',
-                ghl_synced_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              }),
-            }, true);
-            // Push the new stage to GHL pipeline (best effort)
-            if (appt.opportunity_id && target.pipelineId && target.stageId) {
-              await updateOpportunityStage(appt.opportunity_id, target.pipelineId, target.stageId).catch(() => null);
-            }
-          }
-        }
-      }
-    } catch { /* tolerate */ }
+    // Bascule l'opportunité + les appointments liés en "Contracté"
+    await markProspectContracted(clientId, clientEmail);
   }
 
   return NextResponse.json({ received: true });
@@ -166,6 +135,7 @@ async function recordPayment(opts: {
   invoicePdfUrl?: string | null;
   invoiceNumber?: string | null;
   businessName: string;
+  email?: string | null;
 }) {
   await supaFetch('payments', {
     method: 'POST',
@@ -192,6 +162,9 @@ async function recordPayment(opts: {
       payment_amount: opts.amountCents,
     }),
   }, true).catch(() => null);
+
+  // Auto-flip GHL : opportunité + appointments → "Contracté"
+  await markProspectContracted(opts.clientId, opts.email || null);
 
   // Slack + push
   notifyClientStatusChange(opts.businessName, 'Paiement', `${(opts.amountCents / 100).toLocaleString('fr-FR')} €`).catch(() => null);
@@ -248,6 +221,7 @@ async function handleInvoicePaid(event: StripeEventLike): Promise<NextResponse> 
     invoiceNumber: inv.number,
     receiptUrl: inv.hosted_invoice_url,
     businessName,
+    email: inv.customer_email,
   });
 
   return NextResponse.json({ received: true, imported: true });
@@ -300,6 +274,7 @@ async function handlePaymentIntentSucceeded(event: StripeEventLike): Promise<Nex
     invoicePdfUrl: receipt?.invoice_pdf || null,
     invoiceNumber: receipt?.invoice_number || null,
     businessName,
+    email: pi.receipt_email,
   });
 
   return NextResponse.json({ received: true, imported: true });

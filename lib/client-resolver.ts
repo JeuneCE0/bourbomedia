@@ -25,7 +25,7 @@ export async function findOrCreateClientByEmail(rawEmail: string | null | undefi
   const email = rawEmail.toLowerCase().trim();
   if (!email) return null;
 
-  // 1. Existing local client
+  // 1. Existing local client (email match — ilike pour gérer la casse)
   const localR = await supaFetch(
     `clients?email=ilike.${encodeURIComponent(email)}&select=id,business_name,email&limit=1`,
     {}, true,
@@ -37,7 +37,7 @@ export async function findOrCreateClientByEmail(rawEmail: string | null | undefi
 
   // 2. GHL opportunity → contact
   const oppR = await supaFetch(
-    `gh_opportunities?contact_email=ilike.${encodeURIComponent(email)}&select=id,ghl_contact_id,name,contact_name,contact_phone,contact_email&limit=1`,
+    `gh_opportunities?contact_email=ilike.${encodeURIComponent(email)}&select=id,client_id,ghl_contact_id,name,contact_name,contact_phone,contact_email&limit=1`,
     {}, true,
   );
   if (!oppR.ok) return null;
@@ -45,7 +45,40 @@ export async function findOrCreateClientByEmail(rawEmail: string | null | undefi
   const opp = opps[0];
   if (!opp) return null;
 
-  // Fetch full contact details from GHL when possible (better business_name + city)
+  // 2bis. Si l'opportunité est DÉJÀ liée à un client local (cas où l'email
+  // GHL diffère légèrement de l'email local — ex: alias, ancien email, etc.)
+  // on réutilise directement ce client. ZÉRO doublon.
+  if (opp.client_id) {
+    const linkR = await supaFetch(
+      `clients?id=eq.${encodeURIComponent(opp.client_id)}&select=id,business_name,email&limit=1`,
+      {}, true,
+    );
+    if (linkR.ok) {
+      const arr = await linkR.json();
+      if (arr[0]) return { clientId: arr[0].id, businessName: arr[0].business_name || 'Client', email: arr[0].email, created: false };
+    }
+  }
+
+  // 2ter. Match par ghl_contact_id (au cas où un autre client local pointe sur
+  // ce contact GHL avec un email différent dans clients.email).
+  if (opp.ghl_contact_id) {
+    const byGhlR = await supaFetch(
+      `clients?ghl_contact_id=eq.${encodeURIComponent(opp.ghl_contact_id)}&select=id,business_name,email&limit=1`,
+      {}, true,
+    );
+    if (byGhlR.ok) {
+      const arr = await byGhlR.json();
+      if (arr[0]) {
+        // Lie l'opp à ce client si pas déjà fait (rétro-compat)
+        await supaFetch(`gh_opportunities?id=eq.${encodeURIComponent(opp.id)}&client_id=is.null`, {
+          method: 'PATCH', body: JSON.stringify({ client_id: arr[0].id }),
+        }, true).catch(() => null);
+        return { clientId: arr[0].id, businessName: arr[0].business_name || 'Client', email: arr[0].email || email, created: false };
+      }
+    }
+  }
+
+  // 3. Aucun client local trouvé — on en crée un depuis le contact GHL.
   let firstName = '';
   let lastName = '';
   let companyName = '';
@@ -74,7 +107,18 @@ export async function findOrCreateClientByEmail(rawEmail: string | null | undefi
     || (contactName || '').trim()
     || email;
 
-  // 3. Create local client
+  // 4. Last-chance race-check : si entre temps un autre process a créé le
+  // client (webhook simultané), on prend l'existant.
+  const raceR = await supaFetch(
+    `clients?or=(email.ilike.${encodeURIComponent(email)}${opp.ghl_contact_id ? `,ghl_contact_id.eq.${encodeURIComponent(opp.ghl_contact_id)}` : ''})&select=id,business_name,email&limit=1`,
+    {}, true,
+  );
+  if (raceR.ok) {
+    const arr = await raceR.json();
+    if (arr[0]) return { clientId: arr[0].id, businessName: arr[0].business_name || 'Client', email: arr[0].email || email, created: false };
+  }
+
+  // 5. Create
   const portalToken = crypto.randomBytes(24).toString('hex');
   const insertBody: Record<string, unknown> = {
     business_name: businessName,
@@ -96,7 +140,7 @@ export async function findOrCreateClientByEmail(rawEmail: string | null | undefi
   const newClient = createdRows[0];
   if (!newClient) return null;
 
-  // 4. Link gh_opportunity to the new local client (best effort)
+  // 6. Link gh_opportunity to the new local client
   await supaFetch(`gh_opportunities?id=eq.${encodeURIComponent(opp.id)}`, {
     method: 'PATCH',
     body: JSON.stringify({ client_id: newClient.id }),
