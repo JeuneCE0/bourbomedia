@@ -615,7 +615,23 @@ function NotificationsPanel() {
       navigator.serviceWorker.getRegistration('/sw.js').then(async (reg) => {
         if (!reg) return;
         const sub = await reg.pushManager.getSubscription();
-        if (sub) setSubscribed(true);
+        if (sub) {
+          setSubscribed(true);
+          // Re-sync : si le navigateur a déjà une subscription mais le serveur
+          // n'en a pas (table push_subscriptions vide ou créée après coup),
+          // on ré-enregistre en best-effort. Idempotent côté serveur (upsert).
+          try {
+            const subJson = sub.toJSON();
+            await fetch('/api/push/subscribe', {
+              method: 'POST', headers: authHeaders(),
+              body: JSON.stringify({
+                endpoint: subJson.endpoint,
+                keys: subJson.keys,
+                userAgent: navigator.userAgent,
+              }),
+            });
+          } catch { /* tolerate */ }
+        }
       });
     }
   }, []);
@@ -686,7 +702,17 @@ function NotificationsPanel() {
       const r = await fetch('/api/push/test', { method: 'POST', headers: authHeaders() });
       if (r.ok) {
         const d = await r.json();
-        setMsg(d.sent > 0 ? `Test envoyé à ${d.sent} appareil${d.sent > 1 ? 's' : ''}.` : 'Aucun appareil abonné.');
+        if (d.sent > 0) {
+          setMsg(`✓ Test envoyé à ${d.sent} appareil${d.sent > 1 ? 's' : ''}.`);
+        } else if (d.reason === 'vapid_missing') {
+          setMsg('⚠️ Clés VAPID manquantes côté serveur (env vars).');
+        } else if (d.reason === 'no_subscriptions') {
+          setMsg('⚠️ Aucun appareil abonné en base. Désactive puis ré-active.');
+        } else if (d.reason?.startsWith('db_error')) {
+          setMsg(`⚠️ Erreur DB : ${d.reason.replace('db_error: ', '')}. La table push_subscriptions existe-t-elle ?`);
+        } else {
+          setMsg(`Aucun appareil joignable (total en base : ${d.total ?? 0}).`);
+        }
       } else setMsg('Erreur lors du test.');
     } finally { setBusy(false); }
   }

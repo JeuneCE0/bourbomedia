@@ -35,13 +35,18 @@ interface Subscription {
   auth: string;
 }
 
-export async function sendPushToAll(payload: PushPayload): Promise<{ sent: number; pruned: number }> {
-  if (!ensureConfigured()) return { sent: 0, pruned: 0 };
+export async function sendPushToAll(payload: PushPayload): Promise<{ sent: number; pruned: number; total?: number; reason?: string }> {
+  if (!ensureConfigured()) return { sent: 0, pruned: 0, reason: 'vapid_missing' };
 
   const r = await supaFetch('push_subscriptions?select=id,endpoint,p256dh,auth&limit=200', {}, true);
-  if (!r.ok) return { sent: 0, pruned: 0 };
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    return { sent: 0, pruned: 0, reason: `db_error: ${txt.slice(0, 120)}` };
+  }
   const subs: Subscription[] = await r.json();
+  if (subs.length === 0) return { sent: 0, pruned: 0, total: 0, reason: 'no_subscriptions' };
 
+  const total = subs.length;
   let sent = 0;
   let pruned = 0;
   await Promise.all(subs.map(async (s) => {
@@ -69,5 +74,5 @@ export async function sendPushToAll(payload: PushPayload): Promise<{ sent: numbe
     }
   }));
 
-  return { sent, pruned };
+  return { sent, pruned, total };
 }

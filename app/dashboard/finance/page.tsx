@@ -230,15 +230,18 @@ export default function FinancePage() {
             Encaissements, factures impayées, prévisionnel — tout pour piloter le cash
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 10, background: 'var(--night-card)', border: '1px solid var(--border)' }}>
-          {(Object.keys(RANGE_LABEL) as Range[]).map(r => (
-            <button key={r} onClick={() => setRange(r)} style={{
-              padding: '6px 11px', borderRadius: 7, border: 'none', cursor: 'pointer',
-              background: range === r ? 'var(--orange)' : 'transparent',
-              color: range === r ? '#fff' : 'var(--text-muted)',
-              fontSize: '0.76rem', fontWeight: 600, whiteSpace: 'nowrap',
-            }}>{RANGE_LABEL[r]}</button>
-          ))}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <StripeSyncButton />
+          <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 10, background: 'var(--night-card)', border: '1px solid var(--border)' }}>
+            {(Object.keys(RANGE_LABEL) as Range[]).map(r => (
+              <button key={r} onClick={() => setRange(r)} style={{
+                padding: '6px 11px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                background: range === r ? 'var(--orange)' : 'transparent',
+                color: range === r ? '#fff' : 'var(--text-muted)',
+                fontSize: '0.76rem', fontWeight: 600, whiteSpace: 'nowrap',
+              }}>{RANGE_LABEL[r]}</button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -536,5 +539,46 @@ function PipelineAnalyticsCard() {
         })}
       </div>
     </Card>
+  );
+}
+
+function StripeSyncButton() {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function sync() {
+    if (!confirm('Récupérer les paiements Stripe des 90 derniers jours ?\n(Les doublons seront ignorés automatiquement)')) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch('/api/stripe/sync?days=90', { method: 'POST', headers: authHeaders() });
+      const d = await r.json();
+      if (r.ok) {
+        setMsg(d.message || 'Sync OK');
+        if (d.imported > 0) setTimeout(() => window.location.reload(), 1500);
+      } else {
+        setMsg(d.error || 'Erreur sync');
+      }
+    } catch (e: unknown) {
+      setMsg((e as Error).message);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+      <button onClick={sync} disabled={busy} title="Importe les paiements Stripe des 90 derniers jours" style={{
+        padding: '8px 14px', borderRadius: 8,
+        background: 'var(--night-card)', border: '1px solid var(--border-md)',
+        color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 600,
+        cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1,
+        whiteSpace: 'nowrap',
+      }}>
+        {busy ? '⏳ Sync…' : '🔄 Sync Stripe'}
+      </button>
+      {msg && (
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', maxWidth: 240, textAlign: 'right' }}>
+          {msg}
+        </span>
+      )}
+    </div>
   );
 }
