@@ -83,6 +83,16 @@ interface VideoItem {
   status: string;
   delivered_at?: string;
   created_at: string;
+  feedback?: VideoFeedback[];
+}
+
+interface VideoFeedback {
+  id: string;
+  time_seconds: number;
+  comment: string;
+  author: 'client' | 'admin';
+  created_at: string;
+  resolved?: boolean;
 }
 
 interface ChecklistItem {
@@ -974,11 +984,18 @@ export default function ClientDetailPage() {
 
   const portalUrl = client.portal_token ? `${typeof window !== 'undefined' ? window.location.origin : ''}/portal?token=${client.portal_token}` : null;
 
+  // Sum unresolved client feedback across all delivered videos — drives the
+  // "Montage" tab badge so the admin sees pending modifications at a glance.
+  const pendingFeedbackCount = (client.videos || [])
+    .flatMap(v => (v.feedback || []) as VideoFeedback[])
+    .filter(f => f.author === 'client' && !f.resolved)
+    .length;
+
   const TAB_LIST: { key: typeof tab; label: string; badge?: string }[] = [
     { key: 'info', label: 'Aperçu' },
     { key: 'script', label: 'Script', badge: script?.script_comments?.length ? `${script.script_comments.length}` : undefined },
     { key: 'filming', label: 'Tournage' },
-    { key: 'delivery', label: 'Livraison', badge: client.delivered_at ? '✓' : undefined },
+    { key: 'delivery', label: 'Montage', badge: pendingFeedbackCount > 0 ? `${pendingFeedbackCount}` : (client.delivered_at ? '✓' : undefined) },
     { key: 'payments', label: 'Paiements', badge: payments.length > 0 ? `${payments.length}` : undefined },
   ];
 
@@ -1699,6 +1716,54 @@ export default function ClientDetailPage() {
                       background: 'transparent', border: '1px solid rgba(239,68,68,.3)', color: 'var(--red)',
                     }}>✕ Supprimer</button>
                   </div>
+
+                  {/* Feedback timestamps from client */}
+                  {v.feedback && v.feedback.length > 0 && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                      <div style={{
+                        fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700,
+                        textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8,
+                        display: 'flex', alignItems: 'center', gap: 6,
+                      }}>
+                        <span aria-hidden>💬</span>
+                        Modifications demandées par le client ({v.feedback.filter(f => f.author === 'client').length})
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {v.feedback.map(f => {
+                          const isClient = f.author === 'client';
+                          const m = Math.floor(f.time_seconds / 60);
+                          const s = Math.floor(f.time_seconds % 60);
+                          return (
+                            <div key={f.id} style={{
+                              padding: '8px 10px', borderRadius: 8,
+                              background: isClient ? 'rgba(232,105,43,.08)' : 'rgba(59,130,246,.06)',
+                              border: `1px solid ${isClient ? 'rgba(232,105,43,.30)' : 'rgba(59,130,246,.25)'}`,
+                              display: 'flex', alignItems: 'flex-start', gap: 8,
+                            }}>
+                              <span style={{
+                                flexShrink: 0, padding: '2px 8px', borderRadius: 6,
+                                background: isClient ? 'var(--orange)' : '#3B82F6', color: '#fff',
+                                fontSize: '0.68rem', fontWeight: 700,
+                                fontFamily: "'Bricolage Grotesque', sans-serif",
+                              }}>
+                                {String(m).padStart(2, '0')}:{String(s).padStart(2, '0')}
+                              </span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text)', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                  {f.comment}
+                                </div>
+                                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                                  {isClient ? '🙋 Client' : '👤 Vous'}
+                                  {' · '}
+                                  {new Date(f.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
