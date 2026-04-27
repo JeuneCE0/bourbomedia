@@ -3,10 +3,13 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 
-// Read-state stored locally per device (inbox items are computed, not persisted).
-// Aged out after 30 days to avoid leaking memory for items that never disappear.
+// Read-state + Snooze stored locally per device (inbox items are computed,
+// not persisted). Read entries aged out after 30 days. Snooze entries cleared
+// once their timestamp is in the past.
 const READ_KEY = 'bbp_inbox_read_v1';
-type ReadMap = Record<string, number>; // item.id → timestamp ms
+const SNOOZE_KEY = 'bbp_inbox_snooze_v1';
+type ReadMap = Record<string, number>; // item.id → timestamp ms (when read)
+type SnoozeMap = Record<string, number>; // item.id → snooze_until ms
 
 function loadRead(): ReadMap {
   if (typeof window === 'undefined') return {};
@@ -25,6 +28,43 @@ function loadRead(): ReadMap {
 
 function saveRead(m: ReadMap) {
   try { localStorage.setItem(READ_KEY, JSON.stringify(m)); } catch { /* */ }
+}
+
+function loadSnooze(): SnoozeMap {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(SNOOZE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as SnoozeMap;
+    const now = Date.now();
+    const fresh: SnoozeMap = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (v > now) fresh[k] = v; // garde uniquement les snooze encore actifs
+    }
+    return fresh;
+  } catch { return {}; }
+}
+
+function saveSnooze(m: SnoozeMap) {
+  try { localStorage.setItem(SNOOZE_KEY, JSON.stringify(m)); } catch { /* */ }
+}
+
+function snoozeOptions(): { label: string; ms: number; emoji: string }[] {
+  const now = new Date();
+  const tomorrowMorning = new Date(now);
+  tomorrowMorning.setDate(now.getDate() + 1);
+  tomorrowMorning.setHours(8, 0, 0, 0);
+  const monday = new Date(now);
+  const dow = monday.getDay();
+  const daysToMonday = dow === 0 ? 1 : (8 - dow);
+  monday.setDate(now.getDate() + daysToMonday);
+  monday.setHours(8, 0, 0, 0);
+  return [
+    { label: '1h', emoji: '⏱️', ms: now.getTime() + 60 * 60 * 1000 },
+    { label: '3h', emoji: '⏱️', ms: now.getTime() + 3 * 60 * 60 * 1000 },
+    { label: 'Demain 8h', emoji: '🌅', ms: tomorrowMorning.getTime() },
+    { label: 'Lundi 8h', emoji: '📅', ms: monday.getTime() },
+  ];
 }
 
 interface InboxItem {
@@ -75,7 +115,16 @@ export default function NotificationBell() {
   const [counts, setCounts] = useState<InboxCounts | null>(null);
   const [open, setOpen] = useState(false);
   const [readMap, setReadMap] = useState<ReadMap>(() => loadRead());
+  const [snoozeMap, setSnoozeMap] = useState<SnoozeMap>(() => loadSnooze());
+  const [snoozePickerForId, setSnoozePickerForId] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Tick toutes les minutes pour rafraîchir l'état snooze (item ressort du
+  // dropdown automatiquement quand son délai expire)
+  useEffect(() => {
+    const t = setInterval(() => setSnoozeMap(loadSnooze()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -112,19 +161,38 @@ export default function NotificationBell() {
   }
   function markAllRead() {
     const next = { ...readMap };
-    for (const it of items) next[it.id] = Date.now();
+    for (const it of items) {
+      if (!isSnoozed(it.id)) next[it.id] = Date.now();
+    }
     setReadMap(next);
     saveRead(next);
   }
   function isRead(id: string): boolean { return id in readMap; }
+  function isSnoozed(id: string): boolean { return (snoozeMap[id] || 0) > Date.now(); }
 
-  // Counts that exclude already-read items (so the bell badge reflects unread)
-  const unreadItems = useMemo(() => items.filter(it => !isRead(it.id)), [items, readMap]);
-  const unreadHigh = unreadItems.filter(it => it.priority === 'high').length;
-  const total = unreadItems.length;
-  const high = unreadHigh;
+  function snoozeItem(id: string, untilMs: number) {
+    const next = { ...snoozeMap, [id]: untilMs };
+    setSnoozeMap(next);
+    saveSnooze(next);
+    setSnoozePickerForId(null);
+  }
 
-  const visible = useMemo(() => items.slice(0, 15), [items]);
+  // Filter : exclu read + exclu snoozed → ce qui s'affiche réellement comme
+  // "à traiter" dans le badge + le dropdown.
+  const activeItems = useMemo(
+    () => items.filter(it => !isRead(it.id) && !isSnoozed(it.id)),
+    [items, readMap, snoozeMap],
+  );
+  const total = activeItems.length;
+  const high = activeItems.filter(it => it.priority === 'high').length;
+
+  // Visible dans le dropdown : on montre tous (lus, snoozed inclus en bas) jusqu'à 20
+  const visible = useMemo(() => {
+    const active = items.filter(it => !isRead(it.id) && !isSnoozed(it.id));
+    const snoozed = items.filter(it => isSnoozed(it.id));
+    const read = items.filter(it => isRead(it.id) && !isSnoozed(it.id));
+    return [...active, ...snoozed, ...read].slice(0, 20);
+  }, [items, readMap, snoozeMap]);
 
   return (
     <div ref={wrapRef} style={{
@@ -218,75 +286,142 @@ export default function NotificationBell() {
               {visible.map(it => {
                 const meta = KIND_META[it.kind];
                 const read = isRead(it.id);
+                const snoozed = isSnoozed(it.id);
+                const snoozedUntil = snoozed ? new Date(snoozeMap[it.id]) : null;
                 return (
-                  <div key={it.id} style={{
-                    display: 'flex', gap: 4, padding: '4px 4px',
-                    borderRadius: 8, transition: 'background .12s',
-                    opacity: read ? 0.55 : 1,
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--night-mid)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <Link href={it.href}
-                      onClick={() => { markRead(it.id); setOpen(false); }}
-                      style={{
-                        flex: 1, minWidth: 0, display: 'flex', gap: 10, padding: '6px 8px',
-                        textDecoration: 'none', color: 'inherit',
-                      }}
+                  <div key={it.id} style={{ position: 'relative' }}>
+                    <div style={{
+                      display: 'flex', gap: 4, padding: '4px 4px',
+                      borderRadius: 8, transition: 'background .12s',
+                      opacity: snoozed ? 0.5 : (read ? 0.55 : 1),
+                    }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--night-mid)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                     >
-                      <div style={{
-                        width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                        background: 'var(--night-mid)', border: `2px solid ${meta.color}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '0.9rem',
-                        fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
-                      }} aria-hidden>{meta.emoji}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          display: 'flex', justifyContent: 'space-between', gap: 8,
-                          alignItems: 'baseline',
-                        }}>
-                          <span style={{
-                            fontSize: '0.8rem', fontWeight: read ? 500 : 600,
-                            color: read ? 'var(--text-mid)' : 'var(--text)',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            flex: 1, minWidth: 0,
-                            textDecoration: read ? 'line-through' : 'none',
-                          }}>
-                            {!read && it.priority === 'high' && <span aria-hidden style={{ color: '#EF4444', marginRight: 4 }}>●</span>}
-                            {it.title}
-                          </span>
-                          <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', flexShrink: 0 }}>
-                            {timeAgo(it.timestamp)}
-                          </span>
-                        </div>
-                        {(it.client_name || it.description) && (
-                          <div style={{
-                            fontSize: '0.72rem', color: 'var(--text-mid)', marginTop: 1,
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}>
-                            {it.client_name && <span style={{ color: 'var(--orange)' }}>{it.client_name}</span>}
-                            {it.client_name && it.description && ' · '}
-                            {it.description}
-                          </div>
-                        )}
-                      </div>
-                    </Link>
-                    {!read && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); markRead(it.id); }}
-                        title="Marquer comme lu"
-                        aria-label="Marquer comme lu"
+                      <Link href={it.href}
+                        onClick={() => { markRead(it.id); setOpen(false); }}
                         style={{
-                          flexShrink: 0, width: 24, height: 24, borderRadius: 6,
-                          background: 'transparent', border: 'none', color: 'var(--text-muted)',
-                          cursor: 'pointer', fontSize: '0.75rem',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          alignSelf: 'center',
+                          flex: 1, minWidth: 0, display: 'flex', gap: 10, padding: '6px 8px',
+                          textDecoration: 'none', color: 'inherit',
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--night-raised)'; e.currentTarget.style.color = 'var(--green)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                      >✓</button>
+                      >
+                        <div style={{
+                          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                          background: 'var(--night-mid)', border: `2px solid ${meta.color}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.9rem',
+                          fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+                        }} aria-hidden>{snoozed ? '😴' : meta.emoji}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            display: 'flex', justifyContent: 'space-between', gap: 8,
+                            alignItems: 'baseline',
+                          }}>
+                            <span style={{
+                              fontSize: '0.8rem', fontWeight: read || snoozed ? 500 : 600,
+                              color: read || snoozed ? 'var(--text-mid)' : 'var(--text)',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              flex: 1, minWidth: 0,
+                              textDecoration: read ? 'line-through' : 'none',
+                            }}>
+                              {!read && !snoozed && it.priority === 'high' && <span aria-hidden style={{ color: '#EF4444', marginRight: 4 }}>●</span>}
+                              {it.title}
+                            </span>
+                            <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', flexShrink: 0 }}>
+                              {snoozedUntil
+                                ? `→ ${snoozedUntil.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+                                : timeAgo(it.timestamp)}
+                            </span>
+                          </div>
+                          {(it.client_name || it.description) && (
+                            <div style={{
+                              fontSize: '0.72rem', color: 'var(--text-mid)', marginTop: 1,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>
+                              {it.client_name && <span style={{ color: 'var(--orange)' }}>{it.client_name}</span>}
+                              {it.client_name && it.description && ' · '}
+                              {it.description}
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                      {!read && !snoozed && (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSnoozePickerForId(snoozePickerForId === it.id ? null : it.id); }}
+                            title="Snoozer"
+                            aria-label="Snoozer"
+                            style={{
+                              flexShrink: 0, width: 24, height: 24, borderRadius: 6,
+                              background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                              cursor: 'pointer', fontSize: '0.85rem',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              alignSelf: 'center',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--night-raised)'; e.currentTarget.style.color = '#A855F7'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                          >😴</button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); markRead(it.id); }}
+                            title="Marquer comme lu"
+                            aria-label="Marquer comme lu"
+                            style={{
+                              flexShrink: 0, width: 24, height: 24, borderRadius: 6,
+                              background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                              cursor: 'pointer', fontSize: '0.75rem',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              alignSelf: 'center',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--night-raised)'; e.currentTarget.style.color = 'var(--green)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                          >✓</button>
+                        </>
+                      )}
+                      {snoozed && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const next = { ...snoozeMap };
+                            delete next[it.id];
+                            setSnoozeMap(next);
+                            saveSnooze(next);
+                          }}
+                          title="Réveiller (annuler le snooze)"
+                          style={{
+                            flexShrink: 0, width: 24, height: 24, borderRadius: 6,
+                            background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                            cursor: 'pointer', fontSize: '0.85rem',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
+                          }}
+                        >⏰</button>
+                      )}
+                    </div>
+
+                    {/* Snooze picker pop */}
+                    {snoozePickerForId === it.id && (
+                      <div style={{
+                        position: 'absolute', top: '100%', right: 30, zIndex: 5,
+                        marginTop: 2, padding: 6, borderRadius: 10,
+                        background: 'var(--night-raised)', border: '1px solid var(--border-md)',
+                        boxShadow: '0 6px 20px rgba(0,0,0,.5)',
+                        display: 'flex', flexDirection: 'column', gap: 2, minWidth: 130,
+                      }}>
+                        {snoozeOptions().map(opt => (
+                          <button key={opt.label}
+                            onClick={() => snoozeItem(it.id, opt.ms)}
+                            style={{
+                              padding: '7px 10px', borderRadius: 6, border: 'none',
+                              background: 'transparent', color: 'var(--text)',
+                              fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', gap: 8,
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--night-mid)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                          >
+                            <span aria-hidden>{opt.emoji}</span> {opt.label}
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
                 );

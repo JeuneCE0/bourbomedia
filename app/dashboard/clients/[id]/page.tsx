@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
 const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
@@ -991,7 +992,15 @@ export default function ClientDetailPage() {
     }
   }
 
-  if (loading) return <div style={{ padding: 32, color: 'var(--text-muted)' }}>Chargement…</div>;
+  if (loading) return (
+    <div style={{ padding: '24px 28px', maxWidth: 960, margin: '0 auto' }}>
+      <div className="bm-stagger" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <SkeletonCard lines={3} />
+        <SkeletonCard lines={5} />
+        <SkeletonCard lines={4} />
+      </div>
+    </div>
+  );
   if (!client) return <div style={{ padding: 32, color: 'var(--red)' }}>Client introuvable</div>;
 
   const portalUrl = client.portal_token ? `${typeof window !== 'undefined' ? window.location.origin : ''}/portal?token=${client.portal_token}` : null;
