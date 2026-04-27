@@ -417,18 +417,6 @@ function Column({ stage, items, onSelect, selectMode, bulkSelected, onToggleSele
   );
 }
 
-function stageColorFromName(name: string | null | undefined): string {
-  const n = (name || '').toLowerCase();
-  if (n.includes('contract') || n.includes('régulier')) return '#22C55E';
-  if (n.includes('attente signature')) return '#3B82F6';
-  if (n.includes('réflexion')) return '#FACC15';
-  if (n.includes('follow-up')) return '#F97316';
-  if (n.includes('ghosting')) return '#94A3B8';
-  if (n.includes('non-qualif')) return '#EF4444';
-  if (n.includes('appel')) return '#A855F7';
-  if (n.includes('lead')) return '#E8692B';
-  return 'var(--text-mid)';
-}
 
 function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect }: {
   opp: Opportunity;
@@ -437,7 +425,6 @@ function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect }: {
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
 }) {
-  const stageColor = stageColorFromName(opp.pipeline_stage_name);
   return (
     <button
       type="button"
@@ -467,25 +454,59 @@ function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect }: {
           }}>{isSelected ? '✓' : ''}</span>
         </div>
       )}
-      {/* Stage pastille — visible au coup d'œil */}
-      {opp.pipeline_stage_name && (
+      {/* 1. Nom de l'opportunité */}
+      <div style={{
+        fontSize: '0.84rem', fontWeight: 700, color: 'var(--text)',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
+        {opp.name || 'Sans nom'}
+      </div>
+
+      {/* 2. Nom de l'entreprise / contact */}
+      {opp.contact_name && opp.contact_name !== opp.name && (
         <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
-          padding: '2px 7px', borderRadius: 999,
-          background: stageColor + '20', border: `1px solid ${stageColor}40`,
-          color: stageColor, fontSize: '0.6rem', fontWeight: 700,
-          textTransform: 'uppercase', letterSpacing: '0.04em',
+          fontSize: '0.74rem', color: 'var(--text-mid)', fontWeight: 500,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: stageColor }} />
-          {opp.pipeline_stage_name}
+          🏢 {opp.contact_name}
         </div>
       )}
-      <div style={{ fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {opp.name || opp.contact_name || opp.contact_email || 'Sans nom'}
-      </div>
-      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-        <span>{relativeDate(opp.ghl_updated_at || opp.ghl_created_at)}</span>
-        {opp.monetary_value_cents && <span style={{ color: 'var(--green)', fontWeight: 600 }}>{fmtEUR(opp.monetary_value_cents)}</span>}
+
+      {/* 3. Email */}
+      {opp.contact_email && (
+        <div style={{
+          fontSize: '0.7rem', color: 'var(--text-muted)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          <span aria-hidden>📧</span> {opp.contact_email}
+        </div>
+      )}
+
+      {/* 4. Téléphone */}
+      {opp.contact_phone && (
+        <div style={{
+          fontSize: '0.7rem', color: 'var(--text-muted)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          <span aria-hidden>📱</span> {opp.contact_phone}
+        </div>
+      )}
+
+      {/* 5. Date de création + valeur si présente */}
+      <div style={{
+        fontSize: '0.65rem', color: 'var(--text-muted)',
+        display: 'flex', justifyContent: 'space-between', gap: 6,
+        alignItems: 'center', marginTop: 2, paddingTop: 4,
+        borderTop: '1px solid var(--border)',
+      }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+          <span aria-hidden>📅</span> {relativeDate(opp.ghl_created_at)}
+        </span>
+        {opp.monetary_value_cents && (
+          <span style={{ color: 'var(--green)', fontWeight: 700 }}>{fmtEUR(opp.monetary_value_cents)}</span>
+        )}
       </div>
     </button>
   );
@@ -554,6 +575,13 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
       .then(d => setGhlContact(d?.contact || null))
       .finally(() => setLoadingContact(false));
   }, [opp.ghl_contact_id]);
+
+  // ESC to close — complements the click-outside on the backdrop
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   // Load every appointment tied to this opportunity (or to the same contact /
   // email) so the admin sees the full RDV history in the prospect drawer —
@@ -715,29 +743,85 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
             </div>
           )}
 
-          {/* Custom fields GHL (réponses formulaire, données métier) */}
-          {ghlContact?.customFields && ghlContact.customFields.length > 0 && (
-            <div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-                📝 Champs personnalisés
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {ghlContact.customFields.map(cf => (
-                  <div key={cf.id} style={{
-                    padding: '8px 10px', borderRadius: 6,
-                    background: 'var(--night-mid)', border: '1px solid var(--border)',
-                  }}>
-                    <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      {cf.label}
-                    </div>
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text)', wordBreak: 'break-word' }}>
-                      {Array.isArray(cf.value) ? cf.value.join(', ') : String(cf.value)}
-                    </div>
+          {/* Qualification commerciale — champs GHL prioritaires (8 questions clé)
+              Affichés en premier dans une grille compacte ; les autres custom
+              fields restent en dessous. */}
+          {ghlContact?.customFields && ghlContact.customFields.length > 0 && (() => {
+            const PRIORITY_LABELS = [
+              'Type de commerce',
+              'Ville du commerce',
+              'Ancienneté du commerce',
+              'Expérience publicité en ligne',
+              'Objectif principal',
+              'Détail objectif',
+              'Prêt à investir',
+              'Qualifié',
+            ];
+            const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+            const priorityNorm = PRIORITY_LABELS.map(norm);
+            const priorityFields = PRIORITY_LABELS.map(label => {
+              const target = norm(label);
+              const found = ghlContact.customFields.find(cf => {
+                const n = norm(cf.label);
+                return n === target || n.includes(target) || target.includes(n);
+              });
+              return { label, found };
+            });
+            const otherFields = ghlContact.customFields.filter(cf => {
+              const n = norm(cf.label);
+              return !priorityNorm.some(p => n === p || n.includes(p) || p.includes(n));
+            });
+            const renderValue = (v: unknown): string => Array.isArray(v) ? v.join(', ') : String(v);
+            return (
+              <>
+                <div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                    🎯 Qualification commerciale
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 6 }}>
+                    {priorityFields.map(({ label, found }) => (
+                      <div key={label} style={{
+                        padding: '8px 10px', borderRadius: 6,
+                        background: found ? 'var(--night-mid)' : 'transparent',
+                        border: `1px solid ${found ? 'rgba(232,105,43,.25)' : 'var(--border)'}`,
+                        opacity: found ? 1 : 0.55,
+                      }}>
+                        <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          {label}
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: found ? 'var(--text)' : 'var(--text-muted)', wordBreak: 'break-word', fontStyle: found ? 'normal' : 'italic' }}>
+                          {found ? renderValue(found.value) : '—'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {otherFields.length > 0 && (
+                  <details>
+                    <summary style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', padding: '6px 0' }}>
+                      📝 Autres champs ({otherFields.length})
+                    </summary>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                      {otherFields.map(cf => (
+                        <div key={cf.id} style={{
+                          padding: '8px 10px', borderRadius: 6,
+                          background: 'var(--night-mid)', border: '1px solid var(--border)',
+                        }}>
+                          <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            {cf.label}
+                          </div>
+                          <div style={{ fontSize: '0.82rem', color: 'var(--text)', wordBreak: 'break-word' }}>
+                            {renderValue(cf.value)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </>
+            );
+          })()}
 
           {loadingContact && (
             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: 8 }}>

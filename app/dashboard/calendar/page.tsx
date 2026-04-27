@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import AppointmentDetailModal from '@/components/AppointmentDetailModal';
 
 interface Client {
   id: string;
@@ -48,6 +49,7 @@ interface CalEvent {
   client_name?: string;
   status?: string;
   done?: boolean;
+  appt_id?: string; // gh_appointments row id — when set, click opens modal instead of redirect
 }
 
 const KIND_META: Record<EventKind, { color: string; emoji: string; label: string }> = {
@@ -113,6 +115,7 @@ export default function CalendarPage() {
   }, [viewMode]);
   const [activeKinds, setActiveKinds] = useState<EventKind[]>([]); // empty = all
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
+  const [modalApptId, setModalApptId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
 
@@ -243,6 +246,7 @@ export default function CalendarPage() {
         label: a.opportunity_name || a.contact_name || a.contact_email || 'Sans nom',
         client_id: a.client_id || undefined,
         client_name: a.opportunity_name || a.contact_name || undefined,
+        appt_id: a.id,
       });
     });
 
@@ -427,11 +431,14 @@ export default function CalendarPage() {
                         </div>
                       </div>
                     );
+                    const wrapStyle = { padding: '8px 10px', borderRadius: 8, textDecoration: 'none', background: 'var(--night-mid)', display: 'block', cursor: 'pointer' as const, border: 'none', textAlign: 'left' as const, color: 'inherit', width: '100%' };
+                    if (e.appt_id) {
+                      return (
+                        <button key={e.id} type="button" onClick={() => setModalApptId(e.appt_id!)} style={wrapStyle}>{inner}</button>
+                      );
+                    }
                     return e.client_id ? (
-                      <Link key={e.id} href={`/dashboard/clients/${e.client_id}${e.kind === 'filming' ? '?tab=filming' : e.kind === 'script_sent' || e.kind === 'script_due' ? '?tab=script' : ''}`} style={{
-                        padding: '8px 10px', borderRadius: 8, textDecoration: 'none',
-                        background: 'var(--night-mid)',
-                      }}>{inner}</Link>
+                      <Link key={e.id} href={`/dashboard/clients/${e.client_id}${e.kind === 'filming' ? '?tab=filming' : e.kind === 'script_sent' || e.kind === 'script_due' ? '?tab=script' : ''}`} style={wrapStyle}>{inner}</Link>
                     ) : (
                       <div key={e.id} style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--night-mid)' }}>{inner}</div>
                     );
@@ -455,17 +462,22 @@ export default function CalendarPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {tomorrowsEvents.slice(0, 4).map(e => {
                     const meta = KIND_META[e.kind];
-                    return (
-                      <Link key={e.id} href={e.client_id ? `/dashboard/clients/${e.client_id}${e.kind === 'filming' ? '?tab=filming' : e.kind === 'script_sent' ? '?tab=script' : ''}` : '#'} style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '6px 10px', borderRadius: 8, textDecoration: 'none',
-                        background: 'var(--night-mid)',
-                      }}>
+                    const rowStyle = { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 8, textDecoration: 'none', background: 'var(--night-mid)', cursor: 'pointer' as const, border: 'none', textAlign: 'left' as const, color: 'inherit', width: '100%' };
+                    const inner = (
+                      <>
                         <span aria-hidden style={{ fontSize: '0.95rem' }}>{meta.emoji}</span>
                         <span style={{ fontSize: '0.78rem', color: 'var(--text)', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {e.label}
                         </span>
                         {e.time && <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>{e.time}</span>}
+                      </>
+                    );
+                    if (e.appt_id) {
+                      return <button key={e.id} type="button" onClick={() => setModalApptId(e.appt_id!)} style={rowStyle}>{inner}</button>;
+                    }
+                    return (
+                      <Link key={e.id} href={e.client_id ? `/dashboard/clients/${e.client_id}${e.kind === 'filming' ? '?tab=filming' : e.kind === 'script_sent' ? '?tab=script' : ''}` : '#'} style={rowStyle}>
+                        {inner}
                       </Link>
                     );
                   })}
@@ -572,7 +584,7 @@ export default function CalendarPage() {
           </div>
 
           {viewMode === 'list' ? (
-            <CalendarListView events={filteredEvents} monthKey={monthKey} />
+            <CalendarListView events={filteredEvents} monthKey={monthKey} onAppointmentClick={(id) => setModalApptId(id)} />
           ) : (
           <>
           {/* Day headers */}
@@ -781,16 +793,25 @@ export default function CalendarPage() {
                                     : ''
                                   }`
                                 : `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`;
+                          const wrapStyle = {
+                            display: 'block', padding: '8px 10px', borderRadius: 8,
+                            background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
+                            marginBottom: 6, textDecoration: 'none',
+                            transition: 'background .15s, transform .15s',
+                            cursor: 'pointer' as const, border: 'none', textAlign: 'left' as const,
+                            color: 'inherit', width: '100%',
+                          };
+                          const onEnter = (ev: React.MouseEvent<HTMLElement>) => { ev.currentTarget.style.background = meta.color + '20'; ev.currentTarget.style.transform = 'translateX(2px)'; };
+                          const onLeave = (ev: React.MouseEvent<HTMLElement>) => { ev.currentTarget.style.background = meta.color + '10'; ev.currentTarget.style.transform = 'none'; };
+                          if (e.appt_id) {
+                            return (
+                              <button key={e.id} type="button" onClick={() => setModalApptId(e.appt_id!)} style={wrapStyle} onMouseEnter={onEnter} onMouseLeave={onLeave}>
+                                {inner}
+                              </button>
+                            );
+                          }
                           return (
-                            <Link key={e.id} href={targetHref} style={{
-                              display: 'block', padding: '8px 10px', borderRadius: 8,
-                              background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
-                              marginBottom: 6, textDecoration: 'none',
-                              transition: 'background .15s, transform .15s',
-                            }}
-                              onMouseEnter={ev => { (ev.currentTarget as HTMLElement).style.background = meta.color + '20'; (ev.currentTarget as HTMLElement).style.transform = 'translateX(2px)'; }}
-                              onMouseLeave={ev => { (ev.currentTarget as HTMLElement).style.background = meta.color + '10'; (ev.currentTarget as HTMLElement).style.transform = 'none'; }}
-                            >
+                            <Link key={e.id} href={targetHref} style={wrapStyle} onMouseEnter={onEnter} onMouseLeave={onLeave}>
                               {inner}
                             </Link>
                           );
@@ -826,6 +847,10 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {modalApptId && (
+        <AppointmentDetailModal appointmentId={modalApptId} onClose={() => setModalApptId(null)} />
+      )}
     </div>
   );
 }
@@ -852,7 +877,7 @@ function NavBtn({ onClick, label, title }: { onClick: () => void; label: string;
 }
 
 /* Agenda-style list view — chronological, mobile-friendly */
-function CalendarListView({ events, monthKey }: { events: CalEvent[]; monthKey: string }) {
+function CalendarListView({ events, monthKey, onAppointmentClick }: { events: CalEvent[]; monthKey: string; onAppointmentClick: (apptId: string) => void }) {
   // Show events from the visible month, grouped by date
   const monthEvents = events.filter(e => e.date.startsWith(monthKey));
   if (monthEvents.length === 0) {
@@ -929,12 +954,14 @@ function CalendarListView({ events, monthKey }: { events: CalEvent[]; monthKey: 
                           : ''
                         }`
                       : `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`;
-                return (
-                  <Link key={e.id} href={targetHref} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                    borderRadius: 8, background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
-                    textDecoration: 'none',
-                  }}>
+                const wrapStyle = {
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                  borderRadius: 8, background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
+                  textDecoration: 'none', cursor: 'pointer' as const,
+                  border: 'none', textAlign: 'left' as const, color: 'inherit', width: '100%',
+                };
+                const inner = (
+                  <>
                     <span aria-hidden style={{ fontSize: '1rem' }}>{meta.emoji}</span>
                     {e.time && (
                       <span style={{
@@ -955,7 +982,15 @@ function CalendarListView({ events, monthKey }: { events: CalEvent[]; monthKey: 
                     }}>
                       {meta.label}
                     </span>
-                  </Link>
+                  </>
+                );
+                if (e.appt_id) {
+                  return (
+                    <button key={e.id} type="button" onClick={() => onAppointmentClick(e.appt_id!)} style={wrapStyle}>{inner}</button>
+                  );
+                }
+                return (
+                  <Link key={e.id} href={targetHref} style={wrapStyle}>{inner}</Link>
                 );
               })}
             </div>
