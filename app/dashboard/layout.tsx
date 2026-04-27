@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { ToastProvider } from '@/components/ui/Toast';
+import WelcomeWizard from '@/components/WelcomeWizard';
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
@@ -535,6 +536,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+      <WelcomeWizard />
     </div>
     </ToastProvider>
   );
