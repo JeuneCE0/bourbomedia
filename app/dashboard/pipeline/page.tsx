@@ -4,12 +4,14 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import PipelineCommerciale from '@/components/PipelineCommerciale';
 import PipelineOnboarding from '@/components/PipelineOnboarding';
+import { ClientsListView } from '@/app/dashboard/clients/page';
 
-type Tab = 'commerciale' | 'onboarding';
+type Tab = 'commerciale' | 'onboarding' | 'clients';
 
 const TABS: { key: Tab; emoji: string; label: string; subtitle: string }[] = [
-  { key: 'commerciale', emoji: '🎯', label: 'Pipeline commerciale', subtitle: 'Pipeline GHL : Leads → Contracté' },
-  { key: 'onboarding',  emoji: '🚀', label: 'Pipeline onboarding',  subtitle: 'Production Bourbomedia : Onboarding → Publié' },
+  { key: 'commerciale', emoji: '🎯', label: 'Prospects',     subtitle: 'Pipeline GHL : Leads → Contracté' },
+  { key: 'onboarding',  emoji: '🚀', label: 'En production', subtitle: 'Onboarding → Publié' },
+  { key: 'clients',     emoji: '👥', label: 'Tous les clients', subtitle: 'Liste complète, filtres avancés' },
 ];
 
 function authHeaders() {
@@ -29,7 +31,10 @@ function fmtEUR(cents: number): string {
 
 function PipelinePageInner() {
   const searchParams = useSearchParams();
-  const initialTab: Tab = searchParams.get('tab') === 'onboarding' ? 'onboarding' : 'commerciale';
+  const tabParam = searchParams.get('tab');
+  const initialTab: Tab = tabParam === 'onboarding' ? 'onboarding'
+    : tabParam === 'clients' ? 'clients'
+    : 'commerciale';
   const [tab, setTab] = useState<Tab>(initialTab);
   const [kpi, setKpi] = useState<KpiData | null>(null);
 
@@ -165,7 +170,9 @@ function PipelinePageInner() {
 
       {/* Tab content */}
       <div className="bm-fade-in" key={tab}>
-        {tab === 'commerciale' ? <PipelineCommerciale /> : <PipelineOnboarding />}
+        {tab === 'commerciale' && <PipelineCommerciale />}
+        {tab === 'onboarding' && <PipelineOnboarding />}
+        {tab === 'clients' && <ClientsListView />}
       </div>
     </div>
   );

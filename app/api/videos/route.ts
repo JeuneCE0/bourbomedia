@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
+import { sendSlackNotification } from '@/lib/slack';
+import { sendPushToAll } from '@/lib/push';
 
 async function clientFromToken(token: string) {
   const r = await supaFetch(`clients?portal_token=eq.${token}&select=id`, {}, true);
@@ -102,6 +104,26 @@ export async function PUT(req: NextRequest) {
             actor: 'admin',
           }),
         }, true);
+
+        // Slack + push to admins
+        const cR = await supaFetch(`clients?id=eq.${updated.client_id}&select=business_name`, {}, true);
+        const cName = cR.ok ? (await cR.json())[0]?.business_name || 'Client' : 'Client';
+        sendSlackNotification({
+          text: `🎬 Vidéo livrée — ${cName}`,
+          blocks: [
+            { type: 'header', text: { type: 'plain_text', text: 'Vidéo livrée 🎬', emoji: true } },
+            { type: 'section', fields: [
+              { type: 'mrkdwn', text: `*Commerce:*\n${cName}` },
+              { type: 'mrkdwn', text: `*Vidéo:*\n${updated.title || '—'}` },
+            ]},
+          ],
+        }).catch(() => null);
+        sendPushToAll({
+          title: '🎬 Vidéo livrée',
+          body: `${cName} — ${updated.title || 'Vidéo prête'}`,
+          url: `/dashboard/clients/${updated.client_id}?tab=delivery`,
+          tag: `video-${updated.id}`,
+        }).catch(() => null);
       } catch { /* */ }
     }
 

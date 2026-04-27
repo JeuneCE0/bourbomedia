@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react';
 
-type TabKey = 'team' | 'ads' | 'pricing' | 'integrations';
+type TabKey = 'team' | 'ads' | 'pricing' | 'integrations' | 'notifications';
 
 const TABS: { key: TabKey; emoji: string; label: string }[] = [
-  { key: 'team',         emoji: '👥', label: 'Équipe' },
-  { key: 'ads',          emoji: '💰', label: 'Budget Ads' },
-  { key: 'pricing',      emoji: '💵', label: 'Tarifs' },
-  { key: 'integrations', emoji: '🔌', label: 'Intégrations' },
+  { key: 'team',          emoji: '👥', label: 'Équipe' },
+  { key: 'notifications', emoji: '🔔', label: 'Notifications' },
+  { key: 'ads',           emoji: '💰', label: 'Budget Ads' },
+  { key: 'pricing',       emoji: '💵', label: 'Tarifs' },
+  { key: 'integrations',  emoji: '🔌', label: 'Intégrations' },
 ];
 
 function authHeaders() {
@@ -60,6 +61,7 @@ export default function SettingsPage() {
       {/* Content */}
       <div className="bm-fade-in" key={tab}>
         {tab === 'team' && <TeamPanel />}
+        {tab === 'notifications' && <NotificationsPanel />}
         {tab === 'ads' && <AdsBudgetPanel />}
         {tab === 'pricing' && <PricingPanel />}
         {tab === 'integrations' && <IntegrationsPanel />}
@@ -584,3 +586,195 @@ const iconBtn: React.CSSProperties = {
   border: '1px solid var(--border-md)', color: 'var(--text-mid)',
   cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
+
+/* ========== NOTIFICATIONS (PWA push) ========== */
+
+function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const buf = new ArrayBuffer(raw.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < raw.length; ++i) view[i] = raw.charCodeAt(i);
+  return buf;
+}
+
+function NotificationsPanel() {
+  const [supported, setSupported] = useState<boolean | null>(null);
+  const [permission, setPermission] = useState<NotificationPermission>('default');
+  const [subscribed, setSubscribed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [vapidMissing, setVapidMissing] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const ok = typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
+    setSupported(ok);
+    if (ok) {
+      setPermission(Notification.permission);
+      navigator.serviceWorker.getRegistration('/sw.js').then(async (reg) => {
+        if (!reg) return;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) setSubscribed(true);
+      });
+    }
+  }, []);
+
+  async function enable() {
+    setBusy(true); setMsg(null);
+    try {
+      // 1. Get VAPID public key
+      const keyR = await fetch('/api/push/subscribe', { headers: authHeaders() });
+      if (keyR.status === 503) { setVapidMissing(true); setMsg('VAPID_PUBLIC_KEY non configuré côté serveur.'); return; }
+      if (!keyR.ok) { setMsg('Impossible de récupérer la clé VAPID.'); return; }
+      const { publicKey } = await keyR.json();
+
+      // 2. Register SW
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      // 3. Permission
+      const perm = await Notification.requestPermission();
+      setPermission(perm);
+      if (perm !== 'granted') { setMsg('Permission refusée.'); return; }
+
+      // 4. Subscribe
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+
+      // 5. Send to server
+      const subJson = sub.toJSON();
+      const r = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          endpoint: subJson.endpoint,
+          keys: subJson.keys,
+          userAgent: navigator.userAgent,
+        }),
+      });
+      if (!r.ok) { setMsg('Échec enregistrement côté serveur.'); return; }
+
+      setSubscribed(true);
+      setMsg('Notifications activées ✓');
+    } catch (e: unknown) {
+      setMsg((e as Error).message || 'Erreur inconnue');
+    } finally { setBusy(false); }
+  }
+
+  async function disable() {
+    setBusy(true); setMsg(null);
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) {
+        await fetch(`/api/push/subscribe?endpoint=${encodeURIComponent(sub.endpoint)}`, {
+          method: 'DELETE', headers: authHeaders(),
+        });
+        await sub.unsubscribe();
+      }
+      setSubscribed(false);
+      setMsg('Notifications désactivées.');
+    } finally { setBusy(false); }
+  }
+
+  async function sendTest() {
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch('/api/push/test', { method: 'POST', headers: authHeaders() });
+      if (r.ok) {
+        const d = await r.json();
+        setMsg(d.sent > 0 ? `Test envoyé à ${d.sent} appareil${d.sent > 1 ? 's' : ''}.` : 'Aucun appareil abonné.');
+      } else setMsg('Erreur lors du test.');
+    } finally { setBusy(false); }
+  }
+
+  if (supported === null) return <div style={{ color: 'var(--text-muted)' }}>Vérification…</div>;
+  if (!supported) return (
+    <div style={{
+      padding: 16, borderRadius: 12, background: 'var(--night-card)',
+      border: '1px solid var(--border)', color: 'var(--text-mid)', fontSize: '0.88rem',
+    }}>
+      Ce navigateur ne supporte pas les notifications push (Push API ou Service Worker manquant).
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{
+        padding: 18, borderRadius: 12, background: 'var(--night-card)', border: '1px solid var(--border)',
+      }}>
+        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 8px', color: 'var(--text)' }}>
+          🔔 Notifications navigateur
+        </h3>
+        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.5 }}>
+          Reçois une notification système (mac, iPhone si installé en PWA) quand un client paie, valide un script,
+          envoie un retour vidéo ou réserve un appel — même quand le dashboard est fermé.
+        </p>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          {!subscribed ? (
+            <button onClick={enable} disabled={busy} style={{
+              padding: '10px 16px', borderRadius: 8, background: 'var(--orange)',
+              border: 'none', color: '#fff', fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
+              fontSize: '0.85rem', opacity: busy ? 0.7 : 1,
+            }}>
+              {busy ? 'Activation…' : '🔔 Activer les notifications'}
+            </button>
+          ) : (
+            <>
+              <button onClick={sendTest} disabled={busy} style={{
+                padding: '10px 16px', borderRadius: 8, background: 'var(--orange)',
+                border: 'none', color: '#fff', fontWeight: 600, cursor: busy ? 'wait' : 'pointer', fontSize: '0.85rem',
+              }}>📨 Envoyer un test</button>
+              <button onClick={disable} disabled={busy} style={{
+                padding: '10px 16px', borderRadius: 8, background: 'var(--night-mid)',
+                border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+                cursor: busy ? 'wait' : 'pointer', fontSize: '0.85rem',
+              }}>Désactiver</button>
+            </>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 14, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span>Permission : <strong style={{ color: permission === 'granted' ? 'var(--green)' : permission === 'denied' ? 'var(--red)' : 'var(--text-mid)' }}>{permission}</strong></span>
+          <span>Statut : <strong style={{ color: subscribed ? 'var(--green)' : 'var(--text-mid)' }}>{subscribed ? 'abonné' : 'non abonné'}</strong></span>
+        </div>
+
+        {msg && (
+          <div style={{
+            marginTop: 12, padding: '8px 12px', borderRadius: 8,
+            background: 'var(--night-mid)', fontSize: '0.78rem', color: 'var(--text-mid)',
+          }}>{msg}</div>
+        )}
+
+        {vapidMissing && (
+          <div style={{
+            marginTop: 12, padding: 12, borderRadius: 8,
+            background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.25)',
+            fontSize: '0.76rem', color: '#FACC15', lineHeight: 1.5,
+          }}>
+            ⚠️ Ajoute dans tes variables d&apos;environnement :
+            <pre style={{ margin: '6px 0 0', fontSize: '0.7rem', color: 'var(--text)' }}>
+{`VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:tu@bourbomedia.fr`}
+            </pre>
+            <span style={{ display: 'block', marginTop: 4 }}>
+              Génère-les avec <code>npx web-push generate-vapid-keys --json</code>.
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div style={{
+        padding: 14, borderRadius: 10, background: 'var(--night-card)', border: '1px solid var(--border)',
+        fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5,
+      }}>
+        💡 Sur iPhone, installe d&apos;abord le PWA depuis Safari (Partager → Sur l&apos;écran d&apos;accueil) puis active depuis l&apos;app.
+      </div>
+    </div>
+  );
+}

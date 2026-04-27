@@ -3,6 +3,8 @@ import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
 import { resolveMapping, updateOpportunityStage, updateOpportunity, deleteOpportunity, createOpportunity, stageIdToProspectStatus } from '@/lib/ghl-opportunities';
 import { createGhlContact, findGhlContactByEmail } from '@/lib/ghl';
+import { sendSlackNotification } from '@/lib/slack';
+import { sendPushToAll } from '@/lib/push';
 
 // GET /api/gh-opportunities
 //   - Returns all opportunities mirrored from the GHL "Pipeline Bourbon Media"
@@ -96,6 +98,27 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     }),
   }, true).catch(() => null);
+
+  // Slack + push notifications (best-effort)
+  const valueLabel = monetaryCents ? ` · ${(monetaryCents / 100).toLocaleString('fr-FR')} €` : '';
+  sendSlackNotification({
+    text: `🎯 Nouveau prospect — ${name}`,
+    blocks: [
+      { type: 'header', text: { type: 'plain_text', text: 'Nouveau prospect 🎯', emoji: true } },
+      { type: 'section', fields: [
+        { type: 'mrkdwn', text: `*Nom:*\n${name}` },
+        { type: 'mrkdwn', text: `*Email:*\n${email}` },
+        { type: 'mrkdwn', text: `*Stage:*\n${targetStage.name}` },
+        ...(monetaryCents ? [{ type: 'mrkdwn', text: `*Valeur:*\n${(monetaryCents / 100).toLocaleString('fr-FR')} €` }] : []),
+      ]},
+    ],
+  }).catch(() => null);
+  sendPushToAll({
+    title: '🎯 Nouveau prospect',
+    body: `${name}${valueLabel}`,
+    url: `/dashboard/pipeline?q=${encodeURIComponent(name)}`,
+    tag: `prospect-${created.id}`,
+  }).catch(() => null);
 
   return NextResponse.json({ ok: true, opportunityId: created.id, contactId });
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyWebhookSignature, getPaymentReceipt } from '@/lib/stripe';
 import { supaFetch } from '@/lib/supabase';
 import { notifyClientStatusChange } from '@/lib/slack';
+import { sendPushToAll } from '@/lib/push';
 import { resolveMapping, prospectStatusToStageId, updateOpportunityStage } from '@/lib/ghl-opportunities';
 
 export async function POST(req: NextRequest) {
@@ -71,6 +72,12 @@ export async function POST(req: NextRequest) {
       const clients = await cr.json();
       if (clients.length) {
         notifyClientStatusChange(clients[0].business_name, 'Étape 3', 'Paiement reçu');
+        sendPushToAll({
+          title: '💸 Paiement reçu',
+          body: `${clients[0].business_name} — ${((session.amount_total || 0) / 100).toLocaleString('fr-FR')} €`,
+          url: `/dashboard/clients/${clientId}?tab=payments`,
+          tag: `payment-${session.id}`,
+        }).catch(() => null);
         clientEmail = clients[0].email || null;
       }
     }

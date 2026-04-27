@@ -281,6 +281,8 @@ export default function FinancePage() {
                   <Kpi emoji="📈" label="Bénéfice brut" value={fmtEUR(closingStats.gross_profit_cents)} color={closingStats.gross_profit_cents >= 0 ? 'var(--green)' : 'var(--red)'} extra="Encaissé − Ads − Presta" />
                 </div>
               </Card>
+
+              <PipelineAnalyticsCard />
             </>
           )}
 
@@ -455,5 +457,84 @@ function Card({ title, children, style }: { title: string; children: React.React
       </h3>
       {children}
     </div>
+  );
+}
+
+interface PipelineAnalytics {
+  total: number;
+  won_count: number;
+  lost_count: number;
+  in_progress_count: number;
+  conversion_global: number | null;
+  avg_cycle_days: number | null;
+  leads_this_month: number;
+  leads_last_month: number;
+  trend_leads_pct: number | null;
+  stage_volume: Record<string, number>;
+  stage_value: Record<string, number>;
+}
+
+function PipelineAnalyticsCard() {
+  const [data, setData] = useState<PipelineAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/pipeline-analytics', { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setData(d))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || !data) return null;
+
+  // Sort stages by volume desc
+  const stages = Object.entries(data.stage_volume).sort((a, b) => b[1] - a[1]);
+  const maxVolume = Math.max(...stages.map(s => s[1]), 1);
+
+  return (
+    <Card title={`📊 Analytics pipeline · all-time`}>
+      {/* KPIs row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 18 }}>
+        <Kpi emoji="🎯" label="Total opportunités" value={data.total.toString()} color="var(--orange)" />
+        <Kpi emoji="🏆" label="Gagnées" value={data.won_count.toString()} color="var(--green)" extra={data.conversion_global !== null ? `${data.conversion_global}% conv globale` : undefined} />
+        <Kpi emoji="❌" label="Perdues" value={data.lost_count.toString()} color="var(--red)" />
+        <Kpi emoji="🚀" label="En cours" value={data.in_progress_count.toString()} color="#3B82F6" />
+        <Kpi emoji="⏱️" label="Cycle moyen" value={data.avg_cycle_days !== null ? `${data.avg_cycle_days} j` : '—'} color="var(--text-mid)" extra="lead → contracté" />
+        <Kpi
+          emoji="📈"
+          label="Leads ce mois"
+          value={data.leads_this_month.toString()}
+          color={data.trend_leads_pct !== null && data.trend_leads_pct >= 0 ? 'var(--green)' : 'var(--red)'}
+          extra={data.trend_leads_pct !== null ? `${data.trend_leads_pct >= 0 ? '+' : ''}${data.trend_leads_pct}% vs M-1` : `${data.leads_last_month} le mois dernier`}
+        />
+      </div>
+
+      {/* Funnel volume bars */}
+      <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-mid)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        Volume par stage
+      </h4>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {stages.map(([stage, count]) => {
+          const widthPct = (count / maxVolume) * 100;
+          return (
+            <div key={stage} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ minWidth: 200, fontSize: '0.78rem', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {stage}
+              </div>
+              <div style={{ flex: 1, height: 22, background: 'var(--night-mid)', borderRadius: 4, position: 'relative', overflow: 'hidden' }}>
+                <div style={{
+                  width: `${widthPct}%`, height: '100%',
+                  background: 'linear-gradient(90deg, var(--orange) 0%, #C45520 100%)',
+                  borderRadius: 4, transition: 'width .3s ease',
+                }} />
+              </div>
+              <div style={{ minWidth: 70, fontSize: '0.76rem', color: 'var(--text)', fontWeight: 700, fontFamily: "'Bricolage Grotesque', sans-serif", textAlign: 'right' }}>
+                {count}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
