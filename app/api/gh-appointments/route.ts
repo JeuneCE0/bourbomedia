@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { pushNotesToGhl } from '@/lib/ghl-appointments';
-import { resolveMapping, prospectStatusToStageId, updateOpportunityStage } from '@/lib/ghl-opportunities';
+import { resolveMapping, prospectStatusToStageId, updateOpportunityStage, updateGhlAppointment } from '@/lib/ghl-opportunities';
 
 // GET /api/gh-appointments?pending=1            → completed appointments awaiting notes
 // GET /api/gh-appointments?follow_up=1          → reflection (J+2) / follow_up (J+7) due today
@@ -75,10 +75,11 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ appointments: rows });
 }
 
-// PATCH /api/gh-appointments  body: { id, notes?, prospect_status?, client_id? }
+// PATCH /api/gh-appointments  body: { id, notes?, prospect_status?, client_id?, status? }
 // Updates the row, marks notes_completed_at, and pushes back to GHL.
+// status accepts: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
 export async function PATCH(req: NextRequest) {
-  let body: { id?: string; notes?: string; prospect_status?: string | null; client_id?: string | null };
+  let body: { id?: string; notes?: string; prospect_status?: string | null; client_id?: string | null; status?: string };
   try {
     body = await req.json();
   } catch {
@@ -94,6 +95,7 @@ export async function PATCH(req: NextRequest) {
     patch.notes_completed_at = body.notes ? new Date().toISOString() : null;
   }
   if (body.prospect_status !== undefined) patch.prospect_status = body.prospect_status;
+  if (body.status !== undefined) patch.status = body.status;
   if (body.client_id !== undefined) patch.client_id = body.client_id;
 
   const r = await supaFetch(`gh_appointments?id=eq.${encodeURIComponent(id)}&select=*`, {
@@ -125,6 +127,18 @@ export async function PATCH(req: NextRequest) {
         const ok = await updateOpportunityStage(row.opportunity_id, target.pipelineId, target.stageId);
         if (ok) synced = true;
       }
+    } catch { /* tolerate */ }
+  }
+
+  // Push the appointment status (cancelled / no_show) to GHL calendar
+  if (row?.ghl_appointment_id && body.status !== undefined) {
+    const ghlStatus = body.status === 'cancelled' ? 'cancelled'
+      : body.status === 'no_show' ? 'noshow'
+      : body.status === 'completed' ? 'showed'
+      : 'confirmed';
+    try {
+      await updateGhlAppointment(row.ghl_appointment_id, { appointmentStatus: ghlStatus });
+      synced = true;
     } catch { /* tolerate */ }
   }
 

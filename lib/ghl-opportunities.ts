@@ -150,6 +150,39 @@ export async function updateOpportunity(opportunityId: string, fields: { monetar
   }
 }
 
+// Delete an opportunity in GHL. Used when admin archives a prospect.
+export async function deleteOpportunity(opportunityId: string): Promise<boolean> {
+  if (!opportunityId) return false;
+  try {
+    await ghlRequest('DELETE', `/opportunities/${opportunityId}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Update a calendar appointment in GHL — change status (cancelled / no_show /
+// confirmed / showed) and optionally reschedule (startTime / endTime ISO).
+export async function updateGhlAppointment(appointmentId: string, fields: { appointmentStatus?: string; startTime?: string; endTime?: string }): Promise<boolean> {
+  if (!appointmentId) return false;
+  try {
+    await ghlRequest('PUT', `/calendars/events/appointments/${appointmentId}`, fields as Record<string, unknown>);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteGhlAppointment(appointmentId: string): Promise<boolean> {
+  if (!appointmentId) return false;
+  try {
+    await ghlRequest('DELETE', `/calendars/events/${appointmentId}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Resolve {pipeline_name → pipeline_id} and {stage_name → stage_id} from live GHL data.
 // Returns the augmented mapping (with stage_ids filled in) ready to compare against ours.
 export async function resolveMapping(): Promise<{ mapping: GhlPipelineMapping; pipeline: GhlPipeline | null }> {

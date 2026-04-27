@@ -331,6 +331,8 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
       .finally(() => setLoadingAppt(false));
   }, [opp.ghl_opportunity_id, opp.contact_email, status]);
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   async function save() {
     setSaving(true);
     try {
@@ -467,26 +469,76 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
                     : a.notes_completed_at ? { l: '✅ Documenté', c: 'var(--green)' }
                     : new Date(a.starts_at).getTime() < Date.now() ? { l: 'À documenter', c: '#D8B4FE' }
                     : { l: 'À venir', c: 'var(--text-mid)' };
+                  const isFuture = new Date(a.starts_at).getTime() > Date.now();
+                  const isActionable = a.status !== 'cancelled' && a.status !== 'no_show';
                   return (
                     <div key={a.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                      borderRadius: 6, background: 'var(--night-mid)', border: '1px solid var(--border)',
+                      display: 'flex', flexDirection: 'column', gap: 6,
+                      padding: '8px 10px', borderRadius: 6,
+                      background: 'var(--night-mid)', border: '1px solid var(--border)',
                     }}>
-                      <span aria-hidden style={{
-                        width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                        background: 'var(--night-raised)', border: `1.5px solid ${m.c}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem',
-                      }}>{m.e}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text)' }}>{m.l}</div>
-                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
-                          {new Date(a.starts_at).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span aria-hidden style={{
+                          width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                          background: 'var(--night-raised)', border: `1.5px solid ${m.c}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem',
+                        }}>{m.e}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text)' }}>{m.l}</div>
+                          <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                            {new Date(a.starts_at).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </div>
                         </div>
+                        <span style={{
+                          fontSize: '0.6rem', padding: '2px 8px', borderRadius: 999, fontWeight: 600, whiteSpace: 'nowrap',
+                          background: pastBadge.c + '20', color: pastBadge.c, border: `1px solid ${pastBadge.c}40`,
+                        }}>{pastBadge.l}</span>
                       </div>
-                      <span style={{
-                        fontSize: '0.6rem', padding: '2px 8px', borderRadius: 999, fontWeight: 600, whiteSpace: 'nowrap',
-                        background: pastBadge.c + '20', color: pastBadge.c, border: `1px solid ${pastBadge.c}40`,
-                      }}>{pastBadge.l}</span>
+                      {/* Actions GHL : Annuler / No-show / Replanifier */}
+                      {isActionable && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Annuler ce RDV ? Le client sera notifié côté GHL.')) return;
+                              await fetch('/api/gh-appointments', {
+                                method: 'PATCH', headers: authHeaders(),
+                                body: JSON.stringify({ id: a.id, status: 'cancelled' }),
+                              });
+                              setAllAppts(prev => prev.map(x => x.id === a.id ? { ...x, status: 'cancelled' } : x));
+                            }}
+                            style={{
+                              padding: '4px 9px', borderRadius: 5, fontSize: '0.66rem', fontWeight: 600,
+                              background: 'transparent', border: '1px solid rgba(239,68,68,.30)',
+                              color: '#FCA5A5', cursor: 'pointer',
+                            }}
+                          >❌ Annuler</button>
+                          {!isFuture && (
+                            <button
+                              onClick={async () => {
+                                await fetch('/api/gh-appointments', {
+                                  method: 'PATCH', headers: authHeaders(),
+                                  body: JSON.stringify({ id: a.id, status: 'no_show' }),
+                                });
+                                setAllAppts(prev => prev.map(x => x.id === a.id ? { ...x, status: 'no_show' } : x));
+                              }}
+                              style={{
+                                padding: '4px 9px', borderRadius: 5, fontSize: '0.66rem', fontWeight: 600,
+                                background: 'transparent', border: '1px solid var(--border-md)',
+                                color: 'var(--text-muted)', cursor: 'pointer',
+                              }}
+                            >👻 No show</button>
+                          )}
+                          <a
+                            href={`https://app.gohighlevel.com/v2/location/${(opp as { location_id?: string }).location_id || ''}/appointments`}
+                            target="_blank" rel="noreferrer"
+                            style={{
+                              padding: '4px 9px', borderRadius: 5, fontSize: '0.66rem', fontWeight: 600,
+                              background: 'transparent', border: '1px solid var(--border-md)',
+                              color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'none',
+                            }}
+                          >📅 Replanifier dans GHL ↗</a>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -584,9 +636,48 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
 
         {/* Footer */}
         <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-            🔁 Sync auto vers GHL
-          </span>
+          {/* Bouton suppression — confirmation inline */}
+          {confirmDelete ? (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: '0.74rem', color: 'var(--red)', fontWeight: 600 }}>Sûr ?</span>
+              <button
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    const r = await fetch('/api/gh-opportunities', {
+                      method: 'DELETE', headers: authHeaders(),
+                      body: JSON.stringify({ id: opp.id }),
+                    });
+                    if (r.ok) onSaved();
+                    else alert('Suppression échouée');
+                  } finally { setSaving(false); setConfirmDelete(false); }
+                }}
+                disabled={saving}
+                style={{
+                  padding: '6px 12px', borderRadius: 6,
+                  background: 'var(--red)', color: '#fff', border: 'none',
+                  cursor: 'pointer', fontSize: '0.74rem', fontWeight: 700,
+                }}
+              >🗑️ Confirmer</button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                style={{
+                  padding: '6px 10px', borderRadius: 6,
+                  background: 'transparent', border: '1px solid var(--border-md)',
+                  color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.74rem',
+                }}
+              >Non</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              style={{
+                padding: '7px 12px', borderRadius: 8,
+                background: 'transparent', border: '1px solid rgba(239,68,68,.30)',
+                color: 'var(--red)', cursor: 'pointer', fontSize: '0.74rem', fontWeight: 600,
+              }}
+            >🗑️ Supprimer</button>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={onClose} style={{
               padding: '9px 16px', borderRadius: 8,
