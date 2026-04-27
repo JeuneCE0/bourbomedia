@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
-import { resolveMapping, updateOpportunityStage, stageIdToProspectStatus } from '@/lib/ghl-opportunities';
+import { resolveMapping, updateOpportunityStage, updateOpportunity, stageIdToProspectStatus } from '@/lib/ghl-opportunities';
 
 // GET /api/gh-opportunities
 //   - Returns all opportunities mirrored from the GHL "Pipeline Bourbon Media"
@@ -24,16 +24,22 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// PATCH /api/gh-opportunities  body: { id, pipeline_stage_id }
-//   - Moves the opportunity in our DB to the new stage
-//   - Pushes the change to GHL pipeline
+// PATCH /api/gh-opportunities  body: { id, pipeline_stage_id?, monetary_value_cents?, name? }
+//   - Updates the opportunity in our DB
+//   - Pushes the change(s) to GHL (pipeline stage, value, name)
 //   - Mirrors the new prospect_status on the linked appointment if any
 export async function PATCH(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const body = await req.json().catch(() => ({}));
   const id = body.id as string | undefined;
   const newStageId = body.pipeline_stage_id as string | undefined;
-  if (!id || !newStageId) return NextResponse.json({ error: 'missing id or pipeline_stage_id' }, { status: 400 });
+  const newValueCents = body.monetary_value_cents as number | undefined;
+  const newName = body.name as string | undefined;
+
+  if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
+  if (newStageId === undefined && newValueCents === undefined && newName === undefined) {
+    return NextResponse.json({ error: 'no field to update' }, { status: 400 });
+  }
 
   // Look up the opportunity to get pipeline_id + ghl_opportunity_id
   const lookupRes = await supaFetch(`gh_opportunities?id=eq.${encodeURIComponent(id)}&select=*&limit=1`, {}, true);
@@ -43,25 +49,37 @@ export async function PATCH(req: NextRequest) {
   if (!opp) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   const { mapping, pipeline } = await resolveMapping();
-  const stage = pipeline?.stages.find(s => s.id === newStageId);
-  const prospect_status = stageIdToProspectStatus(mapping, newStageId);
+  const stage = newStageId ? pipeline?.stages.find(s => s.id === newStageId) : null;
+  const prospect_status = newStageId ? stageIdToProspectStatus(mapping, newStageId) : undefined;
 
-  // Update our row
+  // Build the patch for our row
+  const dbPatch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (newStageId !== undefined) {
+    dbPatch.pipeline_stage_id = newStageId;
+    dbPatch.pipeline_stage_name = stage?.name || null;
+    if (prospect_status !== undefined) dbPatch.prospect_status = prospect_status;
+  }
+  if (newValueCents !== undefined) dbPatch.monetary_value_cents = newValueCents;
+  if (newName !== undefined) dbPatch.name = newName;
+
   await supaFetch(`gh_opportunities?id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    body: JSON.stringify({
-      pipeline_stage_id: newStageId,
-      pipeline_stage_name: stage?.name || null,
-      prospect_status,
-      updated_at: new Date().toISOString(),
-    }),
+    body: JSON.stringify(dbPatch),
   }, true);
 
   // Push to GHL
-  await updateOpportunityStage(opp.ghl_opportunity_id, opp.pipeline_id, newStageId).catch(() => null);
+  if (newStageId !== undefined) {
+    await updateOpportunityStage(opp.ghl_opportunity_id, opp.pipeline_id, newStageId).catch(() => null);
+  }
+  if (newValueCents !== undefined || newName !== undefined) {
+    const fields: { monetaryValue?: number; name?: string } = {};
+    if (newValueCents !== undefined) fields.monetaryValue = newValueCents / 100; // GHL stores in EUR units
+    if (newName !== undefined) fields.name = newName;
+    await updateOpportunity(opp.ghl_opportunity_id, fields).catch(() => null);
+  }
 
-  // Mirror to the linked appointment(s)
-  if (opp.ghl_opportunity_id) {
+  // Mirror stage change to the linked appointment(s)
+  if (opp.ghl_opportunity_id && newStageId !== undefined) {
     await supaFetch(
       `gh_appointments?opportunity_id=eq.${encodeURIComponent(opp.ghl_opportunity_id)}`,
       {
