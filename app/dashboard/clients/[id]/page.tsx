@@ -1130,8 +1130,8 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{
+      {/* Tabs — scrollable horizontally on mobile (5 tabs fit on desktop) */}
+      <div className="bm-tabs-row" style={{
         display: 'flex', gap: 2, marginBottom: 24,
         borderBottom: '1px solid var(--border)',
       }}>
@@ -1139,6 +1139,7 @@ export default function ClientDetailPage() {
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '10px 18px', border: 'none', cursor: 'pointer',
             fontSize: '0.82rem', fontWeight: tab === t.key ? 600 : 400,
+            whiteSpace: 'nowrap',
             background: 'transparent',
             color: tab === t.key ? 'var(--orange)' : 'var(--text-muted)',
             borderBottom: tab === t.key ? '2px solid var(--orange)' : '2px solid transparent',

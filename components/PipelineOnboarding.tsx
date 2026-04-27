@@ -201,18 +201,8 @@ export default function PipelineOnboarding() {
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1600, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{
-            fontFamily: "'Bricolage Grotesque', sans-serif",
-            fontWeight: 800, fontSize: '1.6rem', color: 'var(--text)',
-            margin: 0, lineHeight: 1.2,
-          }}>Pipeline</h1>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            {clients.length} client{clients.length > 1 ? 's' : ''} — glisser-déposer pour changer de statut
-          </p>
-        </div>
+      {/* Toolbar — search + view toggle (header KPIs sont dans le tab container) */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
             type="text"

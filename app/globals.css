@@ -276,6 +276,60 @@ body {
 }
 .bm-badge-ping { animation: bm-badge-ping 1.4s ease-out infinite; }
 
+/* ───────── Responsive utilities & mobile fixes ───────── */
+
+/* Empêche le zoom iOS au focus sur input (déclenché si fontSize < 16px) */
+@media (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Touch targets — minimum 44×44px sur écrans tactiles (Apple HIG) */
+@media (hover: none) and (pointer: coarse) {
+  button:not(.bm-no-touch-target),
+  a[role="button"],
+  .bm-btn-primary,
+  .bm-btn-secondary {
+    min-height: 44px;
+  }
+}
+
+/* Container de scroll horizontal lisse + scrollbar visible */
+.bm-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.bm-scroll-x::-webkit-scrollbar { height: 6px; }
+.bm-scroll-x::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 6px; }
+
+/* Grid 2 colonnes qui passe en 1 col sous 600px */
+.bm-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+@media (max-width: 600px) {
+  .bm-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* Onglets compacts sur mobile (évite débordement) */
+@media (max-width: 480px) {
+  .bm-tabs-row {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .bm-tabs-row::-webkit-scrollbar { display: none; }
+}
+
+/* Safe areas iOS pour les éléments fixed (toasts, modals…) */
+.bm-safe-right { padding-right: max(16px, env(safe-area-inset-right)); }
+.bm-safe-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+
 /* Focus rings — warmer, on-brand */
 *:focus-visible {
   outline: 2px solid var(--orange);
