@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
+import { findOrCreateClientByEmail } from '@/lib/client-resolver';
+import { markProspectContracted } from '@/lib/mark-contracted';
 
 // POST /api/stripe/sync?days=90
 //   Backfille la table payments depuis Stripe pour les charges des N derniers
@@ -26,6 +28,7 @@ export async function POST(req: NextRequest) {
   let imported = 0;
   let skipped = 0;
   let unmatched = 0;
+  let createdClients = 0;
   const issues: string[] = [];
 
   try {
@@ -46,20 +49,32 @@ export async function POST(req: NextRequest) {
       }
 
       const email = ch.billing_details?.email || ch.receipt_email;
-      if (!email) { unmatched++; continue; }
-
-      const clientR = await supaFetch(
-        `clients?email=ilike.${encodeURIComponent(email.toLowerCase().trim())}&select=id,business_name,paid_at&limit=1`,
-        {}, true,
-      );
-      if (!clientR.ok) { unmatched++; continue; }
-      const clients = await clientR.json();
-      if (clients.length === 0) {
+      if (!email) {
         unmatched++;
-        if (issues.length < 10) issues.push(`Charge ${ch.id} : aucun client avec email ${email}`);
+        if (issues.length < 10) issues.push(`Charge ${ch.id} : pas d'email sur la transaction Stripe`);
         continue;
       }
-      const client = clients[0];
+
+      // Resolve : tente d'abord clients.email, puis gh_opportunities.contact_email
+      // (auto-création du client local depuis le contact GHL si trouvé)
+      const resolved = await findOrCreateClientByEmail(email);
+      if (!resolved) {
+        unmatched++;
+        if (issues.length < 10) issues.push(`Charge ${ch.id} : email ${email} introuvable (ni clients ni GHL)`);
+        continue;
+      }
+      if (resolved.created) createdClients++;
+
+      // Re-récupère le paid_at pour décider si on bumpe
+      const paidAtR = await supaFetch(
+        `clients?id=eq.${encodeURIComponent(resolved.clientId)}&select=paid_at&limit=1`,
+        {}, true,
+      );
+      const client = {
+        id: resolved.clientId,
+        business_name: resolved.businessName,
+        paid_at: paidAtR.ok ? (await paidAtR.json())[0]?.paid_at || null : null,
+      };
 
       // Récupère le receipt + numéro de facture si possible
       // (charge.invoice peut être absent du type Stripe selon la version SDK,
@@ -107,6 +122,9 @@ export async function POST(req: NextRequest) {
         }, true).catch(() => null);
       }
 
+      // Bascule l'opportunité GHL + appointments en "Contracté"
+      await markProspectContracted(client.id, email);
+
       imported++;
     }
   } catch (e: unknown) {
@@ -116,12 +134,14 @@ export async function POST(req: NextRequest) {
     }, { status: 500 });
   }
 
+  const created = createdClients > 0 ? `, ${createdClients} client${createdClients > 1 ? 's' : ''} créé${createdClients > 1 ? 's' : ''} depuis GHL` : '';
   return NextResponse.json({
     days,
     imported,
     skipped,
     unmatched,
+    createdClients,
     issues,
-    message: `${imported} paiement${imported > 1 ? 's' : ''} importé${imported > 1 ? 's' : ''}, ${skipped} déjà présent${skipped > 1 ? 's' : ''}, ${unmatched} sans client correspondant.`,
+    message: `${imported} paiement${imported > 1 ? 's' : ''} importé${imported > 1 ? 's' : ''}, ${skipped} déjà présent${skipped > 1 ? 's' : ''}${created}, ${unmatched} sans correspondance.`,
   });
 }
