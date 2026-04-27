@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
   const nowIso = new Date().toISOString();
 
   // Run lookups in parallel
-  const [bookedRes, allClosingsRes, clientsRes, settingsAds, leadsRes, pipelineSnapshotRes] = await Promise.all([
+  const [bookedRes, allClosingsRes, clientsRes, settingsAds, leadsRes, pipelineSnapshotRes, paymentsRes] = await Promise.all([
     // Calls booked (created in range, closing only)
     supaFetch(
       `gh_appointments?calendar_kind=eq.closing`
@@ -84,6 +84,14 @@ export async function GET(req: NextRequest) {
     supaFetch(
       `gh_opportunities?prospect_status=in.(reflection,follow_up,awaiting_signature)`
       + `&select=id,monetary_value_cents,prospect_status`,
+      {}, true,
+    ),
+    // Payments table (Stripe + manuels) — source de vérité pour le CA encaissé
+    // Inclut aussi les paiements créés sans avoir bumpé clients.payment_amount
+    supaFetch(
+      `payments?status=in.(completed,paid)`
+      + `&created_at=gte.${enc(fromIso)}&created_at=lte.${enc(toIso)}`
+      + `&select=id,client_id,amount,created_at,description`,
       {}, true,
     ),
   ]);
@@ -133,12 +141,23 @@ export async function GET(req: NextRequest) {
   }
   const new_prospects = newProspectEmails.size;
 
-  // Revenue + provider fees from clients
+  // Revenue : on additionne (1) clients.payment_amount (legacy single-payment)
+  // (2) la table payments (Stripe webhook + paiements manuels) en dédupliquant
+  // par client_id pour éviter le double-comptage.
   interface PF { amount_cents: number; created_at: string }
-  const revenue_paid_cents = clients.reduce(
-    (s: number, c: { payment_amount?: number }) => s + (c.payment_amount || 0),
+  interface PaymentRow { id: string; client_id: string; amount: number; created_at: string }
+  const paymentsArr: PaymentRow[] = paymentsRes.ok ? await paymentsRes.json() : [];
+  const clientsWithPaymentRow = new Set(paymentsArr.map(p => p.client_id));
+  const revenue_from_payments = paymentsArr.reduce((s, p) => s + (p.amount || 0), 0);
+  const revenue_legacy = clients.reduce(
+    (s: number, c: { id: string; payment_amount?: number }) => {
+      // skip si on a déjà un paiement dans la table payments pour éviter le double-comptage
+      if (clientsWithPaymentRow.has(c.id)) return s;
+      return s + (c.payment_amount || 0);
+    },
     0,
   );
+  const revenue_paid_cents = revenue_from_payments + revenue_legacy;
   const provider_fees_cents = clients.reduce(
     (s: number, c: { provider_fees?: PF[] }) => {
       const fees = c.provider_fees || [];
