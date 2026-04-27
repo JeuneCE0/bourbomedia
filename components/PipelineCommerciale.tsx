@@ -94,6 +94,7 @@ export default function PipelineCommerciale() {
   const [selectMode, setSelectMode] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const load = useCallback(() => {
     fetch('/api/gh-opportunities', { headers: authHeaders() })
@@ -186,6 +187,15 @@ export default function PipelineCommerciale() {
             cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
           }}
         >{selectMode ? '✓ Sélection' : '☐ Sélection'}</button>
+        <button
+          onClick={() => setShowAddForm(true)}
+          style={{
+            padding: '8px 14px', borderRadius: 10,
+            background: 'var(--orange)', border: 'none', color: '#fff',
+            cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700,
+            boxShadow: '0 4px 14px rgba(232,105,43,.30)',
+          }}
+        >+ Nouveau prospect</button>
       </div>
 
       {loading ? (
@@ -233,6 +243,14 @@ export default function PipelineCommerciale() {
           stages={stages}
           onClose={() => setSelectedId(null)}
           onSaved={() => { setSelectedId(null); load(); }}
+        />
+      )}
+
+      {showAddForm && (
+        <QuickAddProspectModal
+          stages={stages}
+          onClose={() => setShowAddForm(false)}
+          onCreated={() => { setShowAddForm(false); load(); }}
         />
       )}
 
@@ -491,15 +509,51 @@ function Stat({ label, value, color, last }: { label: string; value: string; col
 
 /* ── Modal ──────────────────────────────────────────────────────────── */
 
+interface GhlContact {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  companyName: string | null;
+  address1: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  country: string | null;
+  website: string | null;
+  timezone: string | null;
+  dnd: boolean;
+  type: string | null;
+  source: string | null;
+  tags: string[];
+  dateAdded: string | null;
+  lastActivity: string | null;
+  assignedTo: string | null;
+  customFields: { id: string; label: string; dataType: string; value: unknown }[];
+}
+
 function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; stages: PipelineStage[]; onClose: () => void; onSaved: () => void }) {
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [allAppts, setAllAppts] = useState<Appointment[]>([]);
   const [loadingAppt, setLoadingAppt] = useState(true);
+  const [ghlContact, setGhlContact] = useState<GhlContact | null>(null);
+  const [loadingContact, setLoadingContact] = useState(true);
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<string>(opp.prospect_status || '');
   const [stageId, setStageId] = useState<string>(opp.pipeline_stage_id);
   const [valueEUR, setValueEUR] = useState<string>(opp.monetary_value_cents ? (opp.monetary_value_cents / 100).toString() : '');
   const [saving, setSaving] = useState(false);
+
+  // Fetch the full GHL contact (tags, custom fields, address, source…)
+  useEffect(() => {
+    if (!opp.ghl_contact_id) { setLoadingContact(false); return; }
+    fetch(`/api/ghl/contact?id=${encodeURIComponent(opp.ghl_contact_id)}`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setGhlContact(d?.contact || null))
+      .finally(() => setLoadingContact(false));
+  }, [opp.ghl_contact_id]);
 
   // Load every appointment tied to this opportunity (or to the same contact /
   // email) so the admin sees the full RDV history in the prospect drawer —
@@ -631,16 +685,65 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
             </div>
           )}
 
-          {/* Contact info */}
+          {/* Contact info — fusion gh_opportunities + GHL fiche complète */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
-            {opp.contact_email && <InfoRow icon="📧" value={opp.contact_email} />}
-            {opp.contact_phone && <InfoRow icon="📱" value={opp.contact_phone} />}
-            {opp.contact_name && opp.contact_name !== opp.name && <InfoRow icon="👤" value={opp.contact_name} />}
+            {(ghlContact?.email || opp.contact_email) && <InfoRow icon="📧" value={ghlContact?.email || opp.contact_email!} />}
+            {(ghlContact?.phone || opp.contact_phone) && <InfoRow icon="📱" value={ghlContact?.phone || opp.contact_phone!} />}
+            {ghlContact?.name && ghlContact.name !== opp.name && <InfoRow icon="👤" value={ghlContact.name} />}
+            {ghlContact?.companyName && <InfoRow icon="🏢" value={ghlContact.companyName} />}
+            {ghlContact?.city && <InfoRow icon="📍" value={[ghlContact.address1, ghlContact.city, ghlContact.postalCode].filter(Boolean).join(' · ')} />}
+            {ghlContact?.website && <InfoRow icon="🌐" value={ghlContact.website} />}
+            {ghlContact?.source && <InfoRow icon="🔗" value={`Source : ${ghlContact.source}`} />}
             {opp.ghl_created_at && <InfoRow icon="📅" value={`Créé ${relativeDate(opp.ghl_created_at)}`} />}
-            {opp.ghl_updated_at && opp.ghl_updated_at !== opp.ghl_created_at && (
-              <InfoRow icon="🔄" value={`MAJ ${relativeDate(opp.ghl_updated_at)}`} />
-            )}
           </div>
+
+          {/* Tags GHL */}
+          {ghlContact?.tags && ghlContact.tags.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                🏷️ Tags
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {ghlContact.tags.map((t, i) => (
+                  <span key={i} style={{
+                    fontSize: '0.7rem', padding: '3px 9px', borderRadius: 999,
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                    color: 'var(--text-mid)',
+                  }}>#{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Custom fields GHL (réponses formulaire, données métier) */}
+          {ghlContact?.customFields && ghlContact.customFields.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                📝 Champs personnalisés
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {ghlContact.customFields.map(cf => (
+                  <div key={cf.id} style={{
+                    padding: '8px 10px', borderRadius: 6,
+                    background: 'var(--night-mid)', border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {cf.label}
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text)', wordBreak: 'break-word' }}>
+                      {Array.isArray(cf.value) ? cf.value.join(', ') : String(cf.value)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {loadingContact && (
+            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: 8 }}>
+              ⏳ Chargement de la fiche GHL complète…
+            </div>
+          )}
 
           {/* RDV history pour ce contact */}
           {allAppts.length > 0 && (
@@ -888,6 +991,135 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
         </div>
       </div>
     </div>
+  );
+}
+
+function QuickAddProspectModal({ stages, onClose, onCreated }: {
+  stages: PipelineStage[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: '', email: '', phone: '', valueEUR: '500',
+    stageName: stages[0]?.name || '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit() {
+    if (!form.name.trim() || !form.email.trim()) {
+      setError('Nom et email obligatoires');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      const r = await fetch('/api/gh-opportunities', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim() || undefined,
+          monetary_value_cents: form.valueEUR ? Math.round(parseFloat(form.valueEUR) * 100) : undefined,
+          stage_name: form.stageName,
+        }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        setError(d.error || 'Erreur');
+        return;
+      }
+      onCreated();
+    } finally { setSubmitting(false); }
+  }
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(3px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 480, padding: 24, borderRadius: 14,
+        background: 'var(--night-card)', border: '1px solid var(--border-md)',
+        boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+        animation: 'bm-modal-pop var(--t-base) var(--ease-bounce) both',
+      }}>
+        <h2 style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+          fontSize: '1.2rem', color: 'var(--text)', margin: '0 0 6px',
+        }}>
+          ➕ Nouveau prospect
+        </h2>
+        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 18px' }}>
+          Crée le contact + l&apos;opportunité dans GHL en un clic.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Field label="Nom *" value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder="Boulangerie de Jonas" />
+          <Field label="Email *" value={form.email} onChange={v => setForm({ ...form, email: v })} placeholder="contact@boulangerie.fr" type="email" />
+          <Field label="Téléphone" value={form.phone} onChange={v => setForm({ ...form, phone: v })} placeholder="+262 XXX XX XX XX" type="tel" />
+          <Field label="Valeur (€)" value={form.valueEUR} onChange={v => setForm({ ...form, valueEUR: v })} type="number" />
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Stage de départ</span>
+            <select
+              value={form.stageName}
+              onChange={e => setForm({ ...form, stageName: e.target.value })}
+              style={{
+                padding: '9px 12px', borderRadius: 8,
+                background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                color: 'var(--text)', fontSize: '0.88rem', outline: 'none', fontFamily: 'inherit',
+              }}
+            >
+              {stages.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
+          </label>
+        </div>
+
+        {error && (
+          <div style={{
+            marginTop: 12, padding: '8px 12px', borderRadius: 8,
+            background: 'rgba(239,68,68,.10)', color: '#FCA5A5', fontSize: '0.82rem',
+          }}>❌ {error}</div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
+          <button onClick={onClose} disabled={submitting} style={{
+            padding: '9px 16px', borderRadius: 8, background: 'transparent',
+            border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+            cursor: 'pointer', fontSize: '0.84rem', fontWeight: 600,
+          }}>Annuler</button>
+          <button onClick={submit} disabled={submitting} style={{
+            padding: '9px 18px', borderRadius: 8, background: 'var(--orange)',
+            color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.84rem', fontWeight: 700,
+            opacity: submitting ? 0.5 : 1,
+          }}>
+            {submitting ? '⏳ Création…' : '➕ Créer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, placeholder, type = 'text' }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
+}) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          padding: '9px 12px', borderRadius: 8,
+          background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+          color: 'var(--text)', fontSize: '0.88rem', outline: 'none', fontFamily: 'inherit',
+        }}
+      />
+    </label>
   );
 }
 

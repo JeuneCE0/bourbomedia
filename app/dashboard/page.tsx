@@ -313,35 +313,6 @@ export default function DashboardPage() {
           {/* Scripts to finish */}
           <ScriptsToFinishSection items={scriptsToFinish} />
 
-          {/* Récap */}
-          <div style={{
-            background: 'var(--night-card)', borderRadius: 14, border: '1px solid var(--border)',
-            padding: '18px 20px', marginBottom: 18,
-          }}>
-            <h2 style={{
-              fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-mid)',
-              margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8,
-              textTransform: 'uppercase', letterSpacing: 0.5,
-            }}>
-              <span aria-hidden>✅</span> Récap business
-            </h2>
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12,
-            }}>
-              <Stat emoji="🚀" label="Leads aujourd'hui" value={leadsToday.length.toString()} color="var(--orange)" />
-              <Stat emoji="💸" label="Encaissé ce mois" value={`${(monthlyRevenueCents / 100).toLocaleString('fr-FR')} €`} color="var(--green)" extra={
-                revenueDelta !== null
-                  ? <span style={{ color: revenueDelta >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                      {revenueDelta >= 0 ? '+' : ''}{revenueDelta}% vs M-1
-                    </span>
-                  : 'Premier mois'
-              } />
-              <Stat emoji="🎬" label="Vidéos livrées (mois)" value={deliveredThisMonth.toString()} color="#3B82F6" />
-              <Stat emoji="👥" label="Clients actifs" value={activeClients.toString()} color="var(--orange)" />
-              <Stat emoji="⏳" label="Sans paiement" value={pendingPayment.toString()} color={pendingPayment > 0 ? 'var(--yellow)' : 'var(--green)'} />
-            </div>
-          </div>
-
           {/* Activity feed */}
           {activity.length > 0 && (
             <div style={{

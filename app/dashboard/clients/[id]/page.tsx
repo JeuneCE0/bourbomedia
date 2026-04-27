@@ -137,15 +137,21 @@ interface Payment {
   stripe_session_id?: string;
   stripe_payment_intent?: string;
   receipt_url?: string;
+  invoice_pdf_url?: string;
+  invoice_number?: string;
   created_at: string;
 }
 
-interface ClientEvent {
+interface TimelineItem {
   id: string;
+  timestamp: string;
   type: string;
-  payload: Record<string, unknown> | null;
-  actor: string;
-  created_at: string;
+  emoji: string;
+  color: string;
+  title: string;
+  description?: string;
+  actor?: string;
+  href?: string;
 }
 
 interface GhlOpportunityRow {
@@ -171,57 +177,6 @@ interface GhlAppointmentRow {
   notes_completed_at: string | null;
   prospect_status: string | null;
   opportunity_name: string | null;
-}
-
-const EVENT_LABELS: Record<string, { label: string; icon: string; color: string }> = {
-  status_changed: { label: 'Changement de statut', icon: '🔄', color: 'var(--text-mid)' },
-  script_created: { label: 'Script créé', icon: '✍️', color: 'var(--text-mid)' },
-  script_sent_to_client: { label: 'Script envoyé au client', icon: '📤', color: 'var(--orange)' },
-  script_validated: { label: 'Script validé par le client', icon: '✅', color: 'var(--green)' },
-  script_changes_requested: { label: 'Modifications demandées', icon: '✏️', color: 'var(--yellow)' },
-  script_annotation_added: { label: 'Annotation ajoutée', icon: '💬', color: 'var(--orange)' },
-  filming_scheduled: { label: 'Tournage planifié', icon: '📅', color: 'var(--orange)' },
-  filming_done: { label: 'Tournage terminé', icon: '🎬', color: 'var(--green)' },
-  video_delivered: { label: 'Vidéo livrée', icon: '🎉', color: 'var(--green)' },
-  contract_signed: { label: 'Contrat signé', icon: '✍️', color: 'var(--green)' },
-  payment_received: { label: 'Paiement reçu', icon: '💸', color: 'var(--green)' },
-  call_booked: { label: 'Appel d\'onboarding réservé', icon: '📞', color: 'var(--orange)' },
-  satisfaction_submitted: { label: 'Avis client reçu', icon: '⭐', color: '#FACC15' },
-  comment_added: { label: 'Nouveau commentaire', icon: '💬', color: 'var(--orange)' },
-};
-
-// Format event payload into a readable detail line
-function formatEventDetails(type: string, payload: Record<string, unknown> | null): string | null {
-  if (!payload) return null;
-  switch (type) {
-    case 'status_changed': {
-      const from = payload.from ? STATUS_LABELS[String(payload.from)] || String(payload.from) : null;
-      const to = payload.to ? STATUS_LABELS[String(payload.to)] || String(payload.to) : null;
-      if (from && to) return `${from} → ${to}`;
-      if (to) return `→ ${to}`;
-      return null;
-    }
-    case 'filming_scheduled':
-    case 'script_validated': {
-      const date = payload.date || payload.filming_date;
-      if (date) {
-        return new Date(String(date)).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-      }
-      return null;
-    }
-    case 'script_sent_to_client':
-      return payload.version ? `Version ${payload.version}` : null;
-    case 'video_delivered':
-      return payload.video_url ? 'Lien partagé avec le client' : null;
-    case 'payment_received':
-      return payload.amount ? `${(Number(payload.amount) / 100).toLocaleString('fr-FR')} €` : null;
-    case 'satisfaction_submitted':
-      return payload.rating ? `${payload.rating}/5` : null;
-    case 'script_annotation_added':
-      return payload.count ? `${payload.count} annotation(s)` : null;
-    default:
-      return null;
-  }
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -272,29 +227,29 @@ export default function ClientDetailPage() {
   const id = params.id as string;
 
   const searchParams = useSearchParams();
+  type TabKey = 'conversation' | 'info' | 'ghl' | 'script' | 'delivery' | 'payments';
   const initialTab = (() => {
     const t = searchParams.get('tab');
-    return (['info', 'ghl', 'script', 'filming', 'delivery', 'payments'] as const).includes(t as 'info') ? (t as 'info' | 'ghl' | 'script' | 'delivery' | 'payments') : 'info';
+    return (['conversation', 'info', 'ghl', 'script', 'filming', 'delivery', 'payments'] as const).includes(t as TabKey) ? (t as TabKey) : 'conversation';
   })();
 
   const [client, setClient] = useState<Client | null>(null);
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTabState] = useState<'info' | 'ghl' | 'script' | 'delivery' | 'payments'>(initialTab);
+  const [tab, setTabState] = useState<TabKey>(initialTab);
 
   // Sync tab → URL so admin can share / refresh and stay on the right tab
-  const setTab = useCallback((next: 'info' | 'ghl' | 'script' | 'delivery' | 'payments') => {
+  const setTab = useCallback((next: TabKey) => {
     setTabState(next);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
-      if (next === 'info') url.searchParams.delete('tab');
+      if (next === 'conversation') url.searchParams.delete('tab');
       else url.searchParams.set('tab', next);
       window.history.replaceState({}, '', url.toString());
     }
   }, []);
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [events, setEvents] = useState<ClientEvent[]>([]);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
@@ -305,6 +260,8 @@ export default function ClientDetailPage() {
   const [showVersions, setShowVersions] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [ghlData, setGhlData] = useState<{ opportunities: GhlOpportunityRow[]; appointments: GhlAppointmentRow[] }>({ opportunities: [], appointments: [] });
+  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
   // Default payment = vidéo unique 500€ HT + 8.5% TVA = 542,50€ TTC
   const [paymentForm, setPaymentForm] = useState({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)', method: 'virement' as 'virement' | 'especes' | 'cheque' | 'autre' });
   const [addingPayment, setAddingPayment] = useState(false);
@@ -382,16 +339,6 @@ export default function ClientDetailPage() {
 
   useEffect(() => { loadClient(); }, [loadClient]);
 
-  const loadEvents = useCallback(() => {
-    fetch(`/api/clients/events?client_id=${id}`, { headers: authHeaders() })
-      .then(async r => {
-        if (!r.ok) return;
-        const d = await r.json();
-        if (Array.isArray(d)) setEvents(d);
-      })
-      .catch(() => {});
-  }, [id]);
-
   const loadPayments = useCallback(() => {
     fetch(`/api/payments?client_id=${id}`, { headers: authHeaders() })
       .then(async r => {
@@ -409,20 +356,30 @@ export default function ClientDetailPage() {
       .catch(() => {});
   }, [id]);
 
+  const loadTimeline = useCallback(async () => {
+    setTimelineLoading(true);
+    try {
+      const r = await fetch(`/api/clients/timeline?id=${id}`, { headers: authHeaders() });
+      if (r.ok) {
+        const d = await r.json();
+        setTimelineItems(Array.isArray(d.items) ? d.items : []);
+      }
+    } catch { /* noop */ } finally { setTimelineLoading(false); }
+  }, [id]);
+
   useEffect(() => {
-    if (tab === 'info') loadEvents();
+    if (tab === 'conversation') loadTimeline();
     if (tab === 'payments') loadPayments();
     if (tab === 'ghl') loadGhl();
-  }, [tab, loadEvents, loadPayments, loadGhl]);
+  }, [tab, loadTimeline, loadPayments, loadGhl]);
 
-  // Auto-refresh the activity history while the admin watches the 'info' tab
-  // — every 10s so any new event (script_sent, payment, status change…) shows
-  // up without a manual reload.
+  // Auto-refresh the conversation timeline every 15s so new events surface
+  // without manual reload (paiement Stripe, validation script, feedback vidéo…).
   useEffect(() => {
-    if (tab !== 'info') return;
-    const t = setInterval(() => loadEvents(), 10_000);
+    if (tab !== 'conversation') return;
+    const t = setInterval(() => loadTimeline(), 15_000);
     return () => clearInterval(t);
-  }, [tab, loadEvents]);
+  }, [tab, loadTimeline]);
 
   async function loadVersions() {
     if (!script) return;
@@ -687,7 +644,7 @@ export default function ClientDetailPage() {
       if (!cr.ok) throw new Error('Script envoyé mais le statut client n\'a pas pu être mis à jour : ' + (await parseErr(cr)));
       notify('success', 'Script envoyé · client → Relecture');
       loadClient();
-      loadEvents();
+      loadTimeline();
     } catch (e: unknown) {
       notify('error', (e as Error).message);
     } finally { setSaving(false); }
@@ -701,7 +658,7 @@ export default function ClientDetailPage() {
       });
       if (!r.ok) throw new Error(await parseErr(r));
       loadClient();
-      loadEvents();
+      loadTimeline();
     } catch (e: unknown) {
       notify('error', (e as Error).message);
     }
@@ -939,7 +896,7 @@ export default function ClientDetailPage() {
       notify('success', deliver ? 'Vidéo livrée · client → Vidéo à valider' : 'Vidéo enregistrée');
       setNewVideo({ title: '', video_url: '', thumbnail_url: '', delivery_notes: '' });
       loadClient();
-      loadEvents();
+      loadTimeline();
     } catch (e: unknown) { notify('error', (e as Error).message); }
     finally { setSavingVideo(false); }
   }
@@ -1046,11 +1003,12 @@ export default function ClientDetailPage() {
     .length;
 
   const TAB_LIST: { key: typeof tab; label: string; badge?: string }[] = [
-    { key: 'info', label: 'Aperçu' },
-    { key: 'ghl', label: 'Closing & RDV' },
+    { key: 'conversation', label: '💬 Conversation' },
     { key: 'script', label: 'Script', badge: script?.script_comments?.length ? `${script.script_comments.length}` : undefined },
     { key: 'delivery', label: 'Montage', badge: pendingFeedbackCount > 0 ? `${pendingFeedbackCount}` : (client.delivered_at ? '✓' : undefined) },
+    { key: 'ghl', label: 'Closing & RDV' },
     { key: 'payments', label: 'Paiements', badge: payments.length > 0 ? `${payments.length}` : undefined },
+    { key: 'info', label: 'Détails' },
   ];
 
   return (
@@ -1375,9 +1333,16 @@ export default function ClientDetailPage() {
             </form>
           )}
 
-          {/* Timeline — inline in Aperçu */}
-          <HistoryTimeline events={events} />
         </div>
+      )}
+
+      {/* Conversation tab — unified timeline (events, RDV, paiements, scripts, vidéos, feedback, commentaires) */}
+      {tab === 'conversation' && (
+        <ConversationTimeline
+          items={timelineItems}
+          loading={timelineLoading}
+          onJump={(t) => setTab(t)}
+        />
       )}
 
       {/* Closing & RDV tab — GHL opportunities + appointments linked to this client */}
@@ -1760,7 +1725,21 @@ export default function ClientDetailPage() {
                       {p.description || 'Paiement'} · {new Date(p.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {p.invoice_pdf_url && (
+                      <a href={p.invoice_pdf_url} target="_blank" rel="noreferrer" title="Télécharger la facture PDF" style={{
+                        fontSize: '0.66rem', padding: '4px 10px', borderRadius: 8,
+                        background: 'var(--orange)', color: '#fff',
+                        textDecoration: 'none', fontWeight: 600,
+                      }}>📄 Facture</a>
+                    )}
+                    {p.receipt_url && (
+                      <a href={p.receipt_url} target="_blank" rel="noreferrer" title="Voir le reçu Stripe" style={{
+                        fontSize: '0.66rem', padding: '4px 10px', borderRadius: 8,
+                        background: 'transparent', border: '1px solid var(--border-md)',
+                        color: 'var(--text-mid)', textDecoration: 'none', fontWeight: 600,
+                      }}>🧾 Reçu</a>
+                    )}
                     {p.stripe_payment_intent && (
                       <span style={{
                         fontSize: '0.65rem', padding: '3px 8px', borderRadius: 12,
@@ -2023,85 +2002,157 @@ const miniActionStyle: React.CSSProperties = {
   fontSize: '0.85rem', textDecoration: 'none', color: 'var(--text-mid)',
 };
 
-function HistoryTimeline({ events }: { events: ClientEvent[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? events : events.slice(0, 8);
+function ConversationTimeline({
+  items, loading, onJump,
+}: {
+  items: TimelineItem[];
+  loading: boolean;
+  onJump: (tab: 'script' | 'delivery' | 'payments' | 'ghl' | 'info') => void;
+}) {
+  const [filter, setFilter] = useState<'all' | 'script' | 'video' | 'rdv' | 'paiement'>('all');
+
+  const filtered = items.filter(it => {
+    if (filter === 'all') return true;
+    if (filter === 'script') return it.type.startsWith('script') || it.type === 'comment';
+    if (filter === 'video') return it.type.startsWith('video') || it.type === 'video_feedback';
+    if (filter === 'rdv') return it.type === 'appointment';
+    if (filter === 'paiement') return it.type === 'payment' || it.type === 'payment_received';
+    return true;
+  });
+
+  // Group by day for timeline UX
+  const groups: { day: string; items: TimelineItem[] }[] = [];
+  for (const it of filtered) {
+    const d = new Date(it.timestamp);
+    const dayKey = isNaN(d.getTime()) ? 'autre' : d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const last = groups[groups.length - 1];
+    if (last && last.day === dayKey) last.items.push(it);
+    else groups.push({ day: dayKey, items: [it] });
+  }
+
+  const FILTERS: { key: typeof filter; label: string }[] = [
+    { key: 'all', label: 'Tout' },
+    { key: 'script', label: '📝 Script' },
+    { key: 'video', label: '🎬 Vidéo' },
+    { key: 'rdv', label: '📅 RDV' },
+    { key: 'paiement', label: '💸 Paiements' },
+  ];
+
   return (
-    <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <h4 style={{
-          fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-mid)',
-          margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em',
+    <div className="bm-fade-in" style={{
+      background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20,
+    }}>
+      {/* Header + filters */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: 14, flexWrap: 'wrap', gap: 10,
+      }}>
+        <h3 style={{
+          fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)', margin: 0,
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          <span aria-hidden>📋</span> Historique
-          {events.length > 0 && (
+          💬 Conversation
+          {items.length > 0 && (
             <span style={{
-              fontSize: '0.65rem', padding: '1px 7px', borderRadius: 999,
+              fontSize: '0.68rem', padding: '2px 8px', borderRadius: 999,
               background: 'var(--night-mid)', color: 'var(--text-muted)', fontWeight: 600,
-            }}>{events.length}</span>
+            }}>{items.length}</span>
           )}
-        </h4>
-        {events.length > 8 && (
-          <button onClick={() => setExpanded(e => !e)} style={{
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            color: 'var(--orange)', fontSize: '0.72rem', fontWeight: 600,
-          }}>
-            {expanded ? '↑ Réduire' : `↓ Voir tout (${events.length})`}
-          </button>
-        )}
+        </h3>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {FILTERS.map(f => (
+            <button key={f.key} onClick={() => setFilter(f.key)} style={{
+              padding: '4px 10px', borderRadius: 999, border: '1px solid var(--border-md)',
+              background: filter === f.key ? 'rgba(232,105,43,.15)' : 'transparent',
+              color: filter === f.key ? 'var(--orange)' : 'var(--text-muted)',
+              fontSize: '0.72rem', fontWeight: filter === f.key ? 600 : 500, cursor: 'pointer',
+            }}>{f.label}</button>
+          ))}
+        </div>
       </div>
-      {events.length === 0 ? (
+
+      {loading && items.length === 0 ? (
+        <div style={{ padding: 20, color: 'var(--text-muted)', fontSize: '0.82rem' }}>Chargement…</div>
+      ) : filtered.length === 0 ? (
         <div style={{
           padding: '14px 16px', borderRadius: 10,
           background: 'var(--night-mid)', border: '1px dashed var(--border-md)',
-          fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8,
+          fontSize: '0.82rem', color: 'var(--text-muted)',
         }}>
-          <span aria-hidden>⏳</span>
-          Pas encore d&apos;événement — l&apos;historique se construit au fil du projet (création, statut, scripts, paiements, etc.).
+          {filter === 'all'
+            ? 'Aucune activité encore. La timeline se remplit au fil du projet.'
+            : 'Aucun événement de ce type pour ce client.'}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative' }}>
+        <div style={{ position: 'relative' }}>
+          {/* vertical line */}
           <div style={{
-            position: 'absolute', left: 14, top: 14, bottom: 14, width: 2,
-            background: 'var(--border-md)', opacity: 0.4,
+            position: 'absolute', left: 18, top: 6, bottom: 6, width: 2,
+            background: 'var(--border-md)', opacity: 0.35,
           }} />
-          {visible.map(ev => {
-            const meta = EVENT_LABELS[ev.type] || { label: ev.type, icon: '•', color: 'var(--text-muted)' };
-            const details = formatEventDetails(ev.type, ev.payload);
-            const actorEmoji = ev.actor === 'client' ? '👤' : ev.actor === 'system' ? '⚙️' : '🛠️';
-            return (
-              <div key={ev.id} style={{
-                display: 'flex', gap: 12, alignItems: 'flex-start',
-                padding: '8px 0', position: 'relative',
-              }}>
-                <div style={{
-                  width: 30, height: 30, borderRadius: '50%', flexShrink: 0, zIndex: 1,
-                  background: 'var(--night-mid)', border: `2px solid ${meta.color}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '0.95rem',
-                  fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
-                }} aria-hidden>{meta.icon}</div>
-                <div style={{ flex: 1, paddingTop: 4 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.82rem', color: 'var(--text)', fontWeight: 600 }}>
-                      {meta.label}
-                    </span>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }} title={ev.actor}>
-                      {actorEmoji} {new Date(ev.created_at).toLocaleDateString('fr-FR', {
-                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                  {details && (
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-mid)', marginTop: 2, lineHeight: 1.4 }}>
-                      {details}
+          {groups.map((g, gi) => (
+            <div key={`${g.day}-${gi}`}>
+              <div style={{
+                position: 'sticky', top: 0, zIndex: 2, padding: '10px 0 8px 48px',
+                fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)',
+                textTransform: 'uppercase', letterSpacing: '0.05em',
+                background: 'linear-gradient(to bottom, var(--night-card) 70%, transparent)',
+              }}>{g.day}</div>
+              {g.items.map(it => {
+                const isClickable = ['script', 'video_delivered', 'video_feedback', 'payment', 'appointment'].includes(it.type);
+                const handleClick = () => {
+                  if (it.type.startsWith('script') || it.type === 'comment') onJump('script');
+                  else if (it.type.startsWith('video')) onJump('delivery');
+                  else if (it.type === 'payment') onJump('payments');
+                  else if (it.type === 'appointment') onJump('ghl');
+                };
+                const time = new Date(it.timestamp);
+                const timeLabel = isNaN(time.getTime()) ? '' : time.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                return (
+                  <div key={it.id}
+                    onClick={isClickable ? handleClick : undefined}
+                    style={{
+                      display: 'flex', gap: 14, alignItems: 'flex-start',
+                      padding: '8px 8px 8px 0', position: 'relative',
+                      cursor: isClickable ? 'pointer' : 'default',
+                      borderRadius: 8, transition: 'background .12s',
+                    }}
+                    onMouseEnter={e => { if (isClickable) e.currentTarget.style.background = 'rgba(255,255,255,.02)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0, zIndex: 1,
+                      background: 'var(--night-mid)', border: `2px solid ${it.color}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '1rem',
+                      fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+                    }} aria-hidden>{it.emoji}</div>
+                    <div style={{ flex: 1, minWidth: 0, paddingTop: 6 }}>
+                      <div style={{
+                        display: 'flex', justifyContent: 'space-between',
+                        gap: 8, alignItems: 'baseline', flexWrap: 'wrap',
+                      }}>
+                        <span style={{
+                          fontSize: '0.84rem', color: 'var(--text)', fontWeight: 600,
+                        }}>{it.title}</span>
+                        <span style={{
+                          fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap',
+                        }} title={it.actor}>
+                          {it.actor === 'client' ? '👤' : it.actor === 'system' ? '⚙️' : it.actor ? '🛠️' : ''} {timeLabel}
+                        </span>
+                      </div>
+                      {it.description && (
+                        <div style={{
+                          fontSize: '0.78rem', color: 'var(--text-mid)', marginTop: 3,
+                          lineHeight: 1.45, wordBreak: 'break-word',
+                        }}>{it.description}</div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
     </div>

@@ -112,6 +112,11 @@ const cssVars = {
 } as React.CSSProperties;
 
 export default function ClientsPage() {
+  return <ClientsListView />;
+}
+
+// Reusable component, embedded in /dashboard/pipeline as the "Clients" tab.
+export function ClientsListView() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);

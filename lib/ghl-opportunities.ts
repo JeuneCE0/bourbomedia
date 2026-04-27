@@ -150,6 +150,32 @@ export async function updateOpportunity(opportunityId: string, fields: { monetar
   }
 }
 
+// Create an opportunity in GHL — used for the 'quick add prospect' form.
+export async function createOpportunity(args: {
+  pipelineId: string;
+  pipelineStageId: string;
+  contactId: string;
+  name: string;
+  monetaryValue?: number;
+}): Promise<{ id: string } | null> {
+  if (!LOCATION_ID || !args.pipelineId || !args.contactId) return null;
+  try {
+    const data = await ghlRequest('POST', `/opportunities/`, {
+      pipelineId: args.pipelineId,
+      pipelineStageId: args.pipelineStageId,
+      contactId: args.contactId,
+      locationId: LOCATION_ID,
+      name: args.name,
+      status: 'open',
+      monetaryValue: args.monetaryValue,
+    });
+    const id = data?.opportunity?.id || data?.id;
+    return id ? { id } : null;
+  } catch {
+    return null;
+  }
+}
+
 // Delete an opportunity in GHL. Used when admin archives a prospect.
 export async function deleteOpportunity(opportunityId: string): Promise<boolean> {
   if (!opportunityId) return false;
