@@ -2219,14 +2219,6 @@ function PublishedCelebration({ businessName, videoUrl }: { businessName: string
             <span>Télécharger / Partager</span>
           </a>
         )}
-        <a href="https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuhYAR" target="_blank" rel="noreferrer" style={{
-          padding: '12px 14px', borderRadius: 10, textDecoration: 'none',
-          background: 'var(--orange)', color: '#fff',
-          display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.86rem', fontWeight: 700,
-        }}>
-          <span aria-hidden style={{ fontSize: '1.1rem' }}>⭐</span>
-          <span>Laisser un avis Google</span>
-        </a>
         <a href="mailto:contact@bourbonmedia.fr?subject=Je veux refaire une vidéo" style={{
           padding: '12px 14px', borderRadius: 10, textDecoration: 'none',
           background: 'var(--night-card)', border: '1px solid var(--orange)',
