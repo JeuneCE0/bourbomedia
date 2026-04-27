@@ -43,6 +43,8 @@ interface ClientDelivery {
   video_changes_requested?: boolean;
   contract_pdf_url?: string;
   contract_signature_link?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface VideoDelivery {
@@ -133,18 +135,51 @@ interface NextAction {
   cta?: { label: string; tab?: 'video' | 'script' | 'comments' | 'feedback' };
 }
 
+// ── ETA helpers ────────────────────────────────────────────────────────────
+// Skip weekends when adding business days.
+function addBusinessDays(from: Date, days: number): Date {
+  const d = new Date(from);
+  let added = 0;
+  while (added < days) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  return d;
+}
+
+// Next Tuesday or Thursday strictly after `from`. Used for publication ETA.
+function nextPublicationSlot(from: Date): Date {
+  const d = new Date(from);
+  for (let i = 1; i <= 14; i++) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow === 2 || dow === 4) return new Date(d);
+  }
+  return d;
+}
+
+function fmtDate(d: Date): string {
+  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
 function computeNextAction(
   scriptStatus: string | null,
   hasDelivery: boolean,
   hasFeedback: boolean,
-  client?: { status?: string; video_validated_at?: string | null; publication_date_confirmed?: boolean; video_changes_requested?: boolean } | null,
+  client?: { status?: string; video_validated_at?: string | null; publication_date_confirmed?: boolean; video_changes_requested?: boolean; updated_at?: string; created_at?: string; filming_date?: string } | null,
 ): NextAction {
+  // Helper : pick the most recent timestamp we can rely on as "stage entered"
+  const stageEnteredAt = client?.updated_at ? new Date(client.updated_at)
+    : client?.created_at ? new Date(client.created_at)
+    : new Date();
   // Video delivered but not yet validated → ask the client to review
   if (hasDelivery && !client?.video_validated_at) {
     if (client?.video_changes_requested) {
+      const eta = addBusinessDays(stageEnteredAt, 3);
       return {
         pill: { tone: 'blue', emoji: '✏️', label: 'Modifications en cours' },
-        description: 'Vos retours ont été pris en compte. Notre équipe ajuste le montage.',
+        description: `Vos retours ont été pris en compte. Notre équipe ajuste le montage — nouvelle version vers le ${fmtDate(eta)}.`,
       };
     }
     return {
@@ -155,9 +190,10 @@ function computeNextAction(
   }
   // Video validated, but no publication date picked yet
   if (hasDelivery && client?.video_validated_at && !client?.publication_date_confirmed) {
+    const nextSlot = nextPublicationSlot(new Date());
     return {
       pill: { tone: 'orange', emoji: '🗓️', label: 'Choisissez votre date de publication' },
-      description: 'Sélectionnez le mardi ou le jeudi de votre choix dans le calendrier ci-dessous.',
+      description: `Sélectionnez le mardi ou le jeudi de votre choix. Plus tôt disponible : ${fmtDate(nextSlot)}.`,
     };
   }
   if (hasDelivery && !hasFeedback && client?.publication_date_confirmed) {
@@ -184,9 +220,26 @@ function computeNextAction(
     };
   }
   if (scriptStatus === 'awaiting_changes') {
+    const eta = addBusinessDays(stageEnteredAt, 2);
     return {
       pill: { tone: 'blue', emoji: '✍️', label: 'On retravaille votre script' },
-      description: 'Vos retours ont été pris en compte. Notre équipe prépare la nouvelle version.',
+      description: `Vos retours ont été pris en compte. Nouvelle version prête vers le ${fmtDate(eta)}.`,
+    };
+  }
+  // Once filming is booked, talk about the filming + delivery, not "réservez"
+  if (client?.filming_date && (client?.status === 'filming_scheduled' || client?.status === 'filming_done' || client?.status === 'editing')) {
+    const filming = new Date(client.filming_date);
+    const now = new Date();
+    if (filming > now) {
+      return {
+        pill: { tone: 'blue', emoji: '🎬', label: 'Tournage planifié' },
+        description: `Tournage prévu ${fmtDate(filming)} — vidéo livrée environ 5 jours après (vers le ${fmtDate(addBusinessDays(filming, 5))}).`,
+      };
+    }
+    const eta = addBusinessDays(filming, 5);
+    return {
+      pill: { tone: 'blue', emoji: '🎞️', label: 'Montage en cours' },
+      description: `Notre équipe monte votre vidéo — livraison vers le ${fmtDate(eta)}.`,
     };
   }
   if (scriptStatus === 'confirmed') {
@@ -196,9 +249,10 @@ function computeNextAction(
     };
   }
   if (scriptStatus === 'draft' || !scriptStatus) {
+    const eta = addBusinessDays(stageEnteredAt, 4);
     return {
       pill: { tone: 'blue', emoji: '⏳', label: 'Notre équipe rédige votre script' },
-      description: 'On compose un script personnalisé pour votre projet — délai habituel : 2 à 5 jours ouvrés.',
+      description: `On compose un script personnalisé pour votre projet — prêt vers le ${fmtDate(eta)} (≈ 2-5 jours ouvrés).`,
     };
   }
   return {
@@ -823,6 +877,17 @@ function PortalContent() {
             </div>
           );
         })()}
+
+        {/* Pre-filming checklist — visible 48h before tournage */}
+        <FilmingPrepBanner filmingDate={clientInfo?.filming_date} />
+
+        {/* Published celebration — visible once status='published' */}
+        {clientInfo?.status === 'published' && (
+          <PublishedCelebration
+            businessName={clientInfo?.business_name || 'votre vidéo'}
+            videoUrl={deliveredVideos[0]?.video_url || clientInfo?.video_url}
+          />
+        )}
 
         {/* Project timeline — single source of truth for progression */}
         <div style={{
@@ -2038,6 +2103,178 @@ function VideoEmbed({ url, thumbnail }: { url: string; thumbnail?: string }) {
         </div>
       </div>
     </a>
+  );
+}
+
+/* ── Filming prep checklist (visible 48h before shoot) ─────────────────── */
+
+function FilmingPrepBanner({ filmingDate }: { filmingDate?: string }) {
+  if (!filmingDate) return null;
+  const filming = new Date(filmingDate);
+  const now = Date.now();
+  const hoursToFilming = (filming.getTime() - now) / 3600000;
+  // Show only between J-2 and the filming time itself
+  if (hoursToFilming > 48 || hoursToFilming < -2) return null;
+
+  const isToday = hoursToFilming >= 0 && hoursToFilming < 24;
+  const isTomorrow = hoursToFilming >= 24 && hoursToFilming <= 48;
+  const label = isToday ? "🎬 Tournage aujourd'hui" : isTomorrow ? '🎬 Tournage demain' : '🎬 Tournage en cours';
+
+  const items = [
+    { emoji: '👔', text: 'Tenue préparée — couleurs unies, pas de logos visibles' },
+    { emoji: '📍', text: 'Lieu de tournage propre et accessible — pensez à débarrasser' },
+    { emoji: '💡', text: 'Lumière naturelle si possible — ouvrez les rideaux' },
+    { emoji: '📵', text: 'Téléphone en silencieux — évitez les notifications pendant le tournage' },
+    { emoji: '☕', text: 'Eau / café à disposition pour l\'équipe (3h sur place)' },
+    { emoji: '🗣️', text: 'Pratiquez le script à voix haute une fois la veille' },
+  ];
+
+  return (
+    <div style={{
+      marginBottom: 22, padding: '20px 22px', borderRadius: 14,
+      background: 'linear-gradient(135deg, rgba(232,105,43,.10), rgba(250,204,21,.06))',
+      border: '1px solid rgba(232,105,43,.40)',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+        <h3 style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+          fontSize: '1rem', color: 'var(--text)', margin: 0,
+        }}>
+          {label}
+        </h3>
+        <span style={{
+          fontSize: '0.74rem', color: 'var(--text-mid)',
+          padding: '3px 10px', borderRadius: 999,
+          background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+        }}>
+          {filming.toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
+      <p style={{ fontSize: '0.82rem', color: 'var(--text-mid)', margin: '0 0 14px' }}>
+        Quelques rappels pour que votre tournage se passe au mieux :
+      </p>
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {items.map((item, i) => (
+          <li key={i} style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+            padding: '8px 12px', borderRadius: 10,
+            background: 'var(--night-card)', border: '1px solid var(--border)',
+            fontSize: '0.85rem', color: 'var(--text)',
+          }}>
+            <span aria-hidden style={{ fontSize: '1.1rem', flexShrink: 0, lineHeight: 1.2 }}>{item.emoji}</span>
+            <span>{item.text}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/* ── Published celebration ─────────────────────────────────────────────── */
+
+function PublishedCelebration({ businessName, videoUrl }: { businessName: string; videoUrl?: string }) {
+  const [copied, setCopied] = useState<string | null>(null);
+
+  function copy(text: string, key: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  }
+
+  const captions = {
+    instagram: `🎬 Notre nouvelle vidéo est en ligne !\n\nUn grand merci à @bourbonmedia pour ce résultat 🙌\n\n#bourbonmedia #lareunion974 #videopro`,
+    tiktok: `Découvrez notre nouvelle vidéo 🎥\n\n#fyp #pourtoi #lareunion #974`,
+    linkedin: `Nous sommes fiers de partager notre dernière vidéo, réalisée par les équipes de Bourbon Média.\n\nUne approche professionnelle et un rendu qui parle vraiment à notre audience.\n\n#video #marketing #lareunion`,
+  };
+
+  return (
+    <div style={{
+      marginBottom: 22, padding: '24px', borderRadius: 14,
+      background: 'linear-gradient(135deg, rgba(34,197,94,.10), rgba(168,85,247,.06))',
+      border: '1px solid rgba(34,197,94,.40)',
+    }}>
+      <div style={{ textAlign: 'center', marginBottom: 18 }}>
+        <div style={{ fontSize: '2.5rem', marginBottom: 6 }}>🎉</div>
+        <h2 style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+          fontSize: '1.25rem', color: 'var(--green)', margin: '0 0 4px',
+        }}>
+          Bravo, {businessName} est en ligne !
+        </h2>
+        <p style={{ fontSize: '0.86rem', color: 'var(--text-mid)', margin: 0 }}>
+          Maintenant maximisez sa portée — voici tout ce qu&apos;il faut faire.
+        </p>
+      </div>
+
+      {/* Quick actions */}
+      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 18 }}>
+        {videoUrl && (
+          <a href={videoUrl} target="_blank" rel="noreferrer" style={{
+            padding: '12px 14px', borderRadius: 10, textDecoration: 'none',
+            background: 'var(--night-card)', border: '1px solid var(--border-md)',
+            color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.86rem', fontWeight: 600,
+          }}>
+            <span aria-hidden style={{ fontSize: '1.1rem' }}>📥</span>
+            <span>Télécharger / Partager</span>
+          </a>
+        )}
+        <a href="https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuhYAR" target="_blank" rel="noreferrer" style={{
+          padding: '12px 14px', borderRadius: 10, textDecoration: 'none',
+          background: 'var(--orange)', color: '#fff',
+          display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.86rem', fontWeight: 700,
+        }}>
+          <span aria-hidden style={{ fontSize: '1.1rem' }}>⭐</span>
+          <span>Laisser un avis Google</span>
+        </a>
+        <a href="mailto:contact@bourbonmedia.fr?subject=Je veux refaire une vidéo" style={{
+          padding: '12px 14px', borderRadius: 10, textDecoration: 'none',
+          background: 'var(--night-card)', border: '1px solid var(--orange)',
+          color: 'var(--orange)', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.86rem', fontWeight: 700,
+        }}>
+          <span aria-hidden style={{ fontSize: '1.1rem' }}>🚀</span>
+          <span>Commander une autre vidéo</span>
+        </a>
+      </div>
+
+      {/* Captions à copier */}
+      <div>
+        <h3 style={{
+          fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)',
+          margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em',
+        }}>
+          📝 Captions prêtes à copier
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {(['instagram', 'tiktok', 'linkedin'] as const).map(network => {
+            const label = network === 'instagram' ? '📸 Instagram' : network === 'tiktok' ? '🎵 TikTok' : '💼 LinkedIn';
+            const isCopied = copied === network;
+            return (
+              <div key={network} style={{
+                background: 'var(--night-card)', border: '1px solid var(--border)',
+                borderRadius: 10, padding: '10px 12px',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)' }}>{label}</span>
+                  <button onClick={() => copy(captions[network], network)} style={{
+                    padding: '4px 10px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 600,
+                    background: isCopied ? 'var(--green)' : 'var(--night-mid)',
+                    color: isCopied ? '#fff' : 'var(--text-mid)',
+                    border: '1px solid var(--border-md)', cursor: 'pointer',
+                  }}>
+                    {isCopied ? '✓ Copié' : '📋 Copier'}
+                  </button>
+                </div>
+                <pre style={{
+                  margin: 0, fontFamily: 'inherit', fontSize: '0.78rem',
+                  color: 'var(--text-mid)', whiteSpace: 'pre-wrap', lineHeight: 1.5,
+                }}>{captions[network]}</pre>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
