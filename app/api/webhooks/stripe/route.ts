@@ -4,6 +4,7 @@ import { supaFetch } from '@/lib/supabase';
 import { notifyClientStatusChange } from '@/lib/slack';
 import { sendPushToAll } from '@/lib/push';
 import { resolveMapping, prospectStatusToStageId, updateOpportunityStage } from '@/lib/ghl-opportunities';
+import { findOrCreateClientByEmail } from '@/lib/client-resolver';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -139,14 +140,10 @@ interface StripeEventLike {
 }
 
 async function findClientByEmail(email: string | null | undefined): Promise<{ id: string; business_name: string; email: string } | null> {
-  if (!email) return null;
-  const r = await supaFetch(
-    `clients?email=ilike.${encodeURIComponent(email.toLowerCase().trim())}&select=id,business_name,email&limit=1`,
-    {}, true,
-  );
-  if (!r.ok) return null;
-  const arr = await r.json();
-  return arr[0] || null;
+  // Délègue au resolver partagé (clients.email puis gh_opportunities + auto-create)
+  const r = await findOrCreateClientByEmail(email);
+  if (!r) return null;
+  return { id: r.clientId, business_name: r.businessName, email: r.email };
 }
 
 async function paymentAlreadyImported(stripeId: string): Promise<boolean> {
