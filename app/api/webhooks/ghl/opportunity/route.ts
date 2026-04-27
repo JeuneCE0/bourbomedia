@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { resolveMapping, stageIdToProspectStatus } from '@/lib/ghl-opportunities';
+import { matchClientFromContact } from '@/lib/ghl-appointments';
 
 // GHL workflow trigger "Opportunity Stage Changed" → POSTs here.
 // Configure the workflow webhook with the same secret as the appointment one:
@@ -66,6 +67,16 @@ export async function POST(req: NextRequest) {
   const ghlCreatedAt = pick<string>(opp, 'createdAt', 'created_at', 'dateAdded');
   const ghlUpdatedAt = pick<string>(opp, 'updatedAt', 'updated_at', 'dateUpdated');
 
+  // Resolve the linked Bourbomedia client (best effort, by ghl_contact_id /
+  // email / phone / name). Lets the fiche client surface the opportunity.
+  const clientId = await matchClientFromContact({
+    ghl_contact_id: contactId || null,
+    email: contactEmail || null,
+    phone: contactPhone || null,
+    first_name: firstName || null,
+    last_name: lastName || null,
+  });
+
   // Mirror to gh_opportunities (best effort — primary use is funnel metrics)
   try {
     const oppRow: Record<string, unknown> = {
@@ -78,6 +89,7 @@ export async function POST(req: NextRequest) {
       contact_email: contactEmail || null,
       contact_phone: contactPhone || null,
       contact_name: contactName,
+      client_id: clientId,
       monetary_value_cents: monetaryValue ? Math.round(monetaryValue * 100) : null,
       prospect_status,
       ghl_created_at: ghlCreatedAt ? new Date(ghlCreatedAt).toISOString() : null,

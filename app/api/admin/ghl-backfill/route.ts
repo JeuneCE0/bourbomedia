@@ -88,11 +88,23 @@ export async function POST(req: NextRequest) {
         id: o.id, name: o.name, pipelineId: o.pipelineId, pipelineStageId: o.pipelineStageId,
       });
 
-      // Mirror to gh_opportunities for funnel metrics
+      // Mirror to gh_opportunities for funnel metrics + lien client
       const stage = pipeline.stages.find(s => s.id === o.pipelineStageId);
+      let linkedClientId: string | null = null;
+      if (o.contactId) {
+        const cl = await supaFetch(
+          `clients?ghl_contact_id=eq.${encodeURIComponent(o.contactId)}&select=id&limit=1`,
+          {}, true,
+        );
+        if (cl.ok) {
+          const arr = await cl.json();
+          linkedClientId = arr[0]?.id || null;
+        }
+      }
       const oppRow: Record<string, unknown> = {
         ghl_opportunity_id: o.id,
         ghl_contact_id: o.contactId || null,
+        client_id: linkedClientId,
         pipeline_id: o.pipelineId,
         pipeline_stage_id: o.pipelineStageId,
         pipeline_stage_name: stage?.name || null,
