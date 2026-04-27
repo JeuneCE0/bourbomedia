@@ -6,6 +6,7 @@ import { SkeletonCard } from '@/components/ui/Skeleton';
 import EmptyState from '@/components/ui/EmptyState';
 import AppointmentsToDocument from '@/components/AppointmentsToDocument';
 import ProspectsToFollowUp from '@/components/ProspectsToFollowUp';
+import TodayAppointments from '@/components/TodayAppointments';
 
 interface Client {
   id: string;
@@ -266,6 +267,9 @@ export default function DashboardPage() {
         <div className="bm-stagger">
           {/* Daily metrics — editable: calls / ads / closing rate / gross profit */}
           <DailyMetricsCard clients={clients} />
+
+          {/* Appels du jour (closing/onboarding/tournage) — visibilité rapide */}
+          <TodayAppointments />
 
           {/* Appels à documenter (notes post-call → bidirectionnel GHL) */}
           <AppointmentsToDocument />

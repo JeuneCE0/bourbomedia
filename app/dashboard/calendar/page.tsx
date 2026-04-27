@@ -109,10 +109,19 @@ export default function CalendarPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      // Load a 9-month window (3 months back, 6 months forward) so the user can
+      // page through the calendar without re-querying. This avoids the bug
+      // where today's appointments disappear because future ones push them out.
+      const from = new Date();
+      from.setMonth(from.getMonth() - 3);
+      const to = new Date();
+      to.setMonth(to.getMonth() + 6);
+      const fromStr = from.toISOString().slice(0, 10);
+      const toStr = to.toISOString().slice(0, 10);
       const [cR, tR, aR] = await Promise.all([
         fetch('/api/clients', { headers: authHeaders() }),
         fetch('/api/tasks', { headers: authHeaders() }),
-        fetch('/api/gh-appointments?recent=1', { headers: authHeaders() }),
+        fetch(`/api/gh-appointments?from=${fromStr}&to=${toStr}`, { headers: authHeaders() }),
       ]);
       const c = cR.ok ? await cR.json() : [];
       const t = tR.ok ? await tR.json() : [];
