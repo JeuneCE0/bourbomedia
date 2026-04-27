@@ -58,7 +58,7 @@ const KIND_META: Record<EventKind, { color: string; emoji: string; label: string
   task:                { color: '#22C55E', emoji: '✅', label: 'Tâche' },
   onboarding_deadline: { color: '#EF4444', emoji: '🚀', label: 'Onboarding bloqué' },
   closing_call:        { color: '#E8692B', emoji: '📞', label: 'Appel closing' },
-  onboarding_call:     { color: '#3B82F6', emoji: '🚀', label: 'Appel onboarding' },
+  onboarding_call:     { color: '#14B8A6', emoji: '🚀', label: 'Appel onboarding' },
   appt_other:          { color: '#94A3B8', emoji: '📅', label: 'Rendez-vous' },
 };
 
