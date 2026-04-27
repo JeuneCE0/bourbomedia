@@ -567,14 +567,54 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
   const [valueEUR, setValueEUR] = useState<string>(opp.monetary_value_cents ? (opp.monetary_value_cents / 100).toString() : '');
   const [saving, setSaving] = useState(false);
 
-  // Fetch the full GHL contact (tags, custom fields, address, source…)
+  // Fetch the full GHL contact + the GHL opportunity (custom fields can live
+  // on either level in GHL — qualification commerciale est souvent sur l'opp).
+  // On merge les customFields des deux pour l'affichage qualification.
   useEffect(() => {
-    if (!opp.ghl_contact_id) { setLoadingContact(false); return; }
-    fetch(`/api/ghl/contact?id=${encodeURIComponent(opp.ghl_contact_id)}`, { headers: authHeaders() })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setGhlContact(d?.contact || null))
-      .finally(() => setLoadingContact(false));
-  }, [opp.ghl_contact_id]);
+    let cancelled = false;
+    (async () => {
+      const [contactRes, oppRes] = await Promise.all([
+        opp.ghl_contact_id
+          ? fetch(`/api/ghl/contact?id=${encodeURIComponent(opp.ghl_contact_id)}`, { headers: authHeaders() }).then(r => r.ok ? r.json() : null).catch(() => null)
+          : Promise.resolve(null),
+        opp.ghl_opportunity_id
+          ? fetch(`/api/ghl/opportunity?id=${encodeURIComponent(opp.ghl_opportunity_id)}`, { headers: authHeaders() }).then(r => r.ok ? r.json() : null).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      if (cancelled) return;
+      const contact = contactRes?.contact || null;
+      const oppCustomFields = oppRes?.opportunity?.customFields || [];
+      // Merge : opportunity fields prennent priorité sur contact (id collision)
+      if (contact && oppCustomFields.length > 0) {
+        const existingIds = new Set(contact.customFields.map((cf: { id: string }) => cf.id));
+        const merged = [
+          ...oppCustomFields,
+          ...contact.customFields.filter((cf: { id: string }) => !existingIds.has(cf.id) || true),
+        ];
+        // Dedup en gardant le premier (= opportunity gagne)
+        const seen = new Set<string>();
+        const final = merged.filter(cf => {
+          if (seen.has(cf.id)) return false;
+          seen.add(cf.id);
+          return true;
+        });
+        setGhlContact({ ...contact, customFields: final });
+      } else if (contact) {
+        setGhlContact(contact);
+      } else if (oppCustomFields.length > 0) {
+        // Pas de contact, mais on a quand même les CF de l'opp à afficher
+        setGhlContact({
+          id: '', firstName: null, lastName: null, name: null, email: null, phone: null,
+          companyName: null, address1: null, city: null, state: null, postalCode: null,
+          country: null, website: null, timezone: null, dnd: false, type: null,
+          source: null, tags: [], dateAdded: null, lastActivity: null, assignedTo: null,
+          customFields: oppCustomFields,
+        });
+      }
+      setLoadingContact(false);
+    })();
+    return () => { cancelled = true; };
+  }, [opp.ghl_contact_id, opp.ghl_opportunity_id]);
 
   // ESC to close — complements the click-outside on the backdrop
   useEffect(() => {

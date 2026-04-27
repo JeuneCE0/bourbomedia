@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
 import { resolveMapping, updateOpportunityStage, updateOpportunity, deleteOpportunity, createOpportunity, stageIdToProspectStatus } from '@/lib/ghl-opportunities';
-import { createGhlContact, findGhlContactByEmail } from '@/lib/ghl';
+import { createGhlContact, findGhlContactByEmail, ghlRequest } from '@/lib/ghl';
 import { sendSlackNotification } from '@/lib/slack';
 import { sendPushToAll } from '@/lib/push';
 
@@ -20,6 +20,47 @@ export async function GET(req: NextRequest) {
     {}, true,
   );
   const opportunities = r.ok ? await r.json() : [];
+
+  // Enrichissement à la volée : pour chaque opp avec ghl_contact_id mais sans
+  // contact_email/phone (le webhook GHL n'inclut pas toujours les détails du
+  // contact), on fetch la fiche contact GHL en arrière-plan et on persiste.
+  // Limité à 20 par requête pour ne pas saturer GHL.
+  const toEnrich = opportunities
+    .filter((o: { ghl_contact_id: string | null; contact_email: string | null; contact_phone: string | null }) =>
+      o.ghl_contact_id && (!o.contact_email || !o.contact_phone))
+    .slice(0, 20);
+
+  if (toEnrich.length > 0) {
+    await Promise.all(toEnrich.map(async (o: { id: string; ghl_contact_id: string; contact_email: string | null; contact_phone: string | null; contact_name: string | null }) => {
+      try {
+        const data = await ghlRequest('GET', `/contacts/${encodeURIComponent(o.ghl_contact_id)}`);
+        const c = data?.contact || data;
+        if (!c) return;
+        const newEmail = o.contact_email || c.email || null;
+        const newPhone = o.contact_phone || c.phone || null;
+        const newName = o.contact_name
+          || c.contactName
+          || c.name
+          || [c.firstName, c.lastName].filter(Boolean).join(' ').trim()
+          || c.companyName
+          || null;
+        if (newEmail !== o.contact_email || newPhone !== o.contact_phone || newName !== o.contact_name) {
+          await supaFetch(`gh_opportunities?id=eq.${encodeURIComponent(o.id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              contact_email: newEmail,
+              contact_phone: newPhone,
+              contact_name: newName,
+            }),
+          }, true).catch(() => null);
+          // Mute la mutation locale pour la réponse
+          o.contact_email = newEmail;
+          o.contact_phone = newPhone;
+          o.contact_name = newName;
+        }
+      } catch { /* tolerate */ }
+    }));
+  }
 
   return NextResponse.json({
     stages: pipeline ? pipeline.stages.map(s => ({ id: s.id, name: s.name })) : [],
