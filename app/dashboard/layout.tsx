@@ -10,11 +10,11 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon:
     title: '',
     items: [
       { href: '/dashboard',             label: 'Dashboard',       icon: '🏠' },
+      { href: '/dashboard/funnel',      label: 'Funnel',          icon: '🌊' },
       { href: '/dashboard/pipeline',    label: 'Pipeline',        icon: '🎯' },
       { href: '/dashboard/production',  label: 'Production',      icon: '📊' },
       { href: '/dashboard/tasks',       label: 'Tâches',          icon: '✅' },
       { href: '/dashboard/scripts',     label: 'Scripts',         icon: '📝' },
-      { href: '/dashboard/shoots',      label: 'Tournage',        icon: '🎬' },
       { href: '/dashboard/clients',     label: 'Clients',         icon: '👥' },
       { href: '/dashboard/calendar',    label: 'Calendriers',     icon: '📅' },
       { href: '/dashboard/finance',     label: 'Finances',        icon: '💰' },

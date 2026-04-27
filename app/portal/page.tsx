@@ -749,20 +749,11 @@ function PortalContent() {
         </div>
       );
     }
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <div style={{ textAlign: 'center', maxWidth: 440 }}>
-          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: '1.5rem', color: 'var(--orange)', marginBottom: 8 }}>
-            BourbonMédia
-          </h1>
-          <div style={{ fontSize: '2.5rem', margin: '20px 0' }}>✍</div>
-          <h2 style={{ fontSize: '1rem', color: 'var(--text)', marginBottom: 8 }}>Votre script est en préparation</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6 }}>
-            Notre équipe travaille sur votre script vidéo. Vous recevrez une notification dès qu&#39;il sera prêt pour votre relecture.
-          </p>
-        </div>
-      </div>
-    );
+    // No script yet — show a contextual screen depending on the client's
+    // current stage. Onboarding / onboarding_call need their own actionable
+    // content (contract + payment / booking calendar). Otherwise fall back
+    // to the "we're writing your script" message.
+    return <NoScriptStage clientInfo={clientInfo} />;
   }
 
   const currentStepIdx = SCRIPT_STEPS.findIndex(s => s.key === script.status);
@@ -1036,8 +1027,9 @@ function PortalContent() {
           />
         )}
 
-        {/* Confirmed publication banner */}
-        {clientInfo?.publication_date_confirmed && clientInfo?.publication_deadline && (
+        {/* Confirmed publication banner — hidden once status='published' since
+            <PublishedCelebration> already shows the date. Avoids duplicate. */}
+        {clientInfo?.status !== 'published' && clientInfo?.publication_date_confirmed && clientInfo?.publication_deadline && (
           <div className="bm-fade-in" style={{
             marginTop: 14, padding: '14px 18px', borderRadius: 12,
             background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.30)',
@@ -2568,6 +2560,105 @@ function UpsellCard({ offer }: { offer: UpsellOffer }) {
       }}>
         {offer.cta} →
       </a>
+    </div>
+  );
+}
+
+/* ── Contextual screen when no script exists yet ─────────────────────── */
+
+function NoScriptStage({ clientInfo }: { clientInfo: ClientDelivery | null }) {
+  const status = clientInfo?.status || 'script_writing';
+  const onboardingCalendarUrl = process.env.NEXT_PUBLIC_GHL_ONBOARDING_CALENDAR_URL
+    || process.env.NEXT_PUBLIC_GHL_CALENDAR_URL
+    || 'https://api.leadconnectorhq.com/widget/booking/2fmSZkWpwEulfZsvpPmh';
+
+  // 1. Onboarding — payment + contract pending
+  if (status === 'onboarding') {
+    return (
+      <NoScriptShell
+        emoji="🤝"
+        title="Bienvenue chez BourbonMédia !"
+        subtitle="Pour démarrer votre projet vidéo, finalisez ces 2 dernières étapes."
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {clientInfo?.contract_signature_link && (
+            <a href={clientInfo.contract_signature_link} target="_blank" rel="noreferrer" style={{
+              padding: '14px 18px', borderRadius: 12,
+              background: 'var(--orange)', color: '#fff', textDecoration: 'none',
+              fontSize: '0.92rem', fontWeight: 700, textAlign: 'center',
+              boxShadow: '0 4px 14px rgba(232,105,43,.4)',
+            }}>
+              📝 Signer le contrat
+            </a>
+          )}
+          {clientInfo?.contract_pdf_url && (
+            <a href={clientInfo.contract_pdf_url} target="_blank" rel="noreferrer" style={{
+              padding: '12px 18px', borderRadius: 10,
+              background: 'var(--night-card)', border: '1px solid var(--border-md)',
+              color: 'var(--text)', textDecoration: 'none',
+              fontSize: '0.86rem', fontWeight: 600, textAlign: 'center',
+            }}>
+              ⬇️ Télécharger le contrat (PDF)
+            </a>
+          )}
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-mid)', textAlign: 'center', margin: '8px 0 0' }}>
+            Une fois le paiement confirmé, vous recevrez le lien pour réserver votre appel onboarding.
+          </p>
+        </div>
+      </NoScriptShell>
+    );
+  }
+
+  // 2. Onboarding call — needs to book the kickoff call
+  if (status === 'onboarding_call') {
+    return (
+      <NoScriptShell
+        emoji="📞"
+        title="Réservez votre appel onboarding"
+        subtitle="Un appel de cadrage de 30 min avec notre équipe pour bien démarrer votre vidéo."
+      >
+        <GhlBookingEmbed url={onboardingCalendarUrl} title="Appel onboarding" />
+        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', margin: '14px 0 0' }}>
+          Une fois l&apos;appel pris, on attaque l&apos;écriture de votre script tout de suite après.
+        </p>
+      </NoScriptShell>
+    );
+  }
+
+  // 3. Default — script_writing or unknown : team is on it
+  return (
+    <NoScriptShell
+      emoji="✍️"
+      title="Votre script est en préparation"
+      subtitle="Notre équipe travaille sur votre script vidéo. Vous recevrez une notification dès qu'il sera prêt pour votre relecture."
+    />
+  );
+}
+
+function NoScriptShell({ emoji, title, subtitle, children }: { emoji: string; title: string; subtitle: string; children?: React.ReactNode }) {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <header style={{
+        padding: '16px 20px', borderBottom: '1px solid var(--border)',
+        background: 'var(--night-mid)', textAlign: 'center',
+      }}>
+        <h1 style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+          fontSize: '1.2rem', color: 'var(--orange)', margin: 0,
+        }}>BourbonMédia</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '4px 0 0' }}>Espace client</p>
+      </header>
+      <main style={{ flex: 1, maxWidth: 720, width: '100%', margin: '0 auto', padding: 'clamp(20px, 5vw, 40px)', textAlign: 'center' }}>
+        <div style={{ fontSize: '3rem', margin: '20px 0' }}>{emoji}</div>
+        <h2 style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+          fontSize: '1.4rem', color: 'var(--text)', margin: '0 0 10px',
+        }}>{title}</h2>
+        <p style={{ color: 'var(--text-mid)', fontSize: '0.9rem', lineHeight: 1.6, margin: '0 auto 24px', maxWidth: 520 }}>
+          {subtitle}
+        </p>
+        {children && <div style={{ textAlign: 'left' }}>{children}</div>}
+      </main>
     </div>
   );
 }

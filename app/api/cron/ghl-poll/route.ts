@@ -53,14 +53,21 @@ export async function GET(req: NextRequest) {
         oppsByContact.set(o.contactId, {
           id: o.id, name: o.name, pipelineId: o.pipelineId, pipelineStageId: o.pipelineStageId,
         });
-        // Mirror to gh_opportunities
+        // Mirror to gh_opportunities + link to bourbomedia client by ghl_contact_id
         const stage = pipeline.stages.find(s => s.id === o.pipelineStageId);
+        const clientLookup = await supaFetch(
+          `clients?ghl_contact_id=eq.${encodeURIComponent(o.contactId)}&select=id&limit=1`,
+          {}, true,
+        );
+        const clientArr = clientLookup.ok ? await clientLookup.json() : [];
+        const linkedClientId = clientArr[0]?.id || null;
         await supaFetch('gh_opportunities?on_conflict=ghl_opportunity_id', {
           method: 'POST',
           headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
           body: JSON.stringify({
             ghl_opportunity_id: o.id,
             ghl_contact_id: o.contactId,
+            client_id: linkedClientId,
             pipeline_id: o.pipelineId,
             pipeline_stage_id: o.pipelineStageId,
             pipeline_stage_name: stage?.name || null,

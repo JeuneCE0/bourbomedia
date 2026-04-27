@@ -146,6 +146,31 @@ interface ClientEvent {
   created_at: string;
 }
 
+interface GhlOpportunityRow {
+  id: string;
+  ghl_opportunity_id: string;
+  pipeline_stage_name: string | null;
+  name: string | null;
+  monetary_value_cents: number | null;
+  prospect_status: string | null;
+  ghl_created_at: string | null;
+  ghl_updated_at: string | null;
+}
+
+interface GhlAppointmentRow {
+  id: string;
+  ghl_appointment_id: string;
+  calendar_kind: 'closing' | 'onboarding' | 'tournage' | 'other';
+  status: string;
+  starts_at: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  notes: string | null;
+  notes_completed_at: string | null;
+  prospect_status: string | null;
+  opportunity_name: string | null;
+}
+
 const EVENT_LABELS: Record<string, { label: string; icon: string; color: string }> = {
   status_changed: { label: 'Changement de statut', icon: '🔄', color: 'var(--text-mid)' },
   script_created: { label: 'Script créé', icon: '✍️', color: 'var(--text-mid)' },
@@ -247,16 +272,16 @@ export default function ClientDetailPage() {
   const searchParams = useSearchParams();
   const initialTab = (() => {
     const t = searchParams.get('tab');
-    return (['info', 'script', 'filming', 'delivery', 'payments'] as const).includes(t as 'info') ? (t as 'info' | 'script' | 'filming' | 'delivery' | 'payments') : 'info';
+    return (['info', 'ghl', 'script', 'filming', 'delivery', 'payments'] as const).includes(t as 'info') ? (t as 'info' | 'ghl' | 'script' | 'filming' | 'delivery' | 'payments') : 'info';
   })();
 
   const [client, setClient] = useState<Client | null>(null);
   const [script, setScript] = useState<Script | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTabState] = useState<'info' | 'script' | 'filming' | 'delivery' | 'payments'>(initialTab);
+  const [tab, setTabState] = useState<'info' | 'ghl' | 'script' | 'filming' | 'delivery' | 'payments'>(initialTab);
 
   // Sync tab → URL so admin can share / refresh and stay on the right tab
-  const setTab = useCallback((next: 'info' | 'script' | 'filming' | 'delivery' | 'payments') => {
+  const setTab = useCallback((next: 'info' | 'ghl' | 'script' | 'filming' | 'delivery' | 'payments') => {
     setTabState(next);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
@@ -277,6 +302,7 @@ export default function ClientDetailPage() {
   const [versions, setVersions] = useState<ScriptVersion[]>([]);
   const [showVersions, setShowVersions] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [ghlData, setGhlData] = useState<{ opportunities: GhlOpportunityRow[]; appointments: GhlAppointmentRow[] }>({ opportunities: [], appointments: [] });
   // Default payment = vidéo unique 500€ HT + 8.5% TVA = 542,50€ TTC
   const [paymentForm, setPaymentForm] = useState({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)' });
   const [addingPayment, setAddingPayment] = useState(false);
@@ -374,10 +400,18 @@ export default function ClientDetailPage() {
       .catch(() => {});
   }, [id]);
 
+  const loadGhl = useCallback(() => {
+    fetch(`/api/clients/ghl?id=${id}`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : { opportunities: [], appointments: [] })
+      .then(d => setGhlData({ opportunities: d.opportunities || [], appointments: d.appointments || [] }))
+      .catch(() => {});
+  }, [id]);
+
   useEffect(() => {
     if (tab === 'info') loadEvents();
     if (tab === 'payments') loadPayments();
-  }, [tab, loadEvents, loadPayments]);
+    if (tab === 'ghl') loadGhl();
+  }, [tab, loadEvents, loadPayments, loadGhl]);
 
   // Auto-refresh the activity history while the admin watches the 'info' tab
   // — every 10s so any new event (script_sent, payment, status change…) shows
@@ -993,6 +1027,7 @@ export default function ClientDetailPage() {
 
   const TAB_LIST: { key: typeof tab; label: string; badge?: string }[] = [
     { key: 'info', label: 'Aperçu' },
+    { key: 'ghl', label: 'Closing & RDV' },
     { key: 'script', label: 'Script', badge: script?.script_comments?.length ? `${script.script_comments.length}` : undefined },
     { key: 'filming', label: 'Tournage' },
     { key: 'delivery', label: 'Montage', badge: pendingFeedbackCount > 0 ? `${pendingFeedbackCount}` : (client.delivered_at ? '✓' : undefined) },
@@ -1323,6 +1358,14 @@ export default function ClientDetailPage() {
           {/* Timeline — inline in Aperçu */}
           <HistoryTimeline events={events} />
         </div>
+      )}
+
+      {/* Closing & RDV tab — GHL opportunities + appointments linked to this client */}
+      {tab === 'ghl' && (
+        <GhlClientTab
+          opportunities={ghlData.opportunities}
+          appointments={ghlData.appointments}
+        />
       )}
 
       {/* Script tab */}
@@ -2196,6 +2239,221 @@ function InfoField({ label, value, copyable }: { label: string; value?: string |
           </button>
         )}
       </span>
+    </div>
+  );
+}
+
+/* ── Closing & RDV tab — surfaces all GHL data linked to the client ───── */
+
+const KIND_META: Record<GhlAppointmentRow['calendar_kind'], { emoji: string; label: string; color: string }> = {
+  closing:    { emoji: '📞', label: 'Closing',     color: 'var(--orange)' },
+  onboarding: { emoji: '🚀', label: 'Onboarding',  color: '#14B8A6' },
+  tournage:   { emoji: '🎬', label: 'Tournage',    color: '#3B82F6' },
+  other:      { emoji: '📅', label: 'Rendez-vous', color: 'var(--text-mid)' },
+};
+
+const PROSPECT_LABEL: Record<string, { emoji: string; label: string; color: string }> = {
+  reflection:         { emoji: '🤔', label: 'En réflexion',                 color: '#FACC15' },
+  follow_up:          { emoji: '🔁', label: 'Follow-up',                    color: '#F97316' },
+  ghosting:           { emoji: '👻', label: 'Ghosting',                     color: '#94A3B8' },
+  awaiting_signature: { emoji: '✍️', label: 'Attente signature + paiement', color: '#3B82F6' },
+  contracted:         { emoji: '🤝', label: 'Contracté',                    color: '#22C55E' },
+  regular:            { emoji: '⭐', label: 'Client régulier',              color: '#A855F7' },
+  not_interested:     { emoji: '🚫', label: 'Pas intéressé',                color: '#737373' },
+  closed_lost:        { emoji: '❌', label: 'Perdu',                        color: '#EF4444' },
+};
+
+function fmtEUR(cents: number | null): string {
+  if (!cents) return '—';
+  return `${(cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`;
+}
+
+function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function GhlClientTab({ opportunities, appointments }: { opportunities: GhlOpportunityRow[]; appointments: GhlAppointmentRow[] }) {
+  const totalValue = opportunities.reduce((s, o) => s + (o.monetary_value_cents || 50000), 0);
+
+  if (opportunities.length === 0 && appointments.length === 0) {
+    return (
+      <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 40, textAlign: 'center' }}>
+        <div style={{ fontSize: '2.5rem', marginBottom: 10 }}>🪧</div>
+        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text)', margin: '0 0 6px' }}>
+          Aucune donnée GHL liée
+        </h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+          Aucune opportunité ni RDV GHL n&apos;a été trouvé pour ce client (matching par client_id, ghl_contact_id ou email).
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bm-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Stats strip */}
+      <div style={{
+        display: 'flex', gap: 0, background: 'var(--night-card)',
+        borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden',
+      }}>
+        <GhlStatCell label="Opportunités" value={opportunities.length.toString()} color="var(--orange)" />
+        <GhlStatCell label="RDV" value={appointments.length.toString()} color="#3B82F6" />
+        <GhlStatCell label="Valeur" value={fmtEUR(totalValue)} color="var(--green)" last />
+      </div>
+
+      {/* Opportunities */}
+      <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '18px 20px' }}>
+        <h3 style={{
+          fontSize: '0.88rem', fontWeight: 700, color: 'var(--text)', margin: '0 0 12px',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span aria-hidden>🎯</span> Opportunités GHL
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+            ({opportunities.length})
+          </span>
+        </h3>
+        {opportunities.length === 0 ? (
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            Aucune opportunité dans le pipeline GHL pour ce client.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {opportunities.map(opp => {
+              const status = opp.prospect_status ? PROSPECT_LABEL[opp.prospect_status] : null;
+              return (
+                <div key={opp.id} style={{
+                  padding: '12px 14px', borderRadius: 10,
+                  background: 'var(--night-mid)', border: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text)' }}>
+                      {opp.name || 'Sans nom'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                      🏷️ {opp.pipeline_stage_name || 'Stage inconnu'}
+                      {opp.ghl_updated_at && ` · MAJ ${new Date(opp.ghl_updated_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`}
+                    </div>
+                  </div>
+                  {opp.monetary_value_cents && (
+                    <span style={{
+                      fontSize: '0.92rem', fontWeight: 800, color: 'var(--green)',
+                      fontFamily: "'Bricolage Grotesque', sans-serif",
+                    }}>
+                      {fmtEUR(opp.monetary_value_cents)}
+                    </span>
+                  )}
+                  {status && (
+                    <span style={{
+                      fontSize: '0.68rem', padding: '3px 9px', borderRadius: 999, fontWeight: 600,
+                      background: status.color + '20', color: status.color,
+                      border: `1px solid ${status.color}40`, whiteSpace: 'nowrap',
+                    }}>
+                      {status.emoji} {status.label}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Appointments */}
+      <div style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '18px 20px' }}>
+        <h3 style={{
+          fontSize: '0.88rem', fontWeight: 700, color: 'var(--text)', margin: '0 0 12px',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span aria-hidden>📅</span> Rendez-vous GHL
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+            ({appointments.length})
+          </span>
+        </h3>
+        {appointments.length === 0 ? (
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            Aucun RDV GHL pour ce client.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {appointments.map(a => {
+              const meta = KIND_META[a.calendar_kind];
+              const isPast = new Date(a.starts_at).getTime() < Date.now();
+              const statusBadge = a.status === 'no_show' ? { label: 'No show', color: '#FCA5A5' }
+                : a.status === 'cancelled' ? { label: 'Annulé', color: 'var(--text-muted)' }
+                : null;
+              return (
+                <div key={a.id} style={{
+                  padding: '12px 14px', borderRadius: 10,
+                  background: 'var(--night-mid)', border: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                  opacity: a.status === 'cancelled' || a.status === 'no_show' ? 0.6 : 1,
+                }}>
+                  <span aria-hidden style={{
+                    width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                    background: 'var(--night-raised)', border: `1.5px solid ${meta.color}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.95rem',
+                  }}>{meta.emoji}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text)' }}>
+                      {meta.label}
+                      {isPast && a.notes_completed_at && (
+                        <span style={{ marginLeft: 8, fontSize: '0.66rem', color: 'var(--green)' }}>✅ documenté</span>
+                      )}
+                      {isPast && !a.notes_completed_at && !statusBadge && (
+                        <span style={{ marginLeft: 8, fontSize: '0.66rem', color: '#D8B4FE' }}>⏳ à documenter</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                      {fmtDateTime(a.starts_at)}
+                    </div>
+                    {a.notes && (
+                      <div style={{
+                        marginTop: 6, padding: '8px 10px', borderRadius: 6,
+                        background: 'var(--night-raised)', border: '1px solid var(--border)',
+                        fontSize: '0.78rem', color: 'var(--text-mid)', whiteSpace: 'pre-wrap',
+                        maxHeight: 80, overflow: 'auto',
+                      }}>
+                        {a.notes}
+                      </div>
+                    )}
+                  </div>
+                  {statusBadge && (
+                    <span style={{
+                      fontSize: '0.66rem', padding: '3px 9px', borderRadius: 999, fontWeight: 600,
+                      background: statusBadge.color + '20', color: statusBadge.color, whiteSpace: 'nowrap',
+                    }}>
+                      {statusBadge.label}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GhlStatCell({ label, value, color, last }: { label: string; value: string; color: string; last?: boolean }) {
+  return (
+    <div style={{
+      flex: 1, padding: '12px 14px', textAlign: 'center',
+      borderRight: last ? 'none' : '1px solid var(--border)',
+    }}>
+      <div style={{
+        fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 500,
+        marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.04em',
+      }}>
+        {label}
+      </div>
+      <div style={{
+        fontSize: '1.05rem', fontWeight: 700, color,
+        fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1,
+      }}>
+        {value}
+      </div>
     </div>
   );
 }
