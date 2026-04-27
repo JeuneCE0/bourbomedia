@@ -100,6 +100,28 @@ export async function PUT(req: NextRequest) {
     const prev = prevR.ok ? (await prevR.json())[0] : null;
 
     fields.updated_at = new Date().toISOString();
+
+    // When admin manually moves the client past 'video_review' on the kanban,
+    // auto-set the validation flags so the portal flows correctly :
+    //   - publication_pending → video is implicitly validated
+    //   - published → video validated AND publication date confirmed
+    // Without this, the portal shows the stale "validate your video" banner
+    // and the publication date picker never appears.
+    if (fields.status === 'publication_pending' && prev && !prev.video_validated_at) {
+      fields.video_validated_at = new Date().toISOString();
+      fields.video_changes_requested = false;
+    }
+    if (fields.status === 'published' && prev) {
+      if (!prev.video_validated_at) fields.video_validated_at = new Date().toISOString();
+      if (!prev.publication_date_confirmed) {
+        fields.publication_date_confirmed = true;
+        if (!prev.publication_deadline && !fields.publication_deadline) {
+          fields.publication_deadline = new Date().toISOString().slice(0, 10);
+        }
+      }
+      fields.video_changes_requested = false;
+    }
+
     const r = await supaFetch(`clients?id=eq.${id}`, {
       method: 'PATCH',
       body: JSON.stringify(fields),
