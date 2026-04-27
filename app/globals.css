@@ -161,6 +161,121 @@ body {
 /* Standard transitions — opt-in via class */
 .bm-transition { transition: all var(--t-base) var(--ease-out); }
 
+/* ───────── Polish utilities (added in admin polish pass) ───────── */
+
+/* Soft hover for cards / list items — subtle, no shadow change */
+.bm-hover-soft {
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.bm-hover-soft:hover {
+  background: var(--night-card-hover);
+  border-color: var(--border-md);
+}
+
+/* Primary button — orange CTA with hover lift + ripple */
+.bm-btn-primary {
+  background: linear-gradient(180deg, var(--orange) 0%, var(--orange-dark) 100%);
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(232,105,43,.30);
+  transition: transform var(--t-fast), box-shadow var(--t-fast), filter var(--t-fast);
+}
+.bm-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(232,105,43,.42);
+}
+.bm-btn-primary:active:not(:disabled) {
+  transform: scale(0.97);
+  filter: brightness(0.95);
+}
+.bm-btn-primary:disabled {
+  opacity: 0.5; cursor: not-allowed;
+}
+
+/* Secondary button — outlined */
+.bm-btn-secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-md);
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast);
+}
+.bm-btn-secondary:hover:not(:disabled) {
+  background: var(--night-card-hover);
+  border-color: var(--orange);
+  color: var(--orange);
+}
+.bm-btn-secondary:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Smooth modal slide-in from right (used by side panels) */
+@keyframes bm-slide-in-right {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+.bm-slide-in-right { animation: bm-slide-in-right var(--t-base) var(--ease-out) both; }
+
+/* Empty state container — friendlier framing */
+.bm-empty {
+  padding: 40px 24px;
+  text-align: center;
+  background: var(--night-mid);
+  border-radius: 12px;
+  border: 1px dashed var(--border-md);
+  color: var(--text-muted);
+}
+.bm-empty .bm-empty-emoji {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  opacity: 0.7;
+}
+.bm-empty .bm-empty-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.bm-empty .bm-empty-text {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0 auto;
+  max-width: 380px;
+}
+
+/* Skeleton shimmer — used by SkeletonCard */
+@keyframes bm-shimmer {
+  0%   { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+.bm-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--night-mid) 0%,
+    var(--night-raised) 40%,
+    var(--night-raised) 60%,
+    var(--night-mid) 100%
+  );
+  background-size: 1000px 100%;
+  animation: bm-shimmer 1.6s linear infinite;
+}
+
+/* Subtle "new" badge pulse */
+@keyframes bm-badge-ping {
+  0%   { box-shadow: 0 0 0 0 rgba(232,105,43,.45); }
+  100% { box-shadow: 0 0 0 6px rgba(232,105,43,0); }
+}
+.bm-badge-ping { animation: bm-badge-ping 1.4s ease-out infinite; }
+
 /* Focus rings — warmer, on-brand */
 *:focus-visible {
   outline: 2px solid var(--orange);

@@ -63,7 +63,7 @@ function daysIn(c: Client): number {
   return Math.floor((Date.now() - t) / 86400000);
 }
 
-export default function PipelinePage() {
+export default function PipelineOnboarding() {
   const toast = useToast();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -428,12 +428,20 @@ function PipelineCard({
   const days = daysIn(c);
   const stale = days > 7;
   const [menuOpen, setMenuOpen] = useState(false);
+  const stage = STAGES.find(s => s.key === c.status);
 
   return (
     <div
       draggable
       onDragStart={e => onDragStart(e, c.id)}
       onDragEnd={onDragEnd}
+      onClick={e => {
+        // Make the whole card act as a link to the client detail. Don't trigger
+        // when the click happened inside an interactive child (move menu, etc.).
+        const target = e.target as HTMLElement;
+        if (target.closest('button, a, [data-no-card-click]')) return;
+        if (typeof window !== 'undefined') window.location.href = `/dashboard/clients/${c.id}`;
+      }}
       style={{
         background: 'var(--night-mid)',
         borderRadius: 8,
@@ -441,14 +449,29 @@ function PipelineCard({
         padding: '9px 11px',
         opacity: moving ? 0.4 : dragging ? 0.5 : 1,
         cursor: 'grab',
-        transition: 'opacity .15s, box-shadow .15s',
+        transition: 'opacity .15s, box-shadow .15s, background .15s',
         position: 'relative',
       }}
+      onMouseEnter={e => { if (!dragging) e.currentTarget.style.background = 'var(--night-raised)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'var(--night-mid)'; }}
     >
+      {/* Stage pastille — visible au coup d'œil même quand on scrolle dans une colonne */}
+      {stage && (
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '2px 7px', borderRadius: 999, marginBottom: 5,
+          background: stage.color + '20', border: `1px solid ${stage.color}40`,
+          color: stage.color, fontSize: '0.6rem', fontWeight: 700,
+          textTransform: 'uppercase', letterSpacing: '0.04em',
+        }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: stage.color }} />
+          {stage.label}
+        </div>
+      )}
       <Link href={`/dashboard/clients/${c.id}`} style={{
         textDecoration: 'none', color: 'var(--text)',
         display: 'block', marginBottom: 3,
-        fontSize: '0.8rem', fontWeight: 600,
+        fontSize: '0.82rem', fontWeight: 600,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
         {c.business_name}
