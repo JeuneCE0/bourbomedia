@@ -3,13 +3,14 @@ import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
 
 interface SearchResult {
-  type: 'client' | 'script' | 'comment' | 'script_content';
+  type: 'client' | 'script' | 'comment' | 'script_content' | 'opportunity' | 'payment';
   id: string;
   client_id: string;
   title: string;
   subtitle: string;
   status?: string;
   highlight?: string;
+  href?: string;
 }
 
 // Recursively extract plain text from a TipTap document
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
     const encoded = encodeURIComponent(`%${q}%`);
     const results: SearchResult[] = [];
 
-    const [clientsR, scriptsR, commentsR, allScriptsR] = await Promise.all([
+    const [clientsR, scriptsR, commentsR, allScriptsR, opportunitiesR, paymentsR] = await Promise.all([
       supaFetch(
         `clients?or=(business_name.ilike.${encoded},contact_name.ilike.${encoded},email.ilike.${encoded},city.ilike.${encoded},phone.ilike.${encoded})&select=id,business_name,contact_name,status,city&limit=10&order=created_at.desc`,
         {}, true
@@ -57,6 +58,18 @@ export async function GET(req: NextRequest) {
       // Fetch up to 80 most-recent scripts with content for in-memory full-text search
       supaFetch(
         `scripts?select=id,client_id,title,version,status,content,clients(business_name)&order=updated_at.desc&limit=80`,
+        {}, true
+      ),
+      // GHL opportunities (prospects, par nom/email/téléphone)
+      supaFetch(
+        `gh_opportunities?or=(name.ilike.${encoded},contact_name.ilike.${encoded},contact_email.ilike.${encoded},contact_phone.ilike.${encoded})`
+        + `&select=id,name,contact_name,contact_email,pipeline_stage_name,prospect_status,client_id&limit=10&order=ghl_updated_at.desc.nullslast`,
+        {}, true
+      ),
+      // Payments (par description/numéro de facture)
+      supaFetch(
+        `payments?or=(description.ilike.${encoded},invoice_number.ilike.${encoded})`
+        + `&select=id,client_id,amount,description,invoice_number,clients(business_name)&limit=10&order=created_at.desc`,
         {}, true
       ),
     ]);
@@ -121,6 +134,35 @@ export async function GET(req: NextRequest) {
           });
           if (results.filter(r => r.type === 'script_content').length >= 8) break;
         }
+      }
+    }
+
+    if (opportunitiesR.ok) {
+      const opps = await opportunitiesR.json();
+      for (const o of opps) {
+        results.push({
+          type: 'opportunity',
+          id: o.id,
+          client_id: o.client_id || '',
+          title: o.name || o.contact_name || o.contact_email || 'Opportunité',
+          subtitle: `${o.pipeline_stage_name || ''}${o.contact_email ? ` · ${o.contact_email}` : ''}`.trim() || 'Opportunité GHL',
+          status: o.prospect_status,
+          href: `/dashboard/pipeline?q=${encodeURIComponent(o.name || o.contact_email || '')}`,
+        });
+      }
+    }
+
+    if (paymentsR.ok) {
+      const pays = await paymentsR.json();
+      for (const p of pays) {
+        results.push({
+          type: 'payment',
+          id: p.id,
+          client_id: p.client_id || '',
+          title: `${(p.amount / 100).toLocaleString('fr-FR')} € — ${p.clients?.business_name || 'Paiement'}`,
+          subtitle: [p.invoice_number, p.description].filter(Boolean).join(' · '),
+          href: p.client_id ? `/dashboard/clients/${p.client_id}?tab=payments` : undefined,
+        });
       }
     }
 

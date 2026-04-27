@@ -25,13 +25,46 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon:
 ];
 
 interface SearchResult {
-  type: 'client' | 'script' | 'comment' | 'script_content';
+  type: 'client' | 'script' | 'comment' | 'script_content' | 'opportunity' | 'payment';
   id: string;
   client_id: string;
   title: string;
   subtitle: string;
   status?: string;
   highlight?: string;
+  href?: string;
+}
+
+const RESULT_TYPE_META: Record<SearchResult['type'], { emoji: string; bg: string; color: string }> = {
+  client:         { emoji: '👤', bg: 'rgba(232,105,43,.12)',  color: 'var(--orange)' },
+  script:         { emoji: '📝', bg: 'rgba(250,204,21,.12)',  color: 'var(--yellow)' },
+  script_content: { emoji: '🔍', bg: 'rgba(250,204,21,.12)',  color: 'var(--yellow)' },
+  comment:        { emoji: '💬', bg: 'rgba(139,92,246,.12)',  color: '#8B5CF6' },
+  opportunity:    { emoji: '🎯', bg: 'rgba(20,184,166,.12)',  color: '#14B8A6' },
+  payment:        { emoji: '💸', bg: 'rgba(34,197,94,.12)',   color: 'var(--green)' },
+};
+
+function resultHref(r: SearchResult): string {
+  if (r.href) return r.href;
+  if (r.type === 'opportunity') return r.client_id ? `/dashboard/clients/${r.client_id}?tab=ghl` : '/dashboard/pipeline';
+  if (r.type === 'payment') return r.client_id ? `/dashboard/clients/${r.client_id}?tab=payments` : '/dashboard/finance';
+  if (!r.client_id) return '/dashboard';
+  if (r.type === 'script' || r.type === 'script_content' || r.type === 'comment') return `/dashboard/clients/${r.client_id}?tab=script`;
+  return `/dashboard/clients/${r.client_id}`;
+}
+
+function resultEmoji(type: SearchResult['type']): string {
+  return RESULT_TYPE_META[type]?.emoji || '🔎';
+}
+
+function resultIconStyle(r: SearchResult): React.CSSProperties {
+  const meta = RESULT_TYPE_META[r.type] || RESULT_TYPE_META.client;
+  return {
+    width: 24, height: 24, borderRadius: 6, flexShrink: 0,
+    background: meta.bg, color: meta.color,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: '0.7rem', fontWeight: 700,
+  };
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -237,7 +270,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {searchResults.map(r => (
                 <Link
                   key={`${r.type}-${r.id}`}
-                  href={`/dashboard/clients/${r.client_id}${r.type === 'script' || r.type === 'script_content' || r.type === 'comment' ? '?tab=script' : ''}`}
+                  href={resultHref(r)}
                   onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
@@ -245,13 +278,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     borderBottom: '1px solid var(--border)',
                   }}
                 >
-                  <span style={{
-                    width: 24, height: 24, borderRadius: 6, flexShrink: 0,
-                    background: r.type === 'client' ? 'rgba(232,105,43,.12)' : r.type === 'script' || r.type === 'script_content' ? 'rgba(250,204,21,.12)' : 'rgba(139,92,246,.12)',
-                    color: r.type === 'client' ? 'var(--orange)' : r.type === 'script' || r.type === 'script_content' ? 'var(--yellow)' : '#8B5CF6',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.7rem', fontWeight: 700,
-                  }} aria-hidden>{r.type === 'client' ? '👤' : r.type === 'script' ? '📝' : r.type === 'script_content' ? '🔍' : '💬'}</span>
+                  <span style={resultIconStyle(r)} aria-hidden>{resultEmoji(r.type)}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>
@@ -508,7 +535,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {searchResults.map(r => (
                     <Link
                       key={`m-${r.type}-${r.id}`}
-                      href={`/dashboard/clients/${r.client_id}${r.type === 'script' || r.type === 'script_content' || r.type === 'comment' ? '?tab=script' : ''}`}
+                      href={resultHref(r)}
                       onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); }}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
@@ -516,13 +543,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         borderBottom: '1px solid var(--border)',
                       }}
                     >
-                      <span style={{
-                        width: 24, height: 24, borderRadius: 6, flexShrink: 0,
-                        background: r.type === 'client' ? 'rgba(232,105,43,.12)' : r.type === 'script' ? 'rgba(250,204,21,.12)' : 'rgba(139,92,246,.12)',
-                        color: r.type === 'client' ? 'var(--orange)' : r.type === 'script' ? 'var(--yellow)' : '#8B5CF6',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '0.7rem', fontWeight: 700,
-                      }} aria-hidden>{r.type === 'client' ? '👤' : r.type === 'script' ? '📝' : r.type === 'script_content' ? '🔍' : '💬'}</span>
+                      <span style={resultIconStyle(r)} aria-hidden>{resultEmoji(r.type)}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
                         <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>
