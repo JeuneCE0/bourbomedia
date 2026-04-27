@@ -469,7 +469,7 @@ function UrgencySection({
             </Link>
           ))}
           {items.length > 6 && (
-            <Link href="/dashboard/production" style={{
+            <Link href="/dashboard/pipeline?tab=onboarding" style={{
               fontSize: '0.74rem', color: 'var(--orange)', textDecoration: 'none',
               textAlign: 'center', padding: '6px 0', fontWeight: 600,
             }}>

@@ -63,7 +63,7 @@ function daysIn(c: Client): number {
   return Math.floor((Date.now() - t) / 86400000);
 }
 
-export default function PipelinePage() {
+export default function PipelineOnboarding() {
   const toast = useToast();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
