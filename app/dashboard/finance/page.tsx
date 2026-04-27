@@ -231,7 +231,18 @@ export default function FinancePage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <StripeSyncButton />
+          <SyncButton
+            label="Stripe"
+            emoji="💳"
+            endpoint="/api/stripe/sync?days=90"
+            confirmText="Récupérer les paiements Stripe des 90 derniers jours ?\n(Les doublons sont ignorés automatiquement)"
+          />
+          <SyncButton
+            label="GHL"
+            emoji="📄"
+            endpoint="/api/ghl/sync-invoices?days=180"
+            confirmText="Récupérer les factures payées sur GHL des 180 derniers jours ?\n(Les doublons sont ignorés automatiquement)"
+          />
           <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 10, background: 'var(--night-card)', border: '1px solid var(--border)' }}>
             {(Object.keys(RANGE_LABEL) as Range[]).map(r => (
               <button key={r} onClick={() => setRange(r)} style={{
@@ -542,15 +553,15 @@ function PipelineAnalyticsCard() {
   );
 }
 
-function StripeSyncButton() {
+function SyncButton({ label, emoji, endpoint, confirmText }: { label: string; emoji: string; endpoint: string; confirmText: string }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   async function sync() {
-    if (!confirm('Récupérer les paiements Stripe des 90 derniers jours ?\n(Les doublons seront ignorés automatiquement)')) return;
+    if (!confirm(confirmText)) return;
     setBusy(true); setMsg(null);
     try {
-      const r = await fetch('/api/stripe/sync?days=90', { method: 'POST', headers: authHeaders() });
+      const r = await fetch(endpoint, { method: 'POST', headers: authHeaders() });
       const d = await r.json();
       if (r.ok) {
         setMsg(d.message || 'Sync OK');
@@ -565,14 +576,14 @@ function StripeSyncButton() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-      <button onClick={sync} disabled={busy} title="Importe les paiements Stripe des 90 derniers jours" style={{
+      <button onClick={sync} disabled={busy} title={`Importer depuis ${label}`} style={{
         padding: '8px 14px', borderRadius: 8,
         background: 'var(--night-card)', border: '1px solid var(--border-md)',
         color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 600,
         cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1,
         whiteSpace: 'nowrap',
       }}>
-        {busy ? '⏳ Sync…' : '🔄 Sync Stripe'}
+        {busy ? '⏳ Sync…' : `${emoji} Sync ${label}`}
       </button>
       {msg && (
         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', maxWidth: 240, textAlign: 'right' }}>
