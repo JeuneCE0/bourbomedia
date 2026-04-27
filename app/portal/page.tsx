@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { Annotation } from '@/components/ScriptAnnotator';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
+import TimestampedVideoPlayer from '@/components/TimestampedVideoPlayer';
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
 const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
@@ -1007,8 +1008,12 @@ function PortalContent() {
           })()}
         </div>
 
-        {/* Filming booking — appears after script validation, before any date is set */}
-        {(script?.status === 'confirmed' || clientInfo?.status === 'script_validated') && !clientInfo?.filming_date && (
+        {/* Filming booking — only when client is actively in the script_validated
+            stage AND has no filming_date yet. As soon as the booking is confirmed
+            (filming_date saved) OR the admin moves the client past this stage
+            (filming_scheduled / filming_done / editing / video_review / etc.),
+            the calendar disappears. */}
+        {clientInfo?.status === 'script_validated' && !clientInfo?.filming_date && !hasDelivery && (
           <FilmingBookingPanel token={token!} onConfirmed={() => { loadScript(); loadNotifications(); }} actionLoading={actionLoading} />
         )}
 
@@ -1147,7 +1152,19 @@ function PortalContent() {
                     Livrée le {new Date(v.delivered_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
                 )}
-                <VideoEmbed url={v.video_url} thumbnail={v.thumbnail_url} />
+                {/* Use the timestamped player when the client is in the review/validation
+                    phase — they can pin per-second feedback. After validation, fall back
+                    to the standard embed. */}
+                {!clientInfo?.video_validated_at && token ? (
+                  <TimestampedVideoPlayer
+                    videoId={v.id}
+                    videoUrl={v.video_url}
+                    thumbnailUrl={v.thumbnail_url}
+                    token={token}
+                  />
+                ) : (
+                  <VideoEmbed url={v.video_url} thumbnail={v.thumbnail_url} />
+                )}
                 {v.delivery_notes && (
                   <div style={{
                     marginTop: 14, padding: '12px 14px', borderRadius: 10,
@@ -1657,46 +1674,29 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
   clientInfo: ClientDelivery | null;
   onConfirmed: () => void;
 }) {
+  const calendarUrl = process.env.NEXT_PUBLIC_GHL_PUBLICATION_CALENDAR_URL
+    || 'https://api.leadconnectorhq.com/widget/booking/RRDC3HvypJEIvLxjy3Gg';
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [showButton, setShowButton] = useState(false);
+  const [showDateForm, setShowDateForm] = useState(false);
+  const [pickedDate, setPickedDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [pickedDate, setPickedDate] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const [bookedSet, setBookedSet] = useState<Set<string>>(new Set());
 
-  // Fetch already-booked publication slots so we can grey them out
+  // Reveal the "I picked a date" button shortly after the iframe loads
   useEffect(() => {
-    if (!token) return;
-    fetch(`/api/calendar-slots?token=${token}`)
-      .then(r => r.ok ? r.json() : null)
-      .then((d: { bookedPublication?: string[] } | null) => {
-        if (d?.bookedPublication) setBookedSet(new Set(d.bookedPublication));
-      })
-      .catch(() => {});
-  }, [token]);
+    if (iframeLoaded && !showButton) {
+      const t = setTimeout(() => setShowButton(true), 2500);
+      return () => clearTimeout(t);
+    }
+    if (!iframeLoaded && !showButton) {
+      const fallback = setTimeout(() => setShowButton(true), 8000);
+      return () => clearTimeout(fallback);
+    }
+  }, [iframeLoaded, showButton]);
 
   if (!clientInfo?.video_validated_at) return null;
-  if (clientInfo?.publication_date_confirmed) return null; // already chosen
-
-  // Generate next ~12 Tuesdays + Thursdays (mardi=2, jeudi=4) — we'll show 8
-  // available; if many are taken, the loop keeps walking forward.
-  const slots: { iso: string; label: string; weekday: 'Mardi' | 'Jeudi'; taken: boolean }[] = [];
-  {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    for (let i = 2; slots.length < 10 && i < 120; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
-      const dow = d.getDay();
-      if (dow === 2 || dow === 4) {
-        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        slots.push({
-          iso,
-          label: d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }),
-          weekday: dow === 2 ? 'Mardi' : 'Jeudi',
-          taken: bookedSet.has(iso),
-        });
-      }
-    }
-  }
+  if (clientInfo?.publication_date_confirmed) return null;
 
   async function confirm() {
     if (!pickedDate) return;
@@ -1709,7 +1709,7 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
-        setError(data.error || 'Erreur');
+        setError(data.error || 'Erreur — réessayez ou contactez l\'équipe.');
         return;
       }
       onConfirmed();
@@ -1733,68 +1733,83 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
             Choisissez votre date de publication
           </h3>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-mid)', margin: '4px 0 0', lineHeight: 1.5 }}>
-            Les publications sont planifiées le <strong>mardi</strong> ou le <strong>jeudi</strong>.
+            Réservez un créneau via le calendrier ci-dessous. Les publications sont planifiées le <strong>mardi</strong> ou le <strong>jeudi</strong>.
           </p>
         </div>
       </div>
 
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 14,
-      }}>
-        {slots.map(slot => {
-          const selected = pickedDate === slot.iso;
-          return (
-            <button
-              key={slot.iso}
-              onClick={() => !slot.taken && setPickedDate(slot.iso)}
-              disabled={slot.taken}
-              className={slot.taken ? '' : 'bm-press'}
-              title={slot.taken ? 'Ce créneau est déjà réservé' : undefined}
-              style={{
-                padding: '14px 12px', borderRadius: 10,
-                background: slot.taken ? 'rgba(0,0,0,.25)' : selected ? 'rgba(232,105,43,.18)' : 'var(--night-mid)',
-                border: slot.taken
-                  ? '1px dashed var(--border-md)'
-                  : selected ? '2px solid var(--orange)' : '1px solid var(--border-md)',
-                color: slot.taken ? 'var(--text-muted)' : selected ? 'var(--text)' : 'var(--text-mid)',
-                cursor: slot.taken ? 'not-allowed' : 'pointer',
-                textAlign: 'left', position: 'relative',
-                opacity: slot.taken ? 0.5 : 1,
-                transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
-              }}
-            >
-              <div style={{ fontSize: '0.7rem', color: slot.weekday === 'Mardi' ? '#FBBF24' : '#A78BFA', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                {slot.weekday}{slot.taken && ' · réservé'}
-              </div>
-              <div style={{ fontSize: '0.92rem', fontWeight: 700, color: slot.taken ? 'var(--text-muted)' : 'var(--text)', textDecoration: slot.taken ? 'line-through' : 'none' }}>
-                {slot.label.charAt(0).toUpperCase() + slot.label.slice(1)}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      <GhlBookingEmbed
+        url={calendarUrl}
+        title="Réservation publication"
+        onLoad={() => setIframeLoaded(true)}
+      />
 
-      {error && (
-        <div style={{
-          marginTop: 12, padding: '10px 12px', borderRadius: 8,
-          background: 'rgba(239,68,68,.10)', color: '#FCA5A5', fontSize: '0.84rem',
-        }}>❌ {error}</div>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+      {showButton && !showDateForm && (
         <button
-          onClick={confirm}
-          disabled={!pickedDate || submitting}
+          onClick={() => setShowDateForm(true)}
           style={{
-            padding: '12px 22px', borderRadius: 10, background: 'var(--orange)',
-            color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.9rem',
-            fontWeight: 700, boxShadow: '0 4px 14px rgba(232,105,43,.4)',
-            opacity: !pickedDate || submitting ? 0.5 : 1,
+            marginTop: 14, width: '100%', padding: '13px 22px', borderRadius: 12,
+            background: 'var(--orange)', color: '#fff', border: 'none',
+            cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700,
+            boxShadow: '0 4px 14px rgba(232,105,43,.4)',
           }}
         >
-          {submitting ? '⏳ Enregistrement…' : '✅ Confirmer cette date'}
+          ✅ Confirmer ma date de publication
         </button>
-      </div>
+      )}
+
+      {showDateForm && (
+        <div style={{
+          marginTop: 14, padding: '14px 16px', borderRadius: 12,
+          background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+        }}>
+          <label style={{
+            fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600,
+            display: 'block', marginBottom: 6,
+          }}>
+            📅 Date que vous venez de réserver (mardi ou jeudi)
+          </label>
+          <input
+            type="date"
+            value={pickedDate}
+            onChange={e => setPickedDate(e.target.value)}
+            style={{
+              width: '100%', boxSizing: 'border-box', padding: '11px 13px', borderRadius: 8,
+              background: 'var(--night-card)', border: '1px solid var(--border-md)',
+              color: 'var(--text)', fontSize: '0.92rem', outline: 'none', fontFamily: 'inherit',
+            }}
+          />
+          {error && (
+            <div style={{
+              marginTop: 10, padding: '8px 12px', borderRadius: 8,
+              background: 'rgba(239,68,68,.10)', color: '#FCA5A5', fontSize: '0.82rem',
+            }}>❌ {error}</div>
+          )}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+            <button
+              onClick={() => { setShowDateForm(false); setPickedDate(''); setError(''); }}
+              disabled={submitting}
+              style={{
+                padding: '9px 16px', borderRadius: 8, background: 'transparent',
+                border: '1px solid var(--border-md)', color: 'var(--text-muted)',
+                cursor: 'pointer', fontSize: '0.85rem',
+              }}
+            >Annuler</button>
+            <button
+              onClick={confirm}
+              disabled={!pickedDate || submitting}
+              style={{
+                padding: '11px 20px', borderRadius: 10, background: 'var(--orange)',
+                color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.88rem',
+                fontWeight: 700, opacity: !pickedDate || submitting ? 0.5 : 1,
+                boxShadow: '0 4px 14px rgba(232,105,43,.4)',
+              }}
+            >
+              {submitting ? '⏳ Enregistrement…' : '💾 Confirmer'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1894,17 +1909,11 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
         </div>
       ) : (
         <>
-          <div style={{
-            borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-md)',
-            background: '#fff',
-          }}>
-            <iframe
-              src={calendarUrl}
-              onLoad={() => setIframeLoaded(true)}
-              style={{ width: '100%', height: '70vh', minHeight: 550, border: 'none', display: 'block' }}
-              title="Réservation tournage"
-            />
-          </div>
+          <GhlBookingEmbed
+            url={calendarUrl}
+            title="Réservation tournage"
+            onLoad={() => setIframeLoaded(true)}
+          />
 
           {showButton && !showDateForm && (
             <button
@@ -2153,6 +2162,50 @@ function VideoEmbed({ url, thumbnail }: { url: string; thumbnail?: string }) {
         </div>
       </div>
     </a>
+  );
+}
+
+/* ── GHL booking widget embed ──────────────────────────────────────────── */
+// Mirrors the official GHL embed snippet exactly:
+//   <iframe scrolling="no" id="<calendarId>_<ts>" src="..." />
+//   <script src="https://link.msgsndr.com/js/form_embed.js"></script>
+// The form_embed.js script auto-resizes the iframe to fit its content.
+
+let formEmbedScriptLoaded = false;
+
+function GhlBookingEmbed({ url, title, onLoad }: { url: string; title: string; onLoad?: () => void }) {
+  // Inject the form_embed.js script once for the lifetime of the page
+  useEffect(() => {
+    if (formEmbedScriptLoaded) return;
+    if (typeof document === 'undefined') return;
+    const existing = document.querySelector('script[src="https://link.msgsndr.com/js/form_embed.js"]');
+    if (existing) { formEmbedScriptLoaded = true; return; }
+    const s = document.createElement('script');
+    s.src = 'https://link.msgsndr.com/js/form_embed.js';
+    s.type = 'text/javascript';
+    s.async = true;
+    document.body.appendChild(s);
+    formEmbedScriptLoaded = true;
+  }, []);
+
+  // Build a unique iframe id matching GHL's pattern (calendarId_timestamp)
+  const calendarId = url.split('/').pop() || 'calendar';
+  const iframeId = `${calendarId}_${Date.now()}`;
+
+  return (
+    <div style={{
+      borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-md)',
+      background: '#fff', minHeight: 500,
+    }}>
+      <iframe
+        id={iframeId}
+        src={url}
+        title={title}
+        scrolling="no"
+        onLoad={onLoad}
+        style={{ width: '100%', border: 'none', overflow: 'hidden', display: 'block', minHeight: 500 }}
+      />
+    </div>
   );
 }
 

@@ -880,9 +880,20 @@ export default function ClientDetailPage() {
         }),
       });
       if (!r.ok) throw new Error(await parseErr(r));
-      notify('success', deliver ? 'Vidéo livrée au client' : 'Vidéo enregistrée');
+      // When delivering, also bump the client status so the portal knows to
+      // show the video review step. Without this, the admin would have to
+      // manually move the client to 'video_review' on the kanban — easy to
+      // forget, leading to "I delivered the video but client sees nothing".
+      if (deliver) {
+        await fetch('/api/clients', {
+          method: 'PUT', headers: authHeaders(),
+          body: JSON.stringify({ id, status: 'video_review' }),
+        }).catch(() => null);
+      }
+      notify('success', deliver ? 'Vidéo livrée · client → Vidéo à valider' : 'Vidéo enregistrée');
       setNewVideo({ title: '', video_url: '', thumbnail_url: '', delivery_notes: '' });
       loadClient();
+      loadEvents();
     } catch (e: unknown) { notify('error', (e as Error).message); }
     finally { setSavingVideo(false); }
   }
