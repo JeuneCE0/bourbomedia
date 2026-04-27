@@ -556,15 +556,18 @@ function PipelineAnalyticsCard() {
 function SyncButton({ label, emoji, endpoint, confirmText }: { label: string; emoji: string; endpoint: string; confirmText: string }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [issues, setIssues] = useState<string[]>([]);
+  const [showDetails, setShowDetails] = useState(false);
 
   async function sync() {
     if (!confirm(confirmText)) return;
-    setBusy(true); setMsg(null);
+    setBusy(true); setMsg(null); setIssues([]); setShowDetails(false);
     try {
       const r = await fetch(endpoint, { method: 'POST', headers: authHeaders() });
       const d = await r.json();
       if (r.ok) {
         setMsg(d.message || 'Sync OK');
+        if (Array.isArray(d.issues) && d.issues.length > 0) setIssues(d.issues);
         if (d.imported > 0) setTimeout(() => window.location.reload(), 1500);
       } else {
         setMsg(d.error || 'Erreur sync');
@@ -586,9 +589,30 @@ function SyncButton({ label, emoji, endpoint, confirmText }: { label: string; em
         {busy ? '⏳ Sync…' : `${emoji} Sync ${label}`}
       </button>
       {msg && (
-        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', maxWidth: 240, textAlign: 'right' }}>
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', maxWidth: 280, textAlign: 'right' }}>
           {msg}
+          {issues.length > 0 && (
+            <>
+              {' · '}
+              <button onClick={() => setShowDetails(s => !s)} style={{
+                background: 'none', border: 'none', color: 'var(--orange)',
+                cursor: 'pointer', fontSize: '0.7rem', textDecoration: 'underline', padding: 0,
+              }}>
+                {showDetails ? 'masquer' : `voir ${issues.length} détail${issues.length > 1 ? 's' : ''}`}
+              </button>
+            </>
+          )}
         </span>
+      )}
+      {showDetails && issues.length > 0 && (
+        <div style={{
+          maxWidth: 360, padding: '8px 10px', borderRadius: 8,
+          background: 'var(--night-card)', border: '1px solid var(--border-md)',
+          fontSize: '0.7rem', color: 'var(--text-mid)', lineHeight: 1.5,
+          textAlign: 'left',
+        }}>
+          {issues.map((iss, i) => <div key={i} style={{ marginBottom: 4 }}>• {iss}</div>)}
+        </div>
       )}
     </div>
   );
