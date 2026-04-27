@@ -39,6 +39,11 @@ export async function POST(req: NextRequest) {
   fwd.append('model', useGroq ? 'whisper-large-v3' : 'whisper-1');
   fwd.append('language', language);
   fwd.append('response_format', 'json');
+  // temperature=0 : déterministe, réduit les hallucinations sur silence
+  fwd.append('temperature', '0');
+  // prompt = biais contextuel : oriente Whisper vers le vocabulaire métier au
+  // lieu de tomber sur ses hallucinations classiques (sous-titres YT)
+  fwd.append('prompt', 'Conversation commerciale Bourbomedia, agence vidéo à La Réunion. Vocabulaire : prospect, closing, contrat, vidéo, tournage, commerce, restaurateur, coiffeur, boulangerie, devis, paiement.');
 
   const url = useGroq
     ? 'https://api.groq.com/openai/v1/audio/transcriptions'
@@ -58,8 +63,33 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
     const data = await r.json();
+    let text = (data.text || '').trim();
+
+    // Filtre les hallucinations Whisper connues sur silence — quand il sort
+    // ces phrases c'est que l'audio était vide/trop faible.
+    const HALLUCINATIONS = [
+      /sous-?titrage.*?radio-?canada/i,
+      /sous-?titres? r[eé]alis[eé]s?/i,
+      /sous-?titres? par la communaut[eé]/i,
+      /merci d'avoir regard[eé]/i,
+      /❤️ par sous-titres/i,
+      /^musique\.?$/i,
+      /^silence\.?$/i,
+      /amara\.org/i,
+      /❤️ by/i,
+    ];
+    const wasHallucination = HALLUCINATIONS.some(rx => rx.test(text));
+    if (wasHallucination || text.length < 3) {
+      return NextResponse.json({
+        text: '',
+        empty: true,
+        hint: 'Audio trop faible ou silencieux — vérifie ton micro (autorisation navigateur, volume entrée). Whisper a halluciné sur du silence.',
+        provider: useGroq ? 'groq' : 'openai',
+      });
+    }
+
     return NextResponse.json({
-      text: (data.text || '').trim(),
+      text,
       provider: useGroq ? 'groq' : 'openai',
     });
   } catch (e: unknown) {

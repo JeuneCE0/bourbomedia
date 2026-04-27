@@ -110,23 +110,34 @@ export default function AiCopilot() {
 
   return (
     <>
-      {/* Floating launcher button (bottom-right, above bell) */}
+      {/* Floating launcher button — z-index assez haut pour rester visible
+          au-dessus des contenus, sauf modals plein-écran (qui sont 1000+).
+          On utilise calc + env(safe-area-inset-bottom) pour iPhone home bar. */}
       <button
         onClick={() => setOpen(true)}
         title="AI Co-Pilot Bourbon · ⌘J"
         aria-label="Ouvrir AI Co-Pilot"
         style={{
-          position: 'fixed', bottom: 20, right: 16, zIndex: 89,
-          width: 56, height: 56, borderRadius: '50%',
+          position: 'fixed',
+          bottom: 'max(20px, env(safe-area-inset-bottom, 20px))',
+          right: 16,
+          zIndex: 500,
+          width: 60, height: 60, borderRadius: '50%',
           background: 'linear-gradient(135deg, var(--orange) 0%, #C45520 100%)',
-          border: 'none', color: '#fff', cursor: 'pointer',
-          fontSize: '1.4rem', boxShadow: '0 6px 20px rgba(232,105,43,.45)',
+          border: '2px solid rgba(255,255,255,.12)', color: '#fff', cursor: 'pointer',
+          fontSize: '1.5rem',
+          boxShadow: '0 8px 24px rgba(232,105,43,.5), 0 0 0 0 rgba(232,105,43,.3)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           transition: 'transform .2s, box-shadow .2s',
+          animation: 'bm-copilot-pulse 3s ease-in-out infinite',
         }}
-        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(232,105,43,.6)'; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(232,105,43,.45)'; }}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(232,105,43,.7)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(232,105,43,.5), 0 0 0 0 rgba(232,105,43,.3)'; }}
       >
+        <style>{`@keyframes bm-copilot-pulse {
+          0%, 100% { box-shadow: 0 8px 24px rgba(232,105,43,.5), 0 0 0 0 rgba(232,105,43,.4); }
+          50%      { box-shadow: 0 8px 24px rgba(232,105,43,.5), 0 0 0 12px rgba(232,105,43,0); }
+        }`}</style>
         <span aria-hidden style={{ fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}>✨</span>
       </button>
 
@@ -235,10 +246,17 @@ export default function AiCopilot() {
 
                   {action === 'draft_message' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <FieldRow>
-                        <Field label="Contact" value={messageForm.contact_name} onChange={v => setMessageForm({ ...messageForm, contact_name: v })} />
-                        <Field label="Commerce" value={messageForm.business_name} onChange={v => setMessageForm({ ...messageForm, business_name: v })} />
-                      </FieldRow>
+                      <ContactAutocomplete
+                        contactName={messageForm.contact_name}
+                        businessName={messageForm.business_name}
+                        onPick={(c) => setMessageForm({
+                          ...messageForm,
+                          contact_name: c.contact_name || messageForm.contact_name,
+                          business_name: c.business_name || messageForm.business_name,
+                        })}
+                        onContactChange={v => setMessageForm({ ...messageForm, contact_name: v })}
+                        onBusinessChange={v => setMessageForm({ ...messageForm, business_name: v })}
+                      />
                       <FieldRow>
                         <SelectField label="Intention" value={messageForm.intent} onChange={v => setMessageForm({ ...messageForm, intent: v as typeof messageForm.intent })} options={[
                           { value: 'follow_up', label: 'Follow-up appel' },
@@ -389,3 +407,152 @@ const inputStyle: React.CSSProperties = {
   color: 'var(--text)', fontSize: '0.84rem', boxSizing: 'border-box',
   fontFamily: 'inherit', resize: 'vertical', width: '100%',
 };
+
+interface ContactSuggestion {
+  id: string;
+  type: 'client' | 'prospect';
+  contact_name: string | null;
+  business_name: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+function ContactAutocomplete({
+  contactName, businessName, onPick, onContactChange, onBusinessChange,
+}: {
+  contactName: string;
+  businessName: string;
+  onPick: (c: ContactSuggestion) => void;
+  onContactChange: (v: string) => void;
+  onBusinessChange: (v: string) => void;
+}) {
+  const [suggestions, setSuggestions] = useState<ContactSuggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [activeField, setActiveField] = useState<'contact' | 'business' | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const search = useCallback(async (q: string) => {
+    if (q.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/contacts/lookup?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
+      if (r.ok) {
+        const d = await r.json();
+        setSuggestions(d.contacts || []);
+        setOpen((d.contacts || []).length > 0);
+      }
+    } finally { setLoading(false); }
+  }, []);
+
+  // Debounce 200ms sur les changements de champ actif
+  useEffect(() => {
+    const q = activeField === 'contact' ? contactName : activeField === 'business' ? businessName : '';
+    if (!activeField) return;
+    const t = setTimeout(() => search(q), 200);
+    return () => clearTimeout(t);
+  }, [contactName, businessName, activeField, search]);
+
+  // Close dropdown au clic en dehors
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  function handlePick(c: ContactSuggestion) {
+    onPick(c);
+    setOpen(false);
+    setActiveField(null);
+  }
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 180 }}>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Contact <span style={{ color: 'var(--text-muted)', textTransform: 'none', fontWeight: 400, marginLeft: 4 }}>(2 lettres min)</span>
+          </span>
+          <input
+            type="text"
+            value={contactName}
+            onChange={e => { onContactChange(e.target.value); setActiveField('contact'); }}
+            onFocus={() => { setActiveField('contact'); if (contactName.length >= 2) search(contactName); }}
+            placeholder="Tape un prénom, nom ou email…"
+            style={inputStyle}
+          />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 180 }}>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Commerce
+          </span>
+          <input
+            type="text"
+            value={businessName}
+            onChange={e => { onBusinessChange(e.target.value); setActiveField('business'); }}
+            onFocus={() => { setActiveField('business'); if (businessName.length >= 2) search(businessName); }}
+            placeholder="Nom du commerce"
+            style={inputStyle}
+          />
+        </label>
+      </div>
+
+      {open && suggestions.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+          marginTop: 4, padding: 4, borderRadius: 10,
+          background: 'var(--night-card)', border: '1px solid var(--border-md)',
+          boxShadow: '0 8px 24px rgba(0,0,0,.4)',
+          maxHeight: 280, overflowY: 'auto',
+        }}>
+          {loading && (
+            <div style={{ padding: 10, fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+              Recherche…
+            </div>
+          )}
+          {suggestions.map(s => (
+            <button
+              key={`${s.type}-${s.id}`}
+              type="button"
+              onClick={() => handlePick(s)}
+              style={{
+                display: 'flex', flexDirection: 'column', gap: 2,
+                width: '100%', padding: '8px 10px', borderRadius: 6,
+                background: 'transparent', border: 'none', textAlign: 'left',
+                cursor: 'pointer', color: 'inherit',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--night-mid)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.84rem',
+                color: 'var(--text)', fontWeight: 600,
+              }}>
+                <span aria-hidden style={{
+                  fontSize: '0.66rem', padding: '1px 6px', borderRadius: 4,
+                  background: s.type === 'client' ? 'rgba(34,197,94,.15)' : 'rgba(20,184,166,.15)',
+                  color: s.type === 'client' ? 'var(--green)' : '#14B8A6',
+                  fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                }}>{s.type === 'client' ? 'Client' : 'Prospect'}</span>
+                {s.contact_name || '—'}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                {s.business_name && <span style={{ color: 'var(--orange)' }}>🏢 {s.business_name}</span>}
+                {s.business_name && (s.email || s.phone) && ' · '}
+                {s.email && <span>📧 {s.email}</span>}
+                {s.email && s.phone && ' · '}
+                {s.phone && <span>📱 {s.phone}</span>}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
