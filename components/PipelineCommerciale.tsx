@@ -491,15 +491,51 @@ function Stat({ label, value, color, last }: { label: string; value: string; col
 
 /* ── Modal ──────────────────────────────────────────────────────────── */
 
+interface GhlContact {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  companyName: string | null;
+  address1: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  country: string | null;
+  website: string | null;
+  timezone: string | null;
+  dnd: boolean;
+  type: string | null;
+  source: string | null;
+  tags: string[];
+  dateAdded: string | null;
+  lastActivity: string | null;
+  assignedTo: string | null;
+  customFields: { id: string; label: string; dataType: string; value: unknown }[];
+}
+
 function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; stages: PipelineStage[]; onClose: () => void; onSaved: () => void }) {
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [allAppts, setAllAppts] = useState<Appointment[]>([]);
   const [loadingAppt, setLoadingAppt] = useState(true);
+  const [ghlContact, setGhlContact] = useState<GhlContact | null>(null);
+  const [loadingContact, setLoadingContact] = useState(true);
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<string>(opp.prospect_status || '');
   const [stageId, setStageId] = useState<string>(opp.pipeline_stage_id);
   const [valueEUR, setValueEUR] = useState<string>(opp.monetary_value_cents ? (opp.monetary_value_cents / 100).toString() : '');
   const [saving, setSaving] = useState(false);
+
+  // Fetch the full GHL contact (tags, custom fields, address, source…)
+  useEffect(() => {
+    if (!opp.ghl_contact_id) { setLoadingContact(false); return; }
+    fetch(`/api/ghl/contact?id=${encodeURIComponent(opp.ghl_contact_id)}`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setGhlContact(d?.contact || null))
+      .finally(() => setLoadingContact(false));
+  }, [opp.ghl_contact_id]);
 
   // Load every appointment tied to this opportunity (or to the same contact /
   // email) so the admin sees the full RDV history in the prospect drawer —
@@ -631,16 +667,65 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
             </div>
           )}
 
-          {/* Contact info */}
+          {/* Contact info — fusion gh_opportunities + GHL fiche complète */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
-            {opp.contact_email && <InfoRow icon="📧" value={opp.contact_email} />}
-            {opp.contact_phone && <InfoRow icon="📱" value={opp.contact_phone} />}
-            {opp.contact_name && opp.contact_name !== opp.name && <InfoRow icon="👤" value={opp.contact_name} />}
+            {(ghlContact?.email || opp.contact_email) && <InfoRow icon="📧" value={ghlContact?.email || opp.contact_email!} />}
+            {(ghlContact?.phone || opp.contact_phone) && <InfoRow icon="📱" value={ghlContact?.phone || opp.contact_phone!} />}
+            {ghlContact?.name && ghlContact.name !== opp.name && <InfoRow icon="👤" value={ghlContact.name} />}
+            {ghlContact?.companyName && <InfoRow icon="🏢" value={ghlContact.companyName} />}
+            {ghlContact?.city && <InfoRow icon="📍" value={[ghlContact.address1, ghlContact.city, ghlContact.postalCode].filter(Boolean).join(' · ')} />}
+            {ghlContact?.website && <InfoRow icon="🌐" value={ghlContact.website} />}
+            {ghlContact?.source && <InfoRow icon="🔗" value={`Source : ${ghlContact.source}`} />}
             {opp.ghl_created_at && <InfoRow icon="📅" value={`Créé ${relativeDate(opp.ghl_created_at)}`} />}
-            {opp.ghl_updated_at && opp.ghl_updated_at !== opp.ghl_created_at && (
-              <InfoRow icon="🔄" value={`MAJ ${relativeDate(opp.ghl_updated_at)}`} />
-            )}
           </div>
+
+          {/* Tags GHL */}
+          {ghlContact?.tags && ghlContact.tags.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                🏷️ Tags
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {ghlContact.tags.map((t, i) => (
+                  <span key={i} style={{
+                    fontSize: '0.7rem', padding: '3px 9px', borderRadius: 999,
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                    color: 'var(--text-mid)',
+                  }}>#{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Custom fields GHL (réponses formulaire, données métier) */}
+          {ghlContact?.customFields && ghlContact.customFields.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                📝 Champs personnalisés
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {ghlContact.customFields.map(cf => (
+                  <div key={cf.id} style={{
+                    padding: '8px 10px', borderRadius: 6,
+                    background: 'var(--night-mid)', border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {cf.label}
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text)', wordBreak: 'break-word' }}>
+                      {Array.isArray(cf.value) ? cf.value.join(', ') : String(cf.value)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {loadingContact && (
+            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: 8 }}>
+              ⏳ Chargement de la fiche GHL complète…
+            </div>
+          )}
 
           {/* RDV history pour ce contact */}
           {allAppts.length > 0 && (
