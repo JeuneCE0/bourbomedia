@@ -1246,6 +1246,9 @@ function PortalContent() {
           const openCount = annotations.filter(a => !a.resolved).length;
           return (
             <div key="tab-script" className="bm-fade-in">
+              {/* Version selector — visible quand y'a au moins V2 */}
+              <ScriptVersionPills token={token!} currentVersion={script.version} currentContent={script.content} />
+
               {/* Helper bar — only when nothing yet annotated */}
               {annotations.length === 0 && (
                 <div style={{
@@ -2564,6 +2567,110 @@ function UpsellCard({ offer }: { offer: UpsellOffer }) {
         {offer.cta} →
       </a>
     </div>
+  );
+}
+
+/* ── Script version selector (pill bar) ───────────────────────────── */
+
+interface ScriptVersionRow {
+  id: string;
+  version: number;
+  content: unknown;
+  status: string;
+  created_at: string;
+}
+
+function ScriptVersionPills({ token, currentVersion, currentContent }: {
+  token: string;
+  currentVersion?: number;
+  currentContent: unknown;
+}) {
+  const [versions, setVersions] = useState<ScriptVersionRow[]>([]);
+  const [previewing, setPreviewing] = useState<ScriptVersionRow | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/scripts/versions?token=${token}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setVersions(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, [token]);
+
+  if (versions.length === 0) return null;
+
+  const allVersions = [
+    { v: currentVersion || 1, label: `V${currentVersion || 1}`, current: true, content: currentContent, created_at: '' as string },
+    ...versions.map(v => ({ v: v.version, label: `V${v.version}`, current: false, content: v.content, created_at: v.created_at })),
+  ].sort((a, b) => b.v - a.v);
+
+  return (
+    <>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap',
+        padding: '10px 12px', borderRadius: 10,
+        background: 'var(--night-mid)', border: '1px solid var(--border)',
+      }}>
+        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+          📚 Versions :
+        </span>
+        {allVersions.map((v, i) => {
+          const isPreview = previewing?.version === v.v;
+          const isCurrent = v.current;
+          return (
+            <button
+              key={`v${v.v}-${i}`}
+              onClick={() => {
+                if (isCurrent) setPreviewing(null);
+                else setPreviewing({ id: '', version: v.v, content: v.content, status: '', created_at: v.created_at });
+              }}
+              style={{
+                padding: '5px 12px', borderRadius: 999, fontSize: '0.74rem', fontWeight: 600,
+                background: isCurrent ? 'var(--orange)' : isPreview ? 'rgba(232,105,43,.18)' : 'var(--night-card)',
+                color: isCurrent ? '#fff' : isPreview ? 'var(--orange)' : 'var(--text-mid)',
+                border: `1px solid ${isCurrent || isPreview ? 'var(--orange)' : 'var(--border-md)'}`,
+                cursor: 'pointer',
+              }}
+            >
+              {v.label}{isCurrent ? ' · actuelle' : ''}
+            </button>
+          );
+        })}
+        {previewing && (
+          <button
+            onClick={() => setPreviewing(null)}
+            style={{
+              marginLeft: 'auto', padding: '5px 12px', borderRadius: 999, fontSize: '0.74rem',
+              background: 'transparent', border: '1px solid var(--border-md)',
+              color: 'var(--text-muted)', cursor: 'pointer',
+            }}
+          >× Retour à l&apos;actuelle</button>
+        )}
+      </div>
+
+      {previewing && (
+        <div style={{
+          marginBottom: 14, padding: '14px 16px', borderRadius: 12,
+          background: 'rgba(168,85,247,.06)', border: '1px solid rgba(168,85,247,.30)',
+        }}>
+          <div style={{ fontSize: '0.78rem', color: '#D8B4FE', fontWeight: 600, marginBottom: 8 }}>
+            📜 Aperçu de la V{previewing.version}
+            {previewing.created_at && ` — ${new Date(previewing.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+          </div>
+          <div
+            style={{
+              padding: '12px 14px', borderRadius: 8,
+              background: 'var(--night-card)', border: '1px solid var(--border)',
+              fontSize: '0.88rem', color: 'var(--text)', lineHeight: 1.6,
+              maxHeight: 400, overflowY: 'auto',
+            }}
+            dangerouslySetInnerHTML={{
+              __html: typeof previewing.content === 'string'
+                ? previewing.content
+                : JSON.stringify(previewing.content),
+            }}
+          />
+        </div>
+      )}
+    </>
   );
 }
 

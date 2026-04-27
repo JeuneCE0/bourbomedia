@@ -630,6 +630,18 @@ export default function CalendarPage() {
                     {dayEvents.slice(0, 3).map(e => {
                       const meta = KIND_META[e.kind];
                       const draggable = e.kind === 'filming' && !rescheduling;
+                      // Compute the target URL — same logic as expanded view
+                      const eventHref =
+                        e.kind === 'closing_call'
+                          ? `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`
+                          : e.client_id
+                            ? `/dashboard/clients/${e.client_id}${
+                                e.kind === 'filming' ? '?tab=delivery'
+                                : e.kind === 'onboarding_call' || e.kind === 'appt_other' ? '?tab=ghl'
+                                : e.kind === 'script_sent' || e.kind === 'script_due' ? '?tab=script'
+                                : ''
+                              }`
+                            : `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`;
                       return (
                         <div
                           key={e.id}
@@ -641,7 +653,13 @@ export default function CalendarPage() {
                             setDraggingEventId(e.id);
                           }}
                           onDragEnd={() => { setDraggingEventId(null); setDragOverDate(null); }}
-                          title={draggable ? 'Glissez sur un autre jour pour reprogrammer' : undefined}
+                          onClick={(ev) => {
+                            // Don't navigate if drag is in progress
+                            if (draggingEventId) return;
+                            ev.stopPropagation();
+                            if (typeof window !== 'undefined') window.location.href = eventHref;
+                          }}
+                          title={draggable ? 'Glissez sur un autre jour pour reprogrammer · clic pour ouvrir' : 'Clic pour ouvrir'}
                           style={{
                             fontSize: 'var(--cal-font-slot)', padding: '2px 5px',
                             borderRadius: 4, marginBottom: 2,
@@ -715,22 +733,35 @@ export default function CalendarPage() {
                               </div>
                             </>
                           );
-                          return e.client_id ? (
-                            <Link key={e.id} href={`/dashboard/clients/${e.client_id}${e.kind === 'filming' ? '?tab=filming' : e.kind === 'script_sent' || e.kind === 'script_due' ? '?tab=script' : ''}`} style={{
+                          // Route the click to the page where the user can take action :
+                          //  - GHL closing call : /pipeline (modal d'édition avec actions GHL)
+                          //  - GHL appointment lié à un client : /clients/[id]?tab=ghl
+                          //  - Filming (clients table) : /clients/[id]?tab=delivery
+                          //  - Script events : /clients/[id]?tab=script
+                          //  - Otherwise : /pipeline (search-friendly)
+                          const targetHref =
+                            e.kind === 'closing_call'
+                              ? `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`
+                              : e.client_id
+                                ? `/dashboard/clients/${e.client_id}${
+                                    e.kind === 'filming' ? '?tab=delivery'
+                                    : e.kind === 'onboarding_call' || e.kind === 'appt_other' ? '?tab=ghl'
+                                    : e.kind === 'script_sent' || e.kind === 'script_due' ? '?tab=script'
+                                    : ''
+                                  }`
+                                : `/dashboard/pipeline${e.label ? `?q=${encodeURIComponent(e.label)}` : ''}`;
+                          return (
+                            <Link key={e.id} href={targetHref} style={{
                               display: 'block', padding: '8px 10px', borderRadius: 8,
                               background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
                               marginBottom: 6, textDecoration: 'none',
-                            }}>
+                              transition: 'background .15s, transform .15s',
+                            }}
+                              onMouseEnter={ev => { (ev.currentTarget as HTMLElement).style.background = meta.color + '20'; (ev.currentTarget as HTMLElement).style.transform = 'translateX(2px)'; }}
+                              onMouseLeave={ev => { (ev.currentTarget as HTMLElement).style.background = meta.color + '10'; (ev.currentTarget as HTMLElement).style.transform = 'none'; }}
+                            >
                               {inner}
                             </Link>
-                          ) : (
-                            <div key={e.id} style={{
-                              padding: '8px 10px', borderRadius: 8,
-                              background: meta.color + '10', borderLeft: `3px solid ${meta.color}`,
-                              marginBottom: 6,
-                            }}>
-                              {inner}
-                            </div>
                           );
                         })
                       )}

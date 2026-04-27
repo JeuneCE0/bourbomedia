@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 
 interface Opportunity {
@@ -73,7 +74,21 @@ export default function PipelineCommerciale() {
   const [opps, setOpps] = useState<Opportunity[]>([]);
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const sp = useSearchParams();
+  const initialQ = sp?.get('q') || '';
+  const [search, setSearch] = useState(initialQ);
+
+  // Pre-open the matching prospect modal if ?q=... matches exactly one opp
+  useEffect(() => {
+    if (!initialQ || opps.length === 0) return;
+    const matches = opps.filter(o => {
+      const hay = [o.name, o.contact_name, o.contact_email].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(initialQ.toLowerCase());
+    });
+    if (matches.length === 1 && !selectedId) setSelectedId(matches[0].id);
+    // Only run on initial mount with q param
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opps]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const load = useCallback(() => {
