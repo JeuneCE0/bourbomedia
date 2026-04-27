@@ -28,11 +28,14 @@ interface PipelineStage {
 interface Appointment {
   id: string;
   ghl_appointment_id: string;
+  calendar_kind: 'closing' | 'onboarding' | 'tournage' | 'other';
+  status: string;
   starts_at: string;
   notes: string | null;
   notes_completed_at: string | null;
   prospect_status: string | null;
   opportunity_id: string | null;
+  contact_email: string | null;
 }
 
 const PROSPECT_STATUS_OPTIONS: { value: string; label: string; emoji: string; color: string }[] = [
@@ -122,28 +125,6 @@ export default function PipelineCommerciale() {
   return (
     <div style={{ padding: 'clamp(16px, 2.5vw, 28px)', maxWidth: '100%', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
-        <div>
-          <h1 style={{
-            fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
-            fontSize: '1.7rem', color: 'var(--text)', margin: 0, lineHeight: 1.2,
-          }}>
-            🎯 Pipeline commercial
-          </h1>
-          <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            Mirroir live de la <strong>Pipeline Bourbon Media</strong> dans GHL — sync bidirectionnel
-          </p>
-        </div>
-        <div style={{
-          display: 'flex', gap: 0, padding: 0, borderRadius: 10,
-          background: 'var(--night-card)', border: '1px solid var(--border)', overflow: 'hidden',
-        }}>
-          <Stat label="Opportunités" value={totalOpps.toString()} color="var(--orange)" />
-          <Stat label="Gagnées" value={wonCount.toString()} color="var(--green)" />
-          <Stat label="Valeur totale" value={fmtEUR(totalValue)} color="#3B82F6" last />
-        </div>
-      </div>
-
       <div style={{ marginBottom: 14 }}>
         <input
           type="text" placeholder="🔍 Rechercher un prospect / opportunité…"
@@ -319,6 +300,7 @@ function Stat({ label, value, color, last }: { label: string; value: string; col
 
 function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; stages: PipelineStage[]; onClose: () => void; onSaved: () => void }) {
   const [appointment, setAppointment] = useState<Appointment | null>(null);
+  const [allAppts, setAllAppts] = useState<Appointment[]>([]);
   const [loadingAppt, setLoadingAppt] = useState(true);
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<string>(opp.prospect_status || '');
@@ -326,20 +308,28 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
   const [valueEUR, setValueEUR] = useState<string>(opp.monetary_value_cents ? (opp.monetary_value_cents / 100).toString() : '');
   const [saving, setSaving] = useState(false);
 
-  // Try to load the related appointment to surface notes (closing only)
+  // Load every appointment tied to this opportunity (or to the same contact /
+  // email) so the admin sees the full RDV history in the prospect drawer —
+  // mirrors what GHL shows on a contact card.
   useEffect(() => {
     fetch(`/api/gh-appointments?recent=1`, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : { appointments: [] })
       .then(d => {
-        const found = (d.appointments || []).find((a: Appointment) => a.opportunity_id === opp.ghl_opportunity_id) || null;
-        setAppointment(found);
-        if (found) {
-          setNotes(found.notes || '');
-          if (!status && found.prospect_status) setStatus(found.prospect_status);
+        const all: Appointment[] = d.appointments || [];
+        const linked = all.filter(a =>
+          a.opportunity_id === opp.ghl_opportunity_id
+          || (opp.contact_email && a.contact_email && a.contact_email.toLowerCase() === opp.contact_email.toLowerCase())
+        );
+        setAllAppts(linked);
+        const closing = linked.find(a => a.opportunity_id === opp.ghl_opportunity_id) || linked[0] || null;
+        setAppointment(closing);
+        if (closing) {
+          setNotes(closing.notes || '');
+          if (!status && closing.prospect_status) setStatus(closing.prospect_status);
         }
       })
       .finally(() => setLoadingAppt(false));
-  }, [opp.ghl_opportunity_id, status]);
+  }, [opp.ghl_opportunity_id, opp.contact_email, status]);
 
   async function save() {
     setSaving(true);
@@ -406,13 +396,103 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Quick actions — call / email / open in GHL */}
+          {(opp.contact_email || opp.contact_phone || opp.ghl_contact_id) && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {opp.contact_phone && (
+                <a href={`tel:${opp.contact_phone}`} style={{
+                  flex: 1, minWidth: 100, padding: '9px 12px', borderRadius: 8,
+                  background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                  color: 'var(--text)', textDecoration: 'none', textAlign: 'center',
+                  fontSize: '0.78rem', fontWeight: 600,
+                }}>📱 Appeler</a>
+              )}
+              {opp.contact_email && (
+                <a href={`mailto:${opp.contact_email}`} style={{
+                  flex: 1, minWidth: 100, padding: '9px 12px', borderRadius: 8,
+                  background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                  color: 'var(--text)', textDecoration: 'none', textAlign: 'center',
+                  fontSize: '0.78rem', fontWeight: 600,
+                }}>📧 Email</a>
+              )}
+              {opp.contact_email && (
+                <a href={`https://wa.me/${(opp.contact_phone || '').replace(/\D/g, '')}`} target="_blank" rel="noreferrer" style={{
+                  flex: 1, minWidth: 100, padding: '9px 12px', borderRadius: 8,
+                  background: 'var(--night-mid)', border: '1px solid rgba(34,197,94,.40)',
+                  color: 'var(--green)', textDecoration: 'none', textAlign: 'center',
+                  fontSize: '0.78rem', fontWeight: 600,
+                  pointerEvents: opp.contact_phone ? 'auto' : 'none',
+                  opacity: opp.contact_phone ? 1 : 0.5,
+                }}>💬 WhatsApp</a>
+              )}
+              {opp.ghl_opportunity_id && (
+                <a href={`https://app.gohighlevel.com/v2/location/${opp.pipeline_id ? '' : ''}opportunities/${opp.ghl_opportunity_id}`} target="_blank" rel="noreferrer" style={{
+                  flex: 1, minWidth: 100, padding: '9px 12px', borderRadius: 8,
+                  background: 'rgba(232,105,43,.10)', border: '1px solid rgba(232,105,43,.40)',
+                  color: 'var(--orange)', textDecoration: 'none', textAlign: 'center',
+                  fontSize: '0.78rem', fontWeight: 600,
+                }}>↗ Ouvrir dans GHL</a>
+              )}
+            </div>
+          )}
+
           {/* Contact info */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
             {opp.contact_email && <InfoRow icon="📧" value={opp.contact_email} />}
             {opp.contact_phone && <InfoRow icon="📱" value={opp.contact_phone} />}
             {opp.contact_name && opp.contact_name !== opp.name && <InfoRow icon="👤" value={opp.contact_name} />}
             {opp.ghl_created_at && <InfoRow icon="📅" value={`Créé ${relativeDate(opp.ghl_created_at)}`} />}
+            {opp.ghl_updated_at && opp.ghl_updated_at !== opp.ghl_created_at && (
+              <InfoRow icon="🔄" value={`MAJ ${relativeDate(opp.ghl_updated_at)}`} />
+            )}
           </div>
+
+          {/* RDV history pour ce contact */}
+          {allAppts.length > 0 && (
+            <div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                📅 Historique RDV ({allAppts.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {allAppts.slice(0, 5).map(a => {
+                  const meta: Record<string, { e: string; l: string; c: string }> = {
+                    closing:    { e: '📞', l: 'Closing',     c: 'var(--orange)' },
+                    onboarding: { e: '🚀', l: 'Onboarding',  c: '#14B8A6' },
+                    tournage:   { e: '🎬', l: 'Tournage',    c: '#3B82F6' },
+                    other:      { e: '📅', l: 'RDV',         c: 'var(--text-mid)' },
+                  };
+                  const m = meta[a.calendar_kind] || meta.other;
+                  const pastBadge = a.status === 'no_show' ? { l: 'No show', c: '#FCA5A5' }
+                    : a.status === 'cancelled' ? { l: 'Annulé', c: 'var(--text-muted)' }
+                    : a.notes_completed_at ? { l: '✅ Documenté', c: 'var(--green)' }
+                    : new Date(a.starts_at).getTime() < Date.now() ? { l: 'À documenter', c: '#D8B4FE' }
+                    : { l: 'À venir', c: 'var(--text-mid)' };
+                  return (
+                    <div key={a.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                      borderRadius: 6, background: 'var(--night-mid)', border: '1px solid var(--border)',
+                    }}>
+                      <span aria-hidden style={{
+                        width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                        background: 'var(--night-raised)', border: `1.5px solid ${m.c}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem',
+                      }}>{m.e}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text)' }}>{m.l}</div>
+                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                          {new Date(a.starts_at).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: '0.6rem', padding: '2px 8px', borderRadius: 999, fontWeight: 600, whiteSpace: 'nowrap',
+                        background: pastBadge.c + '20', color: pastBadge.c, border: `1px solid ${pastBadge.c}40`,
+                      }}>{pastBadge.l}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Valeur de l'opportunité (sync GHL bidirectionnel) */}
           <div>

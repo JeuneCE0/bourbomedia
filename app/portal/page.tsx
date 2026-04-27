@@ -193,8 +193,11 @@ function computeNextAction(
         : 'Votre vidéo est publiée — merci pour votre confiance !',
     };
   }
-  // Video delivered but not yet validated → ask the client to review
-  if (hasDelivery && !client?.video_validated_at) {
+  // Video delivered but not yet validated → ask the client to review.
+  // Skip if status is already past video_review (publication_pending / published)
+  // — happens when admin moves the client manually without validating per se.
+  const pastVideoStage = client?.status === 'publication_pending' || client?.status === 'published';
+  if (hasDelivery && !client?.video_validated_at && !pastVideoStage) {
     if (client?.video_changes_requested) {
       const eta = addBusinessDays(stageEnteredAt, 3);
       return {
@@ -850,8 +853,8 @@ function PortalContent() {
         // When the user is reading/annotating the script, give the page much
         // more horizontal room so the script breathes. For other tabs we keep
         // a comfortable reading width.
-        maxWidth: tab === 'script' ? 1180 : 820,
-        width: '100%', margin: '0 auto', padding: 'clamp(16px, 4vw, 32px)',
+        maxWidth: tab === 'script' ? 1180 : 760,
+        width: '100%', margin: '0 auto', padding: 'clamp(14px, 3vw, 24px)',
         transition: 'max-width .2s ease',
       }}>
         {/* Welcome + next action card */}
@@ -867,7 +870,7 @@ function PortalContent() {
           const dlPill = dl ? PILL_STYLES[dl.tone] : null;
           return (
             <div style={{
-              marginBottom: 22, padding: '20px 22px', borderRadius: 14,
+              marginBottom: 14, padding: '16px 18px', borderRadius: 12,
               background: 'var(--night-card)', border: '1px solid var(--border)',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
@@ -933,7 +936,7 @@ function PortalContent() {
 
         {/* Project timeline — single source of truth for progression */}
         <div style={{
-          marginBottom: 22, padding: '20px 22px', borderRadius: 14,
+          marginBottom: 14, padding: '16px 18px', borderRadius: 12,
           background: 'var(--night-card)', border: '1px solid var(--border)',
         }}>
           <h3 style={{
@@ -1873,7 +1876,7 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
 
   return (
     <div style={{
-      marginBottom: 22, padding: '20px 22px', borderRadius: 14,
+      marginBottom: 14, padding: '16px 18px', borderRadius: 12,
       background: 'var(--night-card)', border: '1px solid var(--border-orange)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -2226,7 +2229,7 @@ function FilmingPrepBanner({ filmingDate }: { filmingDate?: string }) {
 
   return (
     <div style={{
-      marginBottom: 22, padding: '20px 22px', borderRadius: 14,
+      marginBottom: 14, padding: '16px 18px', borderRadius: 12,
       background: 'linear-gradient(135deg, rgba(232,105,43,.10), rgba(250,204,21,.06))',
       border: '1px solid rgba(232,105,43,.40)',
     }}>
@@ -2276,7 +2279,7 @@ function PublishedCelebration({ publicationDate, videoUrl }: { publicationDate?:
 
   return (
     <div style={{
-      marginBottom: 22, padding: '24px', borderRadius: 14,
+      marginBottom: 14, padding: '20px', borderRadius: 12,
       background: 'linear-gradient(135deg, rgba(34,197,94,.10), rgba(168,85,247,.06))',
       border: '1px solid rgba(34,197,94,.40)',
     }}>

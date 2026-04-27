@@ -41,23 +41,36 @@ function PipelinePageInner() {
       ]);
       const oData = oR.ok ? await oR.json() : { opportunities: [] };
       const cData = cR.ok ? await cR.json() : [];
-      const opps = oData.opportunities || [];
-      const clients = Array.isArray(cData) ? cData : [];
+      type Opp = { client_id: string | null; prospect_status: string | null; monetary_value_cents: number | null; pipeline_stage_name: string | null };
+      type Cl = { status: string };
+      const opps: Opp[] = oData.opportunities || [];
+      const clients: Cl[] = Array.isArray(cData) ? cData : [];
 
-      const leads_active = opps.filter((o: { client_id: string | null }) => !o.client_id).length;
-      const clients_active = clients.filter((c: { status: string }) => c.status !== 'published').length;
-      const won = opps.filter((o: { prospect_status: string | null }) =>
-        o.prospect_status === 'contracted' || o.prospect_status === 'regular'
-      ).length;
-      const conversion_rate = leads_active + won > 0
-        ? Math.round((won / (leads_active + won)) * 100)
+      // Définitions claires :
+      //  - Prospects actifs = opps dans les stages commerciaux (Leads, Appel réservé,
+      //    Réflexion, Follow-up, Attente signature) — pas encore signés
+      //  - Gagnés = opps avec prospect_status contracted ou regular
+      //  - Clients en production = clients dont la vidéo n'est pas encore publiée
+      //  - CA à signer = somme monetary_value des opps "à signer" (réflexion + follow-up
+      //    + attente signature). Fallback 500€ HT si valeur null.
+      const isActiveLead = (o: Opp) => {
+        const s = (o.prospect_status || '').toLowerCase();
+        const stageName = (o.pipeline_stage_name || '').toLowerCase();
+        // Pre-call stages (Leads, Appel réservé) ont pas de prospect_status mappé
+        const preCall = !s && (stageName.includes('lead') || stageName.includes('appel'));
+        return preCall || ['reflection', 'follow_up', 'awaiting_signature'].includes(s);
+      };
+      const isWon = (o: Opp) => o.prospect_status === 'contracted' || o.prospect_status === 'regular';
+
+      const leads_active = opps.filter(isActiveLead).length;
+      const won_total = opps.filter(isWon).length;
+      const clients_active = clients.filter(c => c.status !== 'published').length;
+      const conversion_rate = leads_active + won_total > 0
+        ? Math.round((won_total / (leads_active + won_total)) * 100)
         : null;
       const ca_to_sign_cents = opps
-        .filter((o: { client_id: string | null; prospect_status: string | null }) =>
-          !o.client_id && o.prospect_status && ['reflection', 'follow_up', 'awaiting_signature'].includes(o.prospect_status)
-        )
-        .reduce((s: number, o: { monetary_value_cents: number | null }) =>
-          s + (o.monetary_value_cents || 50000), 0);
+        .filter(o => o.prospect_status && ['reflection', 'follow_up', 'awaiting_signature'].includes(o.prospect_status))
+        .reduce((s, o) => s + (o.monetary_value_cents || 50000), 0);
 
       setKpi({ leads_active, clients_active, conversion_rate, ca_to_sign_cents });
     } catch { /* tolerate */ }
@@ -109,11 +122,11 @@ function PipelinePageInner() {
           )}
         </div>
 
-        {/* Tabs */}
-        <div style={{
+        {/* Tabs — scrollable on mobile */}
+        <div className="bm-tabs-row" style={{
           display: 'flex', gap: 4, padding: 4, borderRadius: 10,
           background: 'var(--night-card)', border: '1px solid var(--border)',
-          width: 'fit-content', maxWidth: '100%', overflowX: 'auto',
+          width: 'fit-content', maxWidth: '100%',
         }}>
           {TABS.map(t => {
             const active = t.key === tab;
