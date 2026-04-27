@@ -14,7 +14,6 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon:
       { href: '/dashboard/production',  label: 'Production',      icon: '📊' },
       { href: '/dashboard/tasks',       label: 'Tâches',          icon: '✅' },
       { href: '/dashboard/scripts',     label: 'Scripts',         icon: '📝' },
-      { href: '/dashboard/shoots',      label: 'Tournage',        icon: '🎬' },
       { href: '/dashboard/clients',     label: 'Clients',         icon: '👥' },
       { href: '/dashboard/calendar',    label: 'Calendriers',     icon: '📅' },
       { href: '/dashboard/finance',     label: 'Finances',        icon: '💰' },

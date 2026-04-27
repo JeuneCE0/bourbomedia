@@ -61,7 +61,7 @@ function formatFilmingDate(d: string): string {
 export default function ScriptsPage() {
   const [scripts, setScripts] = useState<ScriptItem[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [tab, setTab] = useState<'scripts' | 'shoots'>('scripts');
+  // Removed legacy 'shoots' tab — that data lives in the production kanban now.
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -158,26 +158,6 @@ export default function ScriptsPage() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
-        {(['scripts', 'shoots'] as const).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              padding: '10px 18px',
-              background: 'none', border: 'none',
-              color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
-              fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer',
-              borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
-              marginBottom: -1,
-            }}
-          >
-            {t === 'scripts' ? `Scripts · ${scripts.length}` : `Tournages · ${upcomingShoots.length}`}
-          </button>
-        ))}
-      </div>
-
       {error && (
         <div style={{
           padding: '14px 18px', borderRadius: 10,
@@ -190,7 +170,7 @@ export default function ScriptsPage() {
         <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '40px 0', textAlign: 'center' }}>
           Chargement…
         </div>
-      ) : tab === 'scripts' ? (
+      ) : (
         <>
           {/* Filter chips */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
@@ -292,101 +272,6 @@ export default function ScriptsPage() {
                   </Link>
                 );
               })}
-            </div>
-          )}
-        </>
-      ) : (
-        // Shoots tab
-        <>
-          <div style={{ marginBottom: 24 }}>
-            <h2 style={{
-              fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)',
-              margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <span style={{ color: '#3B82F6' }}>▶</span>
-              À venir · {upcomingShoots.length}
-            </h2>
-            {upcomingShoots.length === 0 ? (
-              <div style={{
-                padding: '40px 20px', textAlign: 'center',
-                background: 'var(--night-card)', borderRadius: 12,
-                border: '1px solid var(--border)',
-                color: 'var(--text-muted)', fontSize: '0.85rem',
-              }}>
-                Aucun tournage planifié
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {upcomingShoots.map(c => (
-                  <Link key={c.id} href={`/dashboard/clients/${c.id}?tab=filming`} style={{
-                    display: 'flex', alignItems: 'center', gap: 16,
-                    padding: '14px 18px',
-                    background: 'var(--night-card)',
-                    borderRadius: 10,
-                    border: '1px solid var(--border)',
-                    textDecoration: 'none',
-                  }}>
-                    <div style={{
-                      minWidth: 56, textAlign: 'center',
-                      padding: '8px 4px',
-                      background: 'var(--night-mid)', borderRadius: 8,
-                    }}>
-                      <div style={{ fontSize: '0.65rem', color: '#3B82F6', fontWeight: 700, textTransform: 'uppercase' }}>
-                        {new Date(c.filming_date!).toLocaleDateString('fr-FR', { month: 'short' })}
-                      </div>
-                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1, marginTop: 2 }}>
-                        {new Date(c.filming_date!).getDate()}
-                      </div>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)' }}>
-                        {c.business_name}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                        {c.contact_name}{c.city ? ` · ${c.city}` : ''} · {formatFilmingDate(c.filming_date!)}
-                      </div>
-                    </div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>›</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {pastShoots.length > 0 && (
-            <div>
-              <h2 style={{
-                fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-mid)',
-                margin: '0 0 12px',
-              }}>
-                Récents · {pastShoots.length}
-              </h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {pastShoots.map(c => (
-                  <Link key={c.id} href={`/dashboard/clients/${c.id}?tab=filming`} style={{
-                    display: 'flex', alignItems: 'center', gap: 14,
-                    padding: '10px 14px',
-                    background: 'var(--night-card)',
-                    borderRadius: 8,
-                    border: '1px solid var(--border)',
-                    textDecoration: 'none',
-                    opacity: 0.85,
-                  }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', minWidth: 70 }}>
-                      {new Date(c.filming_date!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                    </span>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {c.business_name}
-                    </span>
-                    <span style={{
-                      fontSize: '0.66rem', padding: '3px 8px', borderRadius: 12,
-                      background: 'var(--night-mid)', color: 'var(--text-muted)', fontWeight: 600,
-                    }}>
-                      {c.status === 'published' ? 'Livré' : c.status === 'editing' ? 'Montage' : c.status}
-                    </span>
-                  </Link>
-                ))}
-              </div>
             </div>
           )}
         </>
