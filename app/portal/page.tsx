@@ -167,12 +167,29 @@ function computeNextAction(
   scriptStatus: string | null,
   hasDelivery: boolean,
   hasFeedback: boolean,
-  client?: { status?: string; video_validated_at?: string | null; publication_date_confirmed?: boolean; video_changes_requested?: boolean; updated_at?: string; created_at?: string; filming_date?: string } | null,
+  client?: { status?: string; video_validated_at?: string | null; publication_date_confirmed?: boolean; video_changes_requested?: boolean; updated_at?: string; created_at?: string; filming_date?: string; publication_deadline?: string } | null,
 ): NextAction {
   // Helper : pick the most recent timestamp we can rely on as "stage entered"
   const stageEnteredAt = client?.updated_at ? new Date(client.updated_at)
     : client?.created_at ? new Date(client.created_at)
     : new Date();
+
+  // Highest-priority: if the project is already published, nothing else
+  // matters — show the celebration state. (Without this guard, an old
+  // 'Réservez votre tournage' message can leak in when hasDelivery is false
+  // on a published client.)
+  if (client?.status === 'published') {
+    const pubDate = client.publication_deadline ? new Date(client.publication_deadline) : null;
+    const isFuture = pubDate ? pubDate.getTime() > Date.now() : false;
+    return {
+      pill: { tone: 'green', emoji: '🎉', label: isFuture ? 'Bientôt en ligne' : 'Vidéo publiée' },
+      description: pubDate
+        ? (isFuture
+            ? `Votre vidéo va bientôt être publiée — ${fmtDate(pubDate)}.`
+            : `Votre vidéo est en ligne depuis le ${fmtDate(pubDate)}. Merci pour votre confiance !`)
+        : 'Votre vidéo est publiée — merci pour votre confiance !',
+    };
+  }
   // Video delivered but not yet validated → ask the client to review
   if (hasDelivery && !client?.video_validated_at) {
     if (client?.video_changes_requested) {
@@ -883,10 +900,13 @@ function PortalContent() {
 
         {/* Published celebration — visible once status='published' */}
         {clientInfo?.status === 'published' && (
-          <PublishedCelebration
-            businessName={clientInfo?.business_name || 'votre vidéo'}
-            videoUrl={deliveredVideos[0]?.video_url || clientInfo?.video_url}
-          />
+          <>
+            <PublishedCelebration
+              publicationDate={clientInfo?.publication_deadline}
+              videoUrl={deliveredVideos[0]?.video_url || clientInfo?.video_url}
+            />
+            <UpsellSection />
+          </>
         )}
 
         {/* Project timeline — single source of truth for progression */}
@@ -2172,21 +2192,12 @@ function FilmingPrepBanner({ filmingDate }: { filmingDate?: string }) {
 
 /* ── Published celebration ─────────────────────────────────────────────── */
 
-function PublishedCelebration({ businessName, videoUrl }: { businessName: string; videoUrl?: string }) {
-  const [copied, setCopied] = useState<string | null>(null);
-
-  function copy(text: string, key: string) {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(key);
-      setTimeout(() => setCopied(null), 2000);
-    });
-  }
-
-  const captions = {
-    instagram: `🎬 Notre nouvelle vidéo est en ligne !\n\nUn grand merci à @bourbonmedia pour ce résultat 🙌\n\n#bourbonmedia #lareunion974 #videopro`,
-    tiktok: `Découvrez notre nouvelle vidéo 🎥\n\n#fyp #pourtoi #lareunion #974`,
-    linkedin: `Nous sommes fiers de partager notre dernière vidéo, réalisée par les équipes de Bourbon Média.\n\nUne approche professionnelle et un rendu qui parle vraiment à notre audience.\n\n#video #marketing #lareunion`,
-  };
+function PublishedCelebration({ publicationDate, videoUrl }: { publicationDate?: string; videoUrl?: string }) {
+  const pubDate = publicationDate ? new Date(publicationDate) : null;
+  const isFuture = pubDate ? pubDate.getTime() > Date.now() : false;
+  const formattedDate = pubDate
+    ? pubDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
 
   return (
     <div style={{
@@ -2200,72 +2211,280 @@ function PublishedCelebration({ businessName, videoUrl }: { businessName: string
           fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
           fontSize: '1.25rem', color: 'var(--green)', margin: '0 0 4px',
         }}>
-          Bravo, {businessName} est en ligne !
+          {isFuture ? 'Bravo, votre vidéo va bientôt être publiée !' : 'Bravo, votre vidéo est en ligne !'}
         </h2>
-        <p style={{ fontSize: '0.86rem', color: 'var(--text-mid)', margin: 0 }}>
-          Maintenant maximisez sa portée — voici tout ce qu&apos;il faut faire.
+        {formattedDate && (
+          <p style={{ fontSize: '0.92rem', color: 'var(--text)', margin: '0 0 4px', fontWeight: 600 }}>
+            📅 {isFuture ? 'Publication prévue' : 'Publiée'} le {formattedDate}
+          </p>
+        )}
+        <p style={{ fontSize: '0.86rem', color: 'var(--text-mid)', margin: '6px 0 0' }}>
+          On s&apos;occupe de la diffusion sur nos réseaux — vous n&apos;avez rien à faire.
         </p>
       </div>
 
-      {/* Quick actions */}
-      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 18 }}>
-        {videoUrl && (
+      {/* Téléchargement seul ici — l'upsell vit dans sa propre section */}
+      {videoUrl && (
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
           <a href={videoUrl} target="_blank" rel="noreferrer" style={{
-            padding: '12px 14px', borderRadius: 10, textDecoration: 'none',
+            padding: '12px 22px', borderRadius: 10, textDecoration: 'none',
             background: 'var(--night-card)', border: '1px solid var(--border-md)',
-            color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.86rem', fontWeight: 600,
+            color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: '0.88rem', fontWeight: 600,
           }}>
             <span aria-hidden style={{ fontSize: '1.1rem' }}>📥</span>
-            <span>Télécharger / Partager</span>
+            <span>Télécharger la vidéo</span>
           </a>
-        )}
-        <a href="mailto:contact@bourbonmedia.fr?subject=Je veux refaire une vidéo" style={{
-          padding: '12px 14px', borderRadius: 10, textDecoration: 'none',
-          background: 'var(--night-card)', border: '1px solid var(--orange)',
-          color: 'var(--orange)', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.86rem', fontWeight: 700,
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Upsell section — drives the next sale ─────────────────────────────── */
+
+interface UpsellOffer {
+  emoji: string;
+  badge?: string;
+  title: string;
+  price: string;
+  description: string;
+  bullets: string[];
+  cta: string;
+  mailtoSubject: string;
+  highlight?: boolean;
+}
+
+const UPSELL_OFFERS: UpsellOffer[] = [
+  {
+    emoji: '🎬',
+    title: 'Vidéo unique',
+    price: '500 € HT',
+    description: 'Une nouvelle vidéo sur mesure, du brief à la diffusion.',
+    bullets: [
+      'Script écrit par notre équipe',
+      'Tournage 3h sur place',
+      'Montage pro + livraison ~5 j',
+      'Diffusion sur nos réseaux',
+    ],
+    cta: 'Commander une vidéo',
+    mailtoSubject: 'Je veux commander une vidéo unique',
+  },
+  {
+    emoji: '🚀',
+    badge: 'Le plus choisi',
+    title: 'Pack 3 vidéos',
+    price: '1 350 € HT',
+    description: 'Un pack pensé pour installer votre marque dans la durée.',
+    bullets: [
+      'Économisez 150 € (10 %)',
+      'Calendrier éditorial inclus',
+      'Cohérence visuelle garantie',
+      'Diffusion mensuelle sur 3 mois',
+    ],
+    cta: 'Choisir le pack',
+    mailtoSubject: 'Je veux le pack 3 vidéos',
+    highlight: true,
+  },
+  {
+    emoji: '💬',
+    title: 'On en parle ?',
+    price: 'Sur mesure',
+    description: 'Plusieurs vidéos par mois, série, ou autre format ? Discutons.',
+    bullets: [
+      'Audit gratuit de vos besoins',
+      'Devis personnalisé sous 48 h',
+      'Tarifs dégressifs au volume',
+    ],
+    cta: 'Réserver un appel',
+    mailtoSubject: 'Je veux discuter d\'un projet sur mesure',
+  },
+];
+
+function UpsellSection() {
+  return (
+    <div style={{
+      position: 'relative', overflow: 'hidden',
+      marginBottom: 22, padding: 'clamp(28px, 4vw, 40px) clamp(20px, 3vw, 32px)', borderRadius: 18,
+      background: 'radial-gradient(ellipse at top, rgba(232,105,43,.18), transparent 70%), linear-gradient(180deg, var(--night-card) 0%, var(--night-mid) 100%)',
+      border: '1px solid rgba(232,105,43,.30)',
+      boxShadow: '0 8px 40px rgba(0,0,0,.35)',
+    }}>
+      {/* Decorative gradient blob */}
+      <div aria-hidden style={{
+        position: 'absolute', top: -80, right: -80, width: 280, height: 280, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(232,105,43,.20), transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Header with eyebrow + big title */}
+      <div style={{ position: 'relative', textAlign: 'center', marginBottom: 28, maxWidth: 640, marginInline: 'auto' }}>
+        <div style={{
+          display: 'inline-block', padding: '5px 14px', borderRadius: 999,
+          background: 'rgba(232,105,43,.18)', border: '1px solid rgba(232,105,43,.45)',
+          color: '#FFB58A', fontSize: '0.72rem', fontWeight: 700,
+          textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14,
         }}>
-          <span aria-hidden style={{ fontSize: '1.1rem' }}>🚀</span>
-          <span>Commander une autre vidéo</span>
-        </a>
+          ⚡ Offre client — pour vous
+        </div>
+        <h2 style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+          fontSize: 'clamp(1.6rem, 4vw, 2.1rem)', color: 'var(--text)',
+          margin: '0 0 10px', lineHeight: 1.15, letterSpacing: '-0.02em',
+        }}>
+          On continue l&apos;aventure&nbsp;? <span style={{ color: 'var(--orange)' }}>🚀</span>
+        </h2>
+        <p style={{
+          fontSize: 'clamp(0.92rem, 1.6vw, 1.05rem)', color: 'var(--text-mid)',
+          margin: 0, lineHeight: 1.55,
+        }}>
+          Une vidéo isolée, c&apos;est sympa.
+          <strong style={{ color: 'var(--text)' }}> Trois vidéos, c&apos;est ce qui transforme une marque en référence locale.</strong>
+        </p>
       </div>
 
-      {/* Captions à copier */}
-      <div>
-        <h3 style={{
-          fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)',
-          margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em',
-        }}>
-          📝 Captions prêtes à copier
-        </h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(['instagram', 'tiktok', 'linkedin'] as const).map(network => {
-            const label = network === 'instagram' ? '📸 Instagram' : network === 'tiktok' ? '🎵 TikTok' : '💼 LinkedIn';
-            const isCopied = copied === network;
-            return (
-              <div key={network} style={{
-                background: 'var(--night-card)', border: '1px solid var(--border)',
-                borderRadius: 10, padding: '10px 12px',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)' }}>{label}</span>
-                  <button onClick={() => copy(captions[network], network)} style={{
-                    padding: '4px 10px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 600,
-                    background: isCopied ? 'var(--green)' : 'var(--night-mid)',
-                    color: isCopied ? '#fff' : 'var(--text-mid)',
-                    border: '1px solid var(--border-md)', cursor: 'pointer',
-                  }}>
-                    {isCopied ? '✓ Copié' : '📋 Copier'}
-                  </button>
-                </div>
-                <pre style={{
-                  margin: 0, fontFamily: 'inherit', fontSize: '0.78rem',
-                  color: 'var(--text-mid)', whiteSpace: 'pre-wrap', lineHeight: 1.5,
-                }}>{captions[network]}</pre>
-              </div>
-            );
-          })}
+      {/* Trust strip */}
+      <div style={{
+        display: 'flex', justifyContent: 'center', gap: 'clamp(16px, 4vw, 32px)',
+        flexWrap: 'wrap', marginBottom: 24, paddingBottom: 22,
+        borderBottom: '1px solid rgba(255,255,255,.06)',
+      }}>
+        <TrustStat number="80+" label="Commerces accompagnés à La Réunion" />
+        <TrustStat number="500K+" label="Vues cumulées générées" />
+        <TrustStat number="10 j" label="Délai moyen de production" />
+      </div>
+
+      {/* Offers */}
+      <div style={{
+        display: 'grid', gap: 14,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+        marginBottom: 24,
+      }}>
+        {UPSELL_OFFERS.map((offer, i) => (
+          <UpsellCard key={i} offer={offer} />
+        ))}
+      </div>
+
+      {/* Bottom clincher CTA */}
+      <div style={{
+        textAlign: 'center', padding: '18px 16px', borderRadius: 12,
+        background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.25)',
+      }}>
+        <div style={{ fontSize: '0.92rem', color: 'var(--text)', marginBottom: 8, fontWeight: 600 }}>
+          🎁 <strong>−10 % sur toute commande passée dans les 7 jours</strong> suivant la diffusion de votre vidéo
+        </div>
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-mid)' }}>
+          Mentionnez ce code en réservant : <code style={{
+            background: 'var(--night-card)', padding: '2px 8px', borderRadius: 4,
+            color: 'var(--green)', fontWeight: 700, fontSize: '0.85rem',
+          }}>FIDELE10</code>
         </div>
       </div>
+    </div>
+  );
+}
+
+function TrustStat({ number, label }: { number: string; label: string }) {
+  return (
+    <div style={{ textAlign: 'center', minWidth: 90 }}>
+      <div style={{
+        fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+        fontSize: '1.5rem', color: 'var(--orange)', lineHeight: 1,
+      }}>
+        {number}
+      </div>
+      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.3 }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function UpsellCard({ offer }: { offer: UpsellOffer }) {
+  const isHighlight = offer.highlight;
+  return (
+    <div style={{
+      position: 'relative',
+      padding: '22px 20px', borderRadius: 14,
+      background: isHighlight
+        ? 'linear-gradient(160deg, rgba(232,105,43,.20) 0%, rgba(232,105,43,.06) 100%)'
+        : 'var(--night-card)',
+      border: `${isHighlight ? '2px' : '1px'} solid ${isHighlight ? 'rgba(232,105,43,.65)' : 'var(--border-md)'}`,
+      boxShadow: isHighlight
+        ? '0 8px 32px rgba(232,105,43,.18), inset 0 1px 0 rgba(255,255,255,.05)'
+        : '0 2px 10px rgba(0,0,0,.15)',
+      display: 'flex', flexDirection: 'column', gap: 14,
+      transform: isHighlight ? 'scale(1.02)' : 'none',
+      transition: 'transform .2s ease',
+    }}>
+      {offer.badge && (
+        <div style={{
+          position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)',
+          padding: '4px 14px', borderRadius: 999,
+          background: 'linear-gradient(90deg, var(--orange), #C45520)',
+          color: '#fff', boxShadow: '0 4px 12px rgba(232,105,43,.40)',
+          fontSize: '0.66rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em',
+          whiteSpace: 'nowrap',
+        }}>
+          ⭐ {offer.badge}
+        </div>
+      )}
+
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '2.2rem', marginBottom: 8, lineHeight: 1 }}>{offer.emoji}</div>
+        <h3 style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+          fontSize: '1.1rem', color: 'var(--text)', margin: '0 0 8px',
+        }}>
+          {offer.title}
+        </h3>
+        <div style={{
+          fontSize: '1.7rem', fontWeight: 900,
+          color: isHighlight ? 'var(--orange)' : 'var(--text)',
+          fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1.05,
+          letterSpacing: '-0.02em',
+        }}>
+          {offer.price}
+        </div>
+      </div>
+
+      <p style={{
+        fontSize: '0.85rem', color: 'var(--text-mid)', margin: 0,
+        lineHeight: 1.5, textAlign: 'center',
+        paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,.06)',
+      }}>
+        {offer.description}
+      </p>
+
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+        {offer.bullets.map((bullet, i) => (
+          <li key={i} style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+            fontSize: '0.84rem', color: 'var(--text)',
+          }}>
+            <span aria-hidden style={{
+              flexShrink: 0, width: 18, height: 18, borderRadius: '50%',
+              background: 'rgba(34,197,94,.18)', color: 'var(--green)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '0.72rem', fontWeight: 800, marginTop: 1,
+            }}>✓</span>
+            <span style={{ lineHeight: 1.45 }}>{bullet}</span>
+          </li>
+        ))}
+      </ul>
+
+      <a href={`mailto:contact@bourbonmedia.fr?subject=${encodeURIComponent(offer.mailtoSubject)}`} style={{
+        display: 'block', padding: '13px 18px', borderRadius: 10, textAlign: 'center',
+        background: isHighlight
+          ? 'linear-gradient(90deg, var(--orange), #C45520)'
+          : 'var(--night-mid)',
+        color: isHighlight ? '#fff' : 'var(--orange)',
+        border: isHighlight ? 'none' : '1.5px solid var(--orange)',
+        boxShadow: isHighlight ? '0 6px 18px rgba(232,105,43,.35)' : 'none',
+        textDecoration: 'none', fontSize: '0.92rem', fontWeight: 700,
+        marginTop: 4, letterSpacing: '0.01em',
+      }}>
+        {offer.cta} →
+      </a>
     </div>
   );
 }
