@@ -890,7 +890,7 @@ function PortalContent() {
         </div>
       </header>
 
-      <main style={{
+      <main className="bm-portal-main" style={{
         flex: 1,
         // When the user is reading/annotating the script, give the page much
         // more horizontal room so the script breathes. For other tabs we keep
@@ -1204,31 +1204,82 @@ function PortalContent() {
             ...(isInReview ? ['script' as const, 'comments' as const] : []),
             ...(hasDelivery ? ['feedback' as const] : []),
           ];
-          // No tabs at all → render nothing (status card already explains the state)
           if (tabsList.length === 0) return null;
-          // If current tab is no longer available, fall back to the first one silently.
           if (!tabsList.includes(tab)) {
             setTimeout(() => setTab(tabsList[0]), 0);
           }
+          const tabLabel = (t: string) => t === 'video' ? '🎬' : t === 'script' ? '📄' : t === 'comments' ? '💬' : '⭐';
+          const tabName = (t: string) => t === 'video' ? `Vos vidéos${deliveredVideos.length > 1 ? ` (${deliveredVideos.length})` : ''}`
+            : t === 'script' ? 'Script'
+            : t === 'comments' ? `Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`
+            : `Feedback${satisfaction ? ' ✓' : ''}`;
           return (
-            <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-              {tabsList.map(t => (
-                <button key={t} onClick={() => setTab(t)} style={{
-                  padding: '10px 18px', border: 'none', cursor: 'pointer',
-                  fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
-                  background: 'transparent',
-                  color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
-                  borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
-                  transition: 'all .15s',
-                  whiteSpace: 'nowrap',
+            <>
+              {/* Top tabs (desktop visible, hidden on mobile via class) */}
+              <div className="bm-portal-top-tabs" style={{
+                display: 'flex', gap: 0, marginBottom: 20,
+                borderBottom: '1px solid var(--border)', overflowX: 'auto',
+              }}>
+                {tabsList.map(t => (
+                  <button key={t} onClick={() => setTab(t)} style={{
+                    padding: '10px 18px', border: 'none', cursor: 'pointer',
+                    fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
+                    background: 'transparent',
+                    color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
+                    borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
+                    transition: 'all .15s', whiteSpace: 'nowrap', minHeight: 44,
+                  }}>
+                    <span aria-hidden style={{ marginRight: 6, fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}>{tabLabel(t)}</span>
+                    {tabName(t)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Mobile bottom tab bar (sticky, fixed) */}
+              <nav className="bm-portal-bottom-tabs" aria-label="Navigation portail" style={{
+                position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 50,
+                display: 'none', // affiché via media query CSS plus bas
+                background: 'var(--night-card)',
+                borderTop: '1px solid var(--border-md)',
+                paddingBottom: 'max(8px, env(safe-area-inset-bottom, 8px))',
+              }}>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-around', alignItems: 'stretch',
+                  padding: '8px 4px',
                 }}>
-                  {t === 'video' ? `🎬 Vos vidéos${deliveredVideos.length > 1 ? ` (${deliveredVideos.length})` : ''}`
-                    : t === 'script' ? '📄 Script'
-                    : t === 'comments' ? `💬 Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`
-                    : `⭐ Feedback${satisfaction ? ' ✓' : ''}`}
-                </button>
-              ))}
-            </div>
+                  {tabsList.map(t => {
+                    const active = tab === t;
+                    return (
+                      <button key={t} onClick={() => setTab(t)} style={{
+                        flex: 1, padding: '8px 4px', border: 'none',
+                        background: 'transparent', cursor: 'pointer',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                        color: active ? 'var(--orange)' : 'var(--text-muted)',
+                        fontSize: '0.66rem', fontWeight: active ? 700 : 500,
+                        minHeight: 50,
+                        borderRadius: 8,
+                        transition: 'background .15s',
+                      }}>
+                        <span aria-hidden style={{ fontSize: '1.4rem', lineHeight: 1, fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}>{tabLabel(t)}</span>
+                        <span style={{ fontSize: '0.64rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 78 }}>
+                          {t === 'video' ? 'Vidéo' : t === 'script' ? 'Script' : t === 'comments' ? 'Comm.' : 'Avis'}
+                        </span>
+                        {active && <div style={{ width: 18, height: 2, borderRadius: 1, background: 'var(--orange)' }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </nav>
+
+              {/* CSS responsive : top tabs cachés < 768px, bottom tabs visibles */}
+              <style>{`
+                @media (max-width: 767px) {
+                  .bm-portal-top-tabs { display: none !important; }
+                  .bm-portal-bottom-tabs { display: block !important; }
+                  .bm-portal-main { padding-bottom: max(72px, env(safe-area-inset-bottom, 0px) + 70px) !important; }
+                }
+              `}</style>
+            </>
           );
         })()}
         {/* Video delivery view (multi-video) */}
