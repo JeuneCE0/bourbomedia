@@ -20,7 +20,19 @@ export interface ResolvedClient {
   created: boolean;
 }
 
-export async function findOrCreateClientByEmail(rawEmail: string | null | undefined): Promise<ResolvedClient | null> {
+export interface BillingFallback {
+  /** Nom complet du contact tel que connu de la source de paiement (Stripe billing_details, etc.) */
+  contact_name?: string | null;
+  /** Téléphone du contact */
+  phone?: string | null;
+  /** Nom de société si dispo */
+  company_name?: string | null;
+}
+
+export async function findOrCreateClientByEmail(
+  rawEmail: string | null | undefined,
+  fallback?: BillingFallback,
+): Promise<ResolvedClient | null> {
   if (!rawEmail) return null;
   const email = rawEmail.toLowerCase().trim();
   if (!email) return null;
@@ -40,10 +52,15 @@ export async function findOrCreateClientByEmail(rawEmail: string | null | undefi
     `gh_opportunities?contact_email=ilike.${encodeURIComponent(email)}&select=id,client_id,ghl_contact_id,name,contact_name,contact_phone,contact_email&limit=1`,
     {}, true,
   );
-  if (!oppR.ok) return null;
-  const opps = await oppR.json();
+  const opps = oppR.ok ? await oppR.json() : [];
   const opp = opps[0];
-  if (!opp) return null;
+
+  // Si pas de GHL opportunity mais qu'on a un fallback billing (ex: Stripe direct
+  // sans pipeline GHL), on crée le client depuis ces données.
+  if (!opp) {
+    if (!fallback || (!fallback.contact_name && !fallback.company_name)) return null;
+    return createClientFromBilling(email, fallback);
+  }
 
   // 2bis. Si l'opportunité est DÉJÀ liée à un client local (cas où l'email
   // GHL diffère légèrement de l'email local — ex: alias, ancien email, etc.)
@@ -145,6 +162,53 @@ export async function findOrCreateClientByEmail(rawEmail: string | null | undefi
     method: 'PATCH',
     body: JSON.stringify({ client_id: newClient.id }),
   }, true).catch(() => null);
+
+  return {
+    clientId: newClient.id,
+    businessName: newClient.business_name,
+    email: newClient.email,
+    created: true,
+  };
+}
+
+// Crée un client local depuis des données Stripe billing (cas où le paiement
+// a été fait sans passer par le pipeline GHL — ex: Payment Link envoyé hors
+// process). On stocke le minimum pour ne pas perdre la transaction.
+async function createClientFromBilling(email: string, fallback: BillingFallback): Promise<ResolvedClient | null> {
+  // Last-chance race-check au cas où un autre process a créé entre temps
+  const raceR = await supaFetch(
+    `clients?email=ilike.${encodeURIComponent(email)}&select=id,business_name,email&limit=1`,
+    {}, true,
+  );
+  if (raceR.ok) {
+    const arr = await raceR.json();
+    if (arr[0]) return { clientId: arr[0].id, businessName: arr[0].business_name || 'Client', email: arr[0].email || email, created: false };
+  }
+
+  // Best business_name : société > nom complet > email
+  const businessName = (fallback.company_name || '').trim()
+    || (fallback.contact_name || '').trim()
+    || email;
+
+  const portalToken = crypto.randomBytes(24).toString('hex');
+  const insertBody: Record<string, unknown> = {
+    business_name: businessName,
+    contact_name: fallback.contact_name || businessName,
+    email,
+    phone: fallback.phone || null,
+    status: 'onboarding',
+    portal_token: portalToken,
+    notes: 'Client créé automatiquement depuis un paiement Stripe (hors pipeline GHL).',
+  };
+  const createR = await supaFetch('clients?select=id,business_name,email', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(insertBody),
+  }, true);
+  if (!createR.ok) return null;
+  const arr = await createR.json();
+  const newClient = arr[0];
+  if (!newClient) return null;
 
   return {
     clientId: newClient.id,

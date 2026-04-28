@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import LinkGhlButton from '@/components/LinkGhlButton';
 
 interface Client {
   id: string;
@@ -636,6 +637,7 @@ function AuditButton() {
     source: 'stripe' | 'ghl' | 'manuel' | 'legacy_client';
     state: 'paid' | 'pending';
     id: string; client_id: string | null; client_name: string | null; client_email: string | null;
+    client_has_ghl: boolean;
     amount_eur: number; currency: string; status: string; description: string | null;
     invoice_number: string | null; payment_date: string;
   };
@@ -881,12 +883,13 @@ function AuditButton() {
               {data.rows.map(r => {
                 const stateColor = r.state === 'paid' ? 'var(--green)' : 'var(--yellow)';
                 const stateBg = r.state === 'paid' ? 'rgba(34,197,94,.12)' : 'rgba(250,204,21,.12)';
+                const needsGhlLink = r.client_id && !r.client_has_ghl;
                 return (
                   <div key={r.id} style={{
                     padding: '8px 10px', borderRadius: 6,
                     background: r.state === 'pending' ? 'rgba(250,204,21,.04)' : 'var(--night-mid)',
-                    border: `1px solid ${r.state === 'pending' ? 'rgba(250,204,21,.2)' : 'var(--border)'}`,
-                    display: 'grid', gridTemplateColumns: '60px 60px 1fr auto auto', gap: 10,
+                    border: `1px solid ${r.state === 'pending' ? 'rgba(250,204,21,.2)' : (needsGhlLink ? 'rgba(20,184,166,.3)' : 'var(--border)')}`,
+                    display: 'grid', gridTemplateColumns: '60px 60px 1fr auto auto auto', gap: 10,
                     alignItems: 'center', fontSize: '0.78rem',
                   }}>
                     <span style={{
@@ -904,7 +907,14 @@ function AuditButton() {
                       {r.source}
                     </span>
                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <div style={{ color: 'var(--text)', fontWeight: 600 }}>{r.client_name || '—'}</div>
+                      <div style={{ color: 'var(--text)', fontWeight: 600 }}>
+                        {r.client_name || '—'}
+                        {!r.client_has_ghl && r.client_id && (
+                          <span title="Pas de lien GHL" style={{ marginLeft: 6, fontSize: '0.66rem', color: '#14B8A6' }}>
+                            ⚠ pas de GHL
+                          </span>
+                        )}
+                      </div>
                       <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
                         {r.client_email || '—'}{r.invoice_number ? ` · ${r.invoice_number}` : ''}
                       </div>
@@ -915,6 +925,16 @@ function AuditButton() {
                     <span style={{ color: stateColor, fontWeight: 700 }}>
                       {r.amount_eur.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
                     </span>
+                    {needsGhlLink ? (
+                      <LinkGhlButton
+                        clientId={r.client_id!}
+                        size="sm"
+                        label="🔗 GHL"
+                        onLinked={loadAudit}
+                      />
+                    ) : (
+                      <span style={{ width: 60 }} />
+                    )}
                   </div>
                 );
               })}

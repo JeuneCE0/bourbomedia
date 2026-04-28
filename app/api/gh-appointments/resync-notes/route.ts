@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
 import { ghlRequest } from '@/lib/ghl';
+import { stripHtml } from '@/lib/html-strip';
 
 // POST /api/gh-appointments/resync-notes
 //   Pour chaque gh_appointment dont les notes sont le placeholder
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
       const notes: GhlNote[] = data?.notes || [];
       const start = new Date(a.starts_at).getTime();
       const candidates = notes
-        .map(n => ({ body: (n.body || '').trim(), ts: n.dateAdded || n.createdAt || '' }))
+        .map(n => ({ body: stripHtml(n.body || ''), ts: n.dateAdded || n.createdAt || '' }))
         .filter(n => n.body && !Number.isNaN(new Date(n.ts).getTime()) && new Date(n.ts).getTime() >= start)
         .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
 

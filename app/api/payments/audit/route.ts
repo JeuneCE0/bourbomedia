@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   // 1. Tous les rows de la table payments
   const pR = await supaFetch(
-    'payments?select=id,client_id,amount,currency,status,description,stripe_session_id,stripe_payment_intent,invoice_number,created_at,clients(business_name,email)'
+    'payments?select=id,client_id,amount,currency,status,description,stripe_session_id,stripe_payment_intent,invoice_number,created_at,clients(business_name,email,ghl_contact_id)'
     + '&order=created_at.desc&limit=1000',
     {}, true,
   );
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     id: string; client_id: string | null; amount: number; currency: string; status: string;
     description: string | null; stripe_session_id: string | null; stripe_payment_intent: string | null;
     invoice_number: string | null; created_at: string;
-    clients: { business_name: string | null; email: string | null } | null;
+    clients: { business_name: string | null; email: string | null; ghl_contact_id: string | null } | null;
   };
   const payments: PayRow[] = pR.ok ? await pR.json() : [];
 
@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
     client_id: string | null;
     client_name: string | null;
     client_email: string | null;
+    client_has_ghl: boolean;
     amount_eur: number;
     currency: string;
     status: string;
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
       client_id: p.client_id,
       client_name: p.clients?.business_name || null,
       client_email: p.clients?.email || null,
+      client_has_ghl: !!p.clients?.ghl_contact_id,
       amount_eur: p.amount / 100,
       currency: p.currency,
       status: p.status,
@@ -86,6 +88,7 @@ export async function GET(req: NextRequest) {
       client_id: c.id,
       client_name: c.business_name,
       client_email: c.email,
+      client_has_ghl: false, // legacy non joint, on suppose non lié
       amount_eur: c.payment_amount / 100,
       currency: 'eur',
       status: 'completed',

@@ -10,6 +10,7 @@ interface ContactSuggestion {
   email: string | null;
   phone: string | null;
   client_id: string | null; // pour deep-link sur la fiche
+  ghl_contact_id: string | null; // pour le linker manuel
 }
 
 // GET /api/contacts/lookup?q=texte
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
     const cR = await supaFetch(
       `clients?archived_at=is.null`
       + `&or=(business_name.ilike.${enc},contact_name.ilike.${enc},email.ilike.${enc})`
-      + `&select=id,business_name,contact_name,email,phone&limit=8&order=created_at.desc`,
+      + `&select=id,business_name,contact_name,email,phone,ghl_contact_id&limit=8&order=created_at.desc`,
       {}, true,
     );
     if (cR.ok) {
@@ -47,6 +48,7 @@ export async function GET(req: NextRequest) {
           email: c.email,
           phone: c.phone,
           client_id: c.id,
+          ghl_contact_id: c.ghl_contact_id || null,
         });
       }
     }
@@ -54,7 +56,7 @@ export async function GET(req: NextRequest) {
     // 2. Prospects GHL (déduplique par email avec les clients déjà trouvés)
     const oR = await supaFetch(
       `gh_opportunities?or=(name.ilike.${enc},contact_name.ilike.${enc},contact_email.ilike.${enc})`
-      + `&select=id,name,contact_name,contact_email,contact_phone,client_id&limit=8&order=ghl_updated_at.desc.nullslast`,
+      + `&select=id,name,contact_name,contact_email,contact_phone,client_id,ghl_contact_id&limit=8&order=ghl_updated_at.desc.nullslast`,
       {}, true,
     );
     if (oR.ok) {
@@ -71,6 +73,7 @@ export async function GET(req: NextRequest) {
           email: o.contact_email,
           phone: o.contact_phone,
           client_id: o.client_id,
+          ghl_contact_id: o.ghl_contact_id || null,
         });
       }
     }

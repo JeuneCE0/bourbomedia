@@ -55,12 +55,18 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Resolve : tente d'abord clients.email, puis gh_opportunities.contact_email
-      // (auto-création du client local depuis le contact GHL si trouvé)
-      const resolved = await findOrCreateClientByEmail(email);
+      // Resolve : (1) clients.email, (2) gh_opportunities.contact_email,
+      // (3) fallback billing Stripe (nom + tel) si pas de GHL → on crée
+      // quand même le client pour ne pas perdre le paiement.
+      const billingName = ch.billing_details?.name || null;
+      const billingPhone = ch.billing_details?.phone || null;
+      const resolved = await findOrCreateClientByEmail(email, {
+        contact_name: billingName,
+        phone: billingPhone,
+      });
       if (!resolved) {
         unmatched++;
-        if (issues.length < 10) issues.push(`Charge ${ch.id} : email ${email} introuvable (ni clients ni GHL)`);
+        if (issues.length < 10) issues.push(`Charge ${ch.id} : email ${email} introuvable (pas de nom dans Stripe billing pour fallback)`);
         continue;
       }
       if (resolved.created) createdClients++;

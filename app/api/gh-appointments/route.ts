@@ -3,6 +3,7 @@ import { supaFetch } from '@/lib/supabase';
 import { pushNotesToGhl } from '@/lib/ghl-appointments';
 import { resolveMapping, prospectStatusToStageId, updateOpportunityStage, updateGhlAppointment } from '@/lib/ghl-opportunities';
 import { ghlRequest } from '@/lib/ghl';
+import { stripHtml } from '@/lib/html-strip';
 
 // GET /api/gh-appointments?pending=1            → completed appointments awaiting notes
 // GET /api/gh-appointments?follow_up=1          → reflection (J+2) / follow_up (J+7) due today
@@ -65,9 +66,10 @@ export async function GET(req: NextRequest) {
         const data = await ghlRequest('GET', `/contacts/${encodeURIComponent(contactId)}/notes`);
         const notes: GhlNote[] = data?.notes || [];
         const start = new Date(startsAt).getTime();
-        // Filtre les notes après starts_at, prend la plus récente avec contenu
+        // Filtre les notes après starts_at, prend la plus récente avec contenu.
+        // stripHtml retire les tags <p>, <br/>, etc. que GHL ajoute (TipTap).
         const candidates = notes
-          .map(n => ({ body: (n.body || '').trim(), ts: n.dateAdded || n.createdAt || '' }))
+          .map(n => ({ body: stripHtml(n.body || ''), ts: n.dateAdded || n.createdAt || '' }))
           .filter(n => {
             if (!n.body) return false;
             const t = new Date(n.ts).getTime();

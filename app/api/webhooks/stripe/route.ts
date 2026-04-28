@@ -108,9 +108,13 @@ interface StripeEventLike {
   data: { object: unknown };
 }
 
-async function findClientByEmail(email: string | null | undefined): Promise<{ id: string; business_name: string; email: string } | null> {
-  // Délègue au resolver partagé (clients.email puis gh_opportunities + auto-create)
-  const r = await findOrCreateClientByEmail(email);
+async function findClientByEmail(
+  email: string | null | undefined,
+  fallback?: { contact_name?: string | null; phone?: string | null; company_name?: string | null },
+): Promise<{ id: string; business_name: string; email: string } | null> {
+  // Délègue au resolver partagé (clients.email puis gh_opportunities, puis
+  // fallback billing si fourni — pour ne pas perdre les Stripe hors GHL).
+  const r = await findOrCreateClientByEmail(email, fallback);
   if (!r) return null;
   return { id: r.clientId, business_name: r.businessName, email: r.email };
 }
@@ -194,11 +198,14 @@ async function handleInvoicePaid(event: StripeEventLike): Promise<NextResponse> 
     return NextResponse.json({ received: true, skipped: 'already imported' });
   }
 
-  // Trouve le client par metadata.client_id (si défini), sinon par email
+  // Trouve le client par metadata.client_id (si défini), sinon par email avec
+  // fallback billing (nom client Stripe) pour ne pas perdre les paiements.
   let clientId: string | null = inv.metadata?.client_id || null;
   let businessName = inv.customer_name || 'Client';
   if (!clientId) {
-    const found = await findClientByEmail(inv.customer_email);
+    const found = await findClientByEmail(inv.customer_email, {
+      contact_name: inv.customer_name,
+    });
     if (found) { clientId = found.id; businessName = found.business_name; }
   } else {
     const cR = await supaFetch(`clients?id=eq.${clientId}&select=business_name`, {}, true);
@@ -236,6 +243,7 @@ async function handlePaymentIntentSucceeded(event: StripeEventLike): Promise<Nex
     invoice: string | null;
     customer: string | null;
     latest_charge: string | null;
+    shipping?: { name?: string; phone?: string } | null;
   };
 
   // Si lié à une invoice, le handler invoice.paid s'en occupe → skip pour éviter double-comptage
@@ -248,7 +256,10 @@ async function handlePaymentIntentSucceeded(event: StripeEventLike): Promise<Nex
   let clientId: string | null = pi.metadata?.client_id || null;
   let businessName = 'Client';
   if (!clientId) {
-    const found = await findClientByEmail(pi.receipt_email);
+    const found = await findClientByEmail(pi.receipt_email, {
+      contact_name: pi.shipping?.name || null,
+      phone: pi.shipping?.phone || null,
+    });
     if (found) { clientId = found.id; businessName = found.business_name; }
   } else {
     const cR = await supaFetch(`clients?id=eq.${clientId}&select=business_name`, {}, true);
