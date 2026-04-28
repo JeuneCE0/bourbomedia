@@ -241,9 +241,10 @@ export default function FinancePage() {
           <SyncButton
             label="GHL"
             emoji="📄"
-            endpoint="/api/ghl/sync-invoices?days=180"
-            confirmText="Récupérer les factures payées sur GHL des 180 derniers jours ?\n(Les doublons sont ignorés automatiquement)"
+            endpoint="/api/ghl/sync-invoices?days=365"
+            confirmText="Récupérer les factures payées sur GHL des 365 derniers jours ?\n(Les doublons sont ignorés automatiquement)"
           />
+          <AuditButton />
           <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 10, background: 'var(--night-card)', border: '1px solid var(--border)' }}>
             {(Object.keys(RANGE_LABEL) as Range[]).map(r => (
               <button key={r} onClick={() => setRange(r)} style={{
@@ -558,6 +559,194 @@ function PipelineAnalyticsCard() {
         })}
       </div>
     </Card>
+  );
+}
+
+function AuditButton() {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  type AuditRow = {
+    source: 'stripe' | 'ghl' | 'manuel' | 'legacy_client';
+    id: string; client_id: string | null; client_name: string | null; client_email: string | null;
+    amount_eur: number; currency: string; status: string; description: string | null;
+    invoice_number: string | null; payment_date: string;
+  };
+  type AuditData = {
+    summary: {
+      total_eur: number; count: number;
+      by_source: Record<string, number>;
+      by_month: Record<string, { total: number; count: number; bySource: Record<string, number> }>;
+    };
+    rows: AuditRow[];
+  };
+  const [data, setData] = useState<AuditData | null>(null);
+
+  async function loadAudit() {
+    setLoading(true);
+    try {
+      const r = await fetch('/api/payments/audit', { headers: authHeaders() });
+      if (r.ok) {
+        const d = await r.json();
+        setData(d);
+        setOpen(true);
+      }
+    } finally { setLoading(false); }
+  }
+
+  return (
+    <>
+      <button onClick={loadAudit} disabled={loading} style={{
+        padding: '8px 14px', borderRadius: 8,
+        background: 'var(--night-card)', border: '1px solid var(--border-md)',
+        color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 600,
+        cursor: loading ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+      }}>
+        {loading ? '⏳' : '🔍 Audit CA'}
+      </button>
+
+      {open && data && (
+        <>
+          <div onClick={() => setOpen(false)} style={{
+            position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.6)',
+            backdropFilter: 'blur(3px)',
+          }} />
+          <div style={{
+            position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+            zIndex: 1001, width: 'min(820px, calc(100vw - 32px))',
+            maxHeight: '85vh', overflowY: 'auto',
+            background: 'var(--night-card)', borderRadius: 14,
+            border: '1px solid var(--border-md)',
+            boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+            padding: '20px',
+          }}>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16,
+            }}>
+              <h2 style={{
+                fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+                fontSize: '1.2rem', color: 'var(--text)', margin: 0,
+              }}>🔍 Audit CA — toutes sources</h2>
+              <button onClick={() => setOpen(false)} style={{
+                background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                fontSize: '1.4rem', cursor: 'pointer', padding: 0,
+              }}>×</button>
+            </div>
+
+            {/* Total */}
+            <div style={{
+              padding: '14px 16px', borderRadius: 10, marginBottom: 14,
+              background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.3)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                  Total tous paiements
+                </div>
+                <div style={{
+                  fontSize: '1.8rem', fontWeight: 800, color: 'var(--green)',
+                  fontFamily: "'Bricolage Grotesque', sans-serif",
+                }}>
+                  {data.summary.total_eur.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{data.summary.count} paiements</div>
+              </div>
+            </div>
+
+            {/* Breakdown par source */}
+            <h3 style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-mid)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Par source
+            </h3>
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: 8, marginBottom: 18,
+            }}>
+              {Object.entries(data.summary.by_source).map(([source, total]) => {
+                const SOURCE_META: Record<string, { emoji: string; label: string; color: string }> = {
+                  stripe: { emoji: '💳', label: 'Stripe', color: '#635BFF' },
+                  ghl: { emoji: '📄', label: 'GHL', color: '#14B8A6' },
+                  manuel: { emoji: '✏️', label: 'Manuel', color: 'var(--text-mid)' },
+                  legacy_client: { emoji: '🗂️', label: 'Legacy', color: 'var(--text-muted)' },
+                };
+                const meta = SOURCE_META[source] || { emoji: '❓', label: source, color: 'var(--text-mid)' };
+                return (
+                  <div key={source} style={{
+                    padding: '10px 12px', borderRadius: 8,
+                    background: 'var(--night-mid)', border: `1px solid ${meta.color}40`,
+                  }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      {meta.emoji} {meta.label}
+                    </div>
+                    <div style={{
+                      fontSize: '1.1rem', fontWeight: 800, color: meta.color,
+                      fontFamily: "'Bricolage Grotesque', sans-serif",
+                    }}>
+                      {(total as number).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Breakdown par mois */}
+            <h3 style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-mid)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Par mois
+            </h3>
+            <div style={{ marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {Object.entries(data.summary.by_month).sort((a, b) => b[0].localeCompare(a[0])).map(([month, m]) => (
+                <div key={month} style={{
+                  display: 'flex', justifyContent: 'space-between', padding: '6px 10px',
+                  borderRadius: 6, background: 'var(--night-mid)',
+                  fontSize: '0.82rem',
+                }}>
+                  <span style={{ color: 'var(--text-mid)', fontWeight: 600 }}>{month}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{m.count} paiement{m.count > 1 ? 's' : ''}</span>
+                  <span style={{ color: 'var(--green)', fontWeight: 700 }}>
+                    {m.total.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Toutes les lignes */}
+            <h3 style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-mid)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Détail ({data.rows.length} lignes)
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {data.rows.map(r => (
+                <div key={r.id} style={{
+                  padding: '8px 10px', borderRadius: 6, background: 'var(--night-mid)',
+                  border: '1px solid var(--border)',
+                  display: 'grid', gridTemplateColumns: '70px 1fr auto auto', gap: 10,
+                  alignItems: 'center', fontSize: '0.78rem',
+                }}>
+                  <span style={{
+                    fontSize: '0.66rem', padding: '2px 6px', borderRadius: 4,
+                    background: 'var(--night-card)', color: 'var(--text-muted)',
+                    fontWeight: 700, textTransform: 'uppercase', textAlign: 'center',
+                  }}>
+                    {r.source}
+                  </span>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ color: 'var(--text)', fontWeight: 600 }}>{r.client_name || '—'}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                      {r.client_email || '—'}{r.invoice_number ? ` · ${r.invoice_number}` : ''}
+                    </div>
+                  </div>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                    {new Date(r.payment_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
+                  </span>
+                  <span style={{ color: 'var(--green)', fontWeight: 700 }}>
+                    {r.amount_eur.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
