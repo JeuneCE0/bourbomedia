@@ -7,6 +7,8 @@ import { ToastProvider } from '@/components/ui/Toast';
 import WelcomeWizard from '@/components/WelcomeWizard';
 import NotificationBell from '@/components/NotificationBell';
 import AiCopilot from '@/components/AiCopilot';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import OfflineIndicator from '@/components/OfflineIndicator';
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
@@ -102,6 +104,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
       } catch { /* */ }
     }, 300);
+  }, []);
+
+  // Enregistre le service worker dès le chargement du dashboard (cache GETs
+  // API + base pour les push notifs). Idempotent. Ne fait rien si déjà enregistré.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/sw.js').catch(() => null);
   }, []);
 
   useEffect(() => {
@@ -554,12 +563,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </div>
           )}
-          {children}
+          <ErrorBoundary scope="page">{children}</ErrorBoundary>
         </main>
       </div>
-      <NotificationBell />
-      <AiCopilot />
-      <WelcomeWizard />
+      <ErrorBoundary scope="bell" fallback={() => null}><NotificationBell /></ErrorBoundary>
+      <ErrorBoundary scope="copilot" fallback={() => null}><AiCopilot /></ErrorBoundary>
+      <ErrorBoundary scope="offline" fallback={() => null}><OfflineIndicator /></ErrorBoundary>
+      <ErrorBoundary scope="welcome" fallback={() => null}><WelcomeWizard /></ErrorBoundary>
     </div>
     </ToastProvider>
   );

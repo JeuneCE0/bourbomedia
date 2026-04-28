@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { downloadCsv } from '@/lib/csv-export';
@@ -94,6 +94,24 @@ export default function PipelineCommerciale() {
   const [selectMode, setSelectMode] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const lastSelectedIdRef = useRef<string | null>(null);
+  const visibleOrderRef = useRef<string[]>([]); // ordre des cards filtrées (pour shift+click range)
+
+  // Raccourcis : Esc pour quitter le mode sélection, Cmd/Ctrl+A pour tout cocher
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!selectMode) return;
+      if (e.key === 'Escape') { setSelectMode(false); setBulkSelected(new Set()); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+        e.preventDefault();
+        setBulkSelected(new Set(visibleOrderRef.current));
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [selectMode]);
   const [showAddForm, setShowAddForm] = useState(false);
 
   const load = useCallback(() => {
@@ -134,6 +152,11 @@ export default function PipelineCommerciale() {
         return bd.localeCompare(ad);
       });
     });
+    // Build flat ordre des cards visibles (colonne par colonne, top→bottom) pour
+    // que shift+click puisse sélectionner une plage cohérente.
+    const order: string[] = [];
+    stages.forEach(s => { (out[s.id] || []).forEach(o => order.push(o.id)); });
+    visibleOrderRef.current = order;
     return out;
   }, [filtered, stages]);
 
@@ -226,12 +249,28 @@ export default function PipelineCommerciale() {
               onSelect={setSelectedId}
               selectMode={selectMode}
               bulkSelected={bulkSelected}
-              onToggleSelect={(id) => setBulkSelected(prev => {
-                const next = new Set(prev);
-                if (next.has(id)) next.delete(id);
-                else next.add(id);
-                return next;
-              })}
+              onToggleSelect={(id, opts) => {
+                setBulkSelected(prev => {
+                  const next = new Set(prev);
+                  // Shift+click : sélectionne toute la plage entre lastSelected et id
+                  if (opts?.shift && lastSelectedIdRef.current && lastSelectedIdRef.current !== id) {
+                    const order = visibleOrderRef.current;
+                    const i1 = order.indexOf(lastSelectedIdRef.current);
+                    const i2 = order.indexOf(id);
+                    if (i1 >= 0 && i2 >= 0) {
+                      const [from, to] = i1 < i2 ? [i1, i2] : [i2, i1];
+                      for (let i = from; i <= to; i++) next.add(order[i]);
+                      lastSelectedIdRef.current = id;
+                      return next;
+                    }
+                  }
+                  // Click simple : toggle
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  lastSelectedIdRef.current = id;
+                  return next;
+                });
+              }}
             />
           ))}
         </div>
@@ -266,6 +305,9 @@ export default function PipelineCommerciale() {
         }}>
           <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)' }}>
             {bulkSelected.size} sélectionné{bulkSelected.size > 1 ? 's' : ''}
+            <span style={{ fontWeight: 400, fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 8 }}>
+              (⇧+clic pour plage · ⌘A tout · Esc quitter)
+            </span>
           </span>
 
           <select
@@ -297,6 +339,50 @@ export default function PipelineCommerciale() {
             {stages.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
+          </select>
+
+          <select
+            disabled={bulkBusy}
+            defaultValue=""
+            onChange={async (e) => {
+              const status = e.target.value;
+              if (!status) return;
+              setBulkBusy(true);
+              try {
+                const ids = Array.from(bulkSelected);
+                // Trouve le stage GHL correspondant via mapping local
+                const stageMap: Record<string, string> = {
+                  reflection: stages.find(s => s.name.toLowerCase().includes('réflex'))?.id || '',
+                  follow_up: stages.find(s => s.name.toLowerCase().includes('follow'))?.id || '',
+                  awaiting_signature: stages.find(s => s.name.toLowerCase().includes('signature'))?.id || '',
+                  contracted: stages.find(s => s.name.toLowerCase().includes('contract'))?.id || '',
+                  ghosting: stages.find(s => s.name.toLowerCase().includes('ghost'))?.id || '',
+                  not_interested: stages.find(s => s.name.toLowerCase().includes('non-qualif') || s.name.toLowerCase().includes('pas intéressé'))?.id || '',
+                };
+                const targetStageId = stageMap[status];
+                await Promise.all(ids.map(id =>
+                  fetch('/api/gh-opportunities', {
+                    method: 'PATCH', headers: authHeaders(),
+                    body: JSON.stringify({ id, ...(targetStageId ? { pipeline_stage_id: targetStageId } : {}) }),
+                  }).catch(() => null)
+                ));
+                setBulkSelected(new Set());
+                load();
+              } finally { setBulkBusy(false); e.target.value = ''; }
+            }}
+            style={{
+              padding: '7px 10px', borderRadius: 8,
+              background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+              color: 'var(--text)', fontSize: '0.78rem', cursor: 'pointer',
+            }}
+          >
+            <option value="">🎯 Statut prospect…</option>
+            <option value="reflection">🤔 En réflexion</option>
+            <option value="follow_up">🔁 Follow-up</option>
+            <option value="awaiting_signature">✍️ Attente signature</option>
+            <option value="contracted">🤝 Contracté</option>
+            <option value="ghosting">👻 Ghosting</option>
+            <option value="not_interested">🚫 Pas intéressé</option>
           </select>
 
           <button
@@ -360,7 +446,7 @@ function Column({ stage, items, onSelect, selectMode, bulkSelected, onToggleSele
   stage: PipelineStage; items: Opportunity[]; onSelect: (id: string) => void;
   selectMode: boolean;
   bulkSelected: Set<string>;
-  onToggleSelect: (id: string) => void;
+  onToggleSelect: (id: string, opts?: { shift?: boolean }) => void;
 }) {
   const colorOf = stage.name.toLowerCase();
   const color = colorOf.includes('contract') || colorOf.includes('régulier') ? '#22C55E'
@@ -423,13 +509,13 @@ function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect }: {
   onSelect: (id: string) => void;
   selectMode?: boolean;
   isSelected?: boolean;
-  onToggleSelect?: (id: string) => void;
+  onToggleSelect?: (id: string, opts?: { shift?: boolean }) => void;
 }) {
   return (
     <button
       type="button"
-      onClick={() => {
-        if (selectMode && onToggleSelect) onToggleSelect(opp.id);
+      onClick={(e) => {
+        if (selectMode && onToggleSelect) onToggleSelect(opp.id, { shift: e.shiftKey });
         else onSelect(opp.id);
       }}
       style={{
