@@ -57,39 +57,48 @@ export async function GET(req: NextRequest) {
     const candidates: Array<{ id: string; starts_at: string; ghl_contact_id: string | null }> = await r.json();
 
     // Pour chaque candidat avec ghl_contact_id, fetch les notes GHL et check si
-    // une a été créée >= starts_at. Concurrence limitée à 5 pour ménager GHL.
+    // une a été créée >= starts_at. Si oui, on récupère le CONTENU de cette
+    // note pour le remonter (sync bi-directionnel) au lieu d'un placeholder.
     type GhlNote = { id?: string; body?: string; userId?: string; dateAdded?: string; createdAt?: string };
-    async function isDocumentedOnGhl(contactId: string, startsAt: string): Promise<boolean> {
+    async function fetchDocNoteFromGhl(contactId: string, startsAt: string): Promise<{ body: string; dateAdded: string } | null> {
       try {
         const data = await ghlRequest('GET', `/contacts/${encodeURIComponent(contactId)}/notes`);
         const notes: GhlNote[] = data?.notes || [];
         const start = new Date(startsAt).getTime();
-        for (const n of notes) {
-          const ts = n.dateAdded || n.createdAt;
-          if (!ts) continue;
-          const t = new Date(ts).getTime();
-          if (!Number.isNaN(t) && t >= start) return true;
-        }
-        return false;
-      } catch { return false; }
+        // Filtre les notes après starts_at, prend la plus récente avec contenu
+        const candidates = notes
+          .map(n => ({ body: (n.body || '').trim(), ts: n.dateAdded || n.createdAt || '' }))
+          .filter(n => {
+            if (!n.body) return false;
+            const t = new Date(n.ts).getTime();
+            return !Number.isNaN(t) && t >= start;
+          })
+          .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+        if (candidates.length === 0) return null;
+        return { body: candidates[0].body, dateAdded: candidates[0].ts };
+      } catch { return null; }
     }
 
     const stillPending: typeof candidates = [];
     const concurrency = 5;
     for (let i = 0; i < candidates.length; i += concurrency) {
       const batch = candidates.slice(i, i + concurrency);
-      const flags = await Promise.all(batch.map(async (a) => {
-        if (!a.ghl_contact_id) return false;
-        return await isDocumentedOnGhl(a.ghl_contact_id, a.starts_at);
+      const docs = await Promise.all(batch.map(async (a) => {
+        if (!a.ghl_contact_id) return null;
+        return await fetchDocNoteFromGhl(a.ghl_contact_id, a.starts_at);
       }));
       batch.forEach((a, idx) => {
-        if (flags[idx]) {
-          // Patch local en best-effort pour cacher définitivement l'item
+        const doc = docs[idx];
+        if (doc) {
+          // Sync bi-dir : on récupère le body réel de la note GHL et on le
+          // stocke localement, avec un préfixe pour signaler la provenance.
+          const stamp = new Date(doc.dateAdded).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+          const noteBody = `[Note GHL · ${stamp}]\n${doc.body}`;
           supaFetch(`gh_appointments?id=eq.${encodeURIComponent(a.id)}`, {
             method: 'PATCH',
             body: JSON.stringify({
-              notes_completed_at: new Date().toISOString(),
-              notes: '✓ Documenté côté GHL (sync auto)',
+              notes_completed_at: doc.dateAdded,
+              notes: noteBody,
               ghl_synced_at: new Date().toISOString(),
             }),
           }, true).catch(() => null);
