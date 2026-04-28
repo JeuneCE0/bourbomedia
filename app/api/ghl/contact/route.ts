@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { ghlRequest } from '@/lib/ghl';
+import { listOpportunitiesByContact } from '@/lib/ghl-opportunities';
 
 const LOCATION_ID = process.env.GHL_LOCATION_ID || '';
 
@@ -34,14 +35,43 @@ async function getCustomFields(): Promise<CustomField[]> {
   }
 }
 
-// GET /api/ghl/contact?id=<ghl_contact_id>
+// GET /api/ghl/contact?id=<ghl_contact_id>&merge_opps=1
 //   Returns the full GHL contact record : tags, custom fields (with labels),
-//   address, source, dates… Used by the prospect modal to show a complete
-//   GHL-like sidebar.
+//   address, source, dates…
+//   Si merge_opps=1, on récupère AUSSI les opportunités liées au contact (via
+//   listOpportunitiesByContact + /opportunities/{id} pour avoir les CF) et on
+//   merge leurs customFields avec ceux du contact (les CF de qualification
+//   commerciale sont souvent au niveau opportunité dans GHL).
+//   On dédup par id de champ → opportunité prioritaire en cas de collision.
 export async function GET(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const id = req.nextUrl.searchParams.get('id');
+  const mergeOpps = req.nextUrl.searchParams.get('merge_opps') === '1';
   if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 });
+
+  type CF = { id: string; label: string; dataType: string; value: unknown };
+
+  function normalizeRawCustomFields(raw: unknown[], fieldsById: Map<string, CustomField>): CF[] {
+    type RawCF = { id?: string; value?: unknown; field_value?: unknown; fieldValue?: unknown };
+    const list: RawCF[] = Array.isArray(raw) ? raw as RawCF[] : [];
+    return list
+      .map(cf => {
+        const meta = cf.id ? fieldsById.get(cf.id) : undefined;
+        const v = cf.value !== undefined ? cf.value : (cf.field_value !== undefined ? cf.field_value : cf.fieldValue);
+        return {
+          id: cf.id || '',
+          label: meta?.name || cf.id || 'Champ personnalisé',
+          dataType: meta?.dataType || 'TEXT',
+          value: v,
+        };
+      })
+      .filter(cf => {
+        if (cf.value === null || cf.value === undefined) return false;
+        if (typeof cf.value === 'string' && !cf.value.trim()) return false;
+        if (Array.isArray(cf.value) && cf.value.length === 0) return false;
+        return true;
+      });
+  }
 
   try {
     const data = await ghlRequest('GET', `/contacts/${encodeURIComponent(id)}`);
@@ -51,25 +81,37 @@ export async function GET(req: NextRequest) {
     const fields = await getCustomFields();
     const fieldsById = new Map(fields.map(f => [f.id, f]));
 
-    type RawCF = { id?: string; value?: unknown; field_value?: unknown };
-    const rawCustomFields: RawCF[] = Array.isArray(c.customFields) ? c.customFields : [];
-    const customFields = rawCustomFields
-      .map(cf => {
-        const meta = cf.id ? fieldsById.get(cf.id) : undefined;
-        const raw = cf.value !== undefined ? cf.value : cf.field_value;
-        return {
-          id: cf.id || '',
-          label: meta?.name || cf.id || 'Champ personnalisé',
-          dataType: meta?.dataType || 'TEXT',
-          value: raw,
-        };
-      })
-      .filter(cf => {
-        if (cf.value === null || cf.value === undefined) return false;
-        if (typeof cf.value === 'string' && !cf.value.trim()) return false;
-        if (Array.isArray(cf.value) && cf.value.length === 0) return false;
-        return true;
-      });
+    const contactCustomFields = normalizeRawCustomFields(c.customFields || [], fieldsById);
+
+    // Merge opportunity customFields (best effort)
+    let mergedCustomFields = contactCustomFields;
+    if (mergeOpps) {
+      try {
+        const opps = await listOpportunitiesByContact(id);
+        const oppIds = opps.slice(0, 5).map(o => o.id); // limite 5 pour ne pas spammer
+        const oppCustomFields: CF[] = [];
+        for (const oid of oppIds) {
+          try {
+            const od = await ghlRequest('GET', `/opportunities/${encodeURIComponent(oid)}`);
+            const oRaw = (od?.opportunity || od)?.customFields || [];
+            oppCustomFields.push(...normalizeRawCustomFields(oRaw, fieldsById));
+          } catch { /* skip opp on error */ }
+        }
+        if (oppCustomFields.length > 0) {
+          // Dédup : opportunité prioritaire (1ère occurrence gagne)
+          const seen = new Set<string>();
+          const merged: CF[] = [];
+          for (const cf of [...oppCustomFields, ...contactCustomFields]) {
+            if (seen.has(cf.id)) continue;
+            seen.add(cf.id);
+            merged.push(cf);
+          }
+          mergedCustomFields = merged;
+        }
+      } catch { /* tolerate */ }
+    }
+
+    const customFields = mergedCustomFields;
 
     return NextResponse.json({
       contact: {

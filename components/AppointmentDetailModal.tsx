@@ -92,20 +92,30 @@ export default function AppointmentDetailModal({
     setLoading(true);
     try {
       const r = await fetch(`/api/gh-appointments?id=${appointmentId}`, { headers: authHeaders() });
-      if (r.ok) {
-        const d = await r.json();
-        const a = (d.appointments || [])[0] || null;
-        setApt(a);
-        if (a) {
-          setNotes(a.notes || '');
-          setStatus(a.prospect_status || '');
-          if (a.ghl_contact_id) {
-            const cR = await fetch(`/api/ghl/contact?id=${encodeURIComponent(a.ghl_contact_id)}`, { headers: authHeaders() });
-            if (cR.ok) {
-              const cd = await cR.json();
-              setContact(cd?.contact || null);
-            }
-          }
+      if (!r.ok) return;
+      const d = await r.json();
+      const a = (d.appointments || [])[0] || null;
+      setApt(a);
+      if (!a) return;
+      setNotes(a.notes || '');
+      setStatus(a.prospect_status || '');
+
+      // 1 seul call serveur (merge_opps=1 → backend fetch les opps liées au
+      // contact et merge leurs customFields → on obtient la qualification
+      // complète qu'elle soit au niveau contact OU opportunité).
+      let contactIdToFetch: string | null = a.ghl_contact_id;
+      if (!contactIdToFetch && a.opportunity_id) {
+        const oR = await fetch(`/api/ghl/opportunity?id=${encodeURIComponent(a.opportunity_id)}`, { headers: authHeaders() }).catch(() => null);
+        if (oR && oR.ok) {
+          const od = await oR.json();
+          contactIdToFetch = od?.opportunity?.contactId || null;
+        }
+      }
+      if (contactIdToFetch) {
+        const cR = await fetch(`/api/ghl/contact?id=${encodeURIComponent(contactIdToFetch)}&merge_opps=1`, { headers: authHeaders() });
+        if (cR.ok) {
+          const cd = await cR.json();
+          setContact(cd?.contact || null);
         }
       }
     } finally { setLoading(false); }

@@ -8,7 +8,7 @@ interface Appointment {
   id: string;
   ghl_appointment_id: string;
   ghl_contact_id: string | null;
-  opportunity_id: string | null;
+  opportunity_id: string | null;       // ghl_opportunity_id (string GHL)
   client_id: string | null;
   calendar_kind: 'closing' | 'onboarding' | 'tournage' | 'other';
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
@@ -21,6 +21,7 @@ interface Appointment {
   notes_completed_at: string | null;
   prospect_status: string | null;
 }
+
 
 interface GhlContact {
   id: string;
@@ -100,20 +101,29 @@ export default function ClosingRoomPage() {
     setLoading(true);
     try {
       const r = await fetch(`/api/gh-appointments?id=${id}`, { headers: authHeaders() });
-      if (r.ok) {
-        const d = await r.json();
-        const a = (d.appointments || [])[0] || null;
-        setApt(a);
-        if (a) {
-          setNotes(a.notes || '');
-          setStatus(a.prospect_status || '');
-          if (a.ghl_contact_id) {
-            const cR = await fetch(`/api/ghl/contact?id=${encodeURIComponent(a.ghl_contact_id)}`, { headers: authHeaders() });
-            if (cR.ok) {
-              const cd = await cR.json();
-              setContact(cd?.contact || null);
-            }
-          }
+      if (!r.ok) return;
+      const d = await r.json();
+      const a = (d.appointments || [])[0] || null;
+      setApt(a);
+      if (!a) return;
+      setNotes(a.notes || '');
+      setStatus(a.prospect_status || '');
+
+      // 1 seul call serveur qui merge contact + opportunités GHL.
+      // Si pas de ghl_contact_id mais on a opportunity_id, on retombe via opp.
+      let contactIdToFetch = a.ghl_contact_id;
+      if (!contactIdToFetch && a.opportunity_id) {
+        const oR = await fetch(`/api/ghl/opportunity?id=${encodeURIComponent(a.opportunity_id)}`, { headers: authHeaders() }).catch(() => null);
+        if (oR && oR.ok) {
+          const od = await oR.json();
+          contactIdToFetch = od?.opportunity?.contactId || null;
+        }
+      }
+      if (contactIdToFetch) {
+        const cR = await fetch(`/api/ghl/contact?id=${encodeURIComponent(contactIdToFetch)}&merge_opps=1`, { headers: authHeaders() });
+        if (cR.ok) {
+          const cd = await cR.json();
+          setContact(cd?.contact || null);
         }
       }
     } finally { setLoading(false); }
