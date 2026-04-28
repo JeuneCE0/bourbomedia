@@ -461,9 +461,28 @@ function PortalContent() {
       };
       const msg = stageMessages[clientInfo.status];
       if (msg) showToast(msg.emoji, msg.message);
+
+      // 🎊 Confettis sur les transitions célébrables (uniquement si le
+      // statut vient de changer, pas au 1er load — sauf published qui se
+      // déclenche aussi une fois en lifetime).
+      const CELEBRATE_BIG = new Set(['video_review', 'published']);
+      const CELEBRATE_SMALL = new Set(['filming_scheduled', 'script_validated', 'publication_pending']);
+      if (CELEBRATE_BIG.has(clientInfo.status)) {
+        import('@/lib/celebrate').then(m => m.fireOnce(`portal:${token}`, clientInfo.status!, true));
+      } else if (CELEBRATE_SMALL.has(clientInfo.status)) {
+        import('@/lib/celebrate').then(m => m.fireOnce(`portal:${token}`, clientInfo.status!, false));
+      }
     }
     lastSeenClientStatusRef.current = clientInfo.status;
-  }, [clientInfo?.status, showToast]);
+  }, [clientInfo?.status, showToast, token]);
+
+  // Confetti à l'arrivée sur le portail si le projet est déjà publié et que le
+  // client n'a pas encore "vu" la célébration (par device).
+  useEffect(() => {
+    if (clientInfo?.status === 'published' && token) {
+      import('@/lib/celebrate').then(m => m.fireOnce(`portal:${token}`, 'published', true));
+    }
+  }, [clientInfo?.status, token]);
 
   // Live polling — faster cadence when the user is on the script or comments
   // tab so admin replies and team comments feel instantaneous. We bump from
@@ -948,56 +967,126 @@ function PortalContent() {
           {(() => {
             const stageIdx = PROJECT_STAGES.findIndex(s => s.key === clientStatus);
             const effectiveIdx = stageIdx >= 0 ? stageIdx : 0;
+            const total = PROJECT_STAGES.length;
+            // Progress = stages done + 0.5 pour l'étape courante
+            const progressPct = Math.min(100, Math.round(((effectiveIdx + 0.5) / total) * 100));
+
+            // ETA prédite pour les pending steps : on suppose ~2 jours ouvrés
+            // entre chaque étape, sauf publication (mardi/jeudi prochain).
+            const baseDate = clientInfo?.updated_at ? new Date(clientInfo.updated_at) : new Date();
+            const stageEta = (i: number, key: string): string | null => {
+              if (i <= effectiveIdx) return null;
+              const stepsAhead = i - effectiveIdx;
+              if (key === 'published') {
+                const d = nextPublicationSlot(addBusinessDays(baseDate, (stepsAhead - 1) * 2));
+                return `Estimation : ${fmtDate(d)}`;
+              }
+              const d = addBusinessDays(baseDate, stepsAhead * 2);
+              const days = Math.ceil((d.getTime() - Date.now()) / 86400000);
+              if (days <= 0) return null;
+              if (days === 1) return 'Estimation : demain';
+              if (days <= 7) return `Estimation : dans ~${days}j`;
+              return `Estimation : ${fmtDate(d)}`;
+            };
+
             return (
-              <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {PROJECT_STAGES.map((stage, i) => {
-                  const status: 'done' | 'current' | 'pending' = i < effectiveIdx ? 'done' : i === effectiveIdx ? 'current' : 'pending';
-                  const isLast = i === PROJECT_STAGES.length - 1;
-                  const dotBg = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'transparent';
-                  const dotBorder = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'var(--border-md)';
-                  const lineBg = status === 'done' ? 'var(--green)' : 'var(--border)';
-                  const titleColor = status === 'pending' ? 'var(--text-mid)' : 'var(--text)';
-                  const dateExtra = stage.key === 'filming_scheduled' && clientInfo?.filming_date
-                    ? new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-                    : null;
-                  return (
-                    <li key={stage.key} style={{
-                      display: 'grid', gridTemplateColumns: '36px 1fr', gap: 12, alignItems: 'flex-start',
-                    }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 54 }}>
-                        <span aria-hidden style={{
-                          width: 30, height: 30, borderRadius: '50%',
-                          background: dotBg, border: `2px solid ${dotBorder}`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: '#fff', fontSize: 14, flexShrink: 0,
-                          fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
-                        }}>{status === 'done' ? '✓' : stage.emoji}</span>
-                        {!isLast && <span aria-hidden style={{ flex: 1, width: 2, background: lineBg, marginTop: 4 }} />}
-                      </div>
-                      <div style={{ paddingBottom: 18 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: status === 'current' ? 700 : 600, color: titleColor, fontSize: 14.5 }}>
-                            {stage.label}
-                          </span>
-                          {status === 'current' && (
-                            <span className="bm-pulse-glow" style={{
-                              padding: '2px 8px', borderRadius: 999,
-                              background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
-                              color: '#FFB58A', fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
-                            }}>VOUS ÊTES ICI</span>
+              <>
+                {/* Progress bar */}
+                <div style={{ marginBottom: 22 }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+                    marginBottom: 6, fontSize: 12,
+                  }}>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+                      Étape {effectiveIdx + 1} sur {total}
+                    </span>
+                    <span style={{ color: 'var(--orange)', fontWeight: 800, fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 16 }}>
+                      {progressPct}%
+                    </span>
+                  </div>
+                  <div style={{
+                    height: 8, borderRadius: 99,
+                    background: 'var(--night-mid)', border: '1px solid var(--border)',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      height: '100%', width: `${progressPct}%`,
+                      background: clientStatus === 'published'
+                        ? 'linear-gradient(90deg, var(--green) 0%, #16A34A 100%)'
+                        : 'linear-gradient(90deg, var(--orange) 0%, #C45520 100%)',
+                      transition: 'width .8s cubic-bezier(.4,1.3,.6,1)',
+                      borderRadius: 99,
+                    }} />
+                  </div>
+                </div>
+
+                <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {PROJECT_STAGES.map((stage, i) => {
+                    const status: 'done' | 'current' | 'pending' = i < effectiveIdx ? 'done' : i === effectiveIdx ? 'current' : 'pending';
+                    const isLast = i === PROJECT_STAGES.length - 1;
+                    const dotBg = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'transparent';
+                    const dotBorder = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'var(--border-md)';
+                    const lineBg = status === 'done' ? 'var(--green)' : 'var(--border)';
+                    const titleColor = status === 'pending' ? 'var(--text-mid)' : 'var(--text)';
+                    const dateExtra = stage.key === 'filming_scheduled' && clientInfo?.filming_date
+                      ? new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+                      : null;
+                    const eta = stageEta(i, stage.key);
+                    const isCurrent = status === 'current';
+                    return (
+                      <li key={stage.key} style={{
+                        display: 'grid', gridTemplateColumns: '36px 1fr', gap: 12, alignItems: 'flex-start',
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 54 }}>
+                          <span aria-hidden style={{
+                            width: isCurrent ? 36 : 30, height: isCurrent ? 36 : 30, borderRadius: '50%',
+                            background: dotBg, border: `2px solid ${dotBorder}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff', fontSize: isCurrent ? 16 : 14, flexShrink: 0,
+                            fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+                            boxShadow: isCurrent ? '0 0 0 6px rgba(232,105,43,.18)' : 'none',
+                            transition: 'all .3s ease',
+                          }}>{status === 'done' ? '✓' : stage.emoji}</span>
+                          {!isLast && <span aria-hidden style={{ flex: 1, width: 2, background: lineBg, marginTop: 4 }} />}
+                        </div>
+                        <div style={{
+                          paddingBottom: 18,
+                          padding: isCurrent ? '8px 12px' : '0',
+                          marginBottom: isCurrent ? 18 : 0,
+                          marginTop: isCurrent ? -4 : 0,
+                          borderRadius: isCurrent ? 10 : 0,
+                          background: isCurrent ? 'rgba(232,105,43,.06)' : 'transparent',
+                          border: isCurrent ? '1px solid rgba(232,105,43,.25)' : 'none',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: isCurrent ? 700 : 600, color: titleColor, fontSize: isCurrent ? 15 : 14.5 }}>
+                              {stage.label}
+                            </span>
+                            {isCurrent && (
+                              <span className="bm-pulse-glow" style={{
+                                padding: '2px 8px', borderRadius: 999,
+                                background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
+                                color: '#FFB58A', fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+                              }}>VOUS ÊTES ICI</span>
+                            )}
+                          </div>
+                          {dateExtra && (
+                            <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2, fontWeight: 600 }}>📅 {dateExtra}</div>
                           )}
+                          {eta && (
+                            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic' }}>
+                              ⏱️ {eta}
+                            </div>
+                          )}
+                          <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginTop: 3, lineHeight: 1.5 }}>
+                            {stage.description}
+                          </div>
                         </div>
-                        {dateExtra && (
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{dateExtra}</div>
-                        )}
-                        <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginTop: 3, lineHeight: 1.5 }}>
-                          {stage.description}
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </>
             );
           })()}
         </div>
