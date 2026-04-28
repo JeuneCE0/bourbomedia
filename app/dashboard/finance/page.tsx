@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import LinkGhlButton from '@/components/LinkGhlButton';
+import ResolveOrphanCharge from '@/components/ResolveOrphanCharge';
 
 interface Client {
   id: string;
@@ -948,14 +949,16 @@ function AuditButton() {
 
 function SyncButton({ label, emoji, endpoint, confirmText }: { label: string; emoji: string; endpoint: string; confirmText: string }) {
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; msg: string; issues: string[] } | null>(null);
+  type Orphan = import('@/components/ResolveOrphanCharge').OrphanCharge;
+  const [result, setResult] = useState<{ ok: boolean; msg: string; issues: string[]; orphans: Orphan[] } | null>(null);
+  const [resolvingOrphan, setResolvingOrphan] = useState<Orphan | null>(null);
 
   async function sync() {
     setBusy(true); setResult(null);
     try {
       console.log('[sync] POST', endpoint);
       const r = await fetch(endpoint, { method: 'POST', headers: authHeaders() });
-      let d: { message?: string; error?: string; imported?: number; issues?: string[] } = {};
+      let d: { message?: string; error?: string; imported?: number; issues?: string[]; orphans?: Orphan[] } = {};
       try { d = await r.json(); } catch { /* non-JSON response */ }
       console.log('[sync] response', r.status, d);
       if (r.ok) {
@@ -963,19 +966,25 @@ function SyncButton({ label, emoji, endpoint, confirmText }: { label: string; em
           ok: true,
           msg: d.message || `OK (${d.imported || 0} importé${(d.imported || 0) > 1 ? 's' : ''})`,
           issues: Array.isArray(d.issues) ? d.issues : [],
+          orphans: Array.isArray(d.orphans) ? d.orphans : [],
         });
-        if ((d.imported || 0) > 0) setTimeout(() => window.location.reload(), 2000);
+        if ((d.imported || 0) > 0 && !(d.orphans?.length)) setTimeout(() => window.location.reload(), 2000);
       } else {
         setResult({
           ok: false,
           msg: d.error || `HTTP ${r.status}`,
           issues: Array.isArray(d.issues) ? d.issues : [],
+          orphans: [],
         });
       }
     } catch (e: unknown) {
       console.error('[sync] error', e);
-      setResult({ ok: false, msg: 'Erreur réseau : ' + (e as Error).message, issues: [] });
+      setResult({ ok: false, msg: 'Erreur réseau : ' + (e as Error).message, issues: [], orphans: [] });
     } finally { setBusy(false); }
+  }
+
+  function dismissOrphan(charge_id: string) {
+    setResult(prev => prev ? { ...prev, orphans: prev.orphans.filter(o => o.charge_id !== charge_id) } : prev);
   }
 
   return (
@@ -993,7 +1002,7 @@ function SyncButton({ label, emoji, endpoint, confirmText }: { label: string; em
       </button>
       {result && (
         <div style={{
-          maxWidth: 360, padding: '10px 12px', borderRadius: 8,
+          maxWidth: 380, padding: '10px 12px', borderRadius: 8,
           background: result.ok ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.10)',
           border: `1px solid ${result.ok ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)'}`,
           fontSize: '0.74rem', color: result.ok ? '#86EFAC' : '#FCA5A5',
@@ -1002,7 +1011,42 @@ function SyncButton({ label, emoji, endpoint, confirmText }: { label: string; em
           <div style={{ fontWeight: 600 }}>
             {result.ok ? '✓' : '✕'} {result.msg}
           </div>
-          {result.issues.length > 0 && (
+
+          {/* Orphans actionnables : un bouton 'Résoudre' par paiement non rattaché */}
+          {result.orphans.length > 0 && (
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,.08)' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--yellow)', marginBottom: 6 }}>
+                ⚠ {result.orphans.length} paiement{result.orphans.length > 1 ? 's' : ''} à rattacher
+              </div>
+              {result.orphans.map(o => (
+                <div key={o.charge_id} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 8px', marginBottom: 4, borderRadius: 6,
+                  background: 'var(--night-mid)', border: '1px solid rgba(250,204,21,.25)',
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: 'var(--text)', fontWeight: 600, fontSize: '0.78rem' }}>
+                      {o.amount_eur.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} € · {o.name || o.email || '—'}
+                    </div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.66rem' }}>
+                      {o.email || 'pas d\'email'} · {new Date(o.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => { e.preventDefault(); setResolvingOrphan(o); }}
+                    style={{
+                      padding: '4px 9px', borderRadius: 6,
+                      background: 'var(--orange)', border: 'none', color: '#fff',
+                      fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >🔧 Résoudre</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {result.issues.length > 0 && result.orphans.length === 0 && (
             <details style={{ marginTop: 6 }}>
               <summary style={{ cursor: 'pointer', color: 'var(--text-mid)', fontWeight: 500 }}>
                 Voir {result.issues.length} détail{result.issues.length > 1 ? 's' : ''}
@@ -1013,6 +1057,14 @@ function SyncButton({ label, emoji, endpoint, confirmText }: { label: string; em
             </details>
           )}
         </div>
+      )}
+
+      {resolvingOrphan && (
+        <ResolveOrphanCharge
+          orphan={resolvingOrphan}
+          onResolved={() => dismissOrphan(resolvingOrphan.charge_id)}
+          onClose={() => setResolvingOrphan(null)}
+        />
       )}
     </div>
   );

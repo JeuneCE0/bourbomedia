@@ -30,6 +30,20 @@ export async function POST(req: NextRequest) {
   let unmatched = 0;
   let createdClients = 0;
   const issues: string[] = [];
+  // Orphans : paiements Stripe non rattachés à un client (action manuelle requise).
+  interface OrphanCharge {
+    charge_id: string;
+    payment_intent_id: string | null;
+    email: string | null;
+    name: string | null;
+    phone: string | null;
+    amount_eur: number;
+    currency: string;
+    created_at: string;       // ISO
+    description: string | null;
+    receipt_url: string | null;
+  }
+  const orphans: OrphanCharge[] = [];
 
   try {
     // Pull successful charges via auto-pagination
@@ -49,24 +63,40 @@ export async function POST(req: NextRequest) {
       }
 
       const email = ch.billing_details?.email || ch.receipt_email;
-      if (!email) {
+      const billingName = ch.billing_details?.name || null;
+      const billingPhone = ch.billing_details?.phone || null;
+
+      const recordOrphan = (reason: string) => {
+        orphans.push({
+          charge_id: ch.id,
+          payment_intent_id: piId,
+          email,
+          name: billingName,
+          phone: billingPhone,
+          amount_eur: ch.amount / 100,
+          currency: ch.currency || 'eur',
+          created_at: new Date(ch.created * 1000).toISOString(),
+          description: ch.description || null,
+          receipt_url: ch.receipt_url || null,
+        });
         unmatched++;
-        if (issues.length < 10) issues.push(`Charge ${ch.id} : pas d'email sur la transaction Stripe`);
+        if (issues.length < 10) issues.push(reason);
+      };
+
+      if (!email) {
+        recordOrphan(`Charge ${ch.id} : pas d'email sur la transaction Stripe (montant ${ch.amount / 100}€)`);
         continue;
       }
 
       // Resolve : (1) clients.email, (2) gh_opportunities.contact_email,
       // (3) fallback billing Stripe (nom + tel) si pas de GHL → on crée
       // quand même le client pour ne pas perdre le paiement.
-      const billingName = ch.billing_details?.name || null;
-      const billingPhone = ch.billing_details?.phone || null;
       const resolved = await findOrCreateClientByEmail(email, {
         contact_name: billingName,
         phone: billingPhone,
       });
       if (!resolved) {
-        unmatched++;
-        if (issues.length < 10) issues.push(`Charge ${ch.id} : email ${email} introuvable (pas de nom dans Stripe billing pour fallback)`);
+        recordOrphan(`Charge ${ch.id} : email ${email} introuvable (pas de nom dans Stripe billing pour fallback)`);
         continue;
       }
       if (resolved.created) createdClients++;
@@ -148,6 +178,7 @@ export async function POST(req: NextRequest) {
     unmatched,
     createdClients,
     issues,
+    orphans,
     message: `${imported} paiement${imported > 1 ? 's' : ''} importé${imported > 1 ? 's' : ''}, ${skipped} déjà présent${skipped > 1 ? 's' : ''}${created}, ${unmatched} sans correspondance.`,
   });
 }
