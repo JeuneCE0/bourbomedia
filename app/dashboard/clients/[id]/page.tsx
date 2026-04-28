@@ -7,6 +7,7 @@ import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import ThreadPanel from '@/components/ThreadPanel';
 import PresenceIndicator from '@/components/PresenceIndicator';
+import LinkGhlButton from '@/components/LinkGhlButton';
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
 const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
@@ -61,6 +62,7 @@ interface Client {
   provider_fees?: ProviderFee[];
   paid_at?: string;
   payment_amount?: number;
+  ghl_contact_id?: string | null;
 }
 
 interface ProviderFee {
@@ -1064,6 +1066,14 @@ export default function ClientDetailPage() {
                 {client.business_name}
               </h1>
               <PresenceIndicator scope={`client/${id}`} />
+              {!client.ghl_contact_id && (
+                <LinkGhlButton
+                  clientId={id}
+                  size="sm"
+                  label="🔗 Lier à GHL"
+                  onLinked={loadClient}
+                />
+              )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
