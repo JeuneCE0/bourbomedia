@@ -203,7 +203,17 @@ export default function AiCopilot() {
 
                   {action === 'generate_script' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <Field label="Nom du commerce *" value={scriptForm.business_name} onChange={v => setScriptForm({ ...scriptForm, business_name: v })} required />
+                      <ContactAutocomplete
+                        value={scriptForm.business_name}
+                        onChange={v => setScriptForm({ ...scriptForm, business_name: v })}
+                        onPick={(c) => setScriptForm({
+                          ...scriptForm,
+                          business_name: c.business_name || c.contact_name || '',
+                        })}
+                        label="Contact"
+                        placeholder="Tape un prénom, nom ou email…"
+                        required
+                      />
                       <FieldRow>
                         <Field label="Catégorie" value={scriptForm.category} onChange={v => setScriptForm({ ...scriptForm, category: v })} placeholder="Boulangerie, restaurant…" />
                         <Field label="Ville" value={scriptForm.city} onChange={v => setScriptForm({ ...scriptForm, city: v })} placeholder="Saint-Denis" />
@@ -220,42 +230,63 @@ export default function AiCopilot() {
 
                   {action === 'summarize_call' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <FieldRow>
-                        <Field label="Contact" value={callForm.contact_name} onChange={v => setCallForm({ ...callForm, contact_name: v })} />
-                        <Field label="Commerce" value={callForm.business_name} onChange={v => setCallForm({ ...callForm, business_name: v })} />
-                      </FieldRow>
+                      <ContactAutocomplete
+                        value={callForm.contact_name}
+                        onChange={v => setCallForm({ ...callForm, contact_name: v })}
+                        onPick={(c) => setCallForm({
+                          ...callForm,
+                          contact_name: c.contact_name || c.business_name || '',
+                          business_name: c.business_name || '',
+                        })}
+                      />
                       <Field label="Type d'appel" value={callForm.appointment_kind} onChange={v => setCallForm({ ...callForm, appointment_kind: v })} placeholder="Closing, onboarding, suivi…" />
-                      <Field label="Notes brutes *" value={callForm.raw_notes} onChange={v => setCallForm({ ...callForm, raw_notes: v })} multiline rows={8} placeholder="Tape tout ce qui s'est dit, en vrac. Pas besoin de structure." required />
+                      <NotesWithRecorder
+                        label="Notes brutes"
+                        value={callForm.raw_notes}
+                        onChange={v => setCallForm({ ...callForm, raw_notes: v })}
+                        placeholder="Tape ou dicte tout ce qui s'est dit, en vrac. Pas besoin de structure."
+                        required
+                      />
                     </div>
                   )}
 
                   {action === 'suggest_next_action' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <FieldRow>
-                        <Field label="Commerce *" value={opportunityForm.business_name} onChange={v => setOpportunityForm({ ...opportunityForm, business_name: v })} required />
-                        <Field label="Contact" value={opportunityForm.contact_name} onChange={v => setOpportunityForm({ ...opportunityForm, contact_name: v })} />
-                      </FieldRow>
+                      <ContactAutocomplete
+                        value={opportunityForm.contact_name}
+                        onChange={v => setOpportunityForm({ ...opportunityForm, contact_name: v })}
+                        onPick={(c) => setOpportunityForm({
+                          ...opportunityForm,
+                          contact_name: c.contact_name || c.business_name || '',
+                          business_name: c.business_name || '',
+                        })}
+                        required
+                      />
                       <FieldRow>
                         <Field label="Statut prospect" value={opportunityForm.prospect_status} onChange={v => setOpportunityForm({ ...opportunityForm, prospect_status: v })} placeholder="reflection, follow_up, ghosting…" />
                         <Field label="Jours dans stage" value={opportunityForm.days_in_stage} onChange={v => setOpportunityForm({ ...opportunityForm, days_in_stage: v })} type="number" />
                       </FieldRow>
                       <Field label="Valeur estimée (€)" value={opportunityForm.monetary_value_eur} onChange={v => setOpportunityForm({ ...opportunityForm, monetary_value_eur: v })} type="number" />
-                      <Field label="Dernière note d'appel" value={opportunityForm.last_note} onChange={v => setOpportunityForm({ ...opportunityForm, last_note: v })} multiline rows={4} placeholder="Ce que vous saviez du prospect après le dernier contact" />
+                      <NotesWithRecorder
+                        label="Dernière note d'appel (optionnel — vocal possible)"
+                        value={opportunityForm.last_note}
+                        onChange={v => setOpportunityForm({ ...opportunityForm, last_note: v })}
+                        placeholder="Ce que vous saviez du prospect après le dernier contact"
+                        rows={4}
+                      />
                     </div>
                   )}
 
                   {action === 'draft_message' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <ContactAutocomplete
-                        contactName={messageForm.contact_name}
-                        businessName={messageForm.business_name}
+                        value={messageForm.contact_name}
+                        onChange={v => setMessageForm({ ...messageForm, contact_name: v })}
                         onPick={(c) => setMessageForm({
                           ...messageForm,
-                          contact_name: c.contact_name || messageForm.contact_name,
-                          business_name: c.business_name || messageForm.business_name,
+                          contact_name: c.contact_name || c.business_name || '',
+                          business_name: c.business_name || '',
                         })}
-                        onContactChange={v => setMessageForm({ ...messageForm, contact_name: v })}
-                        onBusinessChange={v => setMessageForm({ ...messageForm, business_name: v })}
                       />
                       <FieldRow>
                         <SelectField label="Intention" value={messageForm.intent} onChange={v => setMessageForm({ ...messageForm, intent: v as typeof messageForm.intent })} options={[
@@ -408,6 +439,180 @@ const inputStyle: React.CSSProperties = {
   fontFamily: 'inherit', resize: 'vertical', width: '100%',
 };
 
+// Textarea avec bouton 🎙️ pour dicter le contenu (Whisper via /api/ai/transcribe).
+// Audio level meter live + garde-fou silence côté client.
+function NotesWithRecorder({
+  label, value, onChange, placeholder, rows = 8, required,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  placeholder?: string; rows?: number; required?: boolean;
+}) {
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [maxLevelSeen, setMaxLevelSeen] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const meterRafRef = useRef<number | null>(null);
+  const startTsRef = useRef(0);
+
+  async function start() {
+    setError(null);
+    setMaxLevelSeen(0);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      streamRef.current = stream;
+
+      try {
+        type WindowWithWebkitAudio = Window & { webkitAudioContext?: typeof AudioContext };
+        const Ctor = window.AudioContext || (window as WindowWithWebkitAudio).webkitAudioContext;
+        if (Ctor) {
+          const ctx = new Ctor();
+          audioCtxRef.current = ctx;
+          const source = ctx.createMediaStreamSource(stream);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 1024;
+          source.connect(analyser);
+          const data = new Uint8Array(analyser.fftSize);
+          const tick = () => {
+            analyser.getByteTimeDomainData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) {
+              const v = (data[i] - 128) / 128;
+              sum += v * v;
+            }
+            const lvl = Math.min(100, Math.round(Math.sqrt(sum / data.length) * 250));
+            setAudioLevel(lvl);
+            setMaxLevelSeen(prev => Math.max(prev, lvl));
+            meterRafRef.current = requestAnimationFrame(tick);
+          };
+          tick();
+        }
+      } catch { /* meter optionnel */ }
+
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = onStopHandler;
+      mr.start(1000);
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+      startTsRef.current = Date.now();
+      setElapsedSec(0);
+      tickRef.current = setInterval(() => setElapsedSec(Math.floor((Date.now() - startTsRef.current) / 1000)), 500);
+    } catch (e: unknown) {
+      setError((e as Error).message || 'Permission micro refusée');
+    }
+  }
+
+  function stop() {
+    if (mediaRecorderRef.current && recording) mediaRecorderRef.current.stop();
+    if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+    if (meterRafRef.current) { cancelAnimationFrame(meterRafRef.current); meterRafRef.current = null; }
+    if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => null); audioCtxRef.current = null; }
+    setRecording(false);
+    setAudioLevel(0);
+  }
+
+  async function onStopHandler() {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+    chunksRef.current = [];
+
+    if (maxLevelSeen < 5) {
+      setError(`Aucun son détecté (max ${maxLevelSeen}/100). Vérifie ton micro.`);
+      return;
+    }
+
+    setTranscribing(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('audio', blob, `recording-${Date.now()}.webm`);
+      fd.append('language', 'fr');
+      const r = await fetch('/api/ai/transcribe', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('bbp_token')}` },
+        body: fd,
+      });
+      const d = await r.json();
+      if (r.ok && d.text) {
+        const stamp = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const block = `[Vocal ${stamp}] ${d.text}`;
+        onChange(value.trim() ? `${value}\n\n${block}` : block);
+      } else if (d.empty) {
+        setError(d.hint || 'Audio trop faible.');
+      } else {
+        setError(d.error || 'Transcription échouée.');
+      }
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    } finally { setTranscribing(false); }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', flex: 1, minWidth: 100 }}>
+          {label}{required && <span style={{ color: 'var(--orange)', marginLeft: 3 }}>*</span>}
+        </span>
+        {!recording ? (
+          <button type="button" onClick={start} disabled={transcribing} style={{
+            padding: '5px 11px', borderRadius: 7,
+            background: transcribing ? 'var(--night-mid)' : 'rgba(239,68,68,.1)',
+            border: '1px solid rgba(239,68,68,.4)', color: '#FCA5A5',
+            fontSize: '0.74rem', fontWeight: 700, cursor: transcribing ? 'wait' : 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 5, opacity: transcribing ? 0.6 : 1,
+          }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#EF4444' }} />
+            {transcribing ? 'Transcription…' : '🎙️ Dicter'}
+          </button>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button type="button" onClick={stop} style={{
+              padding: '5px 11px', borderRadius: 7, background: '#EF4444',
+              border: 'none', color: '#fff', fontSize: '0.74rem', fontWeight: 700,
+              cursor: 'pointer', animation: 'bm-pulse 1.5s infinite',
+            }}>
+              <style>{`@keyframes bm-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.6 } }`}</style>
+              ⏹ Arrêter ({Math.floor(elapsedSec / 60)}:{String(elapsedSec % 60).padStart(2, '0')})
+            </button>
+            <div style={{ width: 70, height: 8, borderRadius: 4, background: 'var(--night-mid)', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: `${audioLevel}%`,
+                background: audioLevel < 5 ? '#EF4444' : audioLevel < 20 ? '#F97316' : '#22C55E',
+                transition: 'width 80ms ease-out',
+              }} />
+            </div>
+          </div>
+        )}
+      </div>
+      <textarea
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        style={inputStyle}
+      />
+      {error && (
+        <div style={{
+          padding: '6px 9px', borderRadius: 6, fontSize: '0.74rem',
+          background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)',
+          color: '#FCA5A5',
+        }}>⚠️ {error}</div>
+      )}
+    </div>
+  );
+}
+
 interface ContactSuggestion {
   id: string;
   type: 'client' | 'prospect';
@@ -417,24 +622,30 @@ interface ContactSuggestion {
   phone: string | null;
 }
 
+// Single-field contact lookup. Sous le capot : remplit aussi le business_name
+// du parent (pour qu'il soit envoyé à l'IA), mais c'est invisible côté UX.
+// Préfille via la sélection ; l'utilisateur peut aussi taper un contact qui
+// n'existe pas encore (free text → submit comme contact_name uniquement).
 function ContactAutocomplete({
-  contactName, businessName, onPick, onContactChange, onBusinessChange,
+  value, onChange, onPick, label = 'Contact', placeholder = 'Tape un prénom, nom ou email…', required,
 }: {
-  contactName: string;
-  businessName: string;
+  value: string;
+  onChange: (v: string) => void;
   onPick: (c: ContactSuggestion) => void;
-  onContactChange: (v: string) => void;
-  onBusinessChange: (v: string) => void;
+  label?: string;
+  placeholder?: string;
+  required?: boolean;
 }) {
   const [suggestions, setSuggestions] = useState<ContactSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [activeField, setActiveField] = useState<'contact' | 'business' | null>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const [focused, setFocused] = useState(false);
+  const wrapRef = useRef<HTMLLabelElement>(null);
 
   const search = useCallback(async (q: string) => {
     if (q.trim().length < 2) {
       setSuggestions([]);
+      setOpen(false);
       return;
     }
     setLoading(true);
@@ -448,15 +659,13 @@ function ContactAutocomplete({
     } finally { setLoading(false); }
   }, []);
 
-  // Debounce 200ms sur les changements de champ actif
+  // Debounce 200ms sur changement de valeur (uniquement quand focused)
   useEffect(() => {
-    const q = activeField === 'contact' ? contactName : activeField === 'business' ? businessName : '';
-    if (!activeField) return;
-    const t = setTimeout(() => search(q), 200);
+    if (!focused) return;
+    const t = setTimeout(() => search(value), 200);
     return () => clearTimeout(t);
-  }, [contactName, businessName, activeField, search]);
+  }, [value, focused, search]);
 
-  // Close dropdown au clic en dehors
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
@@ -468,42 +677,27 @@ function ContactAutocomplete({
 
   function handlePick(c: ContactSuggestion) {
     onPick(c);
+    onChange(c.contact_name || c.business_name || value);
     setOpen(false);
-    setActiveField(null);
   }
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative' }}>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 180 }}>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Contact <span style={{ color: 'var(--text-muted)', textTransform: 'none', fontWeight: 400, marginLeft: 4 }}>(2 lettres min)</span>
-          </span>
-          <input
-            type="text"
-            value={contactName}
-            onChange={e => { onContactChange(e.target.value); setActiveField('contact'); }}
-            onFocus={() => { setActiveField('contact'); if (contactName.length >= 2) search(contactName); }}
-            placeholder="Tape un prénom, nom ou email…"
-            style={inputStyle}
-          />
-        </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 180 }}>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Commerce
-          </span>
-          <input
-            type="text"
-            value={businessName}
-            onChange={e => { onBusinessChange(e.target.value); setActiveField('business'); }}
-            onFocus={() => { setActiveField('business'); if (businessName.length >= 2) search(businessName); }}
-            placeholder="Nom du commerce"
-            style={inputStyle}
-          />
-        </label>
-      </div>
+    <label ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative' }}>
+      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {label}{required && <span style={{ color: 'var(--orange)', marginLeft: 3 }}>*</span>}
+        <span style={{ color: 'var(--text-muted)', textTransform: 'none', fontWeight: 400, marginLeft: 6 }}>(2 lettres min)</span>
+      </span>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onFocus={() => { setFocused(true); if (value.length >= 2) search(value); }}
+        onBlur={() => { setTimeout(() => setFocused(false), 200); }}
+        placeholder={placeholder}
+        style={inputStyle}
+      />
 
-      {open && suggestions.length > 0 && (
+      {open && (suggestions.length > 0 || loading) && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
           marginTop: 4, padding: 4, borderRadius: 10,
@@ -540,7 +734,7 @@ function ContactAutocomplete({
                   color: s.type === 'client' ? 'var(--green)' : '#14B8A6',
                   fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
                 }}>{s.type === 'client' ? 'Client' : 'Prospect'}</span>
-                {s.contact_name || '—'}
+                {s.contact_name || s.business_name || '—'}
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                 {s.business_name && <span style={{ color: 'var(--orange)' }}>🏢 {s.business_name}</span>}
@@ -553,6 +747,6 @@ function ContactAutocomplete({
           ))}
         </div>
       )}
-    </div>
+    </label>
   );
 }
