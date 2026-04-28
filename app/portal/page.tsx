@@ -706,10 +706,33 @@ function PortalContent() {
   );
 
   if (loading) return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 12 }}>
-      <div style={{ width: 32, height: 32, border: '3px solid var(--border-md)', borderTopColor: 'var(--orange)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Chargement de votre espace…</div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    <div style={{
+      maxWidth: 800, margin: '0 auto', padding: 'clamp(16px, 3vw, 28px)',
+    }}>
+      {/* Header skeleton */}
+      <div className="bm-stagger" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{
+          padding: 20, borderRadius: 14,
+          background: 'var(--night-card)', border: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
+          <div style={{ height: 24, width: '50%', borderRadius: 6, background: 'linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.04) 100%)', backgroundSize: '200% 100%', animation: 'bm-shimmer 1.4s ease-in-out infinite' }} />
+          <div style={{ height: 14, width: '70%', borderRadius: 6, background: 'linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.04) 100%)', backgroundSize: '200% 100%', animation: 'bm-shimmer 1.4s ease-in-out infinite' }} />
+        </div>
+        {/* Roadmap skeleton (8 lignes) */}
+        <div style={{
+          padding: 20, borderRadius: 14,
+          background: 'var(--night-card)', border: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column', gap: 12,
+        }}>
+          {[0,1,2,3,4,5,6,7].map(i => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.04) 100%)', backgroundSize: '200% 100%', animation: 'bm-shimmer 1.4s ease-in-out infinite' }} />
+              <div style={{ flex: 1, height: 14, borderRadius: 6, background: 'linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.04) 100%)', backgroundSize: '200% 100%', animation: 'bm-shimmer 1.4s ease-in-out infinite' }} />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 
@@ -2824,7 +2847,69 @@ function NoScriptStage({ clientInfo }: { clientInfo: ClientDelivery | null }) {
     );
   }
 
-  // 3. Default — script_writing or unknown : team is on it
+  // 3. Script writing — team is on it. Empty state magnifié avec ETA.
+  if (status === 'script_writing') {
+    const updatedAt = clientInfo?.updated_at ? new Date(clientInfo.updated_at) : null;
+    const eta = updatedAt ? addBusinessDays(updatedAt, 3) : null;
+    const daysRemaining = eta ? Math.max(0, Math.ceil((eta.getTime() - Date.now()) / 86400000)) : null;
+    return (
+      <NoScriptShell
+        emoji="✍️"
+        title="Votre script est en préparation"
+        subtitle="Notre équipe planche sur votre vidéo. On revient vers vous très vite avec une 1ère version à valider."
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 480, margin: '0 auto' }}>
+          <div style={{
+            padding: '14px 18px', borderRadius: 12,
+            background: 'rgba(232,105,43,.08)', border: '1px solid rgba(232,105,43,.25)',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <span aria-hidden style={{ fontSize: '1.4rem' }}>⏱️</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text)' }}>
+                {daysRemaining !== null && daysRemaining <= 1
+                  ? "Estimation : d'ici demain"
+                  : daysRemaining !== null && daysRemaining <= 5
+                    ? `Estimation : dans environ ${daysRemaining} jours ouvrés`
+                    : 'Estimation : 3-5 jours ouvrés'}
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                Vous serez notifié·e dès la livraison
+              </div>
+            </div>
+          </div>
+          <div style={{
+            padding: '14px 18px', borderRadius: 12,
+            background: 'var(--night-card)', border: '1px solid var(--border)',
+            fontSize: '0.84rem', color: 'var(--text-mid)', lineHeight: 1.6,
+          }}>
+            <strong style={{ color: 'var(--text)' }}>Que se passe-t-il en coulisses ?</strong>
+            <ol style={{ margin: '8px 0 0', paddingLeft: 20, fontSize: '0.82rem' }}>
+              <li>Analyse de votre commerce et de votre cible</li>
+              <li>Recherche d&apos;angle créatif et structure (hook + bénéfices + CTA)</li>
+              <li>Rédaction d&apos;une 1ère version pensée pour votre audience</li>
+              <li>Relecture interne avant envoi</li>
+            </ol>
+          </div>
+        </div>
+      </NoScriptShell>
+    );
+  }
+
+  // 4. Filming scheduled / done / editing — script validé mais on est pas
+  // encore en review vidéo. Cas peu fréquent (ce path n'est atteint que si
+  // hasDelivery=false ET pas de script chargé), mais on prévoit un fallback.
+  if (status === 'filming_scheduled' || status === 'filming_done' || status === 'editing') {
+    const messages: Record<string, { emoji: string; title: string; subtitle: string }> = {
+      filming_scheduled: { emoji: '📅', title: 'Tournage planifié', subtitle: 'Votre tournage est confirmé. À très bientôt !' },
+      filming_done: { emoji: '🎬', title: 'Tournage dans la boîte !', subtitle: 'L\'équipe lance le montage. Vous recevrez la vidéo très vite.' },
+      editing: { emoji: '🎞️', title: 'Votre vidéo est en montage', subtitle: 'Compte à rebours avant la livraison ! On vous envoie un message dès que c\'est prêt.' },
+    };
+    const m = messages[status];
+    return <NoScriptShell emoji={m.emoji} title={m.title} subtitle={m.subtitle} />;
+  }
+
+  // 5. Default fallback
   return (
     <NoScriptShell
       emoji="✍️"

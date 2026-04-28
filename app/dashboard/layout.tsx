@@ -9,6 +9,8 @@ import NotificationBell from '@/components/NotificationBell';
 import AiCopilot from '@/components/AiCopilot';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import OfflineIndicator from '@/components/OfflineIndicator';
+import ShortcutsCheatsheet from '@/components/ShortcutsCheatsheet';
+import DensityProvider from '@/components/DensityProvider';
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
@@ -168,7 +170,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .catch(() => { localStorage.removeItem('bbp_token'); router.replace('/dashboard/login'); });
   }, [router, isLoginPage]);
 
-  if (isLoginPage) return <ToastProvider>{children}</ToastProvider>;
+  if (isLoginPage) return <ToastProvider><DensityProvider>{children}</DensityProvider></ToastProvider>;
 
   if (checking) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--night)' }}>
@@ -395,6 +397,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ToastProvider>
+    <DensityProvider>
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--night)' }}>
       {/* Mobile top header bar */}
       {isMobile && (
@@ -569,8 +572,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <ErrorBoundary scope="bell" fallback={() => null}><NotificationBell /></ErrorBoundary>
       <ErrorBoundary scope="copilot" fallback={() => null}><AiCopilot /></ErrorBoundary>
       <ErrorBoundary scope="offline" fallback={() => null}><OfflineIndicator /></ErrorBoundary>
+      <ErrorBoundary scope="cheatsheet" fallback={() => null}><ShortcutsCheatsheet /></ErrorBoundary>
       <ErrorBoundary scope="welcome" fallback={() => null}><WelcomeWizard /></ErrorBoundary>
     </div>
+    </DensityProvider>
     </ToastProvider>
   );
 }

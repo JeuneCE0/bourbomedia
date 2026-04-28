@@ -3,12 +3,14 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AutomationsView } from '@/app/dashboard/automations/page';
+import { DensityToggle } from '@/components/DensityProvider';
 
-type TabKey = 'team' | 'ads' | 'pricing' | 'integrations' | 'notifications' | 'automations' | 'data';
+type TabKey = 'team' | 'ads' | 'pricing' | 'integrations' | 'notifications' | 'automations' | 'data' | 'appearance';
 
 const TABS: { key: TabKey; emoji: string; label: string }[] = [
   { key: 'team',          emoji: '👥', label: 'Équipe' },
   { key: 'notifications', emoji: '🔔', label: 'Notifications' },
+  { key: 'appearance',    emoji: '🎨', label: 'Apparence' },
   { key: 'automations',   emoji: '🤖', label: 'Automatisations' },
   { key: 'integrations',  emoji: '🔌', label: 'Intégrations' },
   { key: 'data',          emoji: '🔄', label: 'Synchronisations' },
@@ -32,7 +34,7 @@ function SettingsPageInner() {
   const sp = useSearchParams();
   const initialTab = (() => {
     const t = sp.get('tab');
-    const valid = ['team', 'notifications', 'automations', 'integrations', 'data', 'ads', 'pricing'];
+    const valid = ['team', 'notifications', 'appearance', 'automations', 'integrations', 'data', 'ads', 'pricing'];
     return valid.includes(t || '') ? (t as TabKey) : 'team';
   })();
   const [tab, setTabState] = useState<TabKey>(initialTab);
@@ -89,6 +91,7 @@ function SettingsPageInner() {
       <div className="bm-fade-in" key={tab}>
         {tab === 'team' && <TeamPanel />}
         {tab === 'notifications' && <NotificationsPanel />}
+        {tab === 'appearance' && <AppearancePanel />}
         {tab === 'automations' && <AutomationsView />}
         {tab === 'integrations' && <IntegrationsPanel />}
         {tab === 'data' && <DataSyncPanel />}
@@ -859,6 +862,25 @@ function DataSyncPanel() {
       }}>
         ℹ️ Ces sync sont automatiques au quotidien (webhooks Stripe + cron GHL). Le bouton manuel
         sert au backfill historique ou pour récupérer après une indisponibilité du webhook.
+      </div>
+    </div>
+  );
+}
+
+function AppearancePanel() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{
+        padding: 18, borderRadius: 12,
+        background: 'var(--night-card)', border: '1px solid var(--border)',
+      }}>
+        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 4px', color: 'var(--text)' }}>
+          🎨 Densité d&apos;affichage
+        </h3>
+        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.5 }}>
+          Adapte les espacements et tailles de texte selon ton écran et tes préférences.
+        </p>
+        <DensityToggle />
       </div>
     </div>
   );
