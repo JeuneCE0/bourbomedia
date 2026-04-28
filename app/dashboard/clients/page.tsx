@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { addView, deleteView, loadViews, type SavedView } from '@/lib/saved-views';
 
 interface Client {
   id: string;
@@ -131,6 +132,38 @@ export function ClientsListView() {
   const [sort, setSort] = useState<SortOption>('created_desc');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+
+  // Saved views (filtres persistés)
+  interface ClientFilters {
+    filter: string; cityFilter: string; tagFilter: string | null;
+    paidFilter: string; deliveredFilter: string; sort: string;
+  }
+  const [savedViews, setSavedViews] = useState<SavedView<ClientFilters>[]>([]);
+  useEffect(() => { setSavedViews(loadViews<ClientFilters>('clients-list')); }, []);
+  useEffect(() => {
+    const onChange = () => setSavedViews(loadViews<ClientFilters>('clients-list'));
+    window.addEventListener('bbm-views-changed', onChange);
+    return () => window.removeEventListener('bbm-views-changed', onChange);
+  }, []);
+
+  function applyView(v: SavedView<ClientFilters>) {
+    setFilter(v.filters.filter);
+    setCityFilter(v.filters.cityFilter);
+    setTagFilter(v.filters.tagFilter);
+    setPaidFilter(v.filters.paidFilter as 'all' | 'paid' | 'unpaid');
+    setDeliveredFilter(v.filters.deliveredFilter as 'all' | 'delivered' | 'pending');
+    setSort(v.filters.sort as SortOption);
+  }
+
+  function saveCurrentAsView() {
+    const name = window.prompt('Nom de cette vue ?', `Ma vue ${savedViews.length + 1}`)?.trim();
+    if (!name) return;
+    const emoji = window.prompt('Emoji (1 caractère, optionnel)', '⭐')?.trim() || '⭐';
+    addView<ClientFilters>('clients-list', {
+      name, emoji,
+      filters: { filter, cityFilter, tagFilter, paidFilter, deliveredFilter, sort },
+    });
+  }
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkSaving, setBulkSaving] = useState(false);
   const [toast, setToast] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
@@ -629,6 +662,52 @@ export function ClientsListView() {
             );
           })()}
         </div>
+
+        {/* Saved views */}
+        {(savedViews.length > 0 || filter !== 'all' || cityFilter !== 'all' || tagFilter || paidFilter !== 'all' || deliveredFilter !== 'all') && (
+          <div style={{
+            display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center',
+            paddingTop: 8, marginTop: 4,
+          }}>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: 4 }}>
+              ⭐ Vues
+            </span>
+            {savedViews.map(v => (
+              <span key={v.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 0 }}>
+                <button
+                  onClick={() => applyView(v)}
+                  title={`Appliquer la vue '${v.name}'`}
+                  style={{
+                    padding: '4px 9px', borderRadius: '6px 0 0 6px',
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)', borderRight: 'none',
+                    color: 'var(--text-mid)', cursor: 'pointer', fontSize: '0.74rem', fontWeight: 600,
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  <span aria-hidden>{v.emoji}</span>
+                  {v.name}
+                </button>
+                <button
+                  onClick={() => { if (confirm(`Supprimer la vue '${v.name}' ?`)) deleteView('clients-list', v.id); }}
+                  title="Supprimer"
+                  style={{
+                    padding: '4px 6px', borderRadius: '0 6px 6px 0',
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                    color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.7rem',
+                  }}
+                >×</button>
+              </span>
+            ))}
+            <button
+              onClick={saveCurrentAsView}
+              style={{
+                padding: '4px 10px', borderRadius: 6,
+                background: 'transparent', border: '1px dashed var(--border-md)',
+                color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600,
+              }}
+            >+ Sauvegarder cette vue</button>
+          </div>
+        )}
 
         {/* Advanced filters */}
         {showAdvanced && (

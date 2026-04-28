@@ -11,6 +11,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import OfflineIndicator from '@/components/OfflineIndicator';
 import ShortcutsCheatsheet from '@/components/ShortcutsCheatsheet';
 import DensityProvider from '@/components/DensityProvider';
+import CommandPalette from '@/components/CommandPalette';
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
@@ -120,11 +121,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        const input = document.getElementById('global-search') as HTMLInputElement;
-        input?.focus();
-      }
+      // ⌘K est désormais géré par <CommandPalette/> (search + actions)
       if (e.key === 'Escape') setSearchOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -572,6 +569,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <ErrorBoundary scope="bell" fallback={() => null}><NotificationBell /></ErrorBoundary>
       <ErrorBoundary scope="copilot" fallback={() => null}><AiCopilot /></ErrorBoundary>
       <ErrorBoundary scope="offline" fallback={() => null}><OfflineIndicator /></ErrorBoundary>
+      <ErrorBoundary scope="palette" fallback={() => null}><CommandPalette /></ErrorBoundary>
       <ErrorBoundary scope="cheatsheet" fallback={() => null}><ShortcutsCheatsheet /></ErrorBoundary>
       <ErrorBoundary scope="welcome" fallback={() => null}><WelcomeWizard /></ErrorBoundary>
     </div>
