@@ -1,8 +1,43 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
 type Action = 'generate_script' | 'summarize_call' | 'suggest_next_action' | 'draft_message';
+
+interface ContextHint {
+  scope: 'client' | 'closing' | 'opportunity' | 'none';
+  id: string;
+  business_name?: string | null;
+  contact_name?: string | null;
+  category?: string | null;
+  city?: string | null;
+  prospect_status?: string | null;
+  last_note?: string | null;
+  source_label?: string;
+}
+
+interface HistoryEntry {
+  id: string;
+  action: Action;
+  payload: Record<string, unknown>;
+  result: string;
+  ts: number;
+}
+
+const HISTORY_KEY = 'bbm_copilot_history_v1';
+const MAX_HISTORY = 10;
+
+function loadHistory(): HistoryEntry[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+function saveHistory(items: HistoryEntry[]) {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, MAX_HISTORY))); } catch { /* */ }
+}
 
 interface ActionMeta {
   emoji: string;
@@ -38,17 +73,151 @@ function authHeaders() {
 }
 
 export default function AiCopilot() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState<Action | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [autoContext, setAutoContext] = useState<ContextHint | null>(null);
+  const lastFocusedTextareaRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
+
   // Form fields (un état par action)
   const [scriptForm, setScriptForm] = useState({ business_name: '', category: '', city: '', usp: '', target_audience: '', desired_tone: '', duration_seconds: 30, custom_brief: '' });
   const [callForm, setCallForm] = useState({ raw_notes: '', contact_name: '', business_name: '', appointment_kind: '' });
   const [opportunityForm, setOpportunityForm] = useState({ business_name: '', contact_name: '', prospect_status: '', last_note: '', monetary_value_eur: '', days_in_stage: '' });
   const [messageForm, setMessageForm] = useState({ contact_name: '', business_name: '', intent: 'follow_up' as const, channel: 'whatsapp' as const, context_notes: '' });
+
+  // Track le dernier textarea/input cliqué pour le bouton 'Insérer ici'
+  useEffect(() => {
+    const onFocus = (e: FocusEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && (t as HTMLInputElement).type === 'text')) {
+        lastFocusedTextareaRef.current = t as HTMLTextAreaElement | HTMLInputElement;
+      }
+    };
+    document.addEventListener('focusin', onFocus);
+    return () => document.removeEventListener('focusin', onFocus);
+  }, []);
+
+  // Detect le contexte de la page courante quand on ouvre le drawer.
+  useEffect(() => {
+    if (!open) return;
+    setHistory(loadHistory());
+    detectContext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pathname]);
+
+  async function detectContext() {
+    if (!pathname) { setAutoContext(null); return; }
+    // /dashboard/clients/[id]
+    const clientMatch = pathname.match(/\/dashboard\/clients\/([0-9a-f-]+)/);
+    if (clientMatch) {
+      try {
+        const r = await fetch(`/api/clients?id=${clientMatch[1]}`, { headers: authHeaders() });
+        if (r.ok) {
+          const c = await r.json();
+          setAutoContext({
+            scope: 'client',
+            id: clientMatch[1],
+            business_name: c?.business_name,
+            contact_name: c?.contact_name,
+            category: c?.category,
+            city: c?.city,
+            source_label: 'Fiche client',
+          });
+          return;
+        }
+      } catch { /* */ }
+    }
+    // /dashboard/closing/[appointmentId]
+    const closingMatch = pathname.match(/\/dashboard\/closing\/([0-9a-f-]+)/);
+    if (closingMatch) {
+      try {
+        const r = await fetch(`/api/gh-appointments?id=${closingMatch[1]}`, { headers: authHeaders() });
+        if (r.ok) {
+          const d = await r.json();
+          const a = (d.appointments || [])[0];
+          if (a) {
+            setAutoContext({
+              scope: 'closing',
+              id: closingMatch[1],
+              business_name: a.opportunity_name,
+              contact_name: a.contact_name,
+              prospect_status: a.prospect_status,
+              last_note: a.notes,
+              source_label: `Closing Room — ${a.calendar_kind}`,
+            });
+            return;
+          }
+        }
+      } catch { /* */ }
+    }
+    setAutoContext(null);
+  }
+
+  // Quand on choisit une action, pré-remplit le form avec le contexte détecté
+  function applyContextToForm(actionKey: Action) {
+    if (!autoContext) return;
+    const c = autoContext;
+    if (actionKey === 'generate_script') {
+      setScriptForm(prev => ({
+        ...prev,
+        business_name: c.business_name || prev.business_name,
+        category: c.category || prev.category,
+        city: c.city || prev.city,
+      }));
+    } else if (actionKey === 'summarize_call') {
+      setCallForm(prev => ({
+        ...prev,
+        contact_name: c.contact_name || prev.contact_name,
+        business_name: c.business_name || prev.business_name,
+        appointment_kind: c.scope === 'closing' ? 'Closing' : prev.appointment_kind,
+      }));
+    } else if (actionKey === 'suggest_next_action') {
+      setOpportunityForm(prev => ({
+        ...prev,
+        business_name: c.business_name || prev.business_name,
+        contact_name: c.contact_name || prev.contact_name,
+        prospect_status: c.prospect_status || prev.prospect_status,
+        last_note: c.last_note || prev.last_note,
+      }));
+    } else if (actionKey === 'draft_message') {
+      setMessageForm(prev => ({
+        ...prev,
+        contact_name: c.contact_name || prev.contact_name,
+        business_name: c.business_name || prev.business_name,
+      }));
+    }
+  }
+
+  function insertIntoFocusedField() {
+    if (!result) return;
+    const target = lastFocusedTextareaRef.current;
+    if (!target) {
+      // Fallback: copy to clipboard
+      copy();
+      return;
+    }
+    const start = target.selectionStart ?? target.value.length;
+    const end = target.selectionEnd ?? target.value.length;
+    const before = target.value.slice(0, start);
+    const after = target.value.slice(end);
+    const next = before + result + after;
+    // Use native setter to trigger React onChange
+    const setter = Object.getOwnPropertyDescriptor(
+      target.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
+      'value',
+    )?.set;
+    if (setter) setter.call(target, next);
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.focus();
+    target.selectionStart = target.selectionEnd = start + result.length;
+    setOpen(false);
+  }
 
   // Toggle via Cmd+J / Ctrl+J
   useEffect(() => {
@@ -72,6 +241,8 @@ export default function AiCopilot() {
   function pickAction(a: Action) {
     setAction(a);
     reset();
+    // Pré-remplit avec le contexte détecté si dispo
+    applyContextToForm(a);
   }
 
   async function run() {
@@ -93,11 +264,44 @@ export default function AiCopilot() {
         body: JSON.stringify({ action, payload }),
       });
       const d = await r.json();
-      if (r.ok) setResult(d.text || '');
-      else setError(d.error || `HTTP ${r.status}`);
+      if (r.ok) {
+        const text = d.text || '';
+        setResult(text);
+        // Save to history (capped 10)
+        if (text.trim().length > 0) {
+          const entry: HistoryEntry = {
+            id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            action: action!,
+            payload,
+            result: text,
+            ts: Date.now(),
+          };
+          const next = [entry, ...loadHistory()].slice(0, MAX_HISTORY);
+          saveHistory(next);
+          setHistory(next);
+        }
+      } else setError(d.error || `HTTP ${r.status}`);
     } catch (e: unknown) {
       setError((e as Error).message);
     } finally { setBusy(false); }
+  }
+
+  function loadFromHistory(h: HistoryEntry) {
+    setAction(h.action);
+    setShowHistory(false);
+    setResult(h.result);
+    setError(null);
+    // Restore form fields from payload
+    const p = h.payload as Record<string, unknown>;
+    if (h.action === 'generate_script') setScriptForm(prev => ({ ...prev, ...p as typeof scriptForm }));
+    if (h.action === 'summarize_call') setCallForm(prev => ({ ...prev, ...p as typeof callForm }));
+    if (h.action === 'suggest_next_action') setOpportunityForm(prev => ({
+      ...prev,
+      ...p as Partial<typeof opportunityForm>,
+      monetary_value_eur: typeof p.monetary_value_eur === 'number' ? String(p.monetary_value_eur) : (typeof p.monetary_value_eur === 'string' ? p.monetary_value_eur : ''),
+      days_in_stage: typeof p.days_in_stage === 'number' ? String(p.days_in_stage) : (typeof p.days_in_stage === 'string' ? p.days_in_stage : ''),
+    }));
+    if (h.action === 'draft_message') setMessageForm(prev => ({ ...prev, ...p as typeof messageForm }));
   }
 
   function copy() {
@@ -175,15 +379,50 @@ export default function AiCopilot() {
                   Powered by Claude · ⌘J pour ouvrir/fermer
                 </p>
               </div>
-              <button onClick={() => setOpen(false)} aria-label="Fermer" style={{
-                background: 'transparent', border: 'none', color: 'var(--text-muted)',
-                fontSize: '1.4rem', cursor: 'pointer', padding: 0, lineHeight: 1,
-              }}>×</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button onClick={() => setShowHistory(s => !s)} title="Historique des dernières générations" style={{
+                  background: showHistory ? 'rgba(232,105,43,.15)' : 'transparent',
+                  border: '1px solid var(--border-md)', color: showHistory ? 'var(--orange)' : 'var(--text-muted)',
+                  fontSize: '0.74rem', cursor: 'pointer', padding: '4px 10px', borderRadius: 6,
+                }}>📜 Historique{history.length > 0 ? ` (${history.length})` : ''}</button>
+                <button onClick={() => setOpen(false)} aria-label="Fermer" style={{
+                  background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                  fontSize: '1.4rem', cursor: 'pointer', padding: 0, lineHeight: 1, marginLeft: 4,
+                }}>×</button>
+              </div>
             </div>
+
+            {/* Auto-context banner */}
+            {autoContext && autoContext.scope !== 'none' && !showHistory && (
+              <div style={{
+                margin: '12px 20px 0', padding: '10px 12px', borderRadius: 10,
+                background: 'rgba(20,184,166,.08)', border: '1px solid rgba(20,184,166,.3)',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <span aria-hidden style={{ fontSize: '1.1rem' }}>🎯</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    Contexte détecté · {autoContext.source_label}
+                  </div>
+                  <div style={{ fontSize: '0.84rem', color: 'var(--text)', fontWeight: 600 }}>
+                    {autoContext.business_name || autoContext.contact_name || '—'}
+                  </div>
+                </div>
+                <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                  Auto-rempli au choix d&apos;une action
+                </span>
+              </div>
+            )}
 
             {/* Content */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-              {!action ? (
+              {showHistory ? (
+                <HistoryPanel
+                  items={history}
+                  onPick={loadFromHistory}
+                  onClear={() => { saveHistory([]); setHistory([]); }}
+                />
+              ) : !action ? (
                 <ActionPicker onPick={pickAction} />
               ) : (
                 <>
@@ -332,18 +571,27 @@ export default function AiCopilot() {
                     }}>
                       <div style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        marginBottom: 10, gap: 8,
+                        marginBottom: 10, gap: 8, flexWrap: 'wrap',
                       }}>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                           ✨ Réponse Claude
                         </span>
-                        <button onClick={copy} style={{
-                          padding: '4px 10px', borderRadius: 6,
-                          background: copied ? 'rgba(34,197,94,.15)' : 'var(--night-raised)',
-                          border: `1px solid ${copied ? 'rgba(34,197,94,.4)' : 'var(--border-md)'}`,
-                          color: copied ? 'var(--green)' : 'var(--text-mid)',
-                          cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600,
-                        }}>{copied ? '✓ Copié' : '📋 Copier'}</button>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {lastFocusedTextareaRef.current && (
+                            <button onClick={insertIntoFocusedField} title="Insérer dans le dernier champ utilisé" style={{
+                              padding: '4px 10px', borderRadius: 6,
+                              background: 'var(--orange)', border: 'none', color: '#fff',
+                              cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700,
+                            }}>↵ Insérer ici</button>
+                          )}
+                          <button onClick={copy} style={{
+                            padding: '4px 10px', borderRadius: 6,
+                            background: copied ? 'rgba(34,197,94,.15)' : 'var(--night-raised)',
+                            border: `1px solid ${copied ? 'rgba(34,197,94,.4)' : 'var(--border-md)'}`,
+                            color: copied ? 'var(--green)' : 'var(--text-mid)',
+                            cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600,
+                          }}>{copied ? '✓ Copié' : '📋 Copier'}</button>
+                        </div>
                       </div>
                       <div style={{
                         fontSize: '0.86rem', color: 'var(--text)', lineHeight: 1.6,
@@ -358,6 +606,66 @@ export default function AiCopilot() {
         </>
       )}
     </>
+  );
+}
+
+function HistoryPanel({ items, onPick, onClear }: { items: HistoryEntry[]; onPick: (h: HistoryEntry) => void; onClear: () => void }) {
+  if (items.length === 0) {
+    return (
+      <div style={{ padding: '32px 20px', textAlign: 'center' }}>
+        <div style={{ fontSize: '2rem', marginBottom: 8 }}>📜</div>
+        <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)' }}>
+          Aucune génération encore. Tes 10 dernières seront sauvegardées ici.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: 10, gap: 8,
+      }}>
+        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          {items.length} génération{items.length > 1 ? 's' : ''} récente{items.length > 1 ? 's' : ''}
+        </span>
+        <button onClick={() => { if (confirm('Vider tout l\'historique ?')) onClear(); }} style={{
+          background: 'transparent', border: 'none', color: 'var(--text-muted)',
+          cursor: 'pointer', fontSize: '0.72rem', textDecoration: 'underline', padding: 0,
+        }}>Vider</button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {items.map(h => {
+          const meta = ACTIONS[h.action];
+          const ago = Math.floor((Date.now() - h.ts) / 60000);
+          const agoLabel = ago < 1 ? "à l'instant" : ago < 60 ? `il y a ${ago} min` : `il y a ${Math.floor(ago / 60)} h`;
+          return (
+            <button key={h.id} onClick={() => onPick(h)} style={{
+              padding: '10px 12px', borderRadius: 8, textAlign: 'left',
+              background: 'var(--night-mid)', border: '1px solid var(--border)',
+              cursor: 'pointer', color: 'inherit',
+              display: 'flex', flexDirection: 'column', gap: 4,
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-orange)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
+            >
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: '0.74rem' }}>
+                <span aria-hidden>{meta.emoji}</span>
+                <strong style={{ color: 'var(--text)' }}>{meta.label}</strong>
+                <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '0.66rem' }}>{agoLabel}</span>
+              </div>
+              <div style={{
+                fontSize: '0.78rem', color: 'var(--text-mid)', lineHeight: 1.4,
+                overflow: 'hidden', textOverflow: 'ellipsis',
+                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+              }}>
+                {h.result.slice(0, 200)}{h.result.length > 200 ? '…' : ''}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
