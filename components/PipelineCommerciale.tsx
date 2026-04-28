@@ -4,6 +4,8 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { downloadCsv } from '@/lib/csv-export';
+import ThreadPanel from '@/components/ThreadPanel';
+import PresenceIndicator from '@/components/PresenceIndicator';
 
 interface Opportunity {
   id: string;
@@ -748,9 +750,9 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
             <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text)', margin: 0, fontFamily: "'Bricolage Grotesque', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {opp.name || opp.contact_name || opp.contact_email || 'Sans nom'}
             </h2>
-            <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
-              🏷️ {opp.pipeline_stage_name || 'Stage inconnu'}
-              {opp.monetary_value_cents && ` · 💰 ${fmtEUR(opp.monetary_value_cents)}`}
+            <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '3px 0 0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>🏷️ {opp.pipeline_stage_name || 'Stage inconnu'}{opp.monetary_value_cents && ` · 💰 ${fmtEUR(opp.monetary_value_cents)}`}</span>
+              <PresenceIndicator scope={`opportunity/${opp.ghl_opportunity_id}`} />
             </p>
           </div>
           <button onClick={onClose} style={{
@@ -916,6 +918,9 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
               ⏳ Chargement de la fiche GHL complète…
             </div>
           )}
+
+          {/* Notes internes (thread Rudy ↔ Siméon) */}
+          <ThreadPanel scopeType="opportunity" scopeId={opp.ghl_opportunity_id} title="💬 Notes internes" />
 
           {/* RDV history pour ce contact */}
           {allAppts.length > 0 && (
@@ -1177,10 +1182,38 @@ function QuickAddProspectModal({ stages, onClose, onCreated }: {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  // Auto-detect doublons (debounce 400ms)
+  interface DupMatch { source: 'client' | 'opportunity'; id: string; name: string | null; email: string | null; phone: string | null; match_reason: 'email' | 'phone' | 'name'; match_score: number; href: string; status_label?: string | null }
+  const [duplicates, setDuplicates] = useState<DupMatch[]>([]);
+  const [bypassDup, setBypassDup] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (form.email.trim()) params.set('email', form.email.trim());
+    if (form.phone.trim()) params.set('phone', form.phone.trim());
+    if (form.name.trim().length >= 3) params.set('name', form.name.trim());
+    if (params.toString().length === 0) { setDuplicates([]); return; }
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/contacts/duplicates?${params.toString()}`, { headers: authHeaders() });
+        if (r.ok) {
+          const d = await r.json();
+          setDuplicates(Array.isArray(d.matches) ? d.matches : []);
+        }
+      } catch { /* */ }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.name, form.email, form.phone]);
 
   async function submit() {
     if (!form.name.trim() || !form.email.trim()) {
       setError('Nom et email obligatoires');
+      return;
+    }
+    // Garde-fou : si doublons détectés et l'admin n'a pas explicitement bypass
+    const strongMatch = duplicates.find(d => d.match_score >= 95);
+    if (strongMatch && !bypassDup) {
+      setError(`Un prospect avec ${strongMatch.match_reason === 'email' ? 'cet email' : strongMatch.match_reason === 'phone' ? 'ce téléphone' : 'un nom similaire'} existe déjà. Vérifie les doublons ci-dessus avant de continuer.`);
       return;
     }
     setSubmitting(true);
@@ -1247,6 +1280,64 @@ function QuickAddProspectModal({ stages, onClose, onCreated }: {
             </select>
           </label>
         </div>
+
+        {duplicates.length > 0 && (
+          <div style={{
+            marginTop: 14, padding: '12px 14px', borderRadius: 10,
+            background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.35)',
+          }}>
+            <div style={{ fontSize: '0.78rem', color: '#FACC15', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              ⚠️ {duplicates.length} doublon{duplicates.length > 1 ? 's' : ''} potentiel{duplicates.length > 1 ? 's' : ''} détecté{duplicates.length > 1 ? 's' : ''}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {duplicates.map(d => (
+                <a
+                  key={`${d.source}-${d.id}`}
+                  href={d.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '7px 9px', borderRadius: 6, textDecoration: 'none',
+                    background: 'var(--night-mid)', border: '1px solid var(--border)',
+                  }}
+                >
+                  <span aria-hidden style={{
+                    fontSize: '0.65rem', padding: '1px 6px', borderRadius: 4,
+                    background: d.source === 'client' ? 'rgba(34,197,94,.15)' : 'rgba(20,184,166,.15)',
+                    color: d.source === 'client' ? 'var(--green)' : '#14B8A6',
+                    fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0,
+                  }}>{d.source === 'client' ? 'Client' : 'Prospect'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {d.name || '—'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {d.email && <span>📧 {d.email}</span>}
+                      {d.email && d.phone && ' · '}
+                      {d.phone && <span>📱 {d.phone}</span>}
+                      {d.status_label && <span style={{ marginLeft: 6, color: 'var(--orange)' }}>· {d.status_label}</span>}
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 600,
+                    padding: '2px 6px', borderRadius: 4,
+                    background: 'var(--night-card)',
+                  }}>
+                    {d.match_reason === 'email' ? 'email match' : d.match_reason === 'phone' ? 'tél match' : `${d.match_score}% nom`}
+                  </span>
+                </a>
+              ))}
+            </div>
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginTop: 10,
+              fontSize: '0.74rem', color: 'var(--text-muted)', cursor: 'pointer',
+            }}>
+              <input type="checkbox" checked={bypassDup} onChange={e => setBypassDup(e.target.checked)} />
+              <span>Créer quand même (je sais que c&apos;est un nouveau contact)</span>
+            </label>
+          </div>
+        )}
 
         {error && (
           <div style={{
