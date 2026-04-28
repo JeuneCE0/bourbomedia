@@ -847,20 +847,34 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
               'Prêt à investir',
               'Qualifié',
             ];
+            const PRIORITY_ALIASES: Record<string, string[]> = {
+              'Type de commerce': ['type commerce', 'type', 'secteur', 'business type', 'category'],
+              'Ville du commerce': ['ville', 'city', 'localisation', 'lieu'],
+              'Ancienneté du commerce': ['ancienneté', 'anciennete', 'age commerce', 'depuis quand'],
+              'Expérience publicité en ligne': ['experience pub', 'pub en ligne', 'experience ads', 'ads experience', 'experience marketing'],
+              'Objectif principal': ['objectif', 'goal', 'but'],
+              'Détail objectif': ['detail objectif', 'precision objectif', 'objectif detail'],
+              'Prêt à investir': ['budget', 'pret a investir', 'investissement', 'ready to invest'],
+              'Qualifié': ['qualifie', 'qualifié', 'qualified'],
+            };
             const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-            const priorityNorm = PRIORITY_LABELS.map(norm);
-            const priorityFields = PRIORITY_LABELS.map(label => {
-              const target = norm(label);
-              const found = ghlContact.customFields.find(cf => {
-                const n = norm(cf.label);
-                return n === target || n.includes(target) || target.includes(n);
+            const matchesLabel = (cfLabel: string, priority: string): boolean => {
+              const n = norm(cfLabel);
+              const t = norm(priority);
+              if (n === t || n.includes(t) || t.includes(n)) return true;
+              const aliases = PRIORITY_ALIASES[priority] || [];
+              return aliases.some(a => {
+                const aN = norm(a);
+                return n === aN || n.includes(aN) || aN.includes(n);
               });
+            };
+            const priorityFields = PRIORITY_LABELS.map(label => {
+              const found = ghlContact.customFields.find(cf => matchesLabel(cf.label, label));
               return { label, found };
             });
-            const otherFields = ghlContact.customFields.filter(cf => {
-              const n = norm(cf.label);
-              return !priorityNorm.some(p => n === p || n.includes(p) || p.includes(n));
-            });
+            const otherFields = ghlContact.customFields.filter(cf =>
+              !PRIORITY_LABELS.some(p => matchesLabel(cf.label, p))
+            );
             const renderValue = (v: unknown): string => Array.isArray(v) ? v.join(', ') : String(v);
             return (
               <>

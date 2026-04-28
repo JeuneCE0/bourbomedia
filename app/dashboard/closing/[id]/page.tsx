@@ -51,6 +51,31 @@ const PRIORITY_LABELS = [
   'Prêt à investir', 'Qualifié',
 ];
 
+// Aliases pour matcher les variantes courantes des labels GHL
+// (ex: "Type commerce" vs "Type de commerce", "Ville" vs "Ville du commerce")
+const PRIORITY_ALIASES: Record<string, string[]> = {
+  'Type de commerce': ['type commerce', 'type', 'secteur', 'business type', 'category'],
+  'Ville du commerce': ['ville', 'city', 'localisation', 'lieu'],
+  'Ancienneté du commerce': ['ancienneté', 'anciennete', 'age commerce', 'depuis quand'],
+  'Expérience publicité en ligne': ['experience pub', 'pub en ligne', 'experience ads', 'ads experience', 'experience marketing'],
+  'Objectif principal': ['objectif', 'goal', 'but'],
+  'Détail objectif': ['detail objectif', 'precision objectif', 'objectif detail'],
+  'Prêt à investir': ['budget', 'pret a investir', 'investissement', 'ready to invest'],
+  'Qualifié': ['qualifie', 'qualifié', 'qualified'],
+};
+
+function matchesPriorityLabel(cfLabel: string, priorityLabel: string): boolean {
+  const n = cfLabel.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  const t = priorityLabel.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  if (n === t || n.includes(t) || t.includes(n)) return true;
+  // Check aliases
+  const aliases = PRIORITY_ALIASES[priorityLabel] || [];
+  return aliases.some(a => {
+    const aN = a.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    return n === aN || n.includes(aN) || aN.includes(n);
+  });
+}
+
 function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('bbp_token')}`, 'Content-Type': 'application/json' };
 }
@@ -475,11 +500,7 @@ export default function ClosingRoomPage() {
           <Card title="🎯 Qualification">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {PRIORITY_LABELS.map(label => {
-                const found = contact?.customFields.find(cf => {
-                  const n = norm(cf.label);
-                  const t = norm(label);
-                  return n === t || n.includes(t) || t.includes(n);
-                });
+                const found = contact?.customFields.find(cf => matchesPriorityLabel(cf.label, label));
                 return (
                   <div key={label} style={{
                     padding: '7px 9px', borderRadius: 6,
@@ -489,6 +510,11 @@ export default function ClosingRoomPage() {
                   }}>
                     <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {label}
+                      {found && found.label !== label && (
+                        <span style={{ marginLeft: 4, color: 'var(--orange)', fontSize: '0.55rem', textTransform: 'none' }}>
+                          ← {found.label}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: '0.78rem', color: found ? 'var(--text)' : 'var(--text-muted)', wordBreak: 'break-word', fontStyle: found ? 'normal' : 'italic' }}>
                       {found ? (Array.isArray(found.value) ? found.value.join(', ') : String(found.value)) : '—'}
@@ -497,6 +523,50 @@ export default function ClosingRoomPage() {
                 );
               })}
             </div>
+
+            {/* Autres CF GHL non matchés (aide au debug : permet de voir les
+                labels exacts pour ajouter des aliases si nécessaire) */}
+            {(() => {
+              const others = (contact?.customFields || []).filter(cf =>
+                !PRIORITY_LABELS.some(label => matchesPriorityLabel(cf.label, label))
+              );
+              if (others.length === 0) return null;
+              return (
+                <details style={{ marginTop: 12 }}>
+                  <summary style={{
+                    cursor: 'pointer', fontSize: '0.7rem', color: 'var(--text-muted)',
+                    fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                  }}>
+                    Autres champs GHL ({others.length})
+                  </summary>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+                    {others.map(cf => (
+                      <div key={cf.id} style={{ padding: '6px 8px', borderRadius: 5, background: 'var(--night-mid)', border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 600 }}>{cf.label}</div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text)', wordBreak: 'break-word' }}>
+                          {Array.isArray(cf.value) ? cf.value.join(', ') : String(cf.value)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              );
+            })()}
+
+            {(!contact || contact.customFields.length === 0) && (
+              <div style={{
+                padding: '10px 12px', borderRadius: 8, marginTop: 10,
+                background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.3)',
+                fontSize: '0.74rem', color: '#FACC15', lineHeight: 1.5,
+              }}>
+                ⚠️ Aucun custom field retourné par GHL. Possibles causes :
+                <ul style={{ margin: '4px 0 0', paddingLeft: 18, color: 'var(--text-mid)' }}>
+                  <li>Le contact n&apos;a pas de CF rempli côté GHL</li>
+                  <li>Clé API sans scope <code>opportunities.readonly</code> + <code>contacts.readonly</code></li>
+                  <li>Pas d&apos;opportunité GHL liée à ce contact</li>
+                </ul>
+              </div>
+            )}
           </Card>
         </aside>
       </div>

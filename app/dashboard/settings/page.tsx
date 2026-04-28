@@ -856,6 +856,13 @@ function DataSyncPanel() {
         endpoint="/api/ghl/sync-invoices?days=180"
         confirmText="Récupérer les factures GHL payées des 180 derniers jours ?"
       />
+      <SyncCard
+        emoji="📝"
+        title="Notes RDV GHL"
+        description="Pour chaque RDV documenté côté GHL après sa date, remplace le placeholder local par le contenu réel de la note. Bidirectionnel."
+        endpoint="/api/gh-appointments/resync-notes"
+        confirmText="Re-synchroniser les notes des RDV documentés sur GHL ?"
+      />
       <div style={{
         padding: 14, borderRadius: 10, background: 'var(--night-card)', border: '1px solid var(--border)',
         fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.6,

@@ -24,18 +24,11 @@ interface ClientWithTodos {
 export async function GET(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   try {
-    const r = await supaFetch(
-      'clients?select=id,business_name,contact_name,status,todos&todos=not.eq.[]',
-      {},
-      true
-    );
-    if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
-    const clients: ClientWithTodos[] = await r.json();
-
-    const tasks: Array<{
+    type TaskOut = {
       id: string;
-      client_id: string;
-      client_name: string;
+      source: 'standalone' | 'client_legacy';
+      client_id: string | null;
+      client_name: string | null;
       contact_name: string | null;
       client_status: string | null;
       text: string;
@@ -45,7 +38,52 @@ export async function GET(req: NextRequest) {
       notes?: string;
       created_at: string;
       updated_at?: string;
-    }> = [];
+    };
+    const tasks: TaskOut[] = [];
+
+    // 1. Tasks dans la nouvelle table standalone (avec ou sans client_id)
+    try {
+      const standR = await supaFetch(
+        'tasks?select=id,client_id,text,done,due_date,priority,notes,created_at,updated_at,clients(business_name,contact_name,status)'
+        + '&order=created_at.desc&limit=500',
+        {}, true,
+      );
+      if (standR.ok) {
+        type StandaloneRow = {
+          id: string; client_id: string | null; text: string; done: boolean;
+          due_date: string | null; priority: 'low' | 'medium' | 'high';
+          notes: string | null; created_at: string; updated_at: string | null;
+          clients: { business_name: string; contact_name: string | null; status: string | null } | null;
+        };
+        const arr: StandaloneRow[] = await standR.json();
+        for (const t of arr) {
+          tasks.push({
+            id: t.id,
+            source: 'standalone',
+            client_id: t.client_id,
+            client_name: t.clients?.business_name || null,
+            contact_name: t.clients?.contact_name || null,
+            client_status: t.clients?.status || null,
+            text: t.text,
+            done: !!t.done,
+            due_date: t.due_date || undefined,
+            priority: (['low', 'medium', 'high'] as const).includes(t.priority) ? t.priority : 'medium',
+            notes: t.notes || undefined,
+            created_at: t.created_at,
+            updated_at: t.updated_at || undefined,
+          });
+        }
+      }
+    } catch { /* table peut ne pas encore exister — on continue */ }
+
+    // 2. Legacy : clients.todos (JSONB) — on les remonte aussi
+    const r = await supaFetch(
+      'clients?select=id,business_name,contact_name,status,todos&todos=not.eq.[]',
+      {},
+      true
+    );
+    if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
+    const clients: ClientWithTodos[] = await r.json();
 
     for (const c of clients) {
       const todos = Array.isArray(c.todos) ? c.todos : [];
@@ -53,6 +91,7 @@ export async function GET(req: NextRequest) {
         if (!t || typeof t !== 'object') continue;
         tasks.push({
           id: t.id,
+          source: 'client_legacy',
           client_id: c.id,
           client_name: c.business_name,
           contact_name: c.contact_name,
@@ -100,6 +139,7 @@ export async function GET(req: NextRequest) {
           const name = a.opportunity_name || a.contact_name || a.contact_email || 'Prospect';
           tasks.push({
             id: `prospect-${a.id}`,
+            source: 'client_legacy',
             client_id: a.client_id || a.id, // fallback so the link doesn't break
             client_name: `🔁 ${name}`,
             contact_name: null,
@@ -133,34 +173,29 @@ export async function POST(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   try {
     const { client_id, text, due_date, priority, notes } = await req.json();
-    if (!client_id || !text) return NextResponse.json({ error: 'client_id et text requis' }, { status: 400 });
+    if (!text || !String(text).trim()) return NextResponse.json({ error: 'text requis' }, { status: 400 });
 
-    const cr = await supaFetch(`clients?id=eq.${client_id}&select=todos`, {}, true);
-    if (!cr.ok) return NextResponse.json({ error: await cr.text() }, { status: cr.status });
-    const data = await cr.json();
-    if (!data.length) return NextResponse.json({ error: 'Client introuvable' }, { status: 404 });
+    const validPriority: 'low' | 'medium' | 'high' = (['low', 'medium', 'high'] as const).includes(priority) ? priority : 'medium';
 
-    const todos: TodoItem[] = Array.isArray(data[0].todos) ? data[0].todos : [];
-    const validPriority: TodoItem['priority'] = (['low', 'medium', 'high'] as const).includes(priority) ? priority : 'medium';
-    const newTodo: TodoItem = {
-      id: crypto.randomUUID(),
-      text: String(text).slice(0, 500),
-      done: false,
-      due_date: due_date || undefined,
-      priority: validPriority,
-      notes: notes ? String(notes).slice(0, 2000) : undefined,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    todos.unshift(newTodo);
-
-    const ur = await supaFetch(`clients?id=eq.${client_id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ todos, updated_at: new Date().toISOString() }),
+    // Insert dans la nouvelle table tasks. client_id et due_date sont optionnels.
+    const r = await supaFetch('tasks?select=*', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        client_id: client_id || null,
+        text: String(text).slice(0, 500),
+        done: false,
+        due_date: due_date || null,
+        priority: validPriority,
+        notes: notes ? String(notes).slice(0, 2000) : null,
+      }),
     }, true);
-    if (!ur.ok) return NextResponse.json({ error: await ur.text() }, { status: ur.status });
-
-    return NextResponse.json({ ok: true, task: newTodo });
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      return NextResponse.json({ error: 'insert failed', detail: txt }, { status: 500 });
+    }
+    const arr = await r.json();
+    return NextResponse.json({ ok: true, task: arr[0] });
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
@@ -170,8 +205,30 @@ export async function PATCH(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   try {
     const body = await req.json();
-    const { client_id, task_id } = body;
-    if (!client_id || !task_id) return NextResponse.json({ error: 'client_id et task_id requis' }, { status: 400 });
+    const { client_id, task_id, source } = body;
+    if (!task_id) return NextResponse.json({ error: 'task_id requis' }, { status: 400 });
+
+    // Si source === 'standalone' ou pas de client_id, on tape la table tasks
+    const isStandalone = source === 'standalone' || !client_id;
+    if (isStandalone) {
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (typeof body.done === 'boolean') patch.done = body.done;
+      if (typeof body.text === 'string') patch.text = body.text.slice(0, 500);
+      if (typeof body.due_date === 'string' || body.due_date === null) patch.due_date = body.due_date || null;
+      if (['low', 'medium', 'high'].includes(body.priority)) patch.priority = body.priority;
+      if (typeof body.notes === 'string' || body.notes === null) patch.notes = body.notes || null;
+      if (typeof body.client_id === 'string' || body.client_id === null) patch.client_id = body.client_id || null;
+      const ur = await supaFetch(`tasks?id=eq.${encodeURIComponent(task_id)}&select=*`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify(patch),
+      }, true);
+      if (!ur.ok) return NextResponse.json({ error: await ur.text() }, { status: ur.status });
+      const arr = await ur.json();
+      return NextResponse.json({ ok: true, task: arr[0] });
+    }
+
+    if (!client_id) return NextResponse.json({ error: 'client_id requis pour legacy task' }, { status: 400 });
 
     const cr = await supaFetch(`clients?id=eq.${client_id}&select=todos`, {}, true);
     if (!cr.ok) return NextResponse.json({ error: await cr.text() }, { status: cr.status });
@@ -229,7 +286,15 @@ export async function DELETE(req: NextRequest) {
   try {
     const client_id = req.nextUrl.searchParams.get('client_id');
     const task_id = req.nextUrl.searchParams.get('task_id');
-    if (!client_id || !task_id) return NextResponse.json({ error: 'client_id et task_id requis' }, { status: 400 });
+    const source = req.nextUrl.searchParams.get('source');
+    if (!task_id) return NextResponse.json({ error: 'task_id requis' }, { status: 400 });
+
+    // Standalone : tape la table tasks
+    if (source === 'standalone' || !client_id) {
+      const r = await supaFetch(`tasks?id=eq.${encodeURIComponent(task_id)}`, { method: 'DELETE' }, true);
+      if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
+      return NextResponse.json({ ok: true });
+    }
 
     const cr = await supaFetch(`clients?id=eq.${client_id}&select=todos`, {}, true);
     if (!cr.ok) return NextResponse.json({ error: await cr.text() }, { status: cr.status });

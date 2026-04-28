@@ -7,8 +7,9 @@ type Priority = 'low' | 'medium' | 'high';
 
 interface Task {
   id: string;
-  client_id: string;
-  client_name: string;
+  source?: 'standalone' | 'client_legacy';
+  client_id: string | null;
+  client_name: string | null;
   contact_name: string | null;
   client_status: string | null;
   text: string;
@@ -155,7 +156,7 @@ export default function TasksPage() {
     else if (tab === 'done') list = list.filter(t => t.done);
     if (clientFilter) list = list.filter(t => t.client_id === clientFilter);
     const q = search.trim().toLowerCase();
-    if (q) list = list.filter(t => t.text.toLowerCase().includes(q) || t.client_name.toLowerCase().includes(q) || (t.notes || '').toLowerCase().includes(q));
+    if (q) list = list.filter(t => t.text.toLowerCase().includes(q) || (t.client_name || '').toLowerCase().includes(q) || (t.notes || '').toLowerCase().includes(q));
 
     if (urgencyFilter === 'overdue') list = list.filter(t => isOverdue(t));
     else if (urgencyFilter === 'today') list = list.filter(t => isToday(t));
@@ -181,14 +182,21 @@ export default function TasksPage() {
   }), [tasks]);
 
   const grouped = useMemo(() => {
-    const g: Record<string, { client_name: string; client_id: string; client_status: string | null; tasks: Task[]; allTasks: Task[] }> = {};
+    const g: Record<string, { client_name: string; client_id: string | null; client_status: string | null; tasks: Task[]; allTasks: Task[] }> = {};
     filtered.forEach(t => {
-      if (!g[t.client_id]) g[t.client_id] = { client_name: t.client_name, client_id: t.client_id, client_status: t.client_status, tasks: [], allTasks: [] };
-      g[t.client_id].tasks.push(t);
+      const key = t.client_id || '__personal__';
+      if (!g[key]) g[key] = {
+        client_name: t.client_name || '📌 Tâches personnelles',
+        client_id: t.client_id,
+        client_status: t.client_status,
+        tasks: [], allTasks: [],
+      };
+      g[key].tasks.push(t);
     });
 
     tasks.forEach(t => {
-      if (g[t.client_id]) g[t.client_id].allTasks.push(t);
+      const key = t.client_id || '__personal__';
+      if (g[key]) g[key].allTasks.push(t);
     });
 
     const groups = Object.values(g).sort((a, b) => a.client_name.localeCompare(b.client_name));
@@ -223,7 +231,7 @@ export default function TasksPage() {
     try {
       const r = await fetch('/api/tasks', {
         method: 'PATCH', headers: authHeaders(),
-        body: JSON.stringify({ client_id: t.client_id, task_id: t.id, done: !t.done }),
+        body: JSON.stringify({ source: t.source, client_id: t.client_id, task_id: t.id, done: !t.done }),
       });
       if (!r.ok) throw new Error('rollback');
     } catch {
@@ -237,7 +245,10 @@ export default function TasksPage() {
     const snapshot = tasks;
     setTasks(prev => prev.filter(x => x.id !== t.id));
     try {
-      const r = await fetch(`/api/tasks?client_id=${t.client_id}&task_id=${t.id}`, {
+      const params = new URLSearchParams({ task_id: t.id });
+      if (t.source) params.set('source', t.source);
+      if (t.client_id) params.set('client_id', t.client_id);
+      const r = await fetch(`/api/tasks?${params.toString()}`, {
         method: 'DELETE', headers: authHeaders(),
       });
       if (!r.ok) throw new Error('rollback');
@@ -252,7 +263,7 @@ export default function TasksPage() {
     try {
       const r = await fetch('/api/tasks', {
         method: 'PATCH', headers: authHeaders(),
-        body: JSON.stringify({ client_id: t.client_id, task_id: t.id, ...fields }),
+        body: JSON.stringify({ source: t.source, client_id: t.client_id, task_id: t.id, ...fields }),
       });
       if (!r.ok) throw new Error('rollback');
     } catch { setTasks(snapshot); }
@@ -285,25 +296,26 @@ export default function TasksPage() {
 
   async function addTask(e: React.FormEvent) {
     e.preventDefault();
-    if (!newText.trim() || !newClient) return;
+    if (!newText.trim()) return;
     setAdding(true);
     try {
       const r = await fetch('/api/tasks', {
         method: 'POST', headers: authHeaders(),
         body: JSON.stringify({
-          client_id: newClient,
+          client_id: newClient || null,  // null = tâche perso
           text: newText.trim(),
-          due_date: newDueDate || undefined,
+          due_date: newDueDate || null,  // null = pas de deadline
           priority: newPriority,
         }),
       });
       if (r.ok) {
         const data = await r.json();
-        const c = clients.find(x => x.id === newClient);
+        const c = newClient ? clients.find(x => x.id === newClient) : null;
         setTasks(prev => [{
           id: data.task.id,
-          client_id: newClient,
-          client_name: c?.business_name || '',
+          source: 'standalone',
+          client_id: newClient || null,
+          client_name: c?.business_name || (newClient ? '' : '📌 Personnel'),
           contact_name: null,
           client_status: null,
           text: data.task.text,
@@ -402,14 +414,14 @@ export default function TasksPage() {
             <select
               value={newClient}
               onChange={e => setNewClient(e.target.value)}
-              required
+              title="Optionnel — laisser vide pour une tâche personnelle"
               style={{
                 padding: '9px 12px', borderRadius: 8,
                 background: 'var(--night-mid)', border: '1px solid var(--border-md)',
                 color: 'var(--text)', fontSize: '0.85rem', minWidth: 200, outline: 'none', cursor: 'pointer',
               }}
             >
-              <option value="">👤 Client…</option>
+              <option value="">📌 Tâche perso (sans client)</option>
               {clients.map(c => <option key={c.id} value={c.id}>{c.business_name}</option>)}
             </select>
             <input
@@ -427,7 +439,7 @@ export default function TasksPage() {
             />
             <button
               type="submit"
-              disabled={adding || !newText.trim() || !newClient}
+              disabled={adding || !newText.trim()}
               style={{
                 padding: '9px 18px', borderRadius: 8,
                 background: 'var(--orange)', border: 'none',
@@ -653,14 +665,14 @@ export default function TasksPage() {
                         background: 'var(--night-mid)', color: 'var(--text-muted)', fontWeight: 600,
                       }}>{STATUS_LABELS[group.client_status] || group.client_status}</span>
                     )}
-                    {/* Bulk actions */}
-                    {group.allTasks.some(t => !t.done) && (
-                      <button onClick={() => bulkMarkAllDone(group.client_id)} title="Tout marquer fait" style={miniBtnStyle}>
+                    {/* Bulk actions — uniquement pour les groupes liés à un client */}
+                    {group.client_id && group.allTasks.some(t => !t.done) && (
+                      <button onClick={() => bulkMarkAllDone(group.client_id!)} title="Tout marquer fait" style={miniBtnStyle}>
                         ✅ Tout fait
                       </button>
                     )}
-                    {group.allTasks.some(t => t.done) && (
-                      <button onClick={() => bulkClearDone(group.client_id)} title="Effacer les terminées" style={miniBtnStyle}>
+                    {group.client_id && group.allTasks.some(t => t.done) && (
+                      <button onClick={() => bulkClearDone(group.client_id!)} title="Effacer les terminées" style={miniBtnStyle}>
                         🗑️ Vider terminées
                       </button>
                     )}
