@@ -975,21 +975,25 @@ export default function ClientDetailPage() {
 
   async function handleDelete() {
     if (!client) return;
-    const ok = confirm(
-      `Retirer "${client.business_name}" du pipeline onboarding ?\n\n`
-      + '✓ Le prospect reste dans le pipeline commercial (GHL)\n'
-      + '✓ L\'historique d\'opportunité, statut et notes sont préservés\n'
-      + '✓ Tu peux le restaurer depuis Paramètres → Synchronisations\n\n'
-      + 'Le client disparaît juste de la liste et du kanban onboarding.'
-    );
-    if (!ok) return;
-    try {
-      const r = await fetch('/api/clients', { method: 'DELETE', headers: authHeaders(), body: JSON.stringify({ id }) });
-      if (!r.ok) throw new Error(await parseErr(r));
-      router.push('/dashboard/pipeline?tab=clients');
-    } catch (err: unknown) {
-      notify('error', (err as Error).message);
-    }
+    // UX optimiste avec undo : on redirige immédiatement, l'archive ne se commit
+    // qu'après 5s si l'admin n'a pas cliqué Annuler. Pas d'archivage si undo.
+    const businessName = client.business_name;
+    let undone = false;
+    router.push('/dashboard/pipeline?tab=clients');
+    setTimeout(() => {
+      if (typeof window === 'undefined') return;
+      // Lazy import du toast pour rester en dehors du provider scope
+      window.dispatchEvent(new CustomEvent('bbm-toast-undoable', { detail: {
+        message: `📦 "${businessName}" archivé du pipeline onboarding`,
+        emoji: '↩️',
+        durationMs: 5000,
+        onUndo: () => { undone = true; /* skip commit */ },
+        onCommit: async () => {
+          if (undone) return;
+          await fetch('/api/clients', { method: 'DELETE', headers: authHeaders(), body: JSON.stringify({ id }) }).catch(() => null);
+        },
+      }}));
+    }, 80);
   }
 
   if (loading) return (
