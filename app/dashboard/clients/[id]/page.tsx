@@ -5,6 +5,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import ThreadPanel from '@/components/ThreadPanel';
+import PresenceIndicator from '@/components/PresenceIndicator';
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
 const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
@@ -975,21 +977,25 @@ export default function ClientDetailPage() {
 
   async function handleDelete() {
     if (!client) return;
-    const ok = confirm(
-      `Retirer "${client.business_name}" du pipeline onboarding ?\n\n`
-      + '✓ Le prospect reste dans le pipeline commercial (GHL)\n'
-      + '✓ L\'historique d\'opportunité, statut et notes sont préservés\n'
-      + '✓ Tu peux le restaurer depuis Paramètres → Synchronisations\n\n'
-      + 'Le client disparaît juste de la liste et du kanban onboarding.'
-    );
-    if (!ok) return;
-    try {
-      const r = await fetch('/api/clients', { method: 'DELETE', headers: authHeaders(), body: JSON.stringify({ id }) });
-      if (!r.ok) throw new Error(await parseErr(r));
-      router.push('/dashboard/pipeline?tab=clients');
-    } catch (err: unknown) {
-      notify('error', (err as Error).message);
-    }
+    // UX optimiste avec undo : on redirige immédiatement, l'archive ne se commit
+    // qu'après 5s si l'admin n'a pas cliqué Annuler. Pas d'archivage si undo.
+    const businessName = client.business_name;
+    let undone = false;
+    router.push('/dashboard/pipeline?tab=clients');
+    setTimeout(() => {
+      if (typeof window === 'undefined') return;
+      // Lazy import du toast pour rester en dehors du provider scope
+      window.dispatchEvent(new CustomEvent('bbm-toast-undoable', { detail: {
+        message: `📦 "${businessName}" archivé du pipeline onboarding`,
+        emoji: '↩️',
+        durationMs: 5000,
+        onUndo: () => { undone = true; /* skip commit */ },
+        onCommit: async () => {
+          if (undone) return;
+          await fetch('/api/clients', { method: 'DELETE', headers: authHeaders(), body: JSON.stringify({ id }) }).catch(() => null);
+        },
+      }}));
+    }, 80);
   }
 
   if (loading) return (
@@ -1050,13 +1056,14 @@ export default function ClientDetailPage() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
               <h1 style={{
                 fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
                 fontSize: '1.6rem', color: 'var(--text)', margin: 0, lineHeight: 1.2,
               }}>
                 {client.business_name}
               </h1>
+              <PresenceIndicator scope={`client/${id}`} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -1348,11 +1355,14 @@ export default function ClientDetailPage() {
 
       {/* Conversation tab — unified timeline (events, RDV, paiements, scripts, vidéos, feedback, commentaires) */}
       {tab === 'conversation' && (
-        <ConversationTimeline
-          items={timelineItems}
-          loading={timelineLoading}
-          onJump={(t) => setTab(t)}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <ThreadPanel scopeType="client" scopeId={id} title="💬 Notes internes équipe" />
+          <ConversationTimeline
+            items={timelineItems}
+            loading={timelineLoading}
+            onJump={(t) => setTab(t)}
+          />
+        </div>
       )}
 
       {/* Closing & RDV tab — GHL opportunities + appointments linked to this client */}

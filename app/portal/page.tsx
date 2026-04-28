@@ -461,9 +461,28 @@ function PortalContent() {
       };
       const msg = stageMessages[clientInfo.status];
       if (msg) showToast(msg.emoji, msg.message);
+
+      // 🎊 Confettis sur les transitions célébrables (uniquement si le
+      // statut vient de changer, pas au 1er load — sauf published qui se
+      // déclenche aussi une fois en lifetime).
+      const CELEBRATE_BIG = new Set(['video_review', 'published']);
+      const CELEBRATE_SMALL = new Set(['filming_scheduled', 'script_validated', 'publication_pending']);
+      if (CELEBRATE_BIG.has(clientInfo.status)) {
+        import('@/lib/celebrate').then(m => m.fireOnce(`portal:${token}`, clientInfo.status!, true));
+      } else if (CELEBRATE_SMALL.has(clientInfo.status)) {
+        import('@/lib/celebrate').then(m => m.fireOnce(`portal:${token}`, clientInfo.status!, false));
+      }
     }
     lastSeenClientStatusRef.current = clientInfo.status;
-  }, [clientInfo?.status, showToast]);
+  }, [clientInfo?.status, showToast, token]);
+
+  // Confetti à l'arrivée sur le portail si le projet est déjà publié et que le
+  // client n'a pas encore "vu" la célébration (par device).
+  useEffect(() => {
+    if (clientInfo?.status === 'published' && token) {
+      import('@/lib/celebrate').then(m => m.fireOnce(`portal:${token}`, 'published', true));
+    }
+  }, [clientInfo?.status, token]);
 
   // Live polling — faster cadence when the user is on the script or comments
   // tab so admin replies and team comments feel instantaneous. We bump from
@@ -687,10 +706,33 @@ function PortalContent() {
   );
 
   if (loading) return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 12 }}>
-      <div style={{ width: 32, height: 32, border: '3px solid var(--border-md)', borderTopColor: 'var(--orange)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Chargement de votre espace…</div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    <div style={{
+      maxWidth: 800, margin: '0 auto', padding: 'clamp(16px, 3vw, 28px)',
+    }}>
+      {/* Header skeleton */}
+      <div className="bm-stagger" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{
+          padding: 20, borderRadius: 14,
+          background: 'var(--night-card)', border: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
+          <div style={{ height: 24, width: '50%', borderRadius: 6, background: 'linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.04) 100%)', backgroundSize: '200% 100%', animation: 'bm-shimmer 1.4s ease-in-out infinite' }} />
+          <div style={{ height: 14, width: '70%', borderRadius: 6, background: 'linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.04) 100%)', backgroundSize: '200% 100%', animation: 'bm-shimmer 1.4s ease-in-out infinite' }} />
+        </div>
+        {/* Roadmap skeleton (8 lignes) */}
+        <div style={{
+          padding: 20, borderRadius: 14,
+          background: 'var(--night-card)', border: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column', gap: 12,
+        }}>
+          {[0,1,2,3,4,5,6,7].map(i => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.04) 100%)', backgroundSize: '200% 100%', animation: 'bm-shimmer 1.4s ease-in-out infinite' }} />
+              <div style={{ flex: 1, height: 14, borderRadius: 6, background: 'linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.04) 100%)', backgroundSize: '200% 100%', animation: 'bm-shimmer 1.4s ease-in-out infinite' }} />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 
@@ -848,7 +890,7 @@ function PortalContent() {
         </div>
       </header>
 
-      <main style={{
+      <main className="bm-portal-main" style={{
         flex: 1,
         // When the user is reading/annotating the script, give the page much
         // more horizontal room so the script breathes. For other tabs we keep
@@ -948,56 +990,126 @@ function PortalContent() {
           {(() => {
             const stageIdx = PROJECT_STAGES.findIndex(s => s.key === clientStatus);
             const effectiveIdx = stageIdx >= 0 ? stageIdx : 0;
+            const total = PROJECT_STAGES.length;
+            // Progress = stages done + 0.5 pour l'étape courante
+            const progressPct = Math.min(100, Math.round(((effectiveIdx + 0.5) / total) * 100));
+
+            // ETA prédite pour les pending steps : on suppose ~2 jours ouvrés
+            // entre chaque étape, sauf publication (mardi/jeudi prochain).
+            const baseDate = clientInfo?.updated_at ? new Date(clientInfo.updated_at) : new Date();
+            const stageEta = (i: number, key: string): string | null => {
+              if (i <= effectiveIdx) return null;
+              const stepsAhead = i - effectiveIdx;
+              if (key === 'published') {
+                const d = nextPublicationSlot(addBusinessDays(baseDate, (stepsAhead - 1) * 2));
+                return `Estimation : ${fmtDate(d)}`;
+              }
+              const d = addBusinessDays(baseDate, stepsAhead * 2);
+              const days = Math.ceil((d.getTime() - Date.now()) / 86400000);
+              if (days <= 0) return null;
+              if (days === 1) return 'Estimation : demain';
+              if (days <= 7) return `Estimation : dans ~${days}j`;
+              return `Estimation : ${fmtDate(d)}`;
+            };
+
             return (
-              <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {PROJECT_STAGES.map((stage, i) => {
-                  const status: 'done' | 'current' | 'pending' = i < effectiveIdx ? 'done' : i === effectiveIdx ? 'current' : 'pending';
-                  const isLast = i === PROJECT_STAGES.length - 1;
-                  const dotBg = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'transparent';
-                  const dotBorder = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'var(--border-md)';
-                  const lineBg = status === 'done' ? 'var(--green)' : 'var(--border)';
-                  const titleColor = status === 'pending' ? 'var(--text-mid)' : 'var(--text)';
-                  const dateExtra = stage.key === 'filming_scheduled' && clientInfo?.filming_date
-                    ? new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-                    : null;
-                  return (
-                    <li key={stage.key} style={{
-                      display: 'grid', gridTemplateColumns: '36px 1fr', gap: 12, alignItems: 'flex-start',
-                    }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 54 }}>
-                        <span aria-hidden style={{
-                          width: 30, height: 30, borderRadius: '50%',
-                          background: dotBg, border: `2px solid ${dotBorder}`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: '#fff', fontSize: 14, flexShrink: 0,
-                          fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
-                        }}>{status === 'done' ? '✓' : stage.emoji}</span>
-                        {!isLast && <span aria-hidden style={{ flex: 1, width: 2, background: lineBg, marginTop: 4 }} />}
-                      </div>
-                      <div style={{ paddingBottom: 18 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: status === 'current' ? 700 : 600, color: titleColor, fontSize: 14.5 }}>
-                            {stage.label}
-                          </span>
-                          {status === 'current' && (
-                            <span className="bm-pulse-glow" style={{
-                              padding: '2px 8px', borderRadius: 999,
-                              background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
-                              color: '#FFB58A', fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
-                            }}>VOUS ÊTES ICI</span>
+              <>
+                {/* Progress bar */}
+                <div style={{ marginBottom: 22 }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+                    marginBottom: 6, fontSize: 12,
+                  }}>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+                      Étape {effectiveIdx + 1} sur {total}
+                    </span>
+                    <span style={{ color: 'var(--orange)', fontWeight: 800, fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 16 }}>
+                      {progressPct}%
+                    </span>
+                  </div>
+                  <div style={{
+                    height: 8, borderRadius: 99,
+                    background: 'var(--night-mid)', border: '1px solid var(--border)',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      height: '100%', width: `${progressPct}%`,
+                      background: clientStatus === 'published'
+                        ? 'linear-gradient(90deg, var(--green) 0%, #16A34A 100%)'
+                        : 'linear-gradient(90deg, var(--orange) 0%, #C45520 100%)',
+                      transition: 'width .8s cubic-bezier(.4,1.3,.6,1)',
+                      borderRadius: 99,
+                    }} />
+                  </div>
+                </div>
+
+                <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {PROJECT_STAGES.map((stage, i) => {
+                    const status: 'done' | 'current' | 'pending' = i < effectiveIdx ? 'done' : i === effectiveIdx ? 'current' : 'pending';
+                    const isLast = i === PROJECT_STAGES.length - 1;
+                    const dotBg = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'transparent';
+                    const dotBorder = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'var(--border-md)';
+                    const lineBg = status === 'done' ? 'var(--green)' : 'var(--border)';
+                    const titleColor = status === 'pending' ? 'var(--text-mid)' : 'var(--text)';
+                    const dateExtra = stage.key === 'filming_scheduled' && clientInfo?.filming_date
+                      ? new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+                      : null;
+                    const eta = stageEta(i, stage.key);
+                    const isCurrent = status === 'current';
+                    return (
+                      <li key={stage.key} style={{
+                        display: 'grid', gridTemplateColumns: '36px 1fr', gap: 12, alignItems: 'flex-start',
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 54 }}>
+                          <span aria-hidden style={{
+                            width: isCurrent ? 36 : 30, height: isCurrent ? 36 : 30, borderRadius: '50%',
+                            background: dotBg, border: `2px solid ${dotBorder}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff', fontSize: isCurrent ? 16 : 14, flexShrink: 0,
+                            fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+                            boxShadow: isCurrent ? '0 0 0 6px rgba(232,105,43,.18)' : 'none',
+                            transition: 'all .3s ease',
+                          }}>{status === 'done' ? '✓' : stage.emoji}</span>
+                          {!isLast && <span aria-hidden style={{ flex: 1, width: 2, background: lineBg, marginTop: 4 }} />}
+                        </div>
+                        <div style={{
+                          paddingBottom: 18,
+                          padding: isCurrent ? '8px 12px' : '0',
+                          marginBottom: isCurrent ? 18 : 0,
+                          marginTop: isCurrent ? -4 : 0,
+                          borderRadius: isCurrent ? 10 : 0,
+                          background: isCurrent ? 'rgba(232,105,43,.06)' : 'transparent',
+                          border: isCurrent ? '1px solid rgba(232,105,43,.25)' : 'none',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: isCurrent ? 700 : 600, color: titleColor, fontSize: isCurrent ? 15 : 14.5 }}>
+                              {stage.label}
+                            </span>
+                            {isCurrent && (
+                              <span className="bm-pulse-glow" style={{
+                                padding: '2px 8px', borderRadius: 999,
+                                background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
+                                color: '#FFB58A', fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+                              }}>VOUS ÊTES ICI</span>
+                            )}
+                          </div>
+                          {dateExtra && (
+                            <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2, fontWeight: 600 }}>📅 {dateExtra}</div>
                           )}
+                          {eta && (
+                            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic' }}>
+                              ⏱️ {eta}
+                            </div>
+                          )}
+                          <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginTop: 3, lineHeight: 1.5 }}>
+                            {stage.description}
+                          </div>
                         </div>
-                        {dateExtra && (
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{dateExtra}</div>
-                        )}
-                        <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginTop: 3, lineHeight: 1.5 }}>
-                          {stage.description}
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </>
             );
           })()}
         </div>
@@ -1092,31 +1204,82 @@ function PortalContent() {
             ...(isInReview ? ['script' as const, 'comments' as const] : []),
             ...(hasDelivery ? ['feedback' as const] : []),
           ];
-          // No tabs at all → render nothing (status card already explains the state)
           if (tabsList.length === 0) return null;
-          // If current tab is no longer available, fall back to the first one silently.
           if (!tabsList.includes(tab)) {
             setTimeout(() => setTab(tabsList[0]), 0);
           }
+          const tabLabel = (t: string) => t === 'video' ? '🎬' : t === 'script' ? '📄' : t === 'comments' ? '💬' : '⭐';
+          const tabName = (t: string) => t === 'video' ? `Vos vidéos${deliveredVideos.length > 1 ? ` (${deliveredVideos.length})` : ''}`
+            : t === 'script' ? 'Script'
+            : t === 'comments' ? `Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`
+            : `Feedback${satisfaction ? ' ✓' : ''}`;
           return (
-            <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-              {tabsList.map(t => (
-                <button key={t} onClick={() => setTab(t)} style={{
-                  padding: '10px 18px', border: 'none', cursor: 'pointer',
-                  fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
-                  background: 'transparent',
-                  color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
-                  borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
-                  transition: 'all .15s',
-                  whiteSpace: 'nowrap',
+            <>
+              {/* Top tabs (desktop visible, hidden on mobile via class) */}
+              <div className="bm-portal-top-tabs" style={{
+                display: 'flex', gap: 0, marginBottom: 20,
+                borderBottom: '1px solid var(--border)', overflowX: 'auto',
+              }}>
+                {tabsList.map(t => (
+                  <button key={t} onClick={() => setTab(t)} style={{
+                    padding: '10px 18px', border: 'none', cursor: 'pointer',
+                    fontSize: '0.8rem', fontWeight: tab === t ? 600 : 400,
+                    background: 'transparent',
+                    color: tab === t ? 'var(--orange)' : 'var(--text-muted)',
+                    borderBottom: tab === t ? '2px solid var(--orange)' : '2px solid transparent',
+                    transition: 'all .15s', whiteSpace: 'nowrap', minHeight: 44,
+                  }}>
+                    <span aria-hidden style={{ marginRight: 6, fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}>{tabLabel(t)}</span>
+                    {tabName(t)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Mobile bottom tab bar (sticky, fixed) */}
+              <nav className="bm-portal-bottom-tabs" aria-label="Navigation portail" style={{
+                position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 50,
+                display: 'none', // affiché via media query CSS plus bas
+                background: 'var(--night-card)',
+                borderTop: '1px solid var(--border-md)',
+                paddingBottom: 'max(8px, env(safe-area-inset-bottom, 8px))',
+              }}>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-around', alignItems: 'stretch',
+                  padding: '8px 4px',
                 }}>
-                  {t === 'video' ? `🎬 Vos vidéos${deliveredVideos.length > 1 ? ` (${deliveredVideos.length})` : ''}`
-                    : t === 'script' ? '📄 Script'
-                    : t === 'comments' ? `💬 Commentaires${script.script_comments?.length ? ` (${script.script_comments.length})` : ''}`
-                    : `⭐ Feedback${satisfaction ? ' ✓' : ''}`}
-                </button>
-              ))}
-            </div>
+                  {tabsList.map(t => {
+                    const active = tab === t;
+                    return (
+                      <button key={t} onClick={() => setTab(t)} style={{
+                        flex: 1, padding: '8px 4px', border: 'none',
+                        background: 'transparent', cursor: 'pointer',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                        color: active ? 'var(--orange)' : 'var(--text-muted)',
+                        fontSize: '0.66rem', fontWeight: active ? 700 : 500,
+                        minHeight: 50,
+                        borderRadius: 8,
+                        transition: 'background .15s',
+                      }}>
+                        <span aria-hidden style={{ fontSize: '1.4rem', lineHeight: 1, fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}>{tabLabel(t)}</span>
+                        <span style={{ fontSize: '0.64rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 78 }}>
+                          {t === 'video' ? 'Vidéo' : t === 'script' ? 'Script' : t === 'comments' ? 'Comm.' : 'Avis'}
+                        </span>
+                        {active && <div style={{ width: 18, height: 2, borderRadius: 1, background: 'var(--orange)' }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </nav>
+
+              {/* CSS responsive : top tabs cachés < 768px, bottom tabs visibles */}
+              <style>{`
+                @media (max-width: 767px) {
+                  .bm-portal-top-tabs { display: none !important; }
+                  .bm-portal-bottom-tabs { display: block !important; }
+                  .bm-portal-main { padding-bottom: max(72px, env(safe-area-inset-bottom, 0px) + 70px) !important; }
+                }
+              `}</style>
+            </>
           );
         })()}
         {/* Video delivery view (multi-video) */}
@@ -2735,7 +2898,69 @@ function NoScriptStage({ clientInfo }: { clientInfo: ClientDelivery | null }) {
     );
   }
 
-  // 3. Default — script_writing or unknown : team is on it
+  // 3. Script writing — team is on it. Empty state magnifié avec ETA.
+  if (status === 'script_writing') {
+    const updatedAt = clientInfo?.updated_at ? new Date(clientInfo.updated_at) : null;
+    const eta = updatedAt ? addBusinessDays(updatedAt, 3) : null;
+    const daysRemaining = eta ? Math.max(0, Math.ceil((eta.getTime() - Date.now()) / 86400000)) : null;
+    return (
+      <NoScriptShell
+        emoji="✍️"
+        title="Votre script est en préparation"
+        subtitle="Notre équipe planche sur votre vidéo. On revient vers vous très vite avec une 1ère version à valider."
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 480, margin: '0 auto' }}>
+          <div style={{
+            padding: '14px 18px', borderRadius: 12,
+            background: 'rgba(232,105,43,.08)', border: '1px solid rgba(232,105,43,.25)',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <span aria-hidden style={{ fontSize: '1.4rem' }}>⏱️</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text)' }}>
+                {daysRemaining !== null && daysRemaining <= 1
+                  ? "Estimation : d'ici demain"
+                  : daysRemaining !== null && daysRemaining <= 5
+                    ? `Estimation : dans environ ${daysRemaining} jours ouvrés`
+                    : 'Estimation : 3-5 jours ouvrés'}
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                Vous serez notifié·e dès la livraison
+              </div>
+            </div>
+          </div>
+          <div style={{
+            padding: '14px 18px', borderRadius: 12,
+            background: 'var(--night-card)', border: '1px solid var(--border)',
+            fontSize: '0.84rem', color: 'var(--text-mid)', lineHeight: 1.6,
+          }}>
+            <strong style={{ color: 'var(--text)' }}>Que se passe-t-il en coulisses ?</strong>
+            <ol style={{ margin: '8px 0 0', paddingLeft: 20, fontSize: '0.82rem' }}>
+              <li>Analyse de votre commerce et de votre cible</li>
+              <li>Recherche d&apos;angle créatif et structure (hook + bénéfices + CTA)</li>
+              <li>Rédaction d&apos;une 1ère version pensée pour votre audience</li>
+              <li>Relecture interne avant envoi</li>
+            </ol>
+          </div>
+        </div>
+      </NoScriptShell>
+    );
+  }
+
+  // 4. Filming scheduled / done / editing — script validé mais on est pas
+  // encore en review vidéo. Cas peu fréquent (ce path n'est atteint que si
+  // hasDelivery=false ET pas de script chargé), mais on prévoit un fallback.
+  if (status === 'filming_scheduled' || status === 'filming_done' || status === 'editing') {
+    const messages: Record<string, { emoji: string; title: string; subtitle: string }> = {
+      filming_scheduled: { emoji: '📅', title: 'Tournage planifié', subtitle: 'Votre tournage est confirmé. À très bientôt !' },
+      filming_done: { emoji: '🎬', title: 'Tournage dans la boîte !', subtitle: 'L\'équipe lance le montage. Vous recevrez la vidéo très vite.' },
+      editing: { emoji: '🎞️', title: 'Votre vidéo est en montage', subtitle: 'Compte à rebours avant la livraison ! On vous envoie un message dès que c\'est prêt.' },
+    };
+    const m = messages[status];
+    return <NoScriptShell emoji={m.emoji} title={m.title} subtitle={m.subtitle} />;
+  }
+
+  // 5. Default fallback
   return (
     <NoScriptShell
       emoji="✍️"

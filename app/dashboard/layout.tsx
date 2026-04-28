@@ -7,6 +7,11 @@ import { ToastProvider } from '@/components/ui/Toast';
 import WelcomeWizard from '@/components/WelcomeWizard';
 import NotificationBell from '@/components/NotificationBell';
 import AiCopilot from '@/components/AiCopilot';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import OfflineIndicator from '@/components/OfflineIndicator';
+import ShortcutsCheatsheet from '@/components/ShortcutsCheatsheet';
+import DensityProvider from '@/components/DensityProvider';
+import CommandPalette from '@/components/CommandPalette';
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
@@ -104,16 +109,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }, 300);
   }, []);
 
+  // Enregistre le service worker dès le chargement du dashboard (cache GETs
+  // API + base pour les push notifs). Idempotent. Ne fait rien si déjà enregistré.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/sw.js').catch(() => null);
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        const input = document.getElementById('global-search') as HTMLInputElement;
-        input?.focus();
-      }
+      // ⌘K est désormais géré par <CommandPalette/> (search + actions)
       if (e.key === 'Escape') setSearchOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -159,7 +167,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .catch(() => { localStorage.removeItem('bbp_token'); router.replace('/dashboard/login'); });
   }, [router, isLoginPage]);
 
-  if (isLoginPage) return <ToastProvider>{children}</ToastProvider>;
+  if (isLoginPage) return <ToastProvider><DensityProvider>{children}</DensityProvider></ToastProvider>;
 
   if (checking) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--night)' }}>
@@ -386,6 +394,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ToastProvider>
+    <DensityProvider>
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--night)' }}>
       {/* Mobile top header bar */}
       {isMobile && (
@@ -554,13 +563,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </div>
           )}
-          {children}
+          <ErrorBoundary scope="page">{children}</ErrorBoundary>
         </main>
       </div>
-      <NotificationBell />
-      <AiCopilot />
-      <WelcomeWizard />
+      <ErrorBoundary scope="bell" fallback={() => null}><NotificationBell /></ErrorBoundary>
+      <ErrorBoundary scope="copilot" fallback={() => null}><AiCopilot /></ErrorBoundary>
+      <ErrorBoundary scope="offline" fallback={() => null}><OfflineIndicator /></ErrorBoundary>
+      <ErrorBoundary scope="palette" fallback={() => null}><CommandPalette /></ErrorBoundary>
+      <ErrorBoundary scope="cheatsheet" fallback={() => null}><ShortcutsCheatsheet /></ErrorBoundary>
+      <ErrorBoundary scope="welcome" fallback={() => null}><WelcomeWizard /></ErrorBoundary>
     </div>
+    </DensityProvider>
     </ToastProvider>
   );
 }

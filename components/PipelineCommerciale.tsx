@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { downloadCsv } from '@/lib/csv-export';
+import ThreadPanel from '@/components/ThreadPanel';
+import PresenceIndicator from '@/components/PresenceIndicator';
 
 interface Opportunity {
   id: string;
@@ -94,6 +96,24 @@ export default function PipelineCommerciale() {
   const [selectMode, setSelectMode] = useState(false);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const lastSelectedIdRef = useRef<string | null>(null);
+  const visibleOrderRef = useRef<string[]>([]); // ordre des cards filtrées (pour shift+click range)
+
+  // Raccourcis : Esc pour quitter le mode sélection, Cmd/Ctrl+A pour tout cocher
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!selectMode) return;
+      if (e.key === 'Escape') { setSelectMode(false); setBulkSelected(new Set()); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+        e.preventDefault();
+        setBulkSelected(new Set(visibleOrderRef.current));
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [selectMode]);
   const [showAddForm, setShowAddForm] = useState(false);
 
   const load = useCallback(() => {
@@ -134,6 +154,11 @@ export default function PipelineCommerciale() {
         return bd.localeCompare(ad);
       });
     });
+    // Build flat ordre des cards visibles (colonne par colonne, top→bottom) pour
+    // que shift+click puisse sélectionner une plage cohérente.
+    const order: string[] = [];
+    stages.forEach(s => { (out[s.id] || []).forEach(o => order.push(o.id)); });
+    visibleOrderRef.current = order;
     return out;
   }, [filtered, stages]);
 
@@ -226,12 +251,28 @@ export default function PipelineCommerciale() {
               onSelect={setSelectedId}
               selectMode={selectMode}
               bulkSelected={bulkSelected}
-              onToggleSelect={(id) => setBulkSelected(prev => {
-                const next = new Set(prev);
-                if (next.has(id)) next.delete(id);
-                else next.add(id);
-                return next;
-              })}
+              onToggleSelect={(id, opts) => {
+                setBulkSelected(prev => {
+                  const next = new Set(prev);
+                  // Shift+click : sélectionne toute la plage entre lastSelected et id
+                  if (opts?.shift && lastSelectedIdRef.current && lastSelectedIdRef.current !== id) {
+                    const order = visibleOrderRef.current;
+                    const i1 = order.indexOf(lastSelectedIdRef.current);
+                    const i2 = order.indexOf(id);
+                    if (i1 >= 0 && i2 >= 0) {
+                      const [from, to] = i1 < i2 ? [i1, i2] : [i2, i1];
+                      for (let i = from; i <= to; i++) next.add(order[i]);
+                      lastSelectedIdRef.current = id;
+                      return next;
+                    }
+                  }
+                  // Click simple : toggle
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  lastSelectedIdRef.current = id;
+                  return next;
+                });
+              }}
             />
           ))}
         </div>
@@ -266,6 +307,9 @@ export default function PipelineCommerciale() {
         }}>
           <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)' }}>
             {bulkSelected.size} sélectionné{bulkSelected.size > 1 ? 's' : ''}
+            <span style={{ fontWeight: 400, fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: 8 }}>
+              (⇧+clic pour plage · ⌘A tout · Esc quitter)
+            </span>
           </span>
 
           <select
@@ -297,6 +341,50 @@ export default function PipelineCommerciale() {
             {stages.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
+          </select>
+
+          <select
+            disabled={bulkBusy}
+            defaultValue=""
+            onChange={async (e) => {
+              const status = e.target.value;
+              if (!status) return;
+              setBulkBusy(true);
+              try {
+                const ids = Array.from(bulkSelected);
+                // Trouve le stage GHL correspondant via mapping local
+                const stageMap: Record<string, string> = {
+                  reflection: stages.find(s => s.name.toLowerCase().includes('réflex'))?.id || '',
+                  follow_up: stages.find(s => s.name.toLowerCase().includes('follow'))?.id || '',
+                  awaiting_signature: stages.find(s => s.name.toLowerCase().includes('signature'))?.id || '',
+                  contracted: stages.find(s => s.name.toLowerCase().includes('contract'))?.id || '',
+                  ghosting: stages.find(s => s.name.toLowerCase().includes('ghost'))?.id || '',
+                  not_interested: stages.find(s => s.name.toLowerCase().includes('non-qualif') || s.name.toLowerCase().includes('pas intéressé'))?.id || '',
+                };
+                const targetStageId = stageMap[status];
+                await Promise.all(ids.map(id =>
+                  fetch('/api/gh-opportunities', {
+                    method: 'PATCH', headers: authHeaders(),
+                    body: JSON.stringify({ id, ...(targetStageId ? { pipeline_stage_id: targetStageId } : {}) }),
+                  }).catch(() => null)
+                ));
+                setBulkSelected(new Set());
+                load();
+              } finally { setBulkBusy(false); e.target.value = ''; }
+            }}
+            style={{
+              padding: '7px 10px', borderRadius: 8,
+              background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+              color: 'var(--text)', fontSize: '0.78rem', cursor: 'pointer',
+            }}
+          >
+            <option value="">🎯 Statut prospect…</option>
+            <option value="reflection">🤔 En réflexion</option>
+            <option value="follow_up">🔁 Follow-up</option>
+            <option value="awaiting_signature">✍️ Attente signature</option>
+            <option value="contracted">🤝 Contracté</option>
+            <option value="ghosting">👻 Ghosting</option>
+            <option value="not_interested">🚫 Pas intéressé</option>
           </select>
 
           <button
@@ -360,7 +448,7 @@ function Column({ stage, items, onSelect, selectMode, bulkSelected, onToggleSele
   stage: PipelineStage; items: Opportunity[]; onSelect: (id: string) => void;
   selectMode: boolean;
   bulkSelected: Set<string>;
-  onToggleSelect: (id: string) => void;
+  onToggleSelect: (id: string, opts?: { shift?: boolean }) => void;
 }) {
   const colorOf = stage.name.toLowerCase();
   const color = colorOf.includes('contract') || colorOf.includes('régulier') ? '#22C55E'
@@ -423,13 +511,13 @@ function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect }: {
   onSelect: (id: string) => void;
   selectMode?: boolean;
   isSelected?: boolean;
-  onToggleSelect?: (id: string) => void;
+  onToggleSelect?: (id: string, opts?: { shift?: boolean }) => void;
 }) {
   return (
     <button
       type="button"
-      onClick={() => {
-        if (selectMode && onToggleSelect) onToggleSelect(opp.id);
+      onClick={(e) => {
+        if (selectMode && onToggleSelect) onToggleSelect(opp.id, { shift: e.shiftKey });
         else onSelect(opp.id);
       }}
       style={{
@@ -662,9 +750,9 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
             <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text)', margin: 0, fontFamily: "'Bricolage Grotesque', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {opp.name || opp.contact_name || opp.contact_email || 'Sans nom'}
             </h2>
-            <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
-              🏷️ {opp.pipeline_stage_name || 'Stage inconnu'}
-              {opp.monetary_value_cents && ` · 💰 ${fmtEUR(opp.monetary_value_cents)}`}
+            <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '3px 0 0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>🏷️ {opp.pipeline_stage_name || 'Stage inconnu'}{opp.monetary_value_cents && ` · 💰 ${fmtEUR(opp.monetary_value_cents)}`}</span>
+              <PresenceIndicator scope={`opportunity/${opp.ghl_opportunity_id}`} />
             </p>
           </div>
           <button onClick={onClose} style={{
@@ -830,6 +918,9 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
               ⏳ Chargement de la fiche GHL complète…
             </div>
           )}
+
+          {/* Notes internes (thread Rudy ↔ Siméon) */}
+          <ThreadPanel scopeType="opportunity" scopeId={opp.ghl_opportunity_id} title="💬 Notes internes" />
 
           {/* RDV history pour ce contact */}
           {allAppts.length > 0 && (
@@ -1091,10 +1182,38 @@ function QuickAddProspectModal({ stages, onClose, onCreated }: {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  // Auto-detect doublons (debounce 400ms)
+  interface DupMatch { source: 'client' | 'opportunity'; id: string; name: string | null; email: string | null; phone: string | null; match_reason: 'email' | 'phone' | 'name'; match_score: number; href: string; status_label?: string | null }
+  const [duplicates, setDuplicates] = useState<DupMatch[]>([]);
+  const [bypassDup, setBypassDup] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (form.email.trim()) params.set('email', form.email.trim());
+    if (form.phone.trim()) params.set('phone', form.phone.trim());
+    if (form.name.trim().length >= 3) params.set('name', form.name.trim());
+    if (params.toString().length === 0) { setDuplicates([]); return; }
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/contacts/duplicates?${params.toString()}`, { headers: authHeaders() });
+        if (r.ok) {
+          const d = await r.json();
+          setDuplicates(Array.isArray(d.matches) ? d.matches : []);
+        }
+      } catch { /* */ }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.name, form.email, form.phone]);
 
   async function submit() {
     if (!form.name.trim() || !form.email.trim()) {
       setError('Nom et email obligatoires');
+      return;
+    }
+    // Garde-fou : si doublons détectés et l'admin n'a pas explicitement bypass
+    const strongMatch = duplicates.find(d => d.match_score >= 95);
+    if (strongMatch && !bypassDup) {
+      setError(`Un prospect avec ${strongMatch.match_reason === 'email' ? 'cet email' : strongMatch.match_reason === 'phone' ? 'ce téléphone' : 'un nom similaire'} existe déjà. Vérifie les doublons ci-dessus avant de continuer.`);
       return;
     }
     setSubmitting(true);
@@ -1161,6 +1280,64 @@ function QuickAddProspectModal({ stages, onClose, onCreated }: {
             </select>
           </label>
         </div>
+
+        {duplicates.length > 0 && (
+          <div style={{
+            marginTop: 14, padding: '12px 14px', borderRadius: 10,
+            background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.35)',
+          }}>
+            <div style={{ fontSize: '0.78rem', color: '#FACC15', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              ⚠️ {duplicates.length} doublon{duplicates.length > 1 ? 's' : ''} potentiel{duplicates.length > 1 ? 's' : ''} détecté{duplicates.length > 1 ? 's' : ''}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {duplicates.map(d => (
+                <a
+                  key={`${d.source}-${d.id}`}
+                  href={d.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '7px 9px', borderRadius: 6, textDecoration: 'none',
+                    background: 'var(--night-mid)', border: '1px solid var(--border)',
+                  }}
+                >
+                  <span aria-hidden style={{
+                    fontSize: '0.65rem', padding: '1px 6px', borderRadius: 4,
+                    background: d.source === 'client' ? 'rgba(34,197,94,.15)' : 'rgba(20,184,166,.15)',
+                    color: d.source === 'client' ? 'var(--green)' : '#14B8A6',
+                    fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0,
+                  }}>{d.source === 'client' ? 'Client' : 'Prospect'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {d.name || '—'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {d.email && <span>📧 {d.email}</span>}
+                      {d.email && d.phone && ' · '}
+                      {d.phone && <span>📱 {d.phone}</span>}
+                      {d.status_label && <span style={{ marginLeft: 6, color: 'var(--orange)' }}>· {d.status_label}</span>}
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 600,
+                    padding: '2px 6px', borderRadius: 4,
+                    background: 'var(--night-card)',
+                  }}>
+                    {d.match_reason === 'email' ? 'email match' : d.match_reason === 'phone' ? 'tél match' : `${d.match_score}% nom`}
+                  </span>
+                </a>
+              ))}
+            </div>
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginTop: 10,
+              fontSize: '0.74rem', color: 'var(--text-muted)', cursor: 'pointer',
+            }}>
+              <input type="checkbox" checked={bypassDup} onChange={e => setBypassDup(e.target.checked)} />
+              <span>Créer quand même (je sais que c&apos;est un nouveau contact)</span>
+            </label>
+          </div>
+        )}
 
         {error && (
           <div style={{
