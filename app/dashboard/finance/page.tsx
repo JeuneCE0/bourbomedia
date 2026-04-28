@@ -162,6 +162,22 @@ export default function FinancePage() {
     return events.sort((a, b) => b.date.localeCompare(a.date));
   }, [clients, payments]);
 
+  // Factures en attente d'encaissement (status='pending' venant du sync GHL)
+  const pendingInvoices = useMemo(() => {
+    return payments
+      .filter(p => p.status === 'pending')
+      .map(p => ({
+        date: p.created_at,
+        cents: p.amount,
+        client_id: p.client_id,
+        client_name: p.clients?.business_name || 'Client',
+        description: p.description,
+        invoice_number: p.invoice_number,
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [payments]);
+  const pendingTotal = pendingInvoices.reduce((s, p) => s + p.cents, 0);
+
   // Monthly revenue for the last 12 months
   const monthly = useMemo(() => {
     const months: { key: string; label: string; cents: number; count: number }[] = [];
@@ -269,17 +285,23 @@ export default function FinancePage() {
         </div>
       ) : (
         <div className="bm-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {/* KPI cards */}
+          {/* KPI cards — distinguent paiements REÇUS vs factures EN ATTENTE */}
           <div className="bm-stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <Kpi
               emoji="💸" label={`Encaissé · ${RANGE_LABEL[range]}`} value={fmtEUR(rangeCents)} color="var(--green)"
               extra={range === 'month' && monthDelta !== null
                 ? <span style={{ color: monthDelta >= 0 ? 'var(--green)' : 'var(--red)' }}>{monthDelta >= 0 ? '+' : ''}{monthDelta}% vs M-1</span>
-                : `${inRangeRevenue.length} paiement${inRangeRevenue.length > 1 ? 's' : ''}`}
+                : `${inRangeRevenue.length} paiement${inRangeRevenue.length > 1 ? 's' : ''} reçu${inRangeRevenue.length > 1 ? 's' : ''}`}
             />
-            <Kpi emoji="📊" label="CA cumulé" value={fmtEUR(totalRevenueAllTime)} color="var(--orange)" extra={`${allRevenue.length} paiement${allRevenue.length > 1 ? 's' : ''}`} />
+            <Kpi
+              emoji="📨"
+              label="Factures en attente"
+              value={fmtEUR(pendingTotal)}
+              color={pendingTotal > 0 ? 'var(--yellow)' : 'var(--text-muted)'}
+              extra={pendingTotal > 0 ? `${pendingInvoices.length} facture${pendingInvoices.length > 1 ? 's' : ''} non payée${pendingInvoices.length > 1 ? 's' : ''}` : 'Aucune facture impayée'}
+            />
+            <Kpi emoji="📊" label="CA cumulé reçu" value={fmtEUR(totalRevenueAllTime)} color="var(--orange)" extra={`${allRevenue.length} paiement${allRevenue.length > 1 ? 's' : ''}`} />
             <Kpi emoji="🎯" label="Panier moyen" value={fmtEUR(avgTicket)} extra="par paiement" color="#3B82F6" />
-            <Kpi emoji="⏳" label="En attente" value={unpaidClients.length.toString()} color={unpaidClients.length > 0 ? 'var(--yellow)' : 'var(--green)'} extra={unpaidClients.length > 0 ? `${fmtEUR(pipelinePotential)} potentiels` : 'Tout encaissé'} />
           </div>
 
           {/* Performance commerciale (auto from GHL) */}
@@ -335,6 +357,51 @@ export default function FinancePage() {
               })}
             </div>
           </Card>
+
+          {/* Section dédiée : Factures en attente d'encaissement */}
+          {pendingInvoices.length > 0 && (
+            <Card title={`📨 Factures en attente d'encaissement (${pendingInvoices.length})`}>
+              <div style={{
+                marginBottom: 12, padding: '10px 12px', borderRadius: 8,
+                background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.3)',
+                fontSize: '0.78rem', color: 'var(--text-mid)',
+              }}>
+                ⚠️ Ces factures ont été émises sur GHL mais ne sont pas encore payées.
+                Elles ne sont <strong>PAS</strong> comptées dans le CA encaissé.
+                Total à recevoir : <strong style={{ color: 'var(--yellow)' }}>{fmtEUR(pendingTotal)}</strong>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {pendingInvoices.map(p => (
+                  <Link
+                    key={`${p.client_id}-${p.invoice_number || p.date}`}
+                    href={p.client_id ? `/dashboard/clients/${p.client_id}?tab=payments` : '/dashboard/finance'}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 10px', borderRadius: 8, textDecoration: 'none',
+                      background: 'var(--night-mid)',
+                      borderLeft: '3px solid var(--yellow)',
+                    }}
+                  >
+                    <span aria-hidden style={{ fontSize: '1rem' }}>📨</span>
+                    <span style={{ flex: 1, fontSize: '0.84rem', color: 'var(--text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.client_name}
+                      {p.invoice_number && (
+                        <span style={{ marginLeft: 6, fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                          · {p.invoice_number}
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      {new Date(p.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                    </span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--yellow)', whiteSpace: 'nowrap' }}>
+                      {fmtEUR(p.cents)}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Two cols: top clients + unpaid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
@@ -567,15 +634,23 @@ function AuditButton() {
   const [loading, setLoading] = useState(false);
   type AuditRow = {
     source: 'stripe' | 'ghl' | 'manuel' | 'legacy_client';
+    state: 'paid' | 'pending';
     id: string; client_id: string | null; client_name: string | null; client_email: string | null;
     amount_eur: number; currency: string; status: string; description: string | null;
     invoice_number: string | null; payment_date: string;
   };
   type AuditData = {
     summary: {
-      total_eur: number; count: number;
-      by_source: Record<string, number>;
-      by_month: Record<string, { total: number; count: number; bySource: Record<string, number> }>;
+      paid_eur: number;
+      pending_eur: number;
+      total_eur: number;
+      count_paid: number;
+      count_pending: number;
+      count: number;
+      paid_by_source: Record<string, number>;
+      pending_by_source: Record<string, number>;
+      by_month_paid: Record<string, { total: number; count: number; bySource: Record<string, number> }>;
+      by_month_pending: Record<string, { total: number; count: number; bySource: Record<string, number> }>;
     };
     rows: AuditRow[];
   };
@@ -632,37 +707,72 @@ function AuditButton() {
               }}>×</button>
             </div>
 
-            {/* Total */}
-            <div style={{
-              padding: '14px 16px', borderRadius: 10, marginBottom: 14,
-              background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.3)',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
-                  Total tous paiements
+            {/* Totals — paid vs pending */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 14 }}>
+              <div style={{
+                padding: '14px 16px', borderRadius: 10,
+                background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.3)',
+              }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                  💸 Encaissé
                 </div>
                 <div style={{
-                  fontSize: '1.8rem', fontWeight: 800, color: 'var(--green)',
+                  fontSize: '1.6rem', fontWeight: 800, color: 'var(--green)',
                   fontFamily: "'Bricolage Grotesque', sans-serif",
                 }}>
-                  {data.summary.total_eur.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €
+                  {data.summary.paid_eur.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {data.summary.count_paid} paiement{data.summary.count_paid > 1 ? 's' : ''} reçu{data.summary.count_paid > 1 ? 's' : ''}
                 </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{data.summary.count} paiements</div>
+
+              <div style={{
+                padding: '14px 16px', borderRadius: 10,
+                background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.3)',
+              }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                  📨 En attente
+                </div>
+                <div style={{
+                  fontSize: '1.6rem', fontWeight: 800, color: 'var(--yellow)',
+                  fontFamily: "'Bricolage Grotesque', sans-serif",
+                }}>
+                  {data.summary.pending_eur.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {data.summary.count_pending} facture{data.summary.count_pending > 1 ? 's' : ''} non payée{data.summary.count_pending > 1 ? 's' : ''}
+                </div>
+              </div>
+
+              <div style={{
+                padding: '14px 16px', borderRadius: 10,
+                background: 'var(--night-mid)', border: '1px solid var(--border)',
+              }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                  💼 Total émis
+                </div>
+                <div style={{
+                  fontSize: '1.6rem', fontWeight: 800, color: 'var(--text)',
+                  fontFamily: "'Bricolage Grotesque', sans-serif",
+                }}>
+                  {data.summary.total_eur.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {data.summary.count} ligne{data.summary.count > 1 ? 's' : ''}
+                </div>
               </div>
             </div>
 
-            {/* Breakdown par source */}
-            <h3 style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-mid)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Par source
+            {/* Breakdown par source — encaissé */}
+            <h3 style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-mid)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              💸 Encaissé par source
             </h3>
             <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: 8, marginBottom: 18,
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: 8, marginBottom: 14,
             }}>
-              {Object.entries(data.summary.by_source).map(([source, total]) => {
+              {Object.entries(data.summary.paid_by_source).map(([source, total]) => {
                 const SOURCE_META: Record<string, { emoji: string; label: string; color: string }> = {
                   stripe: { emoji: '💳', label: 'Stripe', color: '#635BFF' },
                   ghl: { emoji: '📄', label: 'GHL', color: '#14B8A6' },
@@ -671,17 +781,14 @@ function AuditButton() {
                 };
                 const meta = SOURCE_META[source] || { emoji: '❓', label: source, color: 'var(--text-mid)' };
                 return (
-                  <div key={source} style={{
-                    padding: '10px 12px', borderRadius: 8,
+                  <div key={`p-${source}`} style={{
+                    padding: '8px 11px', borderRadius: 8,
                     background: 'var(--night-mid)', border: `1px solid ${meta.color}40`,
                   }}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                       {meta.emoji} {meta.label}
                     </div>
-                    <div style={{
-                      fontSize: '1.1rem', fontWeight: 800, color: meta.color,
-                      fontFamily: "'Bricolage Grotesque', sans-serif",
-                    }}>
+                    <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--green)', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
                       {(total as number).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
                     </div>
                   </div>
@@ -689,59 +796,128 @@ function AuditButton() {
               })}
             </div>
 
-            {/* Breakdown par mois */}
-            <h3 style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-mid)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Par mois
+            {/* Breakdown par source — pending */}
+            {Object.keys(data.summary.pending_by_source).length > 0 && (
+              <>
+                <h3 style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-mid)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  📨 En attente par source
+                </h3>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: 8, marginBottom: 14,
+                }}>
+                  {Object.entries(data.summary.pending_by_source).map(([source, total]) => (
+                    <div key={`pending-${source}`} style={{
+                      padding: '8px 11px', borderRadius: 8,
+                      background: 'rgba(250,204,21,.05)', border: '1px solid rgba(250,204,21,.3)',
+                    }}>
+                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        {source === 'ghl' ? '📄 GHL' : source === 'stripe' ? '💳 Stripe' : '❓ ' + source}
+                      </div>
+                      <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--yellow)', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+                        {(total as number).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Encaissé par mois */}
+            <h3 style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-mid)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              💸 Encaissé par mois (date d&apos;encaissement)
             </h3>
-            <div style={{ marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {Object.entries(data.summary.by_month).sort((a, b) => b[0].localeCompare(a[0])).map(([month, m]) => (
-                <div key={month} style={{
-                  display: 'flex', justifyContent: 'space-between', padding: '6px 10px',
-                  borderRadius: 6, background: 'var(--night-mid)',
-                  fontSize: '0.82rem',
+            <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {Object.entries(data.summary.by_month_paid).sort((a, b) => b[0].localeCompare(a[0])).map(([month, m]) => (
+                <div key={`pm-${month}`} style={{
+                  display: 'grid', gridTemplateColumns: '90px 1fr auto', alignItems: 'center', gap: 10,
+                  padding: '6px 10px', borderRadius: 6,
+                  background: 'var(--night-mid)', fontSize: '0.82rem',
                 }}>
                   <span style={{ color: 'var(--text-mid)', fontWeight: 600 }}>{month}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>{m.count} paiement{m.count > 1 ? 's' : ''}</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{m.count} paiement{m.count > 1 ? 's' : ''}</span>
                   <span style={{ color: 'var(--green)', fontWeight: 700 }}>
                     {m.total.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
                   </span>
                 </div>
               ))}
+              {Object.keys(data.summary.by_month_paid).length === 0 && (
+                <div style={{ padding: '8px 10px', fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  Aucun encaissement.
+                </div>
+              )}
             </div>
+
+            {/* Pending par mois (date d'émission) */}
+            {Object.keys(data.summary.by_month_pending).length > 0 && (
+              <>
+                <h3 style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-mid)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  📨 Factures en attente par mois (date d&apos;émission)
+                </h3>
+                <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {Object.entries(data.summary.by_month_pending).sort((a, b) => b[0].localeCompare(a[0])).map(([month, m]) => (
+                    <div key={`pendm-${month}`} style={{
+                      display: 'grid', gridTemplateColumns: '90px 1fr auto', alignItems: 'center', gap: 10,
+                      padding: '6px 10px', borderRadius: 6,
+                      background: 'rgba(250,204,21,.05)', border: '1px solid rgba(250,204,21,.2)',
+                      fontSize: '0.82rem',
+                    }}>
+                      <span style={{ color: 'var(--text-mid)', fontWeight: 600 }}>{month}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{m.count} facture{m.count > 1 ? 's' : ''}</span>
+                      <span style={{ color: 'var(--yellow)', fontWeight: 700 }}>
+                        {m.total.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Toutes les lignes */}
             <h3 style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-mid)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Détail ({data.rows.length} lignes)
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {data.rows.map(r => (
-                <div key={r.id} style={{
-                  padding: '8px 10px', borderRadius: 6, background: 'var(--night-mid)',
-                  border: '1px solid var(--border)',
-                  display: 'grid', gridTemplateColumns: '70px 1fr auto auto', gap: 10,
-                  alignItems: 'center', fontSize: '0.78rem',
-                }}>
-                  <span style={{
-                    fontSize: '0.66rem', padding: '2px 6px', borderRadius: 4,
-                    background: 'var(--night-card)', color: 'var(--text-muted)',
-                    fontWeight: 700, textTransform: 'uppercase', textAlign: 'center',
+              {data.rows.map(r => {
+                const stateColor = r.state === 'paid' ? 'var(--green)' : 'var(--yellow)';
+                const stateBg = r.state === 'paid' ? 'rgba(34,197,94,.12)' : 'rgba(250,204,21,.12)';
+                return (
+                  <div key={r.id} style={{
+                    padding: '8px 10px', borderRadius: 6,
+                    background: r.state === 'pending' ? 'rgba(250,204,21,.04)' : 'var(--night-mid)',
+                    border: `1px solid ${r.state === 'pending' ? 'rgba(250,204,21,.2)' : 'var(--border)'}`,
+                    display: 'grid', gridTemplateColumns: '60px 60px 1fr auto auto', gap: 10,
+                    alignItems: 'center', fontSize: '0.78rem',
                   }}>
-                    {r.source}
-                  </span>
-                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <div style={{ color: 'var(--text)', fontWeight: 600 }}>{r.client_name || '—'}</div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
-                      {r.client_email || '—'}{r.invoice_number ? ` · ${r.invoice_number}` : ''}
+                    <span style={{
+                      fontSize: '0.62rem', padding: '2px 5px', borderRadius: 4,
+                      background: stateBg, color: stateColor,
+                      fontWeight: 700, textTransform: 'uppercase', textAlign: 'center',
+                    }}>
+                      {r.state === 'paid' ? '💸 Payé' : '📨 À payer'}
+                    </span>
+                    <span style={{
+                      fontSize: '0.62rem', padding: '2px 5px', borderRadius: 4,
+                      background: 'var(--night-card)', color: 'var(--text-muted)',
+                      fontWeight: 600, textTransform: 'uppercase', textAlign: 'center',
+                    }}>
+                      {r.source}
+                    </span>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ color: 'var(--text)', fontWeight: 600 }}>{r.client_name || '—'}</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                        {r.client_email || '—'}{r.invoice_number ? ` · ${r.invoice_number}` : ''}
+                      </div>
                     </div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                      {new Date(r.payment_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
+                    </span>
+                    <span style={{ color: stateColor, fontWeight: 700 }}>
+                      {r.amount_eur.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                    </span>
                   </div>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
-                    {new Date(r.payment_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
-                  </span>
-                  <span style={{ color: 'var(--green)', fontWeight: 700 }}>
-                    {r.amount_eur.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </>

@@ -34,8 +34,10 @@ export async function GET(req: NextRequest) {
 
   const clientsWithPaymentRow = new Set(payments.filter(p => p.client_id).map(p => p.client_id));
 
+  type PaymentState = 'paid' | 'pending';
   type AuditRow = {
     source: 'stripe' | 'ghl' | 'manuel' | 'legacy_client';
+    state: PaymentState;
     id: string;
     client_id: string | null;
     client_name: string | null;
@@ -45,7 +47,7 @@ export async function GET(req: NextRequest) {
     status: string;
     description: string | null;
     invoice_number: string | null;
-    payment_date: string;       // date affichée dans les filtres
+    payment_date: string;
     is_in_payments_table: boolean;
   };
 
@@ -56,8 +58,11 @@ export async function GET(req: NextRequest) {
     if (p.stripe_session_id?.startsWith('ghl_inv_')) source = 'ghl';
     else if (p.stripe_payment_intent || p.stripe_session_id) source = 'stripe';
 
+    const state: PaymentState = (p.status === 'completed' || p.status === 'paid') ? 'paid' : 'pending';
+
     rows.push({
       source,
+      state,
       id: p.id,
       client_id: p.client_id,
       client_name: p.clients?.business_name || null,
@@ -73,9 +78,10 @@ export async function GET(req: NextRequest) {
   }
 
   for (const c of legacyClients) {
-    if (clientsWithPaymentRow.has(c.id)) continue; // déjà couvert par un row payments
+    if (clientsWithPaymentRow.has(c.id)) continue;
     rows.push({
       source: 'legacy_client',
+      state: 'paid',
       id: `legacy-${c.id}`,
       client_id: c.id,
       client_name: c.business_name,
@@ -93,27 +99,38 @@ export async function GET(req: NextRequest) {
   rows.sort((a, b) => b.payment_date.localeCompare(a.payment_date));
 
   // Aggregations
-  const totalsBySource = rows.reduce((acc, r) => {
+  const paidRows = rows.filter(r => r.state === 'paid');
+  const pendingRows = rows.filter(r => r.state === 'pending');
+
+  const totalsBySource = (subset: AuditRow[]) => subset.reduce((acc, r) => {
     acc[r.source] = (acc[r.source] || 0) + r.amount_eur;
     return acc;
   }, {} as Record<string, number>);
 
-  // By month
-  const byMonth: Record<string, { total: number; count: number; bySource: Record<string, number> }> = {};
-  for (const r of rows) {
-    const monthKey = r.payment_date.slice(0, 7); // 'YYYY-MM'
-    if (!byMonth[monthKey]) byMonth[monthKey] = { total: 0, count: 0, bySource: {} };
-    byMonth[monthKey].total += r.amount_eur;
-    byMonth[monthKey].count++;
-    byMonth[monthKey].bySource[r.source] = (byMonth[monthKey].bySource[r.source] || 0) + r.amount_eur;
-  }
+  const byMonth = (subset: AuditRow[]) => {
+    const m: Record<string, { total: number; count: number; bySource: Record<string, number> }> = {};
+    for (const r of subset) {
+      const monthKey = r.payment_date.slice(0, 7);
+      if (!m[monthKey]) m[monthKey] = { total: 0, count: 0, bySource: {} };
+      m[monthKey].total += r.amount_eur;
+      m[monthKey].count++;
+      m[monthKey].bySource[r.source] = (m[monthKey].bySource[r.source] || 0) + r.amount_eur;
+    }
+    return m;
+  };
 
   return NextResponse.json({
     summary: {
+      paid_eur: paidRows.reduce((s, r) => s + r.amount_eur, 0),
+      pending_eur: pendingRows.reduce((s, r) => s + r.amount_eur, 0),
       total_eur: rows.reduce((s, r) => s + r.amount_eur, 0),
+      count_paid: paidRows.length,
+      count_pending: pendingRows.length,
       count: rows.length,
-      by_source: totalsBySource,
-      by_month: byMonth,
+      paid_by_source: totalsBySource(paidRows),
+      pending_by_source: totalsBySource(pendingRows),
+      by_month_paid: byMonth(paidRows),
+      by_month_pending: byMonth(pendingRows),
     },
     rows,
   });
