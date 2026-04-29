@@ -49,6 +49,35 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ feedback: v.feedback || [] });
 }
 
+// PATCH { video_id, entry_id, resolved?, comment?, token? } → toggle resolved
+// state ou éditer le commentaire. Côté client, accès uniquement à ses propres
+// entrées (sécurité comme pour le DELETE). Admin peut tout patcher.
+export async function PATCH(req: NextRequest) {
+  const body = await req.json().catch(() => ({}));
+  const access = await resolveAccess(req, body.token as string | undefined);
+  if (!access.ok) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const videoId = body.video_id as string | undefined;
+  const entryId = body.entry_id as string | undefined;
+  if (!videoId || !entryId) return NextResponse.json({ error: 'video_id et entry_id requis' }, { status: 400 });
+  const v = await loadVideo(videoId, access.clientId);
+  if (!v) return NextResponse.json({ error: 'not found' }, { status: 404 });
+
+  const next = (v.feedback || []).map(e => {
+    if (e.id !== entryId) return e;
+    if (!access.isAdmin && e.author !== 'client') return e; // client ne touche que ses entrées
+    const patched: FeedbackEntry = { ...e };
+    if (typeof body.resolved === 'boolean') patched.resolved = body.resolved;
+    if (typeof body.comment === 'string' && body.comment.trim()) patched.comment = body.comment.trim();
+    return patched;
+  });
+  const r = await supaFetch(`videos?id=eq.${encodeURIComponent(videoId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ feedback: next }),
+  }, true);
+  if (!r.ok) return NextResponse.json({ error: 'update failed' }, { status: 500 });
+  return NextResponse.json({ feedback: next });
+}
+
 // POST { video_id, time_seconds, comment, token? } → adds a feedback entry
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
