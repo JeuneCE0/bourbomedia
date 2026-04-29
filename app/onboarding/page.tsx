@@ -941,15 +941,15 @@ function OnboardingContent() {
   const [showCallBookedBtn, setShowCallBookedBtn] = useState(false);
   const calendarUrl = process.env.NEXT_PUBLIC_GHL_CALENDAR_URL || '';
 
-  // Show "I booked my slot" button as soon as the calendar iframe is loaded.
+  // Délai volontaire de 30s avant d'afficher le bouton "J'ai réservé" : laisse le
+  // temps au client de vraiment finaliser dans GHL et au webhook côté serveur de
+  // remonter le rendez-vous. Évite que le client clique trop vite sans avoir
+  // confirmé son créneau dans le widget.
   useEffect(() => {
-    if (currentStep === 4 && callIframeLoaded && !showCallBookedBtn) {
-      const timer = setTimeout(() => setShowCallBookedBtn(true), 2500);
+    if (currentStep === 4 && !showCallBookedBtn) {
+      const delay = callIframeLoaded ? 30000 : 35000; // +5s si iframe pas encore chargée
+      const timer = setTimeout(() => setShowCallBookedBtn(true), delay);
       return () => clearTimeout(timer);
-    }
-    if (currentStep === 4 && !callIframeLoaded && !showCallBookedBtn) {
-      const fallback = setTimeout(() => setShowCallBookedBtn(true), 8000);
-      return () => clearTimeout(fallback);
     }
   }, [currentStep, callIframeLoaded, showCallBookedBtn]);
 
