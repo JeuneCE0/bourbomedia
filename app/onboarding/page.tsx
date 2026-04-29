@@ -137,6 +137,9 @@ function OnboardingContent() {
   const callBookedParam = searchParams.get('call_booked');
   useEffect(() => {
     if (callBookedParam === 'true' && token && currentStep === 4) {
+      // Confirme avec le client avant de finaliser — au cas où GHL aurait redirigé
+      // sans réservation effective (fenêtre fermée, retour, etc.).
+      if (!confirm('Avez-vous bien finalisé et confirmé votre rendez-vous d’onboarding ?')) return;
       (async () => {
         try {
           await fetch(`/api/onboarding?token=${token}`, {
@@ -183,12 +186,21 @@ function OnboardingContent() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error);
+      // Account created — clear draft (data is now persisted server-side)
+      localStorage.removeItem(FORM_DRAFT_KEY);
+      // Migration : la suite de l'onboarding (contrat / paiement / appel) se fait
+      // désormais dans /portal. On garde aussi l'onboarding_token en localStorage
+      // pour le bouton "Reprendre mon onboarding" et le fallback /onboarding.
+      localStorage.setItem('ob_token', data.token);
+      const portalToken = data.portalToken || data.client?.portal_token;
+      if (portalToken) {
+        router.replace(`/portal?token=${portalToken}`);
+        return;
+      }
+      // Fallback rare : pas de portal_token renvoyé — on reste sur le funnel.
       setToken(data.token);
       setClient(data.client);
       setCurrentStep(2);
-      localStorage.setItem('ob_token', data.token);
-      // Account created — clear draft (data is now persisted server-side)
-      localStorage.removeItem(FORM_DRAFT_KEY);
       router.replace(`/onboarding?token=${data.token}`);
     } catch (e: unknown) {
       const msg = (e as Error).message || '';
@@ -206,6 +218,7 @@ function OnboardingContent() {
 
   // Step 2: Confirm contract signed
   const handleCheckContract = async () => {
+    if (!confirm('Avez-vous bien finalisé et confirmé la signature de votre contrat ?')) return;
     setCheckingContract(true);
     setError('');
     try {
@@ -243,6 +256,7 @@ function OnboardingContent() {
 
   // Step 6: Confirm filming
   const handleConfirmFilming = async () => {
+    if (!confirm('Avez-vous bien finalisé et confirmé la réservation de votre tournage ?')) return;
     setConfirming(true);
     setError('');
     try {
@@ -258,6 +272,7 @@ function OnboardingContent() {
 
   // Step 7: Confirm publication
   const handleConfirmPublication = async () => {
+    if (!confirm('Avez-vous bien finalisé et confirmé votre date de publication ?')) return;
     setConfirming(true);
     setError('');
     try {
@@ -935,15 +950,15 @@ function OnboardingContent() {
   const [showCallBookedBtn, setShowCallBookedBtn] = useState(false);
   const calendarUrl = process.env.NEXT_PUBLIC_GHL_CALENDAR_URL || '';
 
-  // Show "I booked my slot" button as soon as the calendar iframe is loaded.
+  // Délai volontaire de 30s avant d'afficher le bouton "J'ai réservé" : laisse le
+  // temps au client de vraiment finaliser dans GHL et au webhook côté serveur de
+  // remonter le rendez-vous. Évite que le client clique trop vite sans avoir
+  // confirmé son créneau dans le widget.
   useEffect(() => {
-    if (currentStep === 4 && callIframeLoaded && !showCallBookedBtn) {
-      const timer = setTimeout(() => setShowCallBookedBtn(true), 2500);
+    if (currentStep === 4 && !showCallBookedBtn) {
+      const delay = callIframeLoaded ? 30000 : 35000; // +5s si iframe pas encore chargée
+      const timer = setTimeout(() => setShowCallBookedBtn(true), delay);
       return () => clearTimeout(timer);
-    }
-    if (currentStep === 4 && !callIframeLoaded && !showCallBookedBtn) {
-      const fallback = setTimeout(() => setShowCallBookedBtn(true), 8000);
-      return () => clearTimeout(fallback);
     }
   }, [currentStep, callIframeLoaded, showCallBookedBtn]);
 
@@ -1067,24 +1082,9 @@ function OnboardingContent() {
           </div>
         )}
 
-        {client && (
-          <a
-            href={`/portal?token=${client.id}`}
-            style={{
-              ...btnSecondary,
-              marginTop: 12,
-              textDecoration: 'none',
-              textAlign: 'center',
-              display: 'block',
-            }}
-          >
-            🏠 Accéder à mon portail client
-          </a>
-        )}
-
         <button
           onClick={() => fetchClient(token)}
-          style={{ ...btnSecondary, marginTop: 8 }}
+          style={{ ...btnSecondary, marginTop: 12 }}
         >
           🔄 Actualiser
         </button>

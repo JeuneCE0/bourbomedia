@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
 
   if (token) {
     try {
-      const r = await supaFetch(`clients?onboarding_token=eq.${token}&select=id,business_name,contact_name,email,phone,onboarding_step,contract_signature_link,contract_signed_at,paid_at,onboarding_call_booked,onboarding_call_date,filming_date,filming_date_confirmed,publication_date,publication_date_confirmed,status,scripts(id,status)`, {}, true);
+      // Accept either onboarding_token or portal_token — le portail veut pouvoir
+      // appeler les actions onboarding sans avoir à connaître les deux jetons.
+      const r = await supaFetch(`clients?or=(onboarding_token.eq.${token},portal_token.eq.${token})&select=id,business_name,contact_name,email,phone,onboarding_step,contract_signature_link,contract_signed_at,paid_at,onboarding_call_booked,onboarding_call_date,filming_date,filming_date_confirmed,publication_date,publication_date_confirmed,status,scripts(id,status)`, {}, true);
       if (!r.ok) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
       const data = await r.json();
       if (!data.length) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
@@ -75,7 +77,7 @@ export async function POST(req: NextRequest) {
 
       notifyClientStatusChange(business_name, '—', 'Compte créé (onboarding)');
 
-      return NextResponse.json({ token: onboardingToken, client: data[0] }, { status: 201 });
+      return NextResponse.json({ token: onboardingToken, portalToken, client: data[0] }, { status: 201 });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
     }
@@ -100,10 +102,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // All other actions require a valid onboarding token
+  // All other actions require a valid onboarding OR portal token. On accepte
+  // les deux pour que /portal puisse driver le funnel sans connaître l'onboarding_token.
   if (!token) return NextResponse.json({ error: 'Token requis' }, { status: 400 });
 
-  const cr = await supaFetch(`clients?onboarding_token=eq.${token}&select=*`, {}, true);
+  const cr = await supaFetch(`clients?or=(onboarding_token.eq.${token},portal_token.eq.${token})&select=*`, {}, true);
   if (!cr.ok) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
   const clients = await cr.json();
   if (!clients.length) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
@@ -168,13 +171,18 @@ export async function POST(req: NextRequest) {
     try {
       const amount = body.amount || 50000; // 500€ HT in cents
       const baseUrl = req.nextUrl.origin;
+      // Le caller indique où revenir après paiement (/onboarding pour le funnel
+      // historique, /portal depuis la migration). Liste blanche pour éviter
+      // qu'un attaquant force une redirection arbitraire via le clientSecret.
+      const requestedPath = typeof body.returnPath === 'string' ? body.returnPath : '/onboarding';
+      const returnPath = ['/portal', '/onboarding'].includes(requestedPath) ? requestedPath : '/onboarding';
       const clientSecret = await createEmbeddedCheckoutSession({
         clientId: client.id,
         clientEmail: client.email,
         clientName: client.business_name,
         amount,
         description: 'Production vidéo BourbonMédia',
-        returnUrl: `${baseUrl}/onboarding?token=${token}&payment=success`,
+        returnUrl: `${baseUrl}${returnPath}?token=${token}&payment=success`,
         // TEMP TEST — produit de test pour valider le funnel étape par étape.
         // Remettre `process.env.STRIPE_PRODUCT_ID || undefined` avant le lancement officiel.
         productId: 'prod_UQOyK2KSiDrAcb',
@@ -194,6 +202,10 @@ export async function POST(req: NextRequest) {
         onboarding_call_booked: true,
         onboarding_call_date: body.date || null,
         onboarding_step: 5,
+        // Faire avancer la carte sur le kanban admin "Onboarding" → "Appel onboarding".
+        // Le funnel garde son écran "Script en préparation" côté client (step 5),
+        // mais l'équipe voit que l'appel est planifié.
+        status: 'onboarding_call',
       }),
     }, true);
     notifyClientStatusChange(client.business_name, 'Étape 4', 'Appel onboarding réservé');

@@ -3,9 +3,15 @@
 import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { loadStripe } from '@stripe/stripe-js';
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js';
 import type { Annotation } from '@/components/ScriptAnnotator';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
 import TimestampedVideoPlayer from '@/components/TimestampedVideoPlayer';
+
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : null;
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
 const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
@@ -31,6 +37,8 @@ interface Comment {
 interface ClientDelivery {
   business_name?: string;
   contact_name?: string;
+  email?: string;
+  phone?: string;
   status?: string;
   video_url?: string;
   video_thumbnail_url?: string;
@@ -44,6 +52,9 @@ interface ClientDelivery {
   video_changes_requested?: boolean;
   contract_pdf_url?: string;
   contract_signature_link?: string;
+  contract_signed_at?: string;
+  paid_at?: string;
+  onboarding_call_booked?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -99,8 +110,13 @@ const STATUS_LABELS_PORTAL: Record<string, string> = {
   published: 'Vidéo publiée',
 };
 
+// Les clés préfixées par `__` sont des étapes internes au stepper, non des
+// valeurs de status DB. Elles représentent les jalons du funnel /onboarding
+// (contrat / paiement) qui ne se reflètent pas dans `clients.status`.
 const PROJECT_STAGES = [
   { key: 'onboarding',          label: 'Inscription',           emoji: '👋',  description: 'Vous êtes inscrit·e — bienvenue !' },
+  { key: '__contract',          label: 'Contrat signé',         emoji: '✍️',  description: 'Votre contrat de prestation est signé.' },
+  { key: '__payment',           label: 'Paiement',              emoji: '💳',  description: 'Votre paiement est confirmé.' },
   { key: 'onboarding_call',     label: 'Appel onboarding',      emoji: '📞',  description: 'Réservez votre appel de cadrage avec notre équipe.' },
   { key: 'script_writing',      label: 'Écriture du script',     emoji: '✍️',  description: 'Notre équipe écrit votre script sur mesure.' },
   { key: 'script_review',       label: 'Relecture du script',    emoji: '📝',  description: 'Le script vous est proposé pour relecture.' },
@@ -800,7 +816,7 @@ function PortalContent() {
     // current stage. Onboarding / onboarding_call need their own actionable
     // content (contract + payment / booking calendar). Otherwise fall back
     // to the "we're writing your script" message.
-    return <NoScriptStage clientInfo={clientInfo} />;
+    return <NoScriptStage clientInfo={clientInfo} token={token} onRefresh={() => { loadScript(); loadNotifications(); }} />;
   }
 
   const currentStepIdx = SCRIPT_STEPS.findIndex(s => s.key === script.status);
@@ -998,7 +1014,18 @@ function PortalContent() {
             🗺️ Avancement de votre projet
           </h3>
           {(() => {
-            const stageIdx = PROJECT_STAGES.findIndex(s => s.key === clientStatus);
+            // Pour le statut DB 'onboarding', on affine selon les flags du funnel
+            // (contrat signé / paiement / appel réservé) — sinon, le stepper
+            // resterait bloqué sur "Inscription" pendant tout le pré-appel.
+            const stageIdx = (() => {
+              if (clientStatus === 'onboarding' && clientInfo) {
+                if (!clientInfo.contract_signed_at) return 1; // current : Contrat
+                if (!clientInfo.paid_at) return 2;            // current : Paiement
+                if (!clientInfo.onboarding_call_booked) return 3; // current : Appel
+                return 3;
+              }
+              return PROJECT_STAGES.findIndex(s => s.key === clientStatus);
+            })();
             const effectiveIdx = stageIdx >= 0 ? stageIdx : 0;
             const total = PROJECT_STAGES.length;
             // Progress = stages done + 0.5 pour l'étape courante
@@ -1892,6 +1919,7 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
 
   async function confirm() {
     if (!pickedDate) return;
+    if (!window.confirm('Avez-vous bien finalisé et confirmé votre date de publication ?')) return;
     setSubmitting(true);
     setError('');
     try {
@@ -2051,6 +2079,7 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
       setError('Cette date est déjà prise par un autre projet. Choisissez un autre jour.');
       return;
     }
+    if (!window.confirm('Avez-vous bien finalisé et confirmé la réservation de votre tournage ?')) return;
     setSubmitting(true);
     try {
       const isoDate = new Date(`${pickedDate}T${pickedTime || '09:00'}`).toISOString();
@@ -2873,62 +2902,64 @@ function ScriptVersionPills({ token, currentVersion, currentContent }: {
 
 /* ── Contextual screen when no script exists yet ─────────────────────── */
 
-function NoScriptStage({ clientInfo }: { clientInfo: ClientDelivery | null }) {
+function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDelivery | null; token: string | null; onRefresh: () => void }) {
   const status = clientInfo?.status || 'script_writing';
   const onboardingCalendarUrl = process.env.NEXT_PUBLIC_GHL_ONBOARDING_CALENDAR_URL
     || process.env.NEXT_PUBLIC_GHL_CALENDAR_URL
     || 'https://api.leadconnectorhq.com/widget/booking/2fmSZkWpwEulfZsvpPmh';
 
-  // 1. Onboarding — payment + contract pending
+  // 1. Onboarding — driven par les flags, pas par le status :
+  //    !contract_signed_at  → signature du contrat (iframe inline)
+  //    !paid_at             → paiement (Stripe Embedded Checkout inline)
+  //    !onboarding_call_booked → réservation de l'appel (à venir, prochain commit)
   if (status === 'onboarding') {
-    return (
-      <NoScriptShell
-        emoji="🤝"
-        title="Bienvenue chez BourbonMédia !"
-        subtitle="Pour démarrer votre projet vidéo, finalisez ces 2 dernières étapes."
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {clientInfo?.contract_signature_link && (
-            <a href={clientInfo.contract_signature_link} target="_blank" rel="noreferrer" style={{
-              padding: '14px 18px', borderRadius: 12,
-              background: 'var(--orange)', color: '#fff', textDecoration: 'none',
-              fontSize: '0.92rem', fontWeight: 700, textAlign: 'center',
-              boxShadow: '0 4px 14px rgba(232,105,43,.4)',
-            }}>
-              📝 Signer le contrat
-            </a>
-          )}
-          {clientInfo?.contract_pdf_url && (
-            <a href={clientInfo.contract_pdf_url} target="_blank" rel="noreferrer" style={{
-              padding: '12px 18px', borderRadius: 10,
-              background: 'var(--night-card)', border: '1px solid var(--border-md)',
-              color: 'var(--text)', textDecoration: 'none',
-              fontSize: '0.86rem', fontWeight: 600, textAlign: 'center',
-            }}>
-              ⬇️ Télécharger le contrat (PDF)
-            </a>
-          )}
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-mid)', textAlign: 'center', margin: '8px 0 0' }}>
-            Une fois le paiement confirmé, vous recevrez le lien pour réserver votre appel onboarding.
-          </p>
-        </div>
-      </NoScriptShell>
-    );
+    if (!clientInfo?.contract_signed_at && token) {
+      return (
+        <NoScriptShell
+          emoji="✍️"
+          title="Signez votre contrat"
+          subtitle="Lisez, remplissez et signez votre contrat ci-dessous. Cela formalise notre collaboration."
+        >
+          <ContractStep clientInfo={clientInfo} token={token} onSigned={onRefresh} />
+        </NoScriptShell>
+      );
+    }
+
+    if (!clientInfo?.paid_at && token) {
+      return (
+        <NoScriptShell
+          emoji="💳"
+          title="Paiement sécurisé"
+          subtitle="Réglez votre prestation en toute sécurité avec Stripe."
+        >
+          <PaymentStep token={token} onPaid={onRefresh} />
+        </NoScriptShell>
+      );
+    }
+
+    if (!clientInfo?.onboarding_call_booked && token) {
+      return (
+        <NoScriptShell
+          emoji="📞"
+          title="Réservez votre appel onboarding"
+          subtitle="Un appel de cadrage de 30 min avec notre équipe pour bien démarrer votre vidéo."
+        >
+          <OnboardingCallStep token={token} calendarUrl={onboardingCalendarUrl} onBooked={onRefresh} />
+        </NoScriptShell>
+      );
+    }
   }
 
-  // 2. Onboarding call — needs to book the kickoff call
+  // 2. Onboarding call — appel réservé, on attend le rendez-vous puis l'écriture
+  // du script. (Le branchement status='onboarding' ci-dessus gère la réservation
+  // tant qu'elle n'est pas faite.)
   if (status === 'onboarding_call') {
     return (
       <NoScriptShell
         emoji="📞"
-        title="Réservez votre appel onboarding"
-        subtitle="Un appel de cadrage de 30 min avec notre équipe pour bien démarrer votre vidéo."
-      >
-        <GhlBookingEmbed url={onboardingCalendarUrl} title="Appel onboarding" />
-        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', margin: '14px 0 0' }}>
-          Une fois l&apos;appel pris, on attaque l&apos;écriture de votre script tout de suite après.
-        </p>
-      </NoScriptShell>
+        title="Appel onboarding réservé"
+        subtitle="Votre rendez-vous est planifié. Notre équipe attaque l'écriture de votre script juste après l'appel."
+      />
     );
   }
 
@@ -3001,6 +3032,285 @@ function NoScriptStage({ clientInfo }: { clientInfo: ClientDelivery | null }) {
       title="Votre script est en préparation"
       subtitle="Notre équipe travaille sur votre script vidéo. Vous recevrez une notification dès qu'il sera prêt pour votre relecture."
     />
+  );
+}
+
+/* ── Étape appel onboarding (inline dans /portal — booking GHL) ─────── */
+function OnboardingCallStep({ token, calendarUrl, onBooked }: {
+  token: string;
+  calendarUrl: string;
+  onBooked: () => void;
+}) {
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [showButton, setShowButton] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  // 30s d'attente avant d'afficher le bouton — laisse le temps au client de
+  // finaliser la réservation et au webhook GHL de remonter le rendez-vous.
+  useEffect(() => {
+    if (!showButton) {
+      const delay = iframeLoaded ? 30000 : 35000;
+      const timer = setTimeout(() => setShowButton(true), delay);
+      return () => clearTimeout(timer);
+    }
+  }, [iframeLoaded, showButton]);
+
+  async function handleBooked() {
+    if (!confirm('Avez-vous bien finalisé et confirmé votre rendez-vous d’onboarding ?')) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const r = await fetch(`/api/onboarding?token=${token}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'call_booked', date: new Date().toISOString() }),
+      });
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        throw new Error(data.error || 'Erreur');
+      }
+      onBooked();
+    } catch (e: unknown) {
+      setError((e as Error).message || "Nous n'avons pas pu confirmer votre réservation. Réessayez.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <GhlBookingEmbed
+        url={calendarUrl}
+        title="Appel onboarding"
+        onLoad={() => setIframeLoaded(true)}
+      />
+
+      {showButton ? (
+        <>
+          <button
+            onClick={handleBooked}
+            disabled={submitting}
+            style={{
+              padding: '13px 22px', borderRadius: 12,
+              background: 'var(--orange)', color: '#fff', border: 'none',
+              cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700,
+              boxShadow: '0 4px 14px rgba(232,105,43,.4)',
+              opacity: submitting ? 0.6 : 1,
+            }}
+          >
+            {submitting ? '⏳ Vérification…' : '✅ J\'ai réservé mon appel'}
+          </button>
+          {error && (
+            <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,.08)', borderLeft: '3px solid var(--red)', borderRadius: 6, color: '#fca5a5', fontSize: '0.84rem' }}>
+              {error}
+            </div>
+          )}
+        </>
+      ) : (
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center', margin: 0 }}>
+          Réservez votre créneau ci-dessus. Le bouton de confirmation apparaîtra dans quelques secondes.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── Étape paiement (inline dans /portal — Stripe Embedded Checkout) ─ */
+function PaymentStep({ token, onPaid }: { token: string; onPaid: () => void }) {
+  const searchParams = useSearchParams();
+  const paymentReturn = searchParams.get('payment') === 'success';
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    if (paymentReturn) return; // Le webhook va valider, on attend le refresh.
+    if (clientSecret) return;
+    (async () => {
+      try {
+        const r = await fetch(`/api/onboarding?token=${token}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create_payment', returnPath: '/portal' }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Erreur Stripe');
+        setClientSecret(data.clientSecret);
+      } catch (e: unknown) {
+        setLoadError((e as Error).message || 'Impossible d\'initialiser le paiement.');
+      }
+    })();
+  }, [token, clientSecret, paymentReturn]);
+
+  // Stripe redirige vers ?payment=success — on poll le portail jusqu'à ce que
+  // le webhook ait posé paid_at, puis on quitte cette étape.
+  useEffect(() => {
+    if (!paymentReturn) return;
+    const interval = setInterval(() => onPaid(), 3000);
+    return () => clearInterval(interval);
+  }, [paymentReturn, onPaid]);
+
+  if (paymentReturn) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: '50%',
+          border: '3px solid var(--border-md)', borderTopColor: 'var(--orange)',
+          margin: '0 auto 18px', animation: 'spin 1s linear infinite',
+        }} />
+        <h3 style={{ color: 'var(--text)', fontSize: '1rem', margin: '0 0 6px' }}>Paiement en cours de vérification…</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+          Cette page se mettra à jour automatiquement.
+        </p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ padding: '12px 16px', background: 'rgba(239,68,68,.10)', borderLeft: '3px solid var(--red)', borderRadius: 6, color: '#fca5a5', fontSize: '0.85rem' }}>
+        ❌ {loadError}
+      </div>
+    );
+  }
+
+  if (!stripePromise) {
+    return (
+      <div style={{ padding: 16, borderRadius: 10, background: 'var(--night-mid)', border: '1px dashed var(--border-md)', fontSize: '0.85rem', color: 'var(--text-mid)', textAlign: 'center' }}>
+        ⚠ Stripe n&apos;est pas configuré côté front (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY manquante).
+      </div>
+    );
+  }
+
+  if (!clientSecret) {
+    return (
+      <div style={{ textAlign: 'center', padding: '32px 0' }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: '50%',
+          border: '3px solid var(--border-md)', borderTopColor: 'var(--orange)',
+          margin: '0 auto 16px', animation: 'spin 1s linear infinite',
+        }} />
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Chargement du paiement…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ borderRadius: 12, overflow: 'hidden' }}>
+      <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret }}>
+        <EmbeddedCheckout />
+      </EmbeddedCheckoutProvider>
+    </div>
+  );
+}
+
+/* ── Étape contrat (inline dans /portal) ───────────────────────────── */
+function ContractStep({ clientInfo, token, onSigned }: {
+  clientInfo: ClientDelivery | null;
+  token: string;
+  onSigned: () => void;
+}) {
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [showButton, setShowButton] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState('');
+
+  const contractUrl = useMemo(() => {
+    const base = process.env.NEXT_PUBLIC_GHL_CONTRACT_URL || '';
+    if (!base || !clientInfo) return base;
+    const nameParts = clientInfo.contact_name?.trim().split(' ') || [];
+    const params = new URLSearchParams();
+    if (nameParts[0]) params.set('first_name', nameParts[0]);
+    if (nameParts.length > 1) params.set('last_name', nameParts.slice(1).join(' '));
+    if (clientInfo.email) params.set('email', clientInfo.email);
+    if (clientInfo.phone) params.set('phone', clientInfo.phone);
+    if (clientInfo.business_name) params.set('companyName', clientInfo.business_name);
+    const sep = base.includes('?') ? '&' : '?';
+    return base + sep + params.toString();
+  }, [clientInfo]);
+
+  useEffect(() => {
+    if (!showButton) {
+      const delay = iframeLoaded ? 2500 : 8000;
+      const timer = setTimeout(() => setShowButton(true), delay);
+      return () => clearTimeout(timer);
+    }
+  }, [iframeLoaded, showButton]);
+
+  async function handleSigned() {
+    if (!confirm('Avez-vous bien finalisé et confirmé la signature de votre contrat ?')) return;
+    setChecking(true);
+    setError('');
+    try {
+      const r = await fetch(`/api/onboarding?token=${token}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'check_contract' }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.signed) {
+        setError(data.error || "Nous n'avons pas pu confirmer votre signature. Réessayez ou contactez-nous.");
+        return;
+      }
+      onSigned();
+    } catch {
+      setError("Erreur réseau, réessayez.");
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  if (!contractUrl) {
+    return (
+      <div style={{ padding: 16, borderRadius: 10, background: 'var(--night-mid)', border: '1px dashed var(--border-md)', fontSize: '0.85rem', color: 'var(--text-mid)', textAlign: 'center' }}>
+        ⚠ Le lien de contrat n&apos;est pas configuré côté serveur. Contactez l&apos;équipe BourbonMédia.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-md)', background: '#fff' }}>
+        <iframe
+          src={contractUrl}
+          onLoad={() => setIframeLoaded(true)}
+          style={{ width: '100%', height: '78vh', minHeight: 600, border: 'none', display: 'block' }}
+          title="Contrat de prestation"
+          allow="camera;microphone"
+        />
+      </div>
+
+      {showButton ? (
+        <>
+          <div style={{
+            padding: '10px 14px', background: 'rgba(250,204,21,.08)',
+            borderLeft: '3px solid var(--yellow)', borderRadius: 6,
+            color: 'var(--yellow)', fontSize: '0.82rem', lineHeight: 1.5,
+          }}>
+            ⚠ Avant de continuer, clique sur <strong>« Terminé »</strong> en bas du contrat ci-dessus pour finaliser ta signature, <em>puis</em> sur le bouton ci-dessous.
+          </div>
+          <button
+            onClick={handleSigned}
+            disabled={checking}
+            style={{
+              padding: '13px 22px', borderRadius: 12,
+              background: 'var(--orange)', color: '#fff', border: 'none',
+              cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700,
+              boxShadow: '0 4px 14px rgba(232,105,43,.4)',
+              opacity: checking ? 0.6 : 1,
+            }}
+          >
+            {checking ? '⏳ Vérification…' : '✅ J\'ai signé mon contrat'}
+          </button>
+          {error && (
+            <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,.08)', borderLeft: '3px solid var(--red)', borderRadius: 6, color: '#fca5a5', fontSize: '0.84rem' }}>
+              {error}
+            </div>
+          )}
+        </>
+      ) : (
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center', margin: 0 }}>
+          Prenez le temps de lire et signer le contrat ci-dessus
+        </p>
+      )}
+    </div>
   );
 }
 
