@@ -1173,22 +1173,6 @@ function PortalContent() {
           <FilmingBookingPanel token={token!} onConfirmed={() => { loadScript(); loadNotifications(); }} actionLoading={actionLoading} />
         )}
 
-        {/* Video review — when a video is delivered but not yet validated.
-            Si l'admin a poussé le client en 'publication_pending' / 'published',
-            on considère la vidéo comme validée et on saute directement à la
-            réservation de la date de publication (même si video_changes_requested
-            est resté à true depuis une demande antérieure). */}
-        {hasDelivery && !clientInfo?.video_validated_at
-          && clientInfo?.status !== 'publication_pending'
-          && clientInfo?.status !== 'published' && (
-          <VideoReviewPanel
-            token={token!}
-            hasDelivery={!!hasDelivery}
-            clientInfo={clientInfo}
-            onActed={() => { loadScript(); loadNotifications(); }}
-          />
-        )}
-
         {/* Publication date picker — Tuesdays / Thursdays only */}
         {hasDelivery
           && (clientInfo?.video_validated_at || clientInfo?.status === 'publication_pending')
@@ -1409,6 +1393,20 @@ function PortalContent() {
                 </div>
               </div>
             ))}
+
+            {/* Validation / demande de modifications : sous la vidéo et ses
+                retours timestampés, pas en haut du portail. Ne s'affiche que
+                si la vidéo est livrée et non encore validée par le client. */}
+            {hasDelivery && !clientInfo?.video_validated_at
+              && clientInfo?.status !== 'publication_pending'
+              && clientInfo?.status !== 'published' && (
+              <VideoReviewPanel
+                token={token!}
+                hasDelivery={!!hasDelivery}
+                clientInfo={clientInfo}
+                onActed={() => { loadScript(); loadNotifications(); }}
+              />
+            )}
 
             {/* Legacy single-video fallback */}
             {deliveredVideos.length === 0 && clientInfo?.video_url && (
