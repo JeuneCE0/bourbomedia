@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { Annotation } from '@/components/ScriptAnnotator';
@@ -2372,14 +2372,17 @@ function GhlBookingEmbed({ url, title, onLoad }: { url: string; title: string; o
     formEmbedScriptLoaded = true;
   }, []);
 
-  // Build a unique iframe id matching GHL's pattern (calendarId_timestamp)
+  // Stable iframe id matching GHL's pattern (calendarId_timestamp). Le script
+  // form_embed.js retrouve l'iframe par id pour pousser les resize via
+  // postMessage — un id qui change à chaque render casse ce mécanisme et
+  // l'iframe reste figée à sa hauteur initiale, masquant les créneaux.
   const calendarId = url.split('/').pop() || 'calendar';
-  const iframeId = `${calendarId}_${Date.now()}`;
+  const iframeId = useMemo(() => `${calendarId}_${Date.now()}`, [calendarId]);
 
   return (
     <div style={{
-      borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-md)',
-      background: '#fff', minHeight: 500,
+      borderRadius: 12, border: '1px solid var(--border-md)',
+      background: '#fff', minHeight: 720,
     }}>
       <iframe
         id={iframeId}
@@ -2387,7 +2390,7 @@ function GhlBookingEmbed({ url, title, onLoad }: { url: string; title: string; o
         title={title}
         scrolling="no"
         onLoad={onLoad}
-        style={{ width: '100%', border: 'none', overflow: 'hidden', display: 'block', minHeight: 500 }}
+        style={{ width: '100%', border: 'none', display: 'block', minHeight: 720 }}
       />
     </div>
   );
