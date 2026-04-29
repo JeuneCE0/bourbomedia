@@ -2039,7 +2039,11 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
   onConfirmed: () => void;
   actionLoading: boolean;
 }) {
-  const calendarUrl = process.env.NEXT_PUBLIC_GHL_FILMING_CALENDAR_URL || process.env.NEXT_PUBLIC_GHL_CALENDAR_URL || '';
+  // Calendrier de tournage GHL. Le fallback générique NEXT_PUBLIC_GHL_CALENDAR_URL
+  // remontait l'agenda d'onboarding par erreur quand GHL_FILMING_CALENDAR_URL n'était
+  // pas configurée — on default désormais sur l'ID GHL du calendrier tournage.
+  const calendarUrl = process.env.NEXT_PUBLIC_GHL_FILMING_CALENDAR_URL
+    || 'https://api.leadconnectorhq.com/widget/booking/vKw4x99jCNnZnl5FuSig';
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [showButton, setShowButton] = useState(false);
   const [showDateForm, setShowDateForm] = useState(false);
