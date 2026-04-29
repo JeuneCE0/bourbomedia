@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
 
   if (token) {
     try {
-      const r = await supaFetch(`clients?onboarding_token=eq.${token}&select=id,business_name,contact_name,email,phone,onboarding_step,contract_signature_link,contract_signed_at,paid_at,onboarding_call_booked,onboarding_call_date,filming_date,filming_date_confirmed,publication_date,publication_date_confirmed,status,scripts(id,status)`, {}, true);
+      // Accept either onboarding_token or portal_token — le portail veut pouvoir
+      // appeler les actions onboarding sans avoir à connaître les deux jetons.
+      const r = await supaFetch(`clients?or=(onboarding_token.eq.${token},portal_token.eq.${token})&select=id,business_name,contact_name,email,phone,onboarding_step,contract_signature_link,contract_signed_at,paid_at,onboarding_call_booked,onboarding_call_date,filming_date,filming_date_confirmed,publication_date,publication_date_confirmed,status,scripts(id,status)`, {}, true);
       if (!r.ok) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
       const data = await r.json();
       if (!data.length) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
@@ -75,7 +77,7 @@ export async function POST(req: NextRequest) {
 
       notifyClientStatusChange(business_name, '—', 'Compte créé (onboarding)');
 
-      return NextResponse.json({ token: onboardingToken, client: data[0] }, { status: 201 });
+      return NextResponse.json({ token: onboardingToken, portalToken, client: data[0] }, { status: 201 });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
     }
@@ -100,10 +102,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // All other actions require a valid onboarding token
+  // All other actions require a valid onboarding OR portal token. On accepte
+  // les deux pour que /portal puisse driver le funnel sans connaître l'onboarding_token.
   if (!token) return NextResponse.json({ error: 'Token requis' }, { status: 400 });
 
-  const cr = await supaFetch(`clients?onboarding_token=eq.${token}&select=*`, {}, true);
+  const cr = await supaFetch(`clients?or=(onboarding_token.eq.${token},portal_token.eq.${token})&select=*`, {}, true);
   if (!cr.ok) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
   const clients = await cr.json();
   if (!clients.length) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
