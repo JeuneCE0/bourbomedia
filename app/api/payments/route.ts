@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const clientId = req.nextUrl.searchParams.get('client_id');
     const path = clientId
       ? `payments?client_id=eq.${clientId}&select=*&order=created_at.desc`
-      : 'payments?select=*,clients(business_name,contact_name)&order=created_at.desc&limit=2000';
+      : 'payments?select=*,clients(business_name,contact_name,email,ghl_contact_id)&order=created_at.desc&limit=2000';
     const r = await supaFetch(path, {}, true);
     if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
     return NextResponse.json(await r.json());

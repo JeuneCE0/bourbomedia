@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import LinkGhlButton from '@/components/LinkGhlButton';
 import ResolveOrphanCharge from '@/components/ResolveOrphanCharge';
+import OrphanPaymentsCard from '@/components/OrphanPaymentsCard';
 
 interface Client {
   id: string;
@@ -15,6 +16,8 @@ interface Client {
   paid_at?: string;
   payment_amount?: number; // cents
   delivered_at?: string;
+  email?: string;
+  ghl_contact_id?: string | null;
 }
 
 interface Payment {
@@ -27,9 +30,83 @@ interface Payment {
   invoice_pdf_url?: string;
   receipt_url?: string;
   invoice_number?: string;
+  stripe_session_id?: string | null;
+  stripe_payment_intent?: string | null;
   created_at: string;
-  clients?: { business_name: string; contact_name?: string };
+  clients?: { business_name: string; contact_name?: string; email?: string | null; ghl_contact_id?: string | null };
 }
+
+type PaymentSource = 'stripe' | 'ghl' | 'manuel' | 'legacy_client';
+type PaymentState = 'paid' | 'pending';
+
+interface AuditRow {
+  source: PaymentSource;
+  state: PaymentState;
+  id: string;
+  client_id: string | null;
+  client_name: string | null;
+  client_email: string | null;
+  client_has_ghl: boolean;
+  amount_eur: number;
+  currency: string;
+  status: string;
+  description: string | null;
+  invoice_number: string | null;
+  payment_date: string;
+}
+
+function buildAuditRows(payments: Payment[], clients: Client[]): AuditRow[] {
+  const rows: AuditRow[] = [];
+  const clientsWithPaymentRow = new Set(payments.filter(p => p.client_id).map(p => p.client_id));
+  for (const p of payments) {
+    let source: PaymentSource = 'manuel';
+    if (p.stripe_session_id?.startsWith('ghl_inv_')) source = 'ghl';
+    else if (p.stripe_payment_intent || p.stripe_session_id) source = 'stripe';
+    const state: PaymentState = (p.status === 'completed' || p.status === 'paid') ? 'paid' : 'pending';
+    rows.push({
+      source, state,
+      id: p.id,
+      client_id: p.client_id || null,
+      client_name: p.clients?.business_name || null,
+      client_email: p.clients?.email || null,
+      client_has_ghl: !!p.clients?.ghl_contact_id,
+      amount_eur: p.amount / 100,
+      currency: p.currency,
+      status: p.status,
+      description: p.description || null,
+      invoice_number: p.invoice_number || null,
+      payment_date: p.created_at,
+    });
+  }
+  for (const c of clients) {
+    if (!c.paid_at || !c.payment_amount) continue;
+    if (clientsWithPaymentRow.has(c.id)) continue;
+    rows.push({
+      source: 'legacy_client',
+      state: 'paid',
+      id: `legacy-${c.id}`,
+      client_id: c.id,
+      client_name: c.business_name,
+      client_email: c.email || null,
+      client_has_ghl: !!c.ghl_contact_id,
+      amount_eur: c.payment_amount / 100,
+      currency: 'eur',
+      status: 'completed',
+      description: 'Legacy : clients.payment_amount',
+      invoice_number: null,
+      payment_date: c.paid_at,
+    });
+  }
+  rows.sort((a, b) => b.payment_date.localeCompare(a.payment_date));
+  return rows;
+}
+
+const SOURCE_META: Record<PaymentSource, { emoji: string; label: string; color: string }> = {
+  stripe: { emoji: '💳', label: 'Stripe', color: '#635BFF' },
+  ghl: { emoji: '📄', label: 'GHL', color: '#14B8A6' },
+  manuel: { emoji: '✏️', label: 'Manuel', color: 'var(--text-mid)' },
+  legacy_client: { emoji: '🗂️', label: 'Legacy', color: 'var(--text-muted)' },
+};
 
 const STATUS_LABELS: Record<string, string> = {
   onboarding: 'Onboarding',
@@ -134,6 +211,8 @@ export default function FinancePage() {
 
   const now = new Date();
   const nowMs = Date.now();
+
+  const auditRows = useMemo(() => buildAuditRows(payments, clients), [payments, clients]);
 
   // Use payments table when available, fall back to client.payment_amount/paid_at for legacy
   const allRevenue = useMemo(() => {
@@ -275,6 +354,9 @@ export default function FinancePage() {
           </div>
         </div>
       </div>
+
+      {/* Paiements Stripe sans client identifié — actionnable en permanence */}
+      <OrphanPaymentsCard />
 
       {loading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -483,40 +565,227 @@ export default function FinancePage() {
             </Card>
           </div>
 
-          {/* Recent payments */}
-          <Card title="🧾 Derniers paiements" style={{ marginTop: 14 }}>
-            {allRevenue.length === 0 ? (
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Aucun paiement</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {allRevenue.slice(0, 10).map((r, i) => (
-                  <Link key={`${r.client_id}-${r.date}-${i}`} href={`/dashboard/clients/${r.client_id}?tab=payments`} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 10px', borderRadius: 8,
-                    background: 'var(--night-mid)', textDecoration: 'none',
-                  }}>
-                    <span style={{ flex: 1, fontSize: '0.84rem', color: 'var(--text)', fontWeight: 600 }}>
-                      {r.client_name}
-                    </span>
-                    {r.description && (
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>
-                        {r.description}
-                      </span>
-                    )}
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                      {new Date(r.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--green)', whiteSpace: 'nowrap' }}>
-                      {fmtEUR(r.cents)}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </Card>
+          {/* Historique complet des paiements — provenance, statut, recherche, export */}
+          <PaymentsHistorySection rows={auditRows} />
         </div>
       )}
     </div>
+  );
+}
+
+function PaymentsHistorySection({ rows }: { rows: AuditRow[] }) {
+  const [search, setSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<'all' | PaymentSource>('all');
+  const [stateFilter, setStateFilter] = useState<'all' | PaymentState>('all');
+  const [showAll, setShowAll] = useState(false);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter(r => {
+      if (sourceFilter !== 'all' && r.source !== sourceFilter) return false;
+      if (stateFilter !== 'all' && r.state !== stateFilter) return false;
+      if (!q) return true;
+      const hay = `${r.client_name || ''} ${r.client_email || ''} ${r.invoice_number || ''} ${r.description || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [rows, search, sourceFilter, stateFilter]);
+
+  const totalEur = filtered.reduce((s, r) => s + (r.state === 'paid' ? r.amount_eur : 0), 0);
+  const pendingEur = filtered.reduce((s, r) => s + (r.state === 'pending' ? r.amount_eur : 0), 0);
+
+  const visible = showAll ? filtered : filtered.slice(0, 25);
+
+  function exportCsv() {
+    const esc = (v: string | null | undefined) => {
+      const s = (v ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ');
+      return `"${s}"`;
+    };
+    const header = ['Date', 'Source', 'Etat', 'Client', 'Email', 'Montant EUR', 'N° facture', 'Description'];
+    const lines = [header.map(h => esc(h)).join(';')];
+    filtered.forEach(r => {
+      lines.push([
+        esc(r.payment_date),
+        esc(SOURCE_META[r.source].label),
+        esc(r.state === 'paid' ? 'Payé' : 'En attente'),
+        esc(r.client_name),
+        esc(r.client_email),
+        esc(r.amount_eur.toFixed(2).replace('.', ',')),
+        esc(r.invoice_number),
+        esc(r.description),
+      ].join(';'));
+    });
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `paiements-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const SOURCES: { key: 'all' | PaymentSource; label: string }[] = [
+    { key: 'all', label: 'Toutes sources' },
+    { key: 'stripe', label: '💳 Stripe' },
+    { key: 'ghl', label: '📄 GHL' },
+    { key: 'manuel', label: '✏️ Manuel' },
+    { key: 'legacy_client', label: '🗂️ Legacy' },
+  ];
+  const STATES: { key: 'all' | PaymentState; label: string }[] = [
+    { key: 'all', label: 'Tous statuts' },
+    { key: 'paid', label: '💸 Encaissé' },
+    { key: 'pending', label: '📨 En attente' },
+  ];
+
+  return (
+    <Card title={`🧾 Historique des paiements (${rows.length})`} style={{ marginTop: 14 }}>
+      {/* Filtres */}
+      <div style={{
+        display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12,
+      }}>
+        <input
+          type="search"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="🔍 Client, email, n° facture, description…"
+          style={{
+            flex: '1 1 220px', minWidth: 220,
+            padding: '8px 12px', borderRadius: 8,
+            background: 'var(--night-mid)', border: '1px solid var(--border)',
+            color: 'var(--text)', fontSize: '0.82rem',
+          }}
+        />
+        <select
+          value={sourceFilter}
+          onChange={e => setSourceFilter(e.target.value as 'all' | PaymentSource)}
+          style={{
+            padding: '8px 12px', borderRadius: 8,
+            background: 'var(--night-mid)', border: '1px solid var(--border)',
+            color: 'var(--text)', fontSize: '0.82rem', cursor: 'pointer',
+          }}
+        >
+          {SOURCES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+        </select>
+        <select
+          value={stateFilter}
+          onChange={e => setStateFilter(e.target.value as 'all' | PaymentState)}
+          style={{
+            padding: '8px 12px', borderRadius: 8,
+            background: 'var(--night-mid)', border: '1px solid var(--border)',
+            color: 'var(--text)', fontSize: '0.82rem', cursor: 'pointer',
+          }}
+        >
+          {STATES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+        </select>
+        <button
+          onClick={exportCsv}
+          disabled={filtered.length === 0}
+          style={{
+            padding: '8px 12px', borderRadius: 8,
+            background: 'var(--night-card)', border: '1px solid var(--border-md)',
+            color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 600,
+            cursor: filtered.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: filtered.length === 0 ? 0.5 : 1,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          ⬇️ Export CSV
+        </button>
+      </div>
+
+      {/* Compteur résultats */}
+      <div style={{
+        display: 'flex', gap: 14, flexWrap: 'wrap',
+        padding: '8px 12px', marginBottom: 10,
+        background: 'var(--night-mid)', borderRadius: 8,
+        fontSize: '0.76rem', color: 'var(--text-muted)',
+      }}>
+        <span><strong style={{ color: 'var(--text)' }}>{filtered.length}</strong> ligne{filtered.length > 1 ? 's' : ''}</span>
+        <span>· Encaissé : <strong style={{ color: 'var(--green)' }}>{fmtEUR(totalEur * 100)}</strong></span>
+        {pendingEur > 0 && (
+          <span>· En attente : <strong style={{ color: 'var(--yellow)' }}>{fmtEUR(pendingEur * 100)}</strong></span>
+        )}
+      </div>
+
+      {/* Tableau */}
+      {filtered.length === 0 ? (
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', padding: '12px 0', textAlign: 'center' }}>
+          Aucun paiement ne correspond aux filtres
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {visible.map(r => {
+            const meta = SOURCE_META[r.source];
+            const stateColor = r.state === 'paid' ? 'var(--green)' : 'var(--yellow)';
+            const stateBg = r.state === 'paid' ? 'rgba(34,197,94,.12)' : 'rgba(250,204,21,.12)';
+            const needsGhlLink = r.client_id && !r.client_has_ghl && r.source === 'stripe';
+            const href = r.client_id ? `/dashboard/clients/${r.client_id}?tab=payments` : '#';
+            return (
+              <div key={r.id} style={{
+                padding: '8px 10px', borderRadius: 6,
+                background: r.state === 'pending' ? 'rgba(250,204,21,.04)' : 'var(--night-mid)',
+                border: `1px solid ${r.state === 'pending' ? 'rgba(250,204,21,.2)' : 'var(--border)'}`,
+                display: 'grid',
+                gridTemplateColumns: '70px 70px 1fr auto auto auto',
+                gap: 10, alignItems: 'center', fontSize: '0.78rem',
+              }}>
+                <span style={{
+                  fontSize: '0.62rem', padding: '2px 5px', borderRadius: 4,
+                  background: stateBg, color: stateColor,
+                  fontWeight: 700, textTransform: 'uppercase', textAlign: 'center',
+                }}>
+                  {r.state === 'paid' ? '💸 Payé' : '📨 À payer'}
+                </span>
+                <span title={meta.label} style={{
+                  fontSize: '0.62rem', padding: '2px 5px', borderRadius: 4,
+                  background: 'var(--night-card)', color: meta.color,
+                  fontWeight: 600, textTransform: 'uppercase', textAlign: 'center',
+                  border: `1px solid ${meta.color}40`,
+                }}>
+                  {meta.emoji} {meta.label}
+                </span>
+                <Link href={href} style={{
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  textDecoration: 'none', color: 'inherit',
+                  pointerEvents: r.client_id ? 'auto' : 'none',
+                }}>
+                  <div style={{ color: 'var(--text)', fontWeight: 600 }}>
+                    {r.client_name || <em style={{ color: 'var(--text-muted)', fontWeight: 400 }}>— sans client —</em>}
+                  </div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                    {r.client_email || (r.description ? r.description : '—')}
+                    {r.invoice_number && ` · ${r.invoice_number}`}
+                  </div>
+                </Link>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
+                  {new Date(r.payment_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
+                </span>
+                <span style={{ color: stateColor, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  {fmtEUR(Math.round(r.amount_eur * 100))}
+                </span>
+                {needsGhlLink ? (
+                  <LinkGhlButton clientId={r.client_id!} size="sm" label="🔗 GHL" />
+                ) : (
+                  <span style={{ width: 60 }} />
+                )}
+              </div>
+            );
+          })}
+          {filtered.length > visible.length && (
+            <button
+              onClick={() => setShowAll(true)}
+              style={{
+                marginTop: 8, padding: '8px 12px', borderRadius: 8,
+                background: 'var(--night-mid)', border: '1px solid var(--border)',
+                color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Afficher les {filtered.length - visible.length} autres
+            </button>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
 
