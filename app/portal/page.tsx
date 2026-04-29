@@ -31,6 +31,8 @@ interface Comment {
 interface ClientDelivery {
   business_name?: string;
   contact_name?: string;
+  email?: string;
+  phone?: string;
   status?: string;
   video_url?: string;
   video_thumbnail_url?: string;
@@ -808,7 +810,7 @@ function PortalContent() {
     // current stage. Onboarding / onboarding_call need their own actionable
     // content (contract + payment / booking calendar). Otherwise fall back
     // to the "we're writing your script" message.
-    return <NoScriptStage clientInfo={clientInfo} />;
+    return <NoScriptStage clientInfo={clientInfo} token={token} onRefresh={() => { loadScript(); loadNotifications(); }} />;
   }
 
   const currentStepIdx = SCRIPT_STEPS.findIndex(s => s.key === script.status);
@@ -2894,41 +2896,38 @@ function ScriptVersionPills({ token, currentVersion, currentContent }: {
 
 /* ── Contextual screen when no script exists yet ─────────────────────── */
 
-function NoScriptStage({ clientInfo }: { clientInfo: ClientDelivery | null }) {
+function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDelivery | null; token: string | null; onRefresh: () => void }) {
   const status = clientInfo?.status || 'script_writing';
   const onboardingCalendarUrl = process.env.NEXT_PUBLIC_GHL_ONBOARDING_CALENDAR_URL
     || process.env.NEXT_PUBLIC_GHL_CALENDAR_URL
     || 'https://api.leadconnectorhq.com/widget/booking/2fmSZkWpwEulfZsvpPmh';
 
-  // 1. Onboarding — payment + contract pending
+  // 1. Onboarding — driven par les flags, pas par le status :
+  //    !contract_signed_at  → signature du contrat (iframe inline)
+  //    !paid_at             → paiement (à venir, prochain commit)
+  //    !onboarding_call_booked → réservation de l'appel (à venir, prochain commit)
   if (status === 'onboarding') {
+    if (!clientInfo?.contract_signed_at && token) {
+      return (
+        <NoScriptShell
+          emoji="✍️"
+          title="Signez votre contrat"
+          subtitle="Lisez, remplissez et signez votre contrat ci-dessous. Cela formalise notre collaboration."
+        >
+          <ContractStep clientInfo={clientInfo} token={token} onSigned={onRefresh} />
+        </NoScriptShell>
+      );
+    }
+
+    // Contrat signé mais étapes suivantes pas encore migrées : fallback sur l'ancien
+    // écran "à terminer" en attendant les commits paiement / appel.
     return (
       <NoScriptShell
         emoji="🤝"
         title="Bienvenue chez BourbonMédia !"
-        subtitle="Pour démarrer votre projet vidéo, finalisez ces 2 dernières étapes."
+        subtitle="Pour démarrer votre projet vidéo, finalisez ces dernières étapes."
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {clientInfo?.contract_signature_link && (
-            <a href={clientInfo.contract_signature_link} target="_blank" rel="noreferrer" style={{
-              padding: '14px 18px', borderRadius: 12,
-              background: 'var(--orange)', color: '#fff', textDecoration: 'none',
-              fontSize: '0.92rem', fontWeight: 700, textAlign: 'center',
-              boxShadow: '0 4px 14px rgba(232,105,43,.4)',
-            }}>
-              📝 Signer le contrat
-            </a>
-          )}
-          {clientInfo?.contract_pdf_url && (
-            <a href={clientInfo.contract_pdf_url} target="_blank" rel="noreferrer" style={{
-              padding: '12px 18px', borderRadius: 10,
-              background: 'var(--night-card)', border: '1px solid var(--border-md)',
-              color: 'var(--text)', textDecoration: 'none',
-              fontSize: '0.86rem', fontWeight: 600, textAlign: 'center',
-            }}>
-              ⬇️ Télécharger le contrat (PDF)
-            </a>
-          )}
           <p style={{ fontSize: '0.82rem', color: 'var(--text-mid)', textAlign: 'center', margin: '8px 0 0' }}>
             Une fois le paiement confirmé, vous recevrez le lien pour réserver votre appel onboarding.
           </p>
@@ -3022,6 +3021,118 @@ function NoScriptStage({ clientInfo }: { clientInfo: ClientDelivery | null }) {
       title="Votre script est en préparation"
       subtitle="Notre équipe travaille sur votre script vidéo. Vous recevrez une notification dès qu'il sera prêt pour votre relecture."
     />
+  );
+}
+
+/* ── Étape contrat (inline dans /portal) ───────────────────────────── */
+function ContractStep({ clientInfo, token, onSigned }: {
+  clientInfo: ClientDelivery | null;
+  token: string;
+  onSigned: () => void;
+}) {
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [showButton, setShowButton] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState('');
+
+  const contractUrl = useMemo(() => {
+    const base = process.env.NEXT_PUBLIC_GHL_CONTRACT_URL || '';
+    if (!base || !clientInfo) return base;
+    const nameParts = clientInfo.contact_name?.trim().split(' ') || [];
+    const params = new URLSearchParams();
+    if (nameParts[0]) params.set('first_name', nameParts[0]);
+    if (nameParts.length > 1) params.set('last_name', nameParts.slice(1).join(' '));
+    if (clientInfo.email) params.set('email', clientInfo.email);
+    if (clientInfo.phone) params.set('phone', clientInfo.phone);
+    if (clientInfo.business_name) params.set('companyName', clientInfo.business_name);
+    const sep = base.includes('?') ? '&' : '?';
+    return base + sep + params.toString();
+  }, [clientInfo]);
+
+  useEffect(() => {
+    if (!showButton) {
+      const delay = iframeLoaded ? 2500 : 8000;
+      const timer = setTimeout(() => setShowButton(true), delay);
+      return () => clearTimeout(timer);
+    }
+  }, [iframeLoaded, showButton]);
+
+  async function handleSigned() {
+    if (!confirm('Avez-vous bien finalisé et confirmé la signature de votre contrat ?')) return;
+    setChecking(true);
+    setError('');
+    try {
+      const r = await fetch(`/api/onboarding?token=${token}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'check_contract' }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.signed) {
+        setError(data.error || "Nous n'avons pas pu confirmer votre signature. Réessayez ou contactez-nous.");
+        return;
+      }
+      onSigned();
+    } catch {
+      setError("Erreur réseau, réessayez.");
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  if (!contractUrl) {
+    return (
+      <div style={{ padding: 16, borderRadius: 10, background: 'var(--night-mid)', border: '1px dashed var(--border-md)', fontSize: '0.85rem', color: 'var(--text-mid)', textAlign: 'center' }}>
+        ⚠ Le lien de contrat n&apos;est pas configuré côté serveur. Contactez l&apos;équipe BourbonMédia.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-md)', background: '#fff' }}>
+        <iframe
+          src={contractUrl}
+          onLoad={() => setIframeLoaded(true)}
+          style={{ width: '100%', height: '78vh', minHeight: 600, border: 'none', display: 'block' }}
+          title="Contrat de prestation"
+          allow="camera;microphone"
+        />
+      </div>
+
+      {showButton ? (
+        <>
+          <div style={{
+            padding: '10px 14px', background: 'rgba(250,204,21,.08)',
+            borderLeft: '3px solid var(--yellow)', borderRadius: 6,
+            color: 'var(--yellow)', fontSize: '0.82rem', lineHeight: 1.5,
+          }}>
+            ⚠ Avant de continuer, clique sur <strong>« Terminé »</strong> en bas du contrat ci-dessus pour finaliser ta signature, <em>puis</em> sur le bouton ci-dessous.
+          </div>
+          <button
+            onClick={handleSigned}
+            disabled={checking}
+            style={{
+              padding: '13px 22px', borderRadius: 12,
+              background: 'var(--orange)', color: '#fff', border: 'none',
+              cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700,
+              boxShadow: '0 4px 14px rgba(232,105,43,.4)',
+              opacity: checking ? 0.6 : 1,
+            }}
+          >
+            {checking ? '⏳ Vérification…' : '✅ J\'ai signé mon contrat'}
+          </button>
+          {error && (
+            <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,.08)', borderLeft: '3px solid var(--red)', borderRadius: 6, color: '#fca5a5', fontSize: '0.84rem' }}>
+              {error}
+            </div>
+          )}
+        </>
+      ) : (
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center', margin: 0 }}>
+          Prenez le temps de lire et signer le contrat ci-dessus
+        </p>
+      )}
+    </div>
   );
 }
 
