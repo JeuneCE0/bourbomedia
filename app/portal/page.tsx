@@ -1876,7 +1876,10 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
     }
   }, [iframeLoaded, showButton]);
 
-  if (!clientInfo?.video_validated_at) return null;
+  // Étape "Date de publication" : status=publication_pending agit comme un
+  // signal admin que la vidéo est implicitement validée — on affiche le
+  // calendrier même si video_validated_at n'a jamais été set côté client.
+  if (!clientInfo?.video_validated_at && clientInfo?.status !== 'publication_pending') return null;
   if (clientInfo?.publication_date_confirmed) return null;
 
   async function confirm() {
