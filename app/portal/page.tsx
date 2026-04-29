@@ -1911,6 +1911,7 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
 
   async function confirm() {
     if (!pickedDate) return;
+    if (!window.confirm('Avez-vous bien finalisé et confirmé votre date de publication ?')) return;
     setSubmitting(true);
     setError('');
     try {
@@ -2070,6 +2071,7 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
       setError('Cette date est déjà prise par un autre projet. Choisissez un autre jour.');
       return;
     }
+    if (!window.confirm('Avez-vous bien finalisé et confirmé la réservation de votre tournage ?')) return;
     setSubmitting(true);
     try {
       const isoDate = new Date(`${pickedDate}T${pickedTime || '09:00'}`).toISOString();

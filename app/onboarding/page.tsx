@@ -137,6 +137,9 @@ function OnboardingContent() {
   const callBookedParam = searchParams.get('call_booked');
   useEffect(() => {
     if (callBookedParam === 'true' && token && currentStep === 4) {
+      // Confirme avec le client avant de finaliser — au cas où GHL aurait redirigé
+      // sans réservation effective (fenêtre fermée, retour, etc.).
+      if (!confirm('Avez-vous bien finalisé et confirmé votre rendez-vous d’onboarding ?')) return;
       (async () => {
         try {
           await fetch(`/api/onboarding?token=${token}`, {
@@ -206,6 +209,7 @@ function OnboardingContent() {
 
   // Step 2: Confirm contract signed
   const handleCheckContract = async () => {
+    if (!confirm('Avez-vous bien finalisé et confirmé la signature de votre contrat ?')) return;
     setCheckingContract(true);
     setError('');
     try {
@@ -243,6 +247,7 @@ function OnboardingContent() {
 
   // Step 6: Confirm filming
   const handleConfirmFilming = async () => {
+    if (!confirm('Avez-vous bien finalisé et confirmé la réservation de votre tournage ?')) return;
     setConfirming(true);
     setError('');
     try {
@@ -258,6 +263,7 @@ function OnboardingContent() {
 
   // Step 7: Confirm publication
   const handleConfirmPublication = async () => {
+    if (!confirm('Avez-vous bien finalisé et confirmé votre date de publication ?')) return;
     setConfirming(true);
     setError('');
     try {
