@@ -1007,10 +1007,16 @@ function PortalContent() {
             // ETA prédite pour les pending steps : on suppose ~2 jours ouvrés
             // entre chaque étape, sauf publication (mardi/jeudi prochain).
             const baseDate = clientInfo?.updated_at ? new Date(clientInfo.updated_at) : new Date();
+            const confirmedPublicationDate = clientInfo?.publication_date_confirmed && clientInfo?.publication_deadline
+              ? new Date(clientInfo.publication_deadline)
+              : null;
             const stageEta = (i: number, key: string): string | null => {
               if (i <= effectiveIdx) return null;
               const stepsAhead = i - effectiveIdx;
               if (key === 'published') {
+                // Date confirmée par le client → affichée en vert via dateExtra,
+                // pas d'estimation à dupliquer ici.
+                if (confirmedPublicationDate) return null;
                 const d = nextPublicationSlot(addBusinessDays(baseDate, (stepsAhead - 1) * 2));
                 return `Estimation : ${fmtDate(d)}`;
               }
@@ -1063,7 +1069,9 @@ function PortalContent() {
                     const titleColor = status === 'pending' ? 'var(--text-mid)' : 'var(--text)';
                     const dateExtra = stage.key === 'filming_scheduled' && clientInfo?.filming_date
                       ? new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-                      : null;
+                      : stage.key === 'published' && confirmedPublicationDate
+                        ? confirmedPublicationDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+                        : null;
                     const eta = stageEta(i, stage.key);
                     const isCurrent = status === 'current';
                     return (

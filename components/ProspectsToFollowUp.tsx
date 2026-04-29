@@ -26,6 +26,20 @@ const STATUS_LABEL: Record<string, { emoji: string; label: string }> = {
   follow_up:  { emoji: '🔁', label: 'Follow-up' },
 };
 
+// Mêmes options que dans AppointmentDetailModal — pour cohérence UX.
+const STATUS_OPTIONS: { value: string; label: string; emoji: string }[] = [
+  { value: 'reflection',          label: 'En réflexion',         emoji: '🤔' },
+  { value: 'follow_up',           label: 'Follow-up',            emoji: '🔁' },
+  { value: 'ghosting',            label: 'Ghosting',             emoji: '👻' },
+  { value: 'awaiting_signature',  label: 'Attente signature',    emoji: '✍️' },
+  { value: 'contracted',          label: 'Contracté',            emoji: '🤝' },
+  { value: 'not_interested',      label: 'Pas intéressé',        emoji: '🚫' },
+  { value: 'closed_lost',         label: 'Perdu',                emoji: '❌' },
+];
+
+// Statuts qui maintiennent le prospect dans la queue de relance.
+const FOLLOW_UP_STATUSES = new Set(['reflection', 'follow_up']);
+
 function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('bbp_token')}`, 'Content-Type': 'application/json' };
 }
@@ -37,6 +51,7 @@ function daysSince(iso: string): number {
 export default function ProspectsToFollowUp() {
   const [items, setItems] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetch('/api/gh-appointments?follow_up=1', { headers: authHeaders() })
@@ -46,6 +61,33 @@ export default function ProspectsToFollowUp() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  async function updateStatus(id: string, newStatus: string) {
+    setSavingId(id);
+    try {
+      const r = await fetch('/api/gh-appointments', {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ id, prospect_status: newStatus }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        alert(`Erreur : ${d.error || r.status}`);
+        return;
+      }
+      // Si le nouveau statut sort de la fenêtre de relance (won/lost/etc.),
+      // on retire la ligne. Sinon on la garde mais à jour.
+      if (FOLLOW_UP_STATUSES.has(newStatus)) {
+        setItems(prev => prev.map(a => a.id === id ? { ...a, prospect_status: newStatus as Appointment['prospect_status'] } : a));
+      } else {
+        setItems(prev => prev.filter(a => a.id !== id));
+      }
+    } catch (e) {
+      alert(`Erreur réseau : ${(e as Error).message}`);
+    } finally {
+      setSavingId(null);
+    }
+  }
 
   if (loading) return null;
   if (items.length === 0) return null;
@@ -85,10 +127,12 @@ export default function ProspectsToFollowUp() {
           const overdue = elapsed - targetDays;
           const overdueLabel = overdue === 0 ? "Aujourd'hui" : overdue > 0 ? `${overdue} j de retard` : `dans ${-overdue} j`;
           const tone = overdue > 0 ? '#FCA5A5' : overdue === 0 ? 'var(--orange)' : 'var(--text-muted)';
+          const isSaving = savingId === a.id;
           return (
             <div key={a.id} style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
               borderRadius: 10, background: 'var(--night-mid)', border: '1px solid var(--border)',
+              opacity: isSaving ? 0.55 : 1, transition: 'opacity .15s',
             }}>
               <span aria-hidden style={{ fontSize: '1rem' }}>{meta.emoji}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -99,6 +143,25 @@ export default function ProspectsToFollowUp() {
                   {meta.label} · J+{targetDays} {a.notes_completed_at ? `· documenté il y a ${elapsed} j` : ''}
                 </div>
               </div>
+              <select
+                value={status}
+                disabled={isSaving}
+                onChange={e => updateStatus(a.id, e.target.value)}
+                title="Changer le statut prospect"
+                style={{
+                  padding: '5px 8px', borderRadius: 8,
+                  background: 'var(--night-card)', border: '1px solid var(--border-md)',
+                  color: 'var(--text)', fontSize: '0.74rem', fontWeight: 600,
+                  cursor: isSaving ? 'wait' : 'pointer', maxWidth: 160,
+                }}
+              >
+                {!STATUS_OPTIONS.some(o => o.value === status) && status && (
+                  <option value={status}>{status}</option>
+                )}
+                {STATUS_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.emoji} {o.label}</option>
+                ))}
+              </select>
               <span style={{
                 fontSize: '0.7rem', padding: '4px 10px', borderRadius: 999,
                 background: overdue > 0 ? 'rgba(239,68,68,.16)' : 'rgba(232,105,43,.16)',

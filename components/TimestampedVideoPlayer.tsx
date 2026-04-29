@@ -21,6 +21,20 @@ function isDirectVideoUrl(url: string): boolean {
   return /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url);
 }
 
+// Parse "1:23", "01:23", "83" (= 1:23) → secondes. Renvoie null si invalide.
+function parseTimeInput(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const colon = t.match(/^(\d{1,3}):([0-5]?\d)$/);
+  if (colon) {
+    const m = Number(colon[1]); const s = Number(colon[2]);
+    if (Number.isFinite(m) && Number.isFinite(s)) return m * 60 + s;
+  }
+  const num = Number(t);
+  if (Number.isFinite(num) && num >= 0) return num;
+  return null;
+}
+
 export default function TimestampedVideoPlayer({
   videoId,
   videoUrl,
@@ -60,9 +74,20 @@ export default function TimestampedVideoPlayer({
 
   function seekTo(seconds: number) {
     const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = seconds;
-    v.play().catch(() => null);
+    if (v) {
+      v.currentTime = seconds;
+      v.play().catch(() => null);
+      return;
+    }
+    // YouTube/Vimeo : pas de SDK chargé — on tente postMessage standard.
+    // Marche pour Vimeo (toujours) et YouTube si enablejsapi est actif.
+    const iframe = document.querySelector<HTMLIFrameElement>('iframe[src*="youtube.com/embed"], iframe[src*="player.vimeo.com"]');
+    if (!iframe?.contentWindow) return;
+    const isVimeo = (iframe.src || '').includes('vimeo');
+    const msg = isVimeo
+      ? JSON.stringify({ method: 'setCurrentTime', value: seconds })
+      : JSON.stringify({ event: 'command', func: 'seekTo', args: [seconds, true] });
+    try { iframe.contentWindow.postMessage(msg, '*'); } catch { /* tolerate */ }
   }
 
   async function submitComment() {
@@ -100,82 +125,71 @@ export default function TimestampedVideoPlayer({
     }
   }
 
-  // Pass POST body via query for token (the endpoint reads either)
-  // ... actually our endpoint reads token from query, not body — let me fix
-  // Actually I designed the endpoint to read token from req.nextUrl. Let me
-  // pass it as query param on POST too.
-
-  // For non-direct (YouTube/Vimeo), fall back to a simple unmuted iframe
-  if (!isDirect) {
-    return (
-      <div>
+  return (
+    <div>
+      {/* Player — direct video element if possible, else hosted iframe */}
+      {isDirect ? (
+        <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#000' }}>
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            controls
+            poster={thumbnailUrl}
+            onTimeUpdate={e => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+            style={{ width: '100%', display: 'block' }}
+          />
+        </div>
+      ) : (
         <div style={{
           position: 'relative', paddingBottom: '56.25%', height: 0,
           borderRadius: 12, overflow: 'hidden', background: '#000',
         }}>
           <iframe
             src={
-              videoUrl.match(/youtu/) ? `https://www.youtube.com/embed/${(videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/) || [])[1] || ''}`
-              : videoUrl.match(/vimeo/) ? `https://player.vimeo.com/video/${(videoUrl.match(/vimeo\.com\/(\d+)/) || [])[1] || ''}`
-              : videoUrl
+              videoUrl.match(/youtu/)
+                // enablejsapi=1 permet le seekTo via postMessage (cf. seekTo plus haut).
+                ? `https://www.youtube.com/embed/${(videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/) || [])[1] || ''}?enablejsapi=1`
+                : videoUrl.match(/vimeo/) ? `https://player.vimeo.com/video/${(videoUrl.match(/vimeo\.com\/(\d+)/) || [])[1] || ''}`
+                : videoUrl
             }
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
             allowFullScreen
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
           />
         </div>
+      )}
+
+      {/* Action bar — capture timestamp (auto pour direct, manuel sinon) */}
+      {isDirect ? (
         <div style={{
-          marginTop: 12, padding: '10px 12px', borderRadius: 8,
-          background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.30)',
-          fontSize: '0.78rem', color: '#FDE68A',
+          marginTop: 10, padding: '10px 12px', borderRadius: 10,
+          background: 'var(--night-mid)', border: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
         }}>
-          💡 Pour des commentaires précis horodatés, demandez-nous le fichier source en téléchargement.
+          <span style={{
+            fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+            fontSize: '1rem', color: 'var(--orange)', minWidth: 60,
+          }}>
+            {fmtTime(currentTime)}
+          </span>
+          <button
+            type="button"
+            onClick={captureCurrentTime}
+            style={{
+              padding: '7px 14px', borderRadius: 8,
+              background: 'var(--orange)', color: '#fff', border: 'none',
+              cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
+            }}
+          >
+            💬 Commenter à {fmtTime(currentTime)}
+          </button>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', flex: 1 }}>
+            Pause à un moment précis pour ajouter un retour ciblé
+          </span>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      {/* Player */}
-      <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#000' }}>
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          controls
-          poster={thumbnailUrl}
-          onTimeUpdate={e => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-          style={{ width: '100%', display: 'block' }}
-        />
-      </div>
-
-      {/* Action bar — capture timestamp */}
-      <div style={{
-        marginTop: 10, padding: '10px 12px', borderRadius: 10,
-        background: 'var(--night-mid)', border: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-      }}>
-        <span style={{
-          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
-          fontSize: '1rem', color: 'var(--orange)', minWidth: 60,
-        }}>
-          {fmtTime(currentTime)}
-        </span>
-        <button
-          type="button"
-          onClick={captureCurrentTime}
-          style={{
-            padding: '7px 14px', borderRadius: 8,
-            background: 'var(--orange)', color: '#fff', border: 'none',
-            cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
-          }}
-        >
-          💬 Commenter à {fmtTime(currentTime)}
-        </button>
-        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', flex: 1 }}>
-          Pause à un moment précis pour ajouter un retour ciblé
-        </span>
-      </div>
+      ) : (
+        <ManualTimestampBar onPick={t => setDraftTime(t)} />
+      )}
 
       {/* Draft form (visible after capture) */}
       {draftTime !== null && (
@@ -306,6 +320,55 @@ export default function TimestampedVideoPlayer({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Pour les vidéos hostées (YouTube / Vimeo / GHL CDN), on ne peut pas lire
+// l'horodatage automatiquement. L'utilisateur tape le timecode (MM:SS) qu'il
+// voit dans le player du fournisseur, puis clique pour ouvrir le draft form.
+function ManualTimestampBar({ onPick }: { onPick: (seconds: number) => void }) {
+  const [raw, setRaw] = useState('');
+  const parsed = parseTimeInput(raw);
+  return (
+    <div style={{
+      marginTop: 10, padding: '10px 12px', borderRadius: 10,
+      background: 'var(--night-mid)', border: '1px solid var(--border)',
+      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+    }}>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={raw}
+        onChange={e => setRaw(e.target.value)}
+        placeholder="1:23"
+        aria-label="Timecode (MM:SS)"
+        onKeyDown={e => { if (e.key === 'Enter' && parsed !== null) { onPick(parsed); setRaw(''); } }}
+        style={{
+          padding: '7px 10px', borderRadius: 8, width: 90,
+          background: 'var(--night-card)', border: '1px solid var(--border-md)',
+          color: 'var(--text)', fontSize: '0.95rem', fontWeight: 700,
+          fontFamily: "'Bricolage Grotesque', sans-serif", textAlign: 'center',
+          outline: 'none',
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => { if (parsed !== null) { onPick(parsed); setRaw(''); } }}
+        disabled={parsed === null}
+        style={{
+          padding: '7px 14px', borderRadius: 8,
+          background: 'var(--orange)', color: '#fff', border: 'none',
+          cursor: parsed === null ? 'not-allowed' : 'pointer',
+          fontSize: '0.82rem', fontWeight: 700,
+          opacity: parsed === null ? 0.5 : 1,
+        }}
+      >
+        💬 Commenter à ce moment
+      </button>
+      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', flex: 1, minWidth: 200 }}>
+        Mettez la vidéo en pause, lisez le timecode (ex&nbsp;: <strong>1:23</strong>) et tapez-le ici
+      </span>
     </div>
   );
 }
