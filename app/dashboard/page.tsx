@@ -7,6 +7,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import AppointmentsToDocument from '@/components/AppointmentsToDocument';
 import ProspectsToFollowUp from '@/components/ProspectsToFollowUp';
 import TodayAppointments from '@/components/TodayAppointments';
+import OrphanPaymentsCard from '@/components/OrphanPaymentsCard';
 
 interface Client {
   id: string;
@@ -270,6 +271,9 @@ export default function DashboardPage() {
         <div className="bm-stagger">
           {/* Daily metrics — editable: calls / ads / closing rate / gross profit */}
           <DailyMetricsCard clients={clients} />
+
+          {/* Paiements Stripe orphelins (pas de client identifié) — action rapide */}
+          <OrphanPaymentsCard />
 
           {/* Appels du jour (closing/onboarding/tournage) — visibilité rapide */}
           <TodayAppointments />
