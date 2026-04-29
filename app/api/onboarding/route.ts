@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     try {
       // Accept either onboarding_token or portal_token — le portail veut pouvoir
       // appeler les actions onboarding sans avoir à connaître les deux jetons.
-      const r = await supaFetch(`clients?or=(onboarding_token.eq.${token},portal_token.eq.${token})&select=id,business_name,contact_name,email,phone,onboarding_step,contract_signature_link,contract_signed_at,paid_at,onboarding_call_booked,onboarding_call_date,filming_date,filming_date_confirmed,publication_date,publication_date_confirmed,status,scripts(id,status)`, {}, true);
+      const r = await supaFetch(`clients?or=(onboarding_token.eq.${token},portal_token.eq.${token})&select=id,business_name,contact_name,email,phone,onboarding_step,portal_token,contract_signature_link,contract_signed_at,paid_at,onboarding_call_booked,onboarding_call_date,filming_date,filming_date_confirmed,publication_date,publication_date_confirmed,status,scripts(id,status)`, {}, true);
       if (!r.ok) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
       const data = await r.json();
       if (!data.length) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });

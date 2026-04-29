@@ -28,6 +28,7 @@ interface ClientData {
   email: string;
   phone: string;
   onboarding_step: number;
+  portal_token?: string;
   contract_signature_link?: string;
   contract_signed_at?: string;
   paid_at?: string;
@@ -1047,9 +1048,9 @@ function OnboardingContent() {
                 Connectez-vous à votre portail pour le découvrir, demander des modifications ou le valider.
               </p>
             </div>
-            {client && (
+            {client?.portal_token && (
               <a
-                href={`/portal?token=${client.id}`}
+                href={`/portal?token=${client.portal_token}`}
                 style={{
                   ...btnPrimary,
                   textDecoration: 'none',
@@ -1227,9 +1228,9 @@ function OnboardingContent() {
             </p>
           </div>
         )}
-        {client && (
+        {client?.portal_token && (
           <a
-            href={`/portal?token=${client.id}`}
+            href={`/portal?token=${client.portal_token}`}
             style={{
               ...btnPrimary,
               textDecoration: 'none',
