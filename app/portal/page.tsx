@@ -346,6 +346,9 @@ function PortalContent() {
   // a plusieurs versions livrées, on affiche des onglets V1/V2/… au lieu de
   // toutes les empiler. Default à 0 pour montrer la dernière en premier.
   const [selectedVideoIdx, setSelectedVideoIdx] = useState(0);
+
+  // SEO/UX : titre d'onglet côté client.
+  useEffect(() => { document.title = 'BourbonMédia — Onboarding'; }, []);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [liveToast, setLiveToast] = useState<{ emoji: string; message: string; key: number } | null>(null);
   const lastSeenScriptStatusRef = useRef<string | null>(null);

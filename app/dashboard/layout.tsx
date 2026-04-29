@@ -90,6 +90,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isLoginPage = pathname === '/dashboard/login' || pathname === '/dashboard/login/';
   const closeMobileSidebar = useCallback(() => setMobileOpen(false), []);
 
+  // SEO/UX : titre d'onglet pour toutes les pages admin.
+  useEffect(() => { document.title = 'Dashboard Admin — BourbonMédia'; }, []);
+
   const handleSearch = useCallback((q: string) => {
     setSearchQuery(q);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
