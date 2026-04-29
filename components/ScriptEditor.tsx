@@ -17,6 +17,11 @@ interface ScriptEditorProps {
   readOnly?: boolean;
   /** Auto-save with this debounce delay (ms). Disabled if undefined or 0. */
   autoSaveMs?: number;
+  /** Increment from the parent to force a manual save with the editor's
+   *  current content. Used as an alternative to autoSaveMs when we want the
+   *  parent to control when saves happen (and thus when status side-effects
+   *  fire downstream). */
+  saveTrigger?: number;
   /** Optional client context passed to the AI assist endpoint */
   aiContext?: { business_name?: string; category?: string; city?: string };
 }
@@ -130,7 +135,7 @@ function SaveToast({ visible }: { visible: boolean }) {
 }
 
 /* ── main editor ── */
-export default function ScriptEditor({ content, onSave, saving, readOnly, autoSaveMs, aiContext }: ScriptEditorProps) {
+export default function ScriptEditor({ content, onSave, saving, readOnly, autoSaveMs, saveTrigger, aiContext }: ScriptEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -198,6 +203,18 @@ export default function ScriptEditor({ content, onSave, saving, readOnly, autoSa
   useEffect(() => {
     if (content) lastSavedRef.current = JSON.stringify(content);
   }, [content]);
+
+  // Manual save: fire when saveTrigger increments. We compare against a ref so
+  // mounting with an initial value doesn't kick off a spurious save.
+  const lastSaveTriggerRef = useRef<number | undefined>(saveTrigger);
+  useEffect(() => {
+    if (saveTrigger === undefined || readOnly || !editor) return;
+    if (saveTrigger === lastSaveTriggerRef.current) return;
+    lastSaveTriggerRef.current = saveTrigger;
+    const payload = editor.getJSON() as Record<string, unknown>;
+    lastSavedRef.current = JSON.stringify(payload);
+    onSave(payload);
+  }, [saveTrigger, editor, readOnly, onSave]);
 
   const handleSave = useCallback(() => {
     if (!editor) return;
