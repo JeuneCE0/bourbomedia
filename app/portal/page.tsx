@@ -3,9 +3,15 @@
 import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { loadStripe } from '@stripe/stripe-js';
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js';
 import type { Annotation } from '@/components/ScriptAnnotator';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
 import TimestampedVideoPlayer from '@/components/TimestampedVideoPlayer';
+
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : null;
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
 const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
@@ -2904,7 +2910,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
 
   // 1. Onboarding — driven par les flags, pas par le status :
   //    !contract_signed_at  → signature du contrat (iframe inline)
-  //    !paid_at             → paiement (à venir, prochain commit)
+  //    !paid_at             → paiement (Stripe Embedded Checkout inline)
   //    !onboarding_call_booked → réservation de l'appel (à venir, prochain commit)
   if (status === 'onboarding') {
     if (!clientInfo?.contract_signed_at && token) {
@@ -2919,17 +2925,29 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
       );
     }
 
-    // Contrat signé mais étapes suivantes pas encore migrées : fallback sur l'ancien
-    // écran "à terminer" en attendant les commits paiement / appel.
+    if (!clientInfo?.paid_at && token) {
+      return (
+        <NoScriptShell
+          emoji="💳"
+          title="Paiement sécurisé"
+          subtitle="Réglez votre prestation en toute sécurité avec Stripe."
+        >
+          <PaymentStep token={token} onPaid={onRefresh} />
+        </NoScriptShell>
+      );
+    }
+
+    // Contrat + paiement OK mais appel pas encore réservé : fallback en attendant
+    // le commit suivant (réservation appel inline).
     return (
       <NoScriptShell
         emoji="🤝"
         title="Bienvenue chez BourbonMédia !"
-        subtitle="Pour démarrer votre projet vidéo, finalisez ces dernières étapes."
+        subtitle="Plus qu'à réserver votre appel onboarding pour démarrer."
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-mid)', textAlign: 'center', margin: '8px 0 0' }}>
-            Une fois le paiement confirmé, vous recevrez le lien pour réserver votre appel onboarding.
+            La réservation de l&apos;appel arrive juste après. Notre équipe vous recontacte sous peu si l&apos;écran ne se met pas à jour.
           </p>
         </div>
       </NoScriptShell>
@@ -3021,6 +3039,93 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
       title="Votre script est en préparation"
       subtitle="Notre équipe travaille sur votre script vidéo. Vous recevrez une notification dès qu'il sera prêt pour votre relecture."
     />
+  );
+}
+
+/* ── Étape paiement (inline dans /portal — Stripe Embedded Checkout) ─ */
+function PaymentStep({ token, onPaid }: { token: string; onPaid: () => void }) {
+  const searchParams = useSearchParams();
+  const paymentReturn = searchParams.get('payment') === 'success';
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    if (paymentReturn) return; // Le webhook va valider, on attend le refresh.
+    if (clientSecret) return;
+    (async () => {
+      try {
+        const r = await fetch(`/api/onboarding?token=${token}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create_payment', returnPath: '/portal' }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Erreur Stripe');
+        setClientSecret(data.clientSecret);
+      } catch (e: unknown) {
+        setLoadError((e as Error).message || 'Impossible d\'initialiser le paiement.');
+      }
+    })();
+  }, [token, clientSecret, paymentReturn]);
+
+  // Stripe redirige vers ?payment=success — on poll le portail jusqu'à ce que
+  // le webhook ait posé paid_at, puis on quitte cette étape.
+  useEffect(() => {
+    if (!paymentReturn) return;
+    const interval = setInterval(() => onPaid(), 3000);
+    return () => clearInterval(interval);
+  }, [paymentReturn, onPaid]);
+
+  if (paymentReturn) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: '50%',
+          border: '3px solid var(--border-md)', borderTopColor: 'var(--orange)',
+          margin: '0 auto 18px', animation: 'spin 1s linear infinite',
+        }} />
+        <h3 style={{ color: 'var(--text)', fontSize: '1rem', margin: '0 0 6px' }}>Paiement en cours de vérification…</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+          Cette page se mettra à jour automatiquement.
+        </p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ padding: '12px 16px', background: 'rgba(239,68,68,.10)', borderLeft: '3px solid var(--red)', borderRadius: 6, color: '#fca5a5', fontSize: '0.85rem' }}>
+        ❌ {loadError}
+      </div>
+    );
+  }
+
+  if (!stripePromise) {
+    return (
+      <div style={{ padding: 16, borderRadius: 10, background: 'var(--night-mid)', border: '1px dashed var(--border-md)', fontSize: '0.85rem', color: 'var(--text-mid)', textAlign: 'center' }}>
+        ⚠ Stripe n&apos;est pas configuré côté front (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY manquante).
+      </div>
+    );
+  }
+
+  if (!clientSecret) {
+    return (
+      <div style={{ textAlign: 'center', padding: '32px 0' }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: '50%',
+          border: '3px solid var(--border-md)', borderTopColor: 'var(--orange)',
+          margin: '0 auto 16px', animation: 'spin 1s linear infinite',
+        }} />
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Chargement du paiement…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ borderRadius: 12, overflow: 'hidden' }}>
+      <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret }}>
+        <EmbeddedCheckout />
+      </EmbeddedCheckoutProvider>
+    </div>
   );
 }
 

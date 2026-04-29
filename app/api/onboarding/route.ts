@@ -171,13 +171,18 @@ export async function POST(req: NextRequest) {
     try {
       const amount = body.amount || 50000; // 500€ HT in cents
       const baseUrl = req.nextUrl.origin;
+      // Le caller indique où revenir après paiement (/onboarding pour le funnel
+      // historique, /portal depuis la migration). Liste blanche pour éviter
+      // qu'un attaquant force une redirection arbitraire via le clientSecret.
+      const requestedPath = typeof body.returnPath === 'string' ? body.returnPath : '/onboarding';
+      const returnPath = ['/portal', '/onboarding'].includes(requestedPath) ? requestedPath : '/onboarding';
       const clientSecret = await createEmbeddedCheckoutSession({
         clientId: client.id,
         clientEmail: client.email,
         clientName: client.business_name,
         amount,
         description: 'Production vidéo BourbonMédia',
-        returnUrl: `${baseUrl}/onboarding?token=${token}&payment=success`,
+        returnUrl: `${baseUrl}${returnPath}?token=${token}&payment=success`,
         // TEMP TEST — produit de test pour valider le funnel étape par étape.
         // Remettre `process.env.STRIPE_PRODUCT_ID || undefined` avant le lancement officiel.
         productId: 'prod_UQOyK2KSiDrAcb',
