@@ -17,6 +17,37 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// DELETE /api/payments?id=...
+//   Supprime une facture en attente. Refuse les paiements déjà encaissés
+//   (sauf ?force=1) pour éviter la corruption du CA réel.
+export async function DELETE(req: NextRequest) {
+  if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  try {
+    const id = req.nextUrl.searchParams.get('id');
+    const force = req.nextUrl.searchParams.get('force') === '1';
+    if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 });
+
+    const fetchR = await supaFetch(`payments?id=eq.${encodeURIComponent(id)}&select=id,status`, {}, true);
+    if (!fetchR.ok) return NextResponse.json({ error: await fetchR.text() }, { status: fetchR.status });
+    const rows = await fetchR.json();
+    if (!rows.length) return NextResponse.json({ error: 'Paiement introuvable' }, { status: 404 });
+
+    const status = rows[0].status as string;
+    const isPaid = status === 'completed' || status === 'paid';
+    if (isPaid && !force) {
+      return NextResponse.json({
+        error: 'Suppression refusée : ce paiement est déjà encaissé. Utilisez ?force=1 pour forcer.',
+      }, { status: 409 });
+    }
+
+    const r = await supaFetch(`payments?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' }, true);
+    if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   try {

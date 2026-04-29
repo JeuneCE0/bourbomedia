@@ -211,8 +211,10 @@ function computeNextAction(
       cta: { label: 'Voir ma vidéo', tab: 'video' },
     };
   }
-  // Video validated, but no publication date picked yet
-  if (hasDelivery && client?.video_validated_at && !client?.publication_date_confirmed) {
+  // Video validated (ou admin a poussé en publication_pending), pas encore de date choisie
+  if (hasDelivery
+      && (client?.video_validated_at || client?.status === 'publication_pending')
+      && !client?.publication_date_confirmed) {
     const nextSlot = nextPublicationSlot(new Date());
     return {
       pill: { tone: 'orange', emoji: '🗓️', label: 'Choisissez votre date de publication' },
@@ -809,6 +811,14 @@ function PortalContent() {
   const hasDelivery = deliveredVideos.length > 0 || (clientInfo?.delivered_at && clientInfo.video_url);
   const clientStatus = clientInfo?.status || '';
 
+  // Étapes "calendrier uniquement" : on n'affiche que la timeline + le calendrier
+  // pertinent. Pas d'onglets vidéo/feedback/etc. qui distrairaient de l'action
+  // attendue (réserver le créneau).
+  const isPublicationCalendarOnly =
+    hasDelivery
+    && (clientInfo?.video_validated_at || clientStatus === 'publication_pending')
+    && !clientInfo?.publication_date_confirmed;
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
@@ -1123,8 +1133,14 @@ function PortalContent() {
           <FilmingBookingPanel token={token!} onConfirmed={() => { loadScript(); loadNotifications(); }} actionLoading={actionLoading} />
         )}
 
-        {/* Video review — when a video is delivered but not yet validated by client */}
-        {hasDelivery && !clientInfo?.video_validated_at && (
+        {/* Video review — when a video is delivered but not yet validated.
+            Si l'admin a poussé le client en 'publication_pending' / 'published',
+            on considère la vidéo comme validée et on saute directement à la
+            réservation de la date de publication (même si video_changes_requested
+            est resté à true depuis une demande antérieure). */}
+        {hasDelivery && !clientInfo?.video_validated_at
+          && clientInfo?.status !== 'publication_pending'
+          && clientInfo?.status !== 'published' && (
           <VideoReviewPanel
             token={token!}
             hasDelivery={!!hasDelivery}
@@ -1134,7 +1150,9 @@ function PortalContent() {
         )}
 
         {/* Publication date picker — Tuesdays / Thursdays only */}
-        {hasDelivery && clientInfo?.video_validated_at && !clientInfo?.publication_date_confirmed && (
+        {hasDelivery
+          && (clientInfo?.video_validated_at || clientInfo?.status === 'publication_pending')
+          && !clientInfo?.publication_date_confirmed && (
           <PublicationDatePicker
             token={token!}
             clientInfo={clientInfo}
@@ -1199,7 +1217,9 @@ function PortalContent() {
             avant proposition, ces onglets disparaissent pour ne pas surcharger. */}
         {(() => {
           const isInReview = script.status === 'proposition' || script.status === 'modified' || script.status === 'awaiting_changes';
-          const tabsList: ('video' | 'script' | 'comments' | 'feedback')[] = [
+          // Étape "Date de publication" : on cache tous les onglets pour ne
+          // laisser que la timeline + le calendrier de réservation.
+          const tabsList: ('video' | 'script' | 'comments' | 'feedback')[] = isPublicationCalendarOnly ? [] : [
             ...(hasDelivery ? ['video' as const] : []),
             ...(isInReview ? ['script' as const, 'comments' as const] : []),
             ...(hasDelivery ? ['feedback' as const] : []),
@@ -1283,7 +1303,7 @@ function PortalContent() {
           );
         })()}
         {/* Video delivery view (multi-video) */}
-        {tab === 'video' && hasDelivery && (
+        {tab === 'video' && hasDelivery && !isPublicationCalendarOnly && (
           <div key="tab-video" className="bm-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Render new multi-videos first */}
             {deliveredVideos.map((v, idx) => (
@@ -1391,7 +1411,7 @@ function PortalContent() {
         )}
 
         {/* Feedback tab */}
-        {tab === 'feedback' && (
+        {tab === 'feedback' && !isPublicationCalendarOnly && (
           <div key="tab-feedback" className="bm-fade-in">
             <SatisfactionForm
               existing={satisfaction}

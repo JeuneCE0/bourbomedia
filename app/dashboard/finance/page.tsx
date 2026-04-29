@@ -248,6 +248,7 @@ export default function FinancePage() {
     return payments
       .filter(p => p.status === 'pending')
       .map(p => ({
+        id: p.id,
         date: p.created_at,
         cents: p.amount,
         client_id: p.client_id,
@@ -258,6 +259,23 @@ export default function FinancePage() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [payments]);
   const pendingTotal = pendingInvoices.reduce((s, p) => s + p.cents, 0);
+
+  async function deletePendingPayment(id: string, label: string) {
+    if (!confirm(`Supprimer la facture en attente${label ? ` (${label})` : ''} ?\nCette action est irréversible.`)) return;
+    try {
+      const r = await fetch(`/api/payments?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE', headers: authHeaders(),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        alert(`Erreur : ${d.error || r.status}`);
+        return;
+      }
+      setPayments(prev => prev.filter(p => p.id !== id));
+    } catch (e) {
+      alert(`Erreur réseau : ${(e as Error).message}`);
+    }
+  }
 
   // Monthly revenue for the last 12 months
   const monthly = useMemo(() => {
@@ -456,32 +474,63 @@ export default function FinancePage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {pendingInvoices.map(p => (
-                  <Link
-                    key={`${p.client_id}-${p.invoice_number || p.date}`}
-                    href={p.client_id ? `/dashboard/clients/${p.client_id}?tab=payments` : '/dashboard/finance'}
+                  <div
+                    key={`${p.id}`}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '8px 10px', borderRadius: 8, textDecoration: 'none',
+                      padding: '8px 10px', borderRadius: 8,
                       background: 'var(--night-mid)',
                       borderLeft: '3px solid var(--yellow)',
                     }}
                   >
                     <span aria-hidden style={{ fontSize: '1rem' }}>📨</span>
-                    <span style={{ flex: 1, fontSize: '0.84rem', color: 'var(--text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {p.client_name}
-                      {p.invoice_number && (
-                        <span style={{ marginLeft: 6, fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 400 }}>
-                          · {p.invoice_number}
-                        </span>
-                      )}
-                    </span>
+                    <Link
+                      href={p.client_id ? `/dashboard/clients/${p.client_id}?tab=payments` : '/dashboard/finance'}
+                      style={{
+                        flex: 1, textDecoration: 'none', overflow: 'hidden',
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <span style={{ fontSize: '0.84rem', color: 'var(--text)', fontWeight: 600 }}>
+                        {p.client_name}
+                        {p.invoice_number && (
+                          <span style={{ marginLeft: 6, fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                            · {p.invoice_number}
+                          </span>
+                        )}
+                      </span>
+                    </Link>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                       {new Date(p.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
                     </span>
                     <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--yellow)', whiteSpace: 'nowrap' }}>
                       {fmtEUR(p.cents)}
                     </span>
-                  </Link>
+                    <button
+                      onClick={() => deletePendingPayment(p.id, `${p.client_name}${p.invoice_number ? ' · ' + p.invoice_number : ''}`)}
+                      title="Supprimer cette facture en attente"
+                      style={{
+                        padding: '4px 8px', borderRadius: 6,
+                        background: 'transparent',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-muted)',
+                        fontSize: '0.78rem', cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(239,68,68,.12)';
+                        e.currentTarget.style.borderColor = 'rgba(239,68,68,.4)';
+                        e.currentTarget.style.color = '#FCA5A5';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                        e.currentTarget.style.color = 'var(--text-muted)';
+                      }}
+                    >
+                      🗑
+                    </button>
+                  </div>
                 ))}
               </div>
             </Card>
@@ -566,14 +615,14 @@ export default function FinancePage() {
           </div>
 
           {/* Historique complet des paiements — provenance, statut, recherche, export */}
-          <PaymentsHistorySection rows={auditRows} />
+          <PaymentsHistorySection rows={auditRows} onDelete={deletePendingPayment} />
         </div>
       )}
     </div>
   );
 }
 
-function PaymentsHistorySection({ rows }: { rows: AuditRow[] }) {
+function PaymentsHistorySection({ rows, onDelete }: { rows: AuditRow[]; onDelete?: (id: string, label: string) => void }) {
   const [search, setSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState<'all' | PaymentSource>('all');
   const [stateFilter, setStateFilter] = useState<'all' | PaymentState>('all');
@@ -762,7 +811,32 @@ function PaymentsHistorySection({ rows }: { rows: AuditRow[] }) {
                 <span style={{ color: stateColor, fontWeight: 700, whiteSpace: 'nowrap' }}>
                   {fmtEUR(Math.round(r.amount_eur * 100))}
                 </span>
-                {needsGhlLink ? (
+                {r.state === 'pending' && r.source !== 'legacy_client' && onDelete ? (
+                  <button
+                    onClick={() => onDelete(r.id, `${r.client_name || ''}${r.invoice_number ? ' · ' + r.invoice_number : ''}`.trim() || r.id)}
+                    title="Supprimer cette facture en attente"
+                    style={{
+                      padding: '4px 8px', borderRadius: 6,
+                      background: 'transparent',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-muted)',
+                      fontSize: '0.78rem', cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'rgba(239,68,68,.12)';
+                      e.currentTarget.style.borderColor = 'rgba(239,68,68,.4)';
+                      e.currentTarget.style.color = '#FCA5A5';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.color = 'var(--text-muted)';
+                    }}
+                  >
+                    🗑
+                  </button>
+                ) : needsGhlLink ? (
                   <LinkGhlButton clientId={r.client_id!} size="sm" label="🔗 GHL" />
                 ) : (
                   <span style={{ width: 60 }} />
