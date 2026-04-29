@@ -596,7 +596,7 @@ function OnboardingContent() {
             disabled={loading}
             style={{ ...btnPrimary, marginTop: 24, opacity: loading ? 0.6 : 1 }}
           >
-            {loading ? 'Cr&eacute;ation en cours...' : 'Cr&eacute;er mon compte'}
+            {loading ? 'Démarrage en cours...' : 'Démarrer mon onboarding'}
           </button>
 
           <div style={{
@@ -719,7 +719,7 @@ function OnboardingContent() {
                 padding: 4,
               }}
             >
-              Pas encore de compte ? <span style={{ color: 'var(--orange)', fontWeight: 600 }}>Cr&eacute;er mon compte</span>
+              Pas encore de compte ? <span style={{ color: 'var(--orange)', fontWeight: 600 }}>Créer mon compte</span>
             </button>
           </div>
         </>
@@ -833,6 +833,17 @@ function OnboardingContent() {
 
         {showSignedBtn ? (
           <>
+            <div style={{
+              padding: '10px 14px',
+              background: 'rgba(250,204,21,.08)',
+              borderLeft: '3px solid var(--yellow)',
+              borderRadius: 6,
+              color: 'var(--yellow)',
+              fontSize: '0.82rem',
+              lineHeight: 1.5,
+            }}>
+              ⚠ Avant de continuer, clique sur <strong>« Terminé »</strong> en bas du contrat ci-dessus pour finaliser ta signature, <em>puis</em> sur le bouton ci-dessous.
+            </div>
             <button
               onClick={handleCheckContract}
               disabled={checkingContract}
