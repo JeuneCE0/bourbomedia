@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (portalToken) {
     try {
       const cr = await supaFetch(
-        `clients?portal_token=eq.${portalToken}&select=id,business_name,contact_name,video_url,video_thumbnail_url,delivery_notes,delivered_at,status,filming_date,publication_deadline,publication_date_confirmed,video_validated_at,video_review_comment,video_changes_requested,contract_pdf_url,contract_signature_link`,
+        `clients?portal_token=eq.${portalToken}&select=id,business_name,contact_name,video_url,video_thumbnail_url,delivery_notes,delivered_at,status,filming_date,publication_deadline,publication_date_confirmed,video_validated_at,video_review_comment,video_changes_requested,contract_pdf_url,contract_signature_link,contract_signed_at,paid_at,onboarding_call_booked`,
         {},
         true
       );
@@ -49,6 +49,9 @@ export async function GET(req: NextRequest) {
           video_changes_requested: c.video_changes_requested,
           contract_pdf_url: c.contract_pdf_url,
           contract_signature_link: c.contract_signature_link,
+          contract_signed_at: c.contract_signed_at,
+          paid_at: c.paid_at,
+          onboarding_call_booked: c.onboarding_call_booked,
         },
         videos,
         payments,

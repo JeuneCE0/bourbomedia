@@ -44,6 +44,9 @@ interface ClientDelivery {
   video_changes_requested?: boolean;
   contract_pdf_url?: string;
   contract_signature_link?: string;
+  contract_signed_at?: string;
+  paid_at?: string;
+  onboarding_call_booked?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -99,8 +102,13 @@ const STATUS_LABELS_PORTAL: Record<string, string> = {
   published: 'Vidéo publiée',
 };
 
+// Les clés préfixées par `__` sont des étapes internes au stepper, non des
+// valeurs de status DB. Elles représentent les jalons du funnel /onboarding
+// (contrat / paiement) qui ne se reflètent pas dans `clients.status`.
 const PROJECT_STAGES = [
   { key: 'onboarding',          label: 'Inscription',           emoji: '👋',  description: 'Vous êtes inscrit·e — bienvenue !' },
+  { key: '__contract',          label: 'Contrat signé',         emoji: '✍️',  description: 'Votre contrat de prestation est signé.' },
+  { key: '__payment',           label: 'Paiement',              emoji: '💳',  description: 'Votre paiement est confirmé.' },
   { key: 'onboarding_call',     label: 'Appel onboarding',      emoji: '📞',  description: 'Réservez votre appel de cadrage avec notre équipe.' },
   { key: 'script_writing',      label: 'Écriture du script',     emoji: '✍️',  description: 'Notre équipe écrit votre script sur mesure.' },
   { key: 'script_review',       label: 'Relecture du script',    emoji: '📝',  description: 'Le script vous est proposé pour relecture.' },
@@ -998,7 +1006,18 @@ function PortalContent() {
             🗺️ Avancement de votre projet
           </h3>
           {(() => {
-            const stageIdx = PROJECT_STAGES.findIndex(s => s.key === clientStatus);
+            // Pour le statut DB 'onboarding', on affine selon les flags du funnel
+            // (contrat signé / paiement / appel réservé) — sinon, le stepper
+            // resterait bloqué sur "Inscription" pendant tout le pré-appel.
+            const stageIdx = (() => {
+              if (clientStatus === 'onboarding' && clientInfo) {
+                if (!clientInfo.contract_signed_at) return 1; // current : Contrat
+                if (!clientInfo.paid_at) return 2;            // current : Paiement
+                if (!clientInfo.onboarding_call_booked) return 3; // current : Appel
+                return 3;
+              }
+              return PROJECT_STAGES.findIndex(s => s.key === clientStatus);
+            })();
             const effectiveIdx = stageIdx >= 0 ? stageIdx : 0;
             const total = PROJECT_STAGES.length;
             // Progress = stages done + 0.5 pour l'étape courante
