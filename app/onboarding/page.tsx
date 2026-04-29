@@ -186,12 +186,21 @@ function OnboardingContent() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error);
+      // Account created — clear draft (data is now persisted server-side)
+      localStorage.removeItem(FORM_DRAFT_KEY);
+      // Migration : la suite de l'onboarding (contrat / paiement / appel) se fait
+      // désormais dans /portal. On garde aussi l'onboarding_token en localStorage
+      // pour le bouton "Reprendre mon onboarding" et le fallback /onboarding.
+      localStorage.setItem('ob_token', data.token);
+      const portalToken = data.portalToken || data.client?.portal_token;
+      if (portalToken) {
+        router.replace(`/portal?token=${portalToken}`);
+        return;
+      }
+      // Fallback rare : pas de portal_token renvoyé — on reste sur le funnel.
       setToken(data.token);
       setClient(data.client);
       setCurrentStep(2);
-      localStorage.setItem('ob_token', data.token);
-      // Account created — clear draft (data is now persisted server-side)
-      localStorage.removeItem(FORM_DRAFT_KEY);
       router.replace(`/onboarding?token=${data.token}`);
     } catch (e: unknown) {
       const msg = (e as Error).message || '';
