@@ -1022,7 +1022,12 @@ function PortalContent() {
                 if (!clientInfo.contract_signed_at) return 1; // current : Contrat
                 if (!clientInfo.paid_at) return 2;            // current : Paiement
                 if (!clientInfo.onboarding_call_booked) return 3; // current : Appel
-                return 3;
+                // Tous les flags onboarding sont OK mais le status n'a pas
+                // encore été flippé en 'onboarding_call' / 'script_writing'
+                // (race entre webhook GHL et refresh client) → on affiche
+                // déjà l'écriture du script comme étape courante pour ne
+                // pas figer l'utilisateur sur "Appel onboarding".
+                return 4;
               }
               return PROJECT_STAGES.findIndex(s => s.key === clientStatus);
             })();
@@ -2039,7 +2044,11 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
   onConfirmed: () => void;
   actionLoading: boolean;
 }) {
-  const calendarUrl = process.env.NEXT_PUBLIC_GHL_FILMING_CALENDAR_URL || process.env.NEXT_PUBLIC_GHL_CALENDAR_URL || '';
+  // Calendrier de tournage GHL. Le fallback générique NEXT_PUBLIC_GHL_CALENDAR_URL
+  // remontait l'agenda d'onboarding par erreur quand GHL_FILMING_CALENDAR_URL n'était
+  // pas configurée — on default désormais sur l'ID GHL du calendrier tournage.
+  const calendarUrl = process.env.NEXT_PUBLIC_GHL_FILMING_CALENDAR_URL
+    || 'https://api.leadconnectorhq.com/widget/booking/vKw4x99jCNnZnl5FuSig';
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [showButton, setShowButton] = useState(false);
   const [showDateForm, setShowDateForm] = useState(false);

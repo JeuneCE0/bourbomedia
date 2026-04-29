@@ -256,6 +256,10 @@ export default function ClientDetailPage() {
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Compteur incrémenté au clic sur "Enregistrer" — passé à <ScriptEditor> qui
+  // déclenche un save manuel quand il change. Remplace l'autosave 2s qui flippait
+  // silencieusement le status en 'modified' et faisait toaster faussement le client.
+  const [scriptSaveTrigger, setScriptSaveTrigger] = useState(0);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
   const [comment, setComment] = useState('');
@@ -1531,23 +1535,36 @@ export default function ClientDetailPage() {
                   />
                 </div>
               )}
-              <h4 style={{
-                fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-mid)',
-                margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.5,
-                display: 'flex', alignItems: 'center', gap: 6,
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: 10, margin: '0 0 10px',
               }}>
-                <span aria-hidden>✏️</span> Édition du script
-                <span style={{
-                  fontSize: '0.64rem', padding: '1px 7px', borderRadius: 999,
-                  background: 'rgba(34,197,94,.12)', color: 'var(--green)', fontWeight: 700,
-                  letterSpacing: 0.3, marginLeft: 6,
-                }}>AUTO-SAVE 2s</span>
-              </h4>
+                <h4 style={{
+                  fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-mid)',
+                  margin: 0, textTransform: 'uppercase', letterSpacing: 0.5,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span aria-hidden>✏️</span> Édition du script
+                </h4>
+                <button
+                  onClick={() => setScriptSaveTrigger(t => t + 1)}
+                  disabled={saving}
+                  style={{
+                    padding: '6px 14px', borderRadius: 8,
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', cursor: saving ? 'wait' : 'pointer',
+                    fontSize: '0.78rem', fontWeight: 600,
+                    opacity: saving ? 0.6 : 1,
+                  }}
+                >
+                  {saving ? '⏳ Enregistrement…' : '💾 Enregistrer'}
+                </button>
+              </div>
               <ScriptEditor
                 content={script.content}
                 onSave={handleSaveScript}
                 saving={saving}
-                autoSaveMs={2000}
+                saveTrigger={scriptSaveTrigger}
                 aiContext={{
                   business_name: client.business_name,
                   category: client.category,
