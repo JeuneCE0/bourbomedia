@@ -1067,24 +1067,9 @@ function OnboardingContent() {
           </div>
         )}
 
-        {client && (
-          <a
-            href={`/portal?token=${client.id}`}
-            style={{
-              ...btnSecondary,
-              marginTop: 12,
-              textDecoration: 'none',
-              textAlign: 'center',
-              display: 'block',
-            }}
-          >
-            🏠 Accéder à mon portail client
-          </a>
-        )}
-
         <button
           onClick={() => fetchClient(token)}
-          style={{ ...btnSecondary, marginTop: 8 }}
+          style={{ ...btnSecondary, marginTop: 12 }}
         >
           🔄 Actualiser
         </button>
