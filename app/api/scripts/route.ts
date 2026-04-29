@@ -275,38 +275,41 @@ export async function PUT(req: NextRequest) {
 
       // Client picks a publication date (must be a Tuesday or Thursday).
       if (action === 'confirm_publication_date') {
+        // Date optionnelle : si le client la fournit on valide jour-de-semaine /
+        // unicité ; sinon on flag juste publication_date_confirmed et l'admin
+        // remplira publication_deadline depuis GHL (cohérent avec confirm_filming_booked).
         const dateStr = typeof reqBody.date === 'string' ? (reqBody.date as string) : '';
-        if (!dateStr) return NextResponse.json({ error: 'Date requise' }, { status: 400 });
-        const d = new Date(dateStr);
-        if (Number.isNaN(d.getTime())) return NextResponse.json({ error: 'Date invalide' }, { status: 400 });
-        const dow = d.getDay(); // 0=Sun .. 6=Sat
-        if (dow !== 2 && dow !== 4) {
-          return NextResponse.json({ error: 'Les publications ne sont planifiées que le mardi ou le jeudi.' }, { status: 400 });
-        }
-
-        // Uniqueness check : 1 publication slot per day
-        const isoDate = d.toISOString().slice(0, 10);
-        try {
-          const conflictR = await supaFetch(
-            `clients?publication_deadline=eq.${isoDate}&publication_date_confirmed=eq.true&id=neq.${cid}&select=id`,
-            {}, true,
-          );
-          if (conflictR.ok) {
-            const conflicts = await conflictR.json();
-            if (conflicts.length > 0) {
-              return NextResponse.json({
-                error: 'Cette date est déjà réservée par un autre projet. Choisissez un autre créneau.',
-                conflict: true,
-              }, { status: 409 });
-            }
-          }
-        } catch { /* fall through — the unique constraint isn't critical */ }
-
         const updates: Record<string, unknown> = {
-          publication_deadline: isoDate,
           publication_date_confirmed: true,
           updated_at: new Date().toISOString(),
         };
+
+        if (dateStr) {
+          const d = new Date(dateStr);
+          if (Number.isNaN(d.getTime())) return NextResponse.json({ error: 'Date invalide' }, { status: 400 });
+          const dow = d.getDay(); // 0=Sun .. 6=Sat
+          if (dow !== 2 && dow !== 4) {
+            return NextResponse.json({ error: 'Les publications ne sont planifiées que le mardi ou le jeudi.' }, { status: 400 });
+          }
+          const isoDate = d.toISOString().slice(0, 10);
+          try {
+            const conflictR = await supaFetch(
+              `clients?publication_deadline=eq.${isoDate}&publication_date_confirmed=eq.true&id=neq.${cid}&select=id`,
+              {}, true,
+            );
+            if (conflictR.ok) {
+              const conflicts = await conflictR.json();
+              if (conflicts.length > 0) {
+                return NextResponse.json({
+                  error: 'Cette date est déjà réservée par un autre projet. Choisissez un autre créneau.',
+                  conflict: true,
+                }, { status: 409 });
+              }
+            }
+          } catch { /* fall through — the unique constraint isn't critical */ }
+          updates.publication_deadline = isoDate;
+        }
+
         const r = await supaFetch(`clients?id=eq.${cid}`, {
           method: 'PATCH',
           body: JSON.stringify(updates),
@@ -316,9 +319,9 @@ export async function PUT(req: NextRequest) {
         const cR = await supaFetch(`clients?id=eq.${cid}&select=business_name,ghl_contact_id`, {}, true);
         const arr = cR.ok ? await cR.json() : [];
         const cl = arr[0] || {};
-        logEvent('publication_scheduled', { date: dateStr });
+        logEvent('publication_scheduled', dateStr ? { date: dateStr } : {});
         triggerWorkflow(cl.ghl_contact_id || null, 'project_published').catch(() => {});
-        return NextResponse.json({ ok: true, publication_deadline: updates.publication_deadline });
+        return NextResponse.json({ ok: true, publication_deadline: updates.publication_deadline || null });
       }
 
       if (action === 'request_changes') {

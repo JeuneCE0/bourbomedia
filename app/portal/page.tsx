@@ -342,6 +342,10 @@ function PortalContent() {
   const [actionLoading, setActionLoading] = useState(false);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [tab, setTab] = useState<'script' | 'comments' | 'video' | 'feedback'>('script');
+  // Index dans visibleVideos (= ordre desc, 0 = plus récente). Quand le client
+  // a plusieurs versions livrées, on affiche des onglets V1/V2/… au lieu de
+  // toutes les empiler. Default à 0 pour montrer la dernière en premier.
+  const [selectedVideoIdx, setSelectedVideoIdx] = useState(0);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [liveToast, setLiveToast] = useState<{ emoji: string; message: string; key: number } | null>(null);
   const lastSeenScriptStatusRef = useRef<string | null>(null);
@@ -824,7 +828,13 @@ function PortalContent() {
   const canValidate = script.status === 'proposition' || script.status === 'modified';
 
   const deliveredVideos = videos.filter(v => v.delivered_at);
-  const hasDelivery = deliveredVideos.length > 0 || (clientInfo?.delivered_at && clientInfo.video_url);
+  // Une fois la date de publication confirmée, on n'a plus besoin d'exposer les
+  // anciennes versions au client — seule la version finalisée compte. On garde
+  // donc uniquement la dernière (deliveredVideos est déjà order=created_at.desc).
+  const visibleVideos = clientInfo?.publication_date_confirmed
+    ? deliveredVideos.slice(0, 1)
+    : deliveredVideos;
+  const hasDelivery = visibleVideos.length > 0 || (clientInfo?.delivered_at && clientInfo.video_url);
   const clientStatus = clientInfo?.status || '';
 
   // Étapes "calendrier uniquement" : on n'affiche que la timeline + le calendrier
@@ -1327,23 +1337,65 @@ function PortalContent() {
           );
         })()}
         {/* Video delivery view (multi-video) */}
-        {tab === 'video' && hasDelivery && !isPublicationCalendarOnly && (
+        {tab === 'video' && hasDelivery && !isPublicationCalendarOnly && (() => {
+          // Clamp si l'index sélectionné déborde (ex: après publication confirmée
+          // visibleVideos passe à length 1 alors qu'on était sur V2).
+          const safeIdx = Math.min(Math.max(0, selectedVideoIdx), Math.max(0, visibleVideos.length - 1));
+          const v = visibleVideos[safeIdx];
+          return (
           <div key="tab-video" className="bm-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Render new multi-videos first */}
-            {deliveredVideos.map((v, idx) => (
+            {/* Onglets V1/V2/… quand plusieurs versions sont visibles. V1 = la
+                plus ancienne, V[N] = la plus récente. visibleVideos est trié
+                desc (newest first), donc on inverse pour l'affichage. */}
+            {visibleVideos.length > 1 && (
+              <div role="tablist" style={{
+                display: 'flex', gap: 6, flexWrap: 'wrap',
+                padding: '6px', borderRadius: 10,
+                background: 'var(--night-mid)', border: '1px solid var(--border)',
+              }}>
+                {visibleVideos.slice().reverse().map((vv, displayIdx) => {
+                  const realIdx = visibleVideos.length - 1 - displayIdx;
+                  const versionNum = displayIdx + 1;
+                  const isActive = realIdx === safeIdx;
+                  return (
+                    <button
+                      key={vv.id}
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => setSelectedVideoIdx(realIdx)}
+                      style={{
+                        padding: '8px 14px', borderRadius: 8,
+                        background: isActive ? 'var(--orange)' : 'transparent',
+                        color: isActive ? '#fff' : 'var(--text-mid)',
+                        border: isActive ? 'none' : '1px solid var(--border)',
+                        cursor: 'pointer', fontSize: '0.82rem',
+                        fontWeight: isActive ? 700 : 500,
+                        fontFamily: "'Bricolage Grotesque', sans-serif",
+                      }}
+                    >
+                      V{versionNum}
+                      {realIdx === 0 && visibleVideos.length > 1 && (
+                        <span style={{ fontSize: '0.66rem', marginLeft: 6, opacity: 0.85 }}>(dernière)</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Carte de la version sélectionnée */}
+            {v && (
               <div key={v.id} style={{
                 background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)',
                 padding: 'clamp(16px, 3vw, 24px)',
               }}>
-                {idx === 0 && (
-                  <div style={{ marginBottom: 18, textAlign: 'center' }}>
-                    <div style={{ fontSize: '2rem', marginBottom: 8 }}>🎉</div>
-                    <h2 style={{
-                      fontSize: '1.1rem', color: 'var(--orange)', margin: 0, fontWeight: 700,
-                      fontFamily: "'Bricolage Grotesque', sans-serif",
-                    }}>{deliveredVideos.length === 1 ? 'Votre vidéo est prête !' : 'Vos vidéos sont prêtes !'}</h2>
-                  </div>
-                )}
+                <div style={{ marginBottom: 18, textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: 8 }}>🎉</div>
+                  <h2 style={{
+                    fontSize: '1.1rem', color: 'var(--orange)', margin: 0, fontWeight: 700,
+                    fontFamily: "'Bricolage Grotesque', sans-serif",
+                  }}>{visibleVideos.length === 1 ? 'Votre vidéo est prête !' : `Version ${visibleVideos.length - safeIdx}`}</h2>
+                </div>
                 {v.title && (
                   <h3 style={{ margin: '0 0 10px', fontSize: '0.95rem', color: 'var(--text)', fontWeight: 600 }}>
                     {v.title}
@@ -1354,9 +1406,6 @@ function PortalContent() {
                     Livrée le {new Date(v.delivered_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
                 )}
-                {/* Use the timestamped player when the client is in the review/validation
-                    phase — they can pin per-second feedback. After validation, fall back
-                    to the standard embed. */}
                 {!clientInfo?.video_validated_at && token ? (
                   <TimestampedVideoPlayer
                     videoId={v.id}
@@ -1392,7 +1441,7 @@ function PortalContent() {
                   }}>⬇️ Télécharger</a>
                 </div>
               </div>
-            ))}
+            )}
 
             {/* Validation / demande de modifications : sous la vidéo et ses
                 retours timestampés, pas en haut du portail. Ne s'affiche que
@@ -1446,7 +1495,8 @@ function PortalContent() {
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {/* Feedback tab */}
         {tab === 'feedback' && !isPublicationCalendarOnly && (
@@ -1897,20 +1947,17 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
     || 'https://api.leadconnectorhq.com/widget/booking/RRDC3HvypJEIvLxjy3Gg';
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [showButton, setShowButton] = useState(false);
-  const [showDateForm, setShowDateForm] = useState(false);
-  const [pickedDate, setPickedDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Reveal the "I picked a date" button shortly after the iframe loads
+  // Bouton de confirmation 30s après le chargement de l'iframe (cohérent avec
+  // FilmingBookingPanel et l'appel onboarding) — laisse le temps au client de
+  // finaliser dans GHL.
   useEffect(() => {
-    if (iframeLoaded && !showButton) {
-      const t = setTimeout(() => setShowButton(true), 2500);
+    if (!showButton) {
+      const delay = iframeLoaded ? 30000 : 35000;
+      const t = setTimeout(() => setShowButton(true), delay);
       return () => clearTimeout(t);
-    }
-    if (!iframeLoaded && !showButton) {
-      const fallback = setTimeout(() => setShowButton(true), 8000);
-      return () => clearTimeout(fallback);
     }
   }, [iframeLoaded, showButton]);
 
@@ -1920,15 +1967,14 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
   if (!clientInfo?.video_validated_at && clientInfo?.status !== 'publication_pending') return null;
   if (clientInfo?.publication_date_confirmed) return null;
 
-  async function confirm() {
-    if (!pickedDate) return;
+  async function confirmDate() {
     if (!window.confirm('Avez-vous bien finalisé et confirmé votre date de publication ?')) return;
     setSubmitting(true);
     setError('');
     try {
       const r = await fetch(`/api/scripts?token=${token}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'confirm_publication_date', date: pickedDate }),
+        body: JSON.stringify({ action: 'confirm_publication_date' }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
@@ -1967,71 +2013,32 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
         onLoad={() => setIframeLoaded(true)}
       />
 
-      {showButton && !showDateForm && (
-        <button
-          onClick={() => setShowDateForm(true)}
-          style={{
-            marginTop: 14, width: '100%', padding: '13px 22px', borderRadius: 12,
-            background: 'var(--orange)', color: '#fff', border: 'none',
-            cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700,
-            boxShadow: '0 4px 14px rgba(232,105,43,.4)',
-          }}
-        >
-          ✅ Confirmer ma date de publication
-        </button>
-      )}
-
-      {showDateForm && (
-        <div style={{
-          marginTop: 14, padding: '14px 16px', borderRadius: 12,
-          background: 'var(--night-mid)', border: '1px solid var(--border-md)',
-        }}>
-          <label style={{
-            fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600,
-            display: 'block', marginBottom: 6,
-          }}>
-            📅 Date que vous venez de réserver (mardi ou jeudi)
-          </label>
-          <input
-            type="date"
-            value={pickedDate}
-            onChange={e => setPickedDate(e.target.value)}
+      {showButton ? (
+        <>
+          <button
+            onClick={confirmDate}
+            disabled={submitting}
             style={{
-              width: '100%', boxSizing: 'border-box', padding: '11px 13px', borderRadius: 8,
-              background: 'var(--night-card)', border: '1px solid var(--border-md)',
-              color: 'var(--text)', fontSize: '0.92rem', outline: 'none', fontFamily: 'inherit',
+              marginTop: 14, width: '100%', padding: '13px 22px', borderRadius: 12,
+              background: 'var(--orange)', color: '#fff', border: 'none',
+              cursor: submitting ? 'wait' : 'pointer', fontSize: '0.95rem', fontWeight: 700,
+              boxShadow: '0 4px 14px rgba(232,105,43,.4)',
+              opacity: submitting ? 0.6 : 1,
             }}
-          />
+          >
+            {submitting ? '⏳ Enregistrement…' : '✅ J\'ai réservé ma date de publication'}
+          </button>
           {error && (
             <div style={{
               marginTop: 10, padding: '8px 12px', borderRadius: 8,
               background: 'rgba(239,68,68,.10)', color: '#FCA5A5', fontSize: '0.82rem',
             }}>❌ {error}</div>
           )}
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-            <button
-              onClick={() => { setShowDateForm(false); setPickedDate(''); setError(''); }}
-              disabled={submitting}
-              style={{
-                padding: '9px 16px', borderRadius: 8, background: 'transparent',
-                border: '1px solid var(--border-md)', color: 'var(--text-muted)',
-                cursor: 'pointer', fontSize: '0.85rem',
-              }}
-            >Annuler</button>
-            <button
-              onClick={confirm}
-              disabled={!pickedDate || submitting}
-              style={{
-                padding: '11px 20px', borderRadius: 10, background: 'var(--orange)',
-                color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.88rem',
-                fontWeight: 700, opacity: !pickedDate || submitting ? 0.5 : 1,
-                boxShadow: '0 4px 14px rgba(232,105,43,.4)',
-              }}
-            >
-              {submitting ? '⏳ Enregistrement…' : '💾 Confirmer'}
-            </button>
-          </div>
-        </div>
+        </>
+      ) : (
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center', margin: '14px 0 0' }}>
+          Réservez votre créneau ci-dessus. Le bouton de confirmation apparaîtra dans quelques secondes.
+        </p>
       )}
     </div>
   );
