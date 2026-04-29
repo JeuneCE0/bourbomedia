@@ -59,16 +59,38 @@ export async function createEmbeddedCheckoutSession(params: {
 }): Promise<string | null> {
   if (!STRIPE_SECRET_KEY) return null;
   try {
-    const priceData = params.productId
-      ? { currency: 'eur' as const, unit_amount: params.amount, product: params.productId }
-      : { currency: 'eur' as const, unit_amount: params.amount, product_data: { name: params.description, description: `BourbonMédia — ${params.clientName}` } };
+    const stripe = getStripe();
+
+    // When a productId is provided, defer to the product's default_price in Stripe
+    // so the Dashboard is the source of truth. Passing price_data.unit_amount
+    // alongside a product overrides that price silently — easy way to charge the
+    // wrong amount.
+    let lineItem;
+    if (params.productId) {
+      const product = await stripe.products.retrieve(params.productId);
+      const priceId = typeof product.default_price === 'string'
+        ? product.default_price
+        : product.default_price?.id;
+      if (!priceId) throw new Error(`Produit Stripe ${params.productId} sans tarif par défaut configuré`);
+      lineItem = { price: priceId, quantity: 1 };
+    } else {
+      lineItem = {
+        price_data: {
+          currency: 'eur' as const,
+          unit_amount: params.amount,
+          product_data: { name: params.description, description: `BourbonMédia — ${params.clientName}` },
+        },
+        quantity: 1,
+      };
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const session = await getStripe().checkout.sessions.create({
+    const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
       ui_mode: 'embedded_page',
       customer_email: params.clientEmail,
-      line_items: [{ price_data: priceData, quantity: 1 }],
+      line_items: [lineItem],
       metadata: { client_id: params.clientId },
       return_url: params.returnUrl,
     } as any);
