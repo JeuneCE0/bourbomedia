@@ -2051,51 +2051,28 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
     || 'https://api.leadconnectorhq.com/widget/booking/vKw4x99jCNnZnl5FuSig';
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [showButton, setShowButton] = useState(false);
-  const [showDateForm, setShowDateForm] = useState(false);
-  const [pickedDate, setPickedDate] = useState('');
-  const [pickedTime, setPickedTime] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [bookedSet, setBookedSet] = useState<Set<string>>(new Set());
 
-  // Show "I booked" button shortly after iframe loads (mirrors onboarding pattern)
+  // Show "I booked" button 30s after iframe loads — laisse le temps au client
+  // de finaliser dans GHL et au webhook de propager. Cohérent avec l'appel onboarding.
   useEffect(() => {
-    if (iframeLoaded && !showButton) {
-      const t = setTimeout(() => setShowButton(true), 2500);
-      return () => clearTimeout(t);
-    }
-    if (!iframeLoaded && !showButton) {
-      const fallback = setTimeout(() => setShowButton(true), 8000);
-      return () => clearTimeout(fallback);
+    if (!showButton) {
+      const delay = iframeLoaded ? 30000 : 35000;
+      const timer = setTimeout(() => setShowButton(true), delay);
+      return () => clearTimeout(timer);
     }
   }, [iframeLoaded, showButton]);
 
-  // Fetch already-booked filming dates so we can warn before submission
-  useEffect(() => {
-    if (!token) return;
-    fetch(`/api/calendar-slots?token=${token}`)
-      .then(r => r.ok ? r.json() : null)
-      .then((d: { bookedFilming?: string[] } | null) => {
-        if (d?.bookedFilming) setBookedSet(new Set(d.bookedFilming));
-      })
-      .catch(() => {});
-  }, [token]);
-
   async function confirmBooking() {
-    if (!pickedDate) return;
-    setError('');
-    if (bookedSet.has(pickedDate)) {
-      setError('Cette date est déjà prise par un autre projet. Choisissez un autre jour.');
-      return;
-    }
     if (!window.confirm('Avez-vous bien finalisé et confirmé la réservation de votre tournage ?')) return;
     setSubmitting(true);
+    setError('');
     try {
-      const isoDate = new Date(`${pickedDate}T${pickedTime || '09:00'}`).toISOString();
       const r = await fetch(`/api/scripts?token=${token}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'confirm_filming_booked', date: isoDate }),
+        body: JSON.stringify({ action: 'confirm_filming_booked' }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
@@ -2103,7 +2080,6 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
         return;
       }
       onConfirmed();
-      setShowDateForm(false);
     } finally {
       setSubmitting(false);
     }
@@ -2145,84 +2121,32 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
             onLoad={() => setIframeLoaded(true)}
           />
 
-          {showButton && !showDateForm && (
-            <button
-              onClick={() => setShowDateForm(true)}
-              disabled={actionLoading}
-              style={{
-                marginTop: 14, width: '100%', padding: '13px 22px', borderRadius: 12,
-                background: 'var(--orange)', color: '#fff', border: 'none',
-                cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700,
-                boxShadow: '0 4px 14px rgba(232,105,43,.4)',
-              }}
-            >
-              ✅ J&apos;ai réservé mon créneau
-            </button>
-          )}
-
-          {showDateForm && (
-            <div style={{
-              marginTop: 14, padding: '16px 18px', borderRadius: 12,
-              background: 'var(--night-mid)', border: '1px solid var(--border-md)',
-            }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
-                Quelle date avez-vous réservée ?
-              </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-                <input
-                  type="date" value={pickedDate} onChange={e => setPickedDate(e.target.value)}
-                  style={{
-                    flex: '1 1 160px', padding: '10px 12px', borderRadius: 8,
-                    background: 'var(--night)', border: '1px solid var(--border-md)',
-                    color: 'var(--text)', fontSize: '0.9rem', colorScheme: 'dark', outline: 'none',
-                  }}
-                />
-                <input
-                  type="time" value={pickedTime} onChange={e => setPickedTime(e.target.value)}
-                  placeholder="Heure" step={1800}
-                  style={{
-                    flex: '1 1 120px', padding: '10px 12px', borderRadius: 8,
-                    background: 'var(--night)', border: '1px solid var(--border-md)',
-                    color: 'var(--text)', fontSize: '0.9rem', colorScheme: 'dark', outline: 'none',
-                  }}
-                />
-              </div>
-              {pickedDate && bookedSet.has(pickedDate) && (
-                <div style={{
-                  padding: '8px 12px', borderRadius: 6, marginBottom: 10,
-                  background: 'rgba(239,68,68,.10)', color: '#FCA5A5', fontSize: '0.8rem',
-                }}>
-                  ⚠️ Ce jour est déjà pris par un autre projet — choisissez-en un autre.
-                </div>
-              )}
+          {showButton ? (
+            <>
+              <button
+                onClick={confirmBooking}
+                disabled={submitting || actionLoading}
+                style={{
+                  marginTop: 14, width: '100%', padding: '13px 22px', borderRadius: 12,
+                  background: 'var(--orange)', color: '#fff', border: 'none',
+                  cursor: submitting ? 'wait' : 'pointer', fontSize: '0.95rem', fontWeight: 700,
+                  boxShadow: '0 4px 14px rgba(232,105,43,.4)',
+                  opacity: submitting ? 0.6 : 1,
+                }}
+              >
+                {submitting ? '⏳ Enregistrement…' : '✅ J\'ai réservé mon créneau'}
+              </button>
               {error && (
                 <div style={{
-                  padding: '8px 12px', borderRadius: 6, marginBottom: 10,
+                  marginTop: 10, padding: '8px 12px', borderRadius: 6,
                   background: 'rgba(239,68,68,.10)', color: '#FCA5A5', fontSize: '0.8rem',
                 }}>{error}</div>
               )}
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={() => setShowDateForm(false)} style={{
-                  padding: '9px 16px', borderRadius: 8, background: 'transparent',
-                  border: '1px solid var(--border-md)', color: 'var(--text-muted)',
-                  cursor: 'pointer', fontSize: '0.85rem',
-                }}>Annuler</button>
-                <button
-                  onClick={confirmBooking}
-                  disabled={!pickedDate || submitting || bookedSet.has(pickedDate)}
-                  style={{
-                    padding: '9px 18px', borderRadius: 8, background: 'var(--green)',
-                    color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem',
-                    fontWeight: 700, opacity: !pickedDate || submitting || bookedSet.has(pickedDate) ? 0.5 : 1,
-                  }}
-                >
-                  {submitting ? '⏳ Enregistrement…' : '🎬 Confirmer mon tournage'}
-                </button>
-              </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 8 }}>
-                ⚠️ La date est obligatoire pour qu&apos;elle apparaisse dans l&apos;agenda de l&apos;équipe. 1 seul tournage par jour.
-              </div>
-            </div>
+            </>
+          ) : (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center', margin: '14px 0 0' }}>
+              Réservez votre créneau ci-dessus. Le bouton de confirmation apparaîtra dans quelques secondes.
+            </p>
           )}
         </>
       )}
