@@ -2937,36 +2937,29 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
       );
     }
 
-    // Contrat + paiement OK mais appel pas encore réservé : fallback en attendant
-    // le commit suivant (réservation appel inline).
-    return (
-      <NoScriptShell
-        emoji="🤝"
-        title="Bienvenue chez BourbonMédia !"
-        subtitle="Plus qu'à réserver votre appel onboarding pour démarrer."
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-mid)', textAlign: 'center', margin: '8px 0 0' }}>
-            La réservation de l&apos;appel arrive juste après. Notre équipe vous recontacte sous peu si l&apos;écran ne se met pas à jour.
-          </p>
-        </div>
-      </NoScriptShell>
-    );
+    if (!clientInfo?.onboarding_call_booked && token) {
+      return (
+        <NoScriptShell
+          emoji="📞"
+          title="Réservez votre appel onboarding"
+          subtitle="Un appel de cadrage de 30 min avec notre équipe pour bien démarrer votre vidéo."
+        >
+          <OnboardingCallStep token={token} calendarUrl={onboardingCalendarUrl} onBooked={onRefresh} />
+        </NoScriptShell>
+      );
+    }
   }
 
-  // 2. Onboarding call — needs to book the kickoff call
+  // 2. Onboarding call — appel réservé, on attend le rendez-vous puis l'écriture
+  // du script. (Le branchement status='onboarding' ci-dessus gère la réservation
+  // tant qu'elle n'est pas faite.)
   if (status === 'onboarding_call') {
     return (
       <NoScriptShell
         emoji="📞"
-        title="Réservez votre appel onboarding"
-        subtitle="Un appel de cadrage de 30 min avec notre équipe pour bien démarrer votre vidéo."
-      >
-        <GhlBookingEmbed url={onboardingCalendarUrl} title="Appel onboarding" />
-        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', margin: '14px 0 0' }}>
-          Une fois l&apos;appel pris, on attaque l&apos;écriture de votre script tout de suite après.
-        </p>
-      </NoScriptShell>
+        title="Appel onboarding réservé"
+        subtitle="Votre rendez-vous est planifié. Notre équipe attaque l'écriture de votre script juste après l'appel."
+      />
     );
   }
 
@@ -3039,6 +3032,86 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
       title="Votre script est en préparation"
       subtitle="Notre équipe travaille sur votre script vidéo. Vous recevrez une notification dès qu'il sera prêt pour votre relecture."
     />
+  );
+}
+
+/* ── Étape appel onboarding (inline dans /portal — booking GHL) ─────── */
+function OnboardingCallStep({ token, calendarUrl, onBooked }: {
+  token: string;
+  calendarUrl: string;
+  onBooked: () => void;
+}) {
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [showButton, setShowButton] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  // 30s d'attente avant d'afficher le bouton — laisse le temps au client de
+  // finaliser la réservation et au webhook GHL de remonter le rendez-vous.
+  useEffect(() => {
+    if (!showButton) {
+      const delay = iframeLoaded ? 30000 : 35000;
+      const timer = setTimeout(() => setShowButton(true), delay);
+      return () => clearTimeout(timer);
+    }
+  }, [iframeLoaded, showButton]);
+
+  async function handleBooked() {
+    if (!confirm('Avez-vous bien finalisé et confirmé votre rendez-vous d’onboarding ?')) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const r = await fetch(`/api/onboarding?token=${token}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'call_booked', date: new Date().toISOString() }),
+      });
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        throw new Error(data.error || 'Erreur');
+      }
+      onBooked();
+    } catch (e: unknown) {
+      setError((e as Error).message || "Nous n'avons pas pu confirmer votre réservation. Réessayez.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <GhlBookingEmbed
+        url={calendarUrl}
+        title="Appel onboarding"
+        onLoad={() => setIframeLoaded(true)}
+      />
+
+      {showButton ? (
+        <>
+          <button
+            onClick={handleBooked}
+            disabled={submitting}
+            style={{
+              padding: '13px 22px', borderRadius: 12,
+              background: 'var(--orange)', color: '#fff', border: 'none',
+              cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700,
+              boxShadow: '0 4px 14px rgba(232,105,43,.4)',
+              opacity: submitting ? 0.6 : 1,
+            }}
+          >
+            {submitting ? '⏳ Vérification…' : '✅ J\'ai réservé mon appel'}
+          </button>
+          {error && (
+            <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,.08)', borderLeft: '3px solid var(--red)', borderRadius: 6, color: '#fca5a5', fontSize: '0.84rem' }}>
+              {error}
+            </div>
+          )}
+        </>
+      ) : (
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center', margin: 0 }}>
+          Réservez votre créneau ci-dessus. Le bouton de confirmation apparaîtra dans quelques secondes.
+        </p>
+      )}
+    </div>
   );
 }
 
