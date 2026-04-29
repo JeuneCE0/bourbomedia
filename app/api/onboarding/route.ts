@@ -194,6 +194,10 @@ export async function POST(req: NextRequest) {
         onboarding_call_booked: true,
         onboarding_call_date: body.date || null,
         onboarding_step: 5,
+        // Faire avancer la carte sur le kanban admin "Onboarding" → "Appel onboarding".
+        // Le funnel garde son écran "Script en préparation" côté client (step 5),
+        // mais l'équipe voit que l'appel est planifié.
+        status: 'onboarding_call',
       }),
     }, true);
     notifyClientStatusChange(client.business_name, 'Étape 4', 'Appel onboarding réservé');
