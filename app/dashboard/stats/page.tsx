@@ -199,6 +199,11 @@ export default function StatsPage() {
             </div>
           </Card>
 
+          {/* Acquisition / ROI publicité */}
+          <div style={{ marginTop: 14 }}>
+            <AcquisitionRoiCard range={range} />
+          </div>
+
           {/* Évolutions hebdomadaires */}
           <div style={{ marginTop: 14 }}>
             <EvolutionCharts />
@@ -578,5 +583,200 @@ function DualBars({ weeks }: { weeks: EvolutionWeek[] }) {
         <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--green)', borderRadius: 2, marginRight: 5 }} />Contrats signés</span>
       </div>
     </div>
+  );
+}
+
+/* ─────────── Acquisition / ROI publicité ───────────
+   Calcule 4 métriques business à partir de :
+   - /api/closing-stats (CA encaissé, leads, RDV honorés, closings, budget Ads pro-rata)
+   - app_settings.ads_budget_monthly_cents (édité inline ici, source de vérité partagée
+     avec /dashboard/settings et /dashboard/finance)
+
+   Formules :
+     ROAS              = revenue_paid_cents / ads_budget_cents          (×, "—" si 0 € dépensé)
+     Coût / prospect   = ads_budget_cents   / new_leads                 (€, "—" si 0 lead)
+     Coût / RDV        = ads_budget_cents   / calls_done                (€, "—" si 0 RDV)
+     Coût / closing    = ads_budget_cents   / calls_won                 (€, "—" si 0 closing)
+   ─────────────────────────────────────────────────── */
+
+interface ClosingStatsLite {
+  new_leads: number;
+  calls_done: number;
+  calls_won: number;
+  revenue_paid_cents: number;
+  ads_budget_cents: number;
+}
+
+function rangeToBounds(r: Range): { from: string; to: string } {
+  const toIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const today = new Date();
+  if (r === 'all') return { from: '2020-01-01', to: toIso(today) };
+  const from = new Date(today.getTime() - RANGE_DAYS[r] * 86400000);
+  return { from: toIso(from), to: toIso(today) };
+}
+
+function fmtEUR(cents: number): string {
+  return `${(cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`;
+}
+
+function AcquisitionRoiCard({ range }: { range: Range }) {
+  const [stats, setStats] = useState<ClosingStatsLite | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [monthlyBudget, setMonthlyBudget] = useState<string>(''); // €, string pour le contrôle de l'input
+  const [budgetInput, setBudgetInput] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+  const [savedHint, setSavedHint] = useState(false);
+
+  // Fetch closing-stats pour la période
+  useEffect(() => {
+    const { from, to } = rangeToBounds(range);
+    setLoading(true);
+    fetch(`/api/closing-stats?from=${from}&to=${to}`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setStats(d))
+      .finally(() => setLoading(false));
+  }, [range]);
+
+  // Fetch budget mensuel courant (source de vérité partagée avec /dashboard/settings)
+  useEffect(() => {
+    fetch('/api/app-settings', { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d) {
+          const eur = ((d.ads_budget_monthly_cents || 0) / 100).toString();
+          setMonthlyBudget(eur);
+          setBudgetInput(eur);
+        }
+      });
+  }, []);
+
+  async function saveBudget() {
+    const cents = Math.round(parseFloat(budgetInput || '0') * 100);
+    if (Number.isNaN(cents) || cents < 0) return;
+    setSaving(true);
+    try {
+      const r = await fetch('/api/app-settings', {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ ads_budget_monthly_cents: cents }),
+      });
+      if (r.ok) {
+        setMonthlyBudget((cents / 100).toString());
+        setSavedHint(true);
+        setTimeout(() => setSavedHint(false), 2000);
+        // Re-fetch closing-stats pour récupérer le nouveau budget pro-rata
+        const { from, to } = rangeToBounds(range);
+        const sR = await fetch(`/api/closing-stats?from=${from}&to=${to}`, { headers: authHeaders() });
+        if (sR.ok) setStats(await sR.json());
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const adsCents = stats?.ads_budget_cents ?? 0;
+  const revCents = stats?.revenue_paid_cents ?? 0;
+  const leads = stats?.new_leads ?? 0;
+  const callsDone = stats?.calls_done ?? 0;
+  const callsWon = stats?.calls_won ?? 0;
+
+  // Tous les indicateurs gèrent explicitement les divisions par 0 → "—"
+  const roas = adsCents > 0 ? revCents / adsCents : null;
+  const cpl = adsCents > 0 && leads > 0 ? Math.round(adsCents / leads) : null;
+  const cpa = adsCents > 0 && callsDone > 0 ? Math.round(adsCents / callsDone) : null;
+  const cpc = adsCents > 0 && callsWon > 0 ? Math.round(adsCents / callsWon) : null;
+
+  const roasLabel = roas === null ? '—' : `${roas.toFixed(2)}×`;
+  const roasColor = roas === null
+    ? 'var(--text-muted)'
+    : roas >= 3 ? 'var(--green)'
+    : roas >= 1 ? 'var(--yellow)'
+    : 'var(--red)';
+
+  const dirty = budgetInput !== monthlyBudget;
+  const budgetIsZero = !monthlyBudget || parseFloat(monthlyBudget) === 0;
+
+  return (
+    <Card title="🎯 Acquisition & ROI publicitaire">
+      {/* Bandeau d'édition du budget mensuel — synchronisé avec /dashboard/settings */}
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end',
+        padding: '12px 14px', borderRadius: 8, marginBottom: 14,
+        background: 'var(--night-mid)', border: '1px solid var(--border)',
+      }}>
+        <label style={{ flex: '1 1 200px' }}>
+          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>
+            Budget publicitaire mensuel (€)
+          </span>
+          <input
+            type="number" step="1" min="0"
+            value={budgetInput}
+            onChange={e => setBudgetInput(e.target.value)}
+            placeholder="Ex: 3000"
+            style={{
+              width: '100%', padding: '8px 10px', borderRadius: 6,
+              background: 'var(--night-card)', border: '1px solid var(--border-md)',
+              color: 'var(--text)', fontSize: '0.95rem', outline: 'none', fontFamily: 'inherit',
+            }}
+          />
+        </label>
+        <button
+          onClick={saveBudget}
+          disabled={saving || !dirty}
+          style={{
+            padding: '8px 16px', borderRadius: 6, border: 'none', cursor: dirty && !saving ? 'pointer' : 'not-allowed',
+            background: dirty ? 'var(--orange)' : 'var(--night-card)',
+            color: dirty ? '#fff' : 'var(--text-muted)',
+            fontSize: '0.82rem', fontWeight: 700,
+            opacity: saving ? 0.6 : 1,
+          }}
+        >
+          {saving ? 'Sauvegarde…' : savedHint ? 'Sauvegardé ✓' : 'Enregistrer'}
+        </button>
+        <div style={{ flex: '1 1 100%', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+          Saisi manuellement (Meta Ads / Google Ads / autre). Le système calcule un pro-rata par jour et l&apos;applique à la période sélectionnée.
+          Sur la période : <strong style={{ color: 'var(--text-mid)' }}>{loading ? '…' : fmtEUR(adsCents)}</strong> de dépenses pub estimées.
+          {budgetIsZero && (
+            <span style={{ color: 'var(--yellow)', marginLeft: 6 }}>
+              ⚠️ Saisis ton budget pour activer les calculs ROAS / coût par étape.
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* 4 KPI cards — formules ci-dessus en commentaire */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+        <Kpi
+          emoji="📈"
+          label="ROAS"
+          value={loading ? '…' : roasLabel}
+          color={roasColor}
+          extra={roas !== null
+            ? `${fmtEUR(revCents)} / ${fmtEUR(adsCents)}`
+            : 'Revenu ÷ dépenses pub'}
+        />
+        <Kpi
+          emoji="🚶"
+          label="Coût par prospect"
+          value={loading ? '…' : (cpl !== null ? fmtEUR(cpl) : '—')}
+          color={cpl !== null ? 'var(--orange)' : 'var(--text-muted)'}
+          extra={cpl !== null ? `${leads} prospect${leads > 1 ? 's' : ''} sur la période` : 'Dépenses pub ÷ prospects'}
+        />
+        <Kpi
+          emoji="📞"
+          label="Coût par RDV"
+          value={loading ? '…' : (cpa !== null ? fmtEUR(cpa) : '—')}
+          color={cpa !== null ? '#3B82F6' : 'var(--text-muted)'}
+          extra={cpa !== null ? `${callsDone} RDV honoré${callsDone > 1 ? 's' : ''}` : 'Dépenses pub ÷ RDV honorés'}
+        />
+        <Kpi
+          emoji="🏆"
+          label="Coût par closing"
+          value={loading ? '…' : (cpc !== null ? fmtEUR(cpc) : '—')}
+          color={cpc !== null ? 'var(--green)' : 'var(--text-muted)'}
+          extra={cpc !== null ? `${callsWon} closing${callsWon > 1 ? 's' : ''} signé${callsWon > 1 ? 's' : ''}` : 'Dépenses pub ÷ closings gagnés'}
+        />
+      </div>
+    </Card>
   );
 }
