@@ -161,6 +161,42 @@ body {
 /* Standard transitions — opt-in via class */
 .bm-transition { transition: all var(--t-base) var(--ease-out); }
 
+/* Tooltip via data-tip — fast custom replacement for the native title attribute,
+   which has a 1–2s delay and OS-styled rendering. Use:
+     <button className="bm-tip" data-tip="Label">…</button>
+   Variants:
+     .bm-tip-end   → anchor tooltip to the right edge (icons near the right gutter)
+     .bm-tip-above → tooltip above the element instead of below */
+.bm-tip { position: relative; }
+.bm-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-3px);
+  background: var(--night-raised);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border-md);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
+  z-index: 50;
+  box-shadow: 0 6px 16px rgba(0,0,0,.4);
+}
+.bm-tip:hover::after, .bm-tip:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.bm-tip-end::after { left: auto; right: 0; transform: translateX(0) translateY(-3px); }
+.bm-tip-end:hover::after, .bm-tip-end:focus-visible::after { transform: translateX(0) translateY(0); }
+.bm-tip-above::after { top: auto; bottom: calc(100% + 6px); transform: translateX(-50%) translateY(3px); }
+.bm-tip-above:hover::after, .bm-tip-above:focus-visible::after { transform: translateX(-50%) translateY(0); }
+
 /* ───────── Polish utilities (added in admin polish pass) ───────── */
 
 /* Soft hover for cards / list items — subtle, no shadow change */

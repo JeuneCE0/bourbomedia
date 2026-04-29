@@ -274,6 +274,7 @@ export default function ClientDetailPage() {
   const [newTodo, setNewTodo] = useState('');
   const [newVideo, setNewVideo] = useState({ title: '', video_url: '', thumbnail_url: '', delivery_notes: '' });
   const [savingVideo, setSavingVideo] = useState(false);
+  const [videoUpload, setVideoUpload] = useState<{ name: string; pct: number } | null>(null);
   const [annotations, setAnnotations] = useState<AdminAnnotation[]>([]);
   const [feeForm, setFeeForm] = useState<{ type: 'filmmaker' | 'editor' | 'voiceover' | 'other'; amount: string; description: string }>({ type: 'filmmaker', amount: '', description: '' });
   const [addingFee, setAddingFee] = useState(false);
@@ -871,6 +872,49 @@ export default function ClientDetailPage() {
     } catch (e: unknown) { notify('error', (e as Error).message); }
   }
 
+  async function handleUploadVideo(file: File) {
+    if (!file.type.startsWith('video/')) {
+      notify('error', 'Sélectionne un fichier vidéo (mp4, mov, webm…)');
+      return;
+    }
+    setVideoUpload({ name: file.name, pct: 0 });
+    try {
+      const r = await fetch('/api/videos/upload-url', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ filename: file.name, contentType: file.type, clientId: id }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      const { uploadUrl, publicUrl } = await r.json();
+
+      // XHR for upload progress (fetch can't report upload bytes)
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) setVideoUpload({ name: file.name, pct: Math.round((ev.loaded / ev.total) * 100) });
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Upload échoué (${xhr.status}) ${xhr.responseText || ''}`.trim()));
+        };
+        xhr.onerror = () => reject(new Error("Erreur réseau pendant l'upload"));
+        xhr.open('PUT', uploadUrl);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.send(file);
+      });
+
+      setNewVideo(v => ({
+        ...v,
+        video_url: publicUrl,
+        title: v.title || file.name.replace(/\.[^.]+$/, ''),
+      }));
+      notify('success', 'Vidéo importée — clique sur Enregistrer ou Livrer pour finaliser');
+    } catch (e: unknown) {
+      notify('error', (e as Error).message);
+    } finally {
+      setVideoUpload(null);
+    }
+  }
+
   async function handleAddVideo(e: React.FormEvent, deliver: boolean) {
     e.preventDefault();
     if (!newVideo.video_url) { notify('error', 'URL vidéo requise'); return; }
@@ -1116,19 +1160,28 @@ export default function ClientDetailPage() {
             <div style={{ display: 'flex', gap: 6 }}>
               {client.phone && (
                 <a href={`https://wa.me/${client.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer"
-                  title="WhatsApp" style={miniActionStyle}>💬</a>
+                  className="bm-tip bm-tip-end" data-tip="Ouvrir une conversation WhatsApp"
+                  aria-label="Ouvrir WhatsApp" style={miniActionStyle}>💬</a>
               )}
               {client.phone && (
-                <a href={`tel:${client.phone}`} title="Appeler" style={miniActionStyle}>📞</a>
+                <a href={`tel:${client.phone}`}
+                  className="bm-tip bm-tip-end" data-tip="Appeler le client"
+                  aria-label="Appeler" style={miniActionStyle}>📞</a>
               )}
               {client.email && (
-                <a href={`mailto:${client.email}`} title="Email" style={miniActionStyle}>✉</a>
+                <a href={`mailto:${client.email}`}
+                  className="bm-tip bm-tip-end" data-tip="Envoyer un email"
+                  aria-label="Email" style={miniActionStyle}>✉</a>
               )}
               {portalUrl && (
                 <button onClick={() => { navigator.clipboard.writeText(portalUrl); notify('success', 'Lien portail copié'); }}
-                  title="Copier lien portail" style={{ ...miniActionStyle, cursor: 'pointer' }}>🔗</button>
+                  className="bm-tip bm-tip-end" data-tip="Copier le lien du portail client"
+                  aria-label="Copier lien portail"
+                  style={{ ...miniActionStyle, cursor: 'pointer' }}>🔗</button>
               )}
-              <button onClick={handleDelete} title="Retirer du pipeline onboarding (préserve l'opportunité GHL)"
+              <button onClick={handleDelete}
+                className="bm-tip bm-tip-end" data-tip="Archiver — retire du pipeline onboarding (préserve l'opportunité GHL)"
+                aria-label="Archiver"
                 style={{ ...miniActionStyle, cursor: 'pointer', color: 'var(--text-muted)', opacity: 0.7 }}>📦</button>
             </div>
           </div>
@@ -1698,8 +1751,38 @@ export default function ClientDetailPage() {
                 <input value={newVideo.thumbnail_url} onChange={e => setNewVideo({ ...newVideo, thumbnail_url: e.target.value })} placeholder="URL miniature (optionnel)"
                   style={videoInputStyle} />
               </div>
-              <input type="url" required value={newVideo.video_url} onChange={e => setNewVideo({ ...newVideo, video_url: e.target.value })} placeholder="URL vidéo (YouTube, Vimeo, MP4…)"
-                style={videoInputStyle} />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                <input type="url" required value={newVideo.video_url} onChange={e => setNewVideo({ ...newVideo, video_url: e.target.value })} placeholder="URL vidéo (YouTube, Vimeo, MP4…) ou importer depuis l'ordinateur →"
+                  style={{ ...videoInputStyle, flex: 1 }} />
+                <label style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                  padding: '8px 14px', borderRadius: 8,
+                  background: videoUpload ? 'var(--night-mid)' : 'var(--night-raised)',
+                  border: '1px solid var(--border-md)', color: 'var(--text)',
+                  fontSize: '0.78rem', cursor: videoUpload ? 'wait' : 'pointer',
+                  opacity: videoUpload ? 0.7 : 1,
+                }}>
+                  <span aria-hidden="true">📁</span>
+                  {videoUpload ? `Upload… ${videoUpload.pct}%` : 'Importer depuis mon ordinateur'}
+                  <input type="file" accept="video/*" hidden disabled={!!videoUpload}
+                    onChange={e => {
+                      const f = e.target.files?.[0];
+                      if (f) handleUploadVideo(f);
+                      e.target.value = '';
+                    }} />
+                </label>
+              </div>
+              {videoUpload && (
+                <div style={{ marginTop: -2 }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{videoUpload.name}</span>
+                    <span>{videoUpload.pct}%</span>
+                  </div>
+                  <div style={{ height: 4, background: 'var(--night-raised)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${videoUpload.pct}%`, height: '100%', background: 'var(--orange)', transition: 'width .2s linear' }} />
+                  </div>
+                </div>
+              )}
               <textarea value={newVideo.delivery_notes} onChange={e => setNewVideo({ ...newVideo, delivery_notes: e.target.value })} placeholder="Message pour le client (optionnel)" rows={2}
                 style={{ ...videoInputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
