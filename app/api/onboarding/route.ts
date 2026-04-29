@@ -183,9 +183,7 @@ export async function POST(req: NextRequest) {
         amount,
         description: 'Production vidéo BourbonMédia',
         returnUrl: `${baseUrl}${returnPath}?token=${token}&payment=success`,
-        // TEMP TEST — produit de test pour valider le funnel étape par étape.
-        // Remettre `process.env.STRIPE_PRODUCT_ID || undefined` avant le lancement officiel.
-        productId: 'prod_UQOyK2KSiDrAcb',
+        productId: process.env.STRIPE_PRODUCT_ID || undefined,
       });
       if (!clientSecret) return NextResponse.json({ error: 'Erreur Stripe' }, { status: 500 });
       return NextResponse.json({ clientSecret });
