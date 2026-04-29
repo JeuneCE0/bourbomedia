@@ -1694,12 +1694,30 @@ export default function ClientDetailPage() {
                     </p>
                   )}
                   <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                    <button onClick={() => handleToggleDeliverVideo(v.id, v.status === 'delivered')} style={{
-                      padding: '5px 12px', borderRadius: 6, fontSize: '0.74rem', cursor: 'pointer',
-                      background: v.status === 'delivered' ? 'var(--night-card)' : 'var(--green)',
-                      color: v.status === 'delivered' ? 'var(--text-mid)' : '#fff',
-                      border: v.status === 'delivered' ? '1px solid var(--border-md)' : 'none',
-                    }}>{v.status === 'delivered' ? 'Retirer la livraison' : '✓ Livrer au client'}</button>
+                    {/* Quand le client a déjà reçu au moins une version livrée
+                        et qu'on s'apprête à pousser un nouveau brouillon, on
+                        relabellise pour signaler clairement que c'est une nouvelle
+                        version (suite aux retours/modifications). */}
+                    {(() => {
+                      const isDraft = v.status === 'draft';
+                      const previouslyDelivered = (client.videos || []).some(
+                        x => x.id !== v.id && x.status === 'delivered',
+                      );
+                      const label = v.status === 'delivered'
+                        ? 'Retirer la livraison'
+                        : isDraft && previouslyDelivered
+                          ? '🚀 Envoyer la nouvelle version'
+                          : '✓ Livrer au client';
+                      return (
+                        <button onClick={() => handleToggleDeliverVideo(v.id, v.status === 'delivered')} style={{
+                          padding: '5px 12px', borderRadius: 6, fontSize: '0.74rem', cursor: 'pointer',
+                          background: v.status === 'delivered' ? 'var(--night-card)' : 'var(--green)',
+                          color: v.status === 'delivered' ? 'var(--text-mid)' : '#fff',
+                          border: v.status === 'delivered' ? '1px solid var(--border-md)' : 'none',
+                          fontWeight: isDraft && previouslyDelivered ? 700 : 400,
+                        }}>{label}</button>
+                      );
+                    })()}
                     <button onClick={() => handleRemoveVideo(v.id)} style={{
                       padding: '5px 12px', borderRadius: 6, fontSize: '0.74rem', cursor: 'pointer',
                       background: 'transparent', border: '1px solid rgba(239,68,68,.3)', color: 'var(--red)',

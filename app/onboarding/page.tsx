@@ -57,6 +57,9 @@ function OnboardingContent() {
   // Step 1 form (auto-saved draft restored on mount client-side)
   const [form, setForm] = useState({ business_name: '', contact_name: '', email: '', phone: '', password: '', passwordConfirm: '' });
 
+  // SEO/UX : titre d'onglet côté client.
+  useEffect(() => { document.title = 'BourbonMédia — Onboarding'; }, []);
+
   // Restore Step 1 draft from localStorage (browser-only)
   useEffect(() => {
     try {
@@ -134,25 +137,10 @@ function OnboardingContent() {
     }
   }, [paymentStatus, tokenParam, fetchClient]);
 
-  // Handle call booked redirect from GHL Calendar
-  const callBookedParam = searchParams.get('call_booked');
-  useEffect(() => {
-    if (callBookedParam === 'true' && token && currentStep === 4) {
-      // Confirme avec le client avant de finaliser — au cas où GHL aurait redirigé
-      // sans réservation effective (fenêtre fermée, retour, etc.).
-      if (!confirm('Avez-vous bien finalisé et confirmé votre rendez-vous d’onboarding ?')) return;
-      (async () => {
-        try {
-          await fetch(`/api/onboarding?token=${token}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'call_booked', date: new Date().toISOString() }),
-          });
-          await fetchClient(token);
-        } catch { /* ignore */ }
-      })();
-    }
-  }, [callBookedParam, token, currentStep, fetchClient]);
+  // Note : le redirect GHL ?call_booked=true ne déclenche plus d'auto-confirm.
+  // Le client clique manuellement sur "J'ai réservé mon créneau" (pop-up de
+  // confirmation dans handleCallBooked) — un seul chemin de validation, pas de
+  // doublon entre auto-handler et bouton.
 
   const api = async (action: string, extra: Record<string, unknown> = {}) => {
     const r = await fetch(`/api/onboarding?token=${token}`, {
@@ -242,6 +230,7 @@ function OnboardingContent() {
 
   // Step 4: Book call
   const handleCallBooked = async () => {
+    if (!confirm('Avez-vous bien finalisé et confirmé votre rendez-vous d’onboarding ?')) return;
     setCalBooking(true);
     setError('');
     try {
