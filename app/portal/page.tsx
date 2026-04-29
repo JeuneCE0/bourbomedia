@@ -1022,7 +1022,12 @@ function PortalContent() {
                 if (!clientInfo.contract_signed_at) return 1; // current : Contrat
                 if (!clientInfo.paid_at) return 2;            // current : Paiement
                 if (!clientInfo.onboarding_call_booked) return 3; // current : Appel
-                return 3;
+                // Tous les flags onboarding sont OK mais le status n'a pas
+                // encore été flippé en 'onboarding_call' / 'script_writing'
+                // (race entre webhook GHL et refresh client) → on affiche
+                // déjà l'écriture du script comme étape courante pour ne
+                // pas figer l'utilisateur sur "Appel onboarding".
+                return 4;
               }
               return PROJECT_STAGES.findIndex(s => s.key === clientStatus);
             })();
