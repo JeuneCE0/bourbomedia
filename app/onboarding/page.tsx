@@ -1377,7 +1377,10 @@ function GhlBookingEmbed({ url, title, onLoad, prefill }: {
 
   const finalUrl = useMemo(() => buildGhlUrlWithPrefill(url, prefill), [url, prefill]);
   const calendarId = url.split('/').pop()?.split('?')[0] || 'calendar';
-  const iframeId = useMemo(() => `${calendarId}_${Date.now()}`, [calendarId]);
+  // useState avec initializer = Date.now() évalué une seule fois côté client
+  // (pas de mismatch SSR/hydratation, ID stable pour que form_embed.js puisse
+  // retrouver l'iframe par id et pousser ses resize messages).
+  const [iframeId] = useState(() => `${calendarId}_${Date.now()}`);
 
   return (
     <div style={{
