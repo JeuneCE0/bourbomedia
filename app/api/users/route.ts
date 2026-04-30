@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, hashPassword } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
-import crypto from 'crypto';
-
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
-}
 
 export async function GET(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });

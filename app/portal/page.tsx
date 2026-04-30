@@ -8,6 +8,7 @@ import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe
 import type { Annotation } from '@/components/ScriptAnnotator';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
 import TimestampedVideoPlayer from '@/components/TimestampedVideoPlayer';
+import GhlBookingEmbed from '@/components/GhlBookingEmbed';
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -2363,110 +2364,6 @@ function VideoEmbed({ url, thumbnail }: { url: string; thumbnail?: string }) {
         </div>
       </div>
     </a>
-  );
-}
-
-/* ── GHL booking widget embed ──────────────────────────────────────────── */
-// Mirrors the official GHL embed snippet exactly:
-//   <iframe scrolling="no" id="<calendarId>_<ts>" src="..." />
-//   <script src="https://link.msgsndr.com/js/form_embed.js"></script>
-// The form_embed.js script auto-resizes the iframe to fit its content.
-
-let formEmbedScriptLoaded = false;
-
-interface GhlPrefill {
-  contact_name?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  business_name?: string | null;
-}
-
-// Construit l'URL du widget GHL avec les paramètres de pré-remplissage. GHL
-// reconnaît first_name / last_name / email / phone / company_name au niveau
-// query-string et les injecte automatiquement dans le formulaire de
-// réservation — le client n'a plus à retaper ses infos qui sont déjà connues
-// côté plateforme. Sans prefill, l'URL est renvoyée telle quelle.
-function buildGhlUrlWithPrefill(url: string, prefill?: GhlPrefill): string {
-  if (!url || !prefill) return url;
-  const parts = (prefill.contact_name || '').trim().split(/\s+/).filter(Boolean);
-  const params = new URLSearchParams();
-  if (parts[0]) params.set('first_name', parts[0]);
-  if (parts.length > 1) params.set('last_name', parts.slice(1).join(' '));
-  if (prefill.email) params.set('email', prefill.email);
-  if (prefill.phone) params.set('phone', prefill.phone);
-  if (prefill.business_name) params.set('company_name', prefill.business_name);
-  const qs = params.toString();
-  if (!qs) return url;
-  return url + (url.includes('?') ? '&' : '?') + qs;
-}
-
-function GhlBookingEmbed({ url, title, onLoad, prefill }: {
-  url: string;
-  title: string;
-  onLoad?: () => void;
-  prefill?: GhlPrefill;
-}) {
-  // Inject the form_embed.js script once for the lifetime of the page
-  useEffect(() => {
-    if (formEmbedScriptLoaded) return;
-    if (typeof document === 'undefined') return;
-    const existing = document.querySelector('script[src="https://link.msgsndr.com/js/form_embed.js"]');
-    if (existing) { formEmbedScriptLoaded = true; return; }
-    const s = document.createElement('script');
-    s.src = 'https://link.msgsndr.com/js/form_embed.js';
-    s.type = 'text/javascript';
-    s.async = true;
-    document.body.appendChild(s);
-    formEmbedScriptLoaded = true;
-  }, []);
-
-  const finalUrl = useMemo(() => buildGhlUrlWithPrefill(url, prefill), [url, prefill]);
-
-  // Stable iframe id matching GHL's pattern (calendarId_timestamp). Le script
-  // form_embed.js retrouve l'iframe par id pour pousser les resize via
-  // postMessage — un id qui change à chaque render casse ce mécanisme et
-  // l'iframe reste figée à sa hauteur initiale, masquant les créneaux.
-  // useState avec initializer ⇒ Date.now() évalué une seule fois au mount
-  // côté client (pas de mismatch SSR/hydratation, pas de re-calcul si
-  // calendarId change vraiment — mais il ne change pas dans nos cas d'usage).
-  const calendarId = url.split('/').pop()?.split('?')[0] || 'calendar';
-  const [iframeId] = useState(() => `${calendarId}_${Date.now()}`);
-
-  return (
-    <div style={{
-      borderRadius: 14,
-      border: '1px solid var(--border-orange)',
-      background: '#fff',
-      minHeight: 720,
-      overflow: 'hidden',
-      boxShadow: '0 4px 20px rgba(232,105,43,.08)',
-    }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '10px 14px',
-        background: 'linear-gradient(135deg, rgba(232,105,43,.08), rgba(250,204,21,.04))',
-        borderBottom: '1px solid var(--border-md)',
-        fontSize: '0.78rem', color: 'var(--text-mid)', fontWeight: 600,
-      }}>
-        <span aria-hidden style={{ fontSize: '0.95rem' }}>📅</span>
-        <span>Calendrier BourbonMédia</span>
-        {prefill?.contact_name && (
-          <span style={{
-            marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500,
-          }}>
-            Pré-rempli pour <strong style={{ color: 'var(--orange)' }}>{prefill.contact_name}</strong>
-          </span>
-        )}
-      </div>
-      <iframe
-        id={iframeId}
-        src={finalUrl}
-        title={title}
-        scrolling="no"
-        onLoad={onLoad}
-        style={{ width: '100%', border: 'none', display: 'block', minHeight: 720, background: '#fff' }}
-      />
-    </div>
   );
 }
 

@@ -6,6 +6,12 @@ const SECRET = process.env.ADMIN_SECRET || 'bourbomedia-secret-change-me';
 const ADMIN_USER = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASSWORD || '';
 
+// Paramètres scrypt — N=2^14 reste rapide (~30ms) tout en étant ~100x plus
+// coûteux qu'un brute-force par dictionnaire sur sha256 nu. Si on monte la
+// charge admin, bumper r ou N plutôt que d'ajouter une nouvelle dep.
+const SCRYPT_KEY_LEN = 64;
+const SCRYPT_OPTS = { N: 1 << 14, r: 8, p: 1 } as const;
+
 export function createToken(sub: string = ADMIN_USER) {
   const payload = Buffer.from(JSON.stringify({
     sub,
@@ -39,8 +45,67 @@ export function requireAuth(req: NextRequest): boolean {
   return verifyToken(getTokenFromRequest(req));
 }
 
-function hashPassword(password: string): string {
+// ─────────────────────────────────────────────────────────────────────────
+// Password hashing
+//
+// Nouveau format (recommandé) : `scrypt$<salt-hex>$<hash-hex>` — KDF résistant
+// au brute-force avec salt unique par user.
+// Ancien format (legacy) : sha256 nu, 64 chars hex. Vulnérable aux rainbow
+// tables. On le supporte en lecture pour ne pas locker out les comptes
+// existants, et on upgrade automatiquement vers le nouveau format dès
+// qu'un user se connecte avec succès.
+// ─────────────────────────────────────────────────────────────────────────
+
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, SCRYPT_KEY_LEN, SCRYPT_OPTS).toString('hex');
+  return `scrypt$${salt}$${hash}`;
+}
+
+function legacyHashSha256(password: string): string {
   return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+// Detect le format et compare en constant-time. Retourne `{ ok, needsUpgrade }`
+// pour qu'au login le caller puisse réécrire le hash legacy au format scrypt.
+export function verifyPassword(password: string, stored: string): { ok: boolean; needsUpgrade: boolean } {
+  if (!stored) return { ok: false, needsUpgrade: false };
+
+  if (stored.startsWith('scrypt$')) {
+    const parts = stored.split('$');
+    if (parts.length !== 3) return { ok: false, needsUpgrade: false };
+    const [, salt, expectedHex] = parts;
+    try {
+      const computed = crypto.scryptSync(password, salt, SCRYPT_KEY_LEN, SCRYPT_OPTS);
+      const expected = Buffer.from(expectedHex, 'hex');
+      if (computed.length !== expected.length) return { ok: false, needsUpgrade: false };
+      const ok = crypto.timingSafeEqual(computed, expected);
+      return { ok, needsUpgrade: false };
+    } catch {
+      return { ok: false, needsUpgrade: false };
+    }
+  }
+
+  // Legacy sha256 (64 chars hex). Si match, on flag pour upgrade.
+  if (/^[0-9a-f]{64}$/.test(stored)) {
+    const computed = Buffer.from(legacyHashSha256(password), 'hex');
+    const expected = Buffer.from(stored, 'hex');
+    if (computed.length !== expected.length) return { ok: false, needsUpgrade: false };
+    const ok = crypto.timingSafeEqual(computed, expected);
+    return { ok, needsUpgrade: ok };
+  }
+
+  return { ok: false, needsUpgrade: false };
+}
+
+// Constant-ish delay sur échec d'authentification — slow brute force sans
+// dépendre d'infra Redis/KV. Pas un rate-limit propre mais transforme un
+// attaque par dictionnaire de millions de pwd/seconde en quelques par seconde.
+async function authFailureDelay(): Promise<void> {
+  // 250-450ms aléatoire pour ne pas révéler de timing differential entre
+  // "user pas trouvé" vs "mauvais mot de passe".
+  const ms = 250 + Math.floor(Math.random() * 200);
+  await new Promise(r => setTimeout(r, ms));
 }
 
 // Login flow accepts two sources :
@@ -61,16 +126,35 @@ export async function checkCredentials(username: string, password: string): Prom
       {},
       true,
     );
-    if (!r.ok) return { ok: false };
+    if (!r.ok) { await authFailureDelay(); return { ok: false }; }
     const rows = await r.json();
-    if (!Array.isArray(rows) || rows.length === 0) return { ok: false };
+    if (!Array.isArray(rows) || rows.length === 0) {
+      await authFailureDelay();
+      return { ok: false };
+    }
     const user = rows[0];
-    const expected = Buffer.from(user.password_hash, 'hex');
-    const provided = Buffer.from(hashPassword(password), 'hex');
-    if (expected.length !== provided.length) return { ok: false };
-    if (!crypto.timingSafeEqual(expected, provided)) return { ok: false };
+    const { ok, needsUpgrade } = verifyPassword(password, user.password_hash);
+    if (!ok) { await authFailureDelay(); return { ok: false }; }
+
+    // Upgrade transparent du hash legacy → scrypt au prochain login réussi.
+    // Best-effort : si la mise à jour échoue, l'auth réussit quand même
+    // (l'upgrade se retentera au prochain login).
+    if (needsUpgrade) {
+      try {
+        await supaFetch(`saas_users?id=eq.${user.id}`, {
+          method: 'PATCH',
+          headers: { 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            password_hash: hashPassword(password),
+            updated_at: new Date().toISOString(),
+          }),
+        }, true);
+      } catch { /* tolerate */ }
+    }
+
     return { ok: true, sub: user.email };
   } catch {
+    await authFailureDelay();
     return { ok: false };
   }
 }
