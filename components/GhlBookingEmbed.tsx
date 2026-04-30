@@ -53,6 +53,11 @@ function normalizeGhlCalendarUrl(input: string): string {
   return trimmed;
 }
 
+// Pattern qui matche les deux formats GHL valides en prod :
+//   /widget/booking/<id>      (ID interne 20-char alphanumérique)
+//   /widget/bookings/<slug>   (slug human-readable, avec tirets)
+const GHL_VALID_PATH_RE = /^https:\/\/api\.leadconnectorhq\.com\/widget\/bookings?\/[A-Za-z0-9_-]+/i;
+
 // Résout l'URL du calendrier de manière garantie : essaie d'abord la valeur
 // env (potentiellement mal configurée), tombe sur l'ID hardcodé en dernier
 // recours. Évite que le client tombe sur "Calendrier indisponible" si
@@ -62,11 +67,7 @@ export function resolveGhlCalendarUrl(envValue: string | undefined, fallbackId: 
   const fullFallback = `${GHL_WIDGET_HOST}/${fallbackId}`;
   if (!envValue) return fullFallback;
   const normalized = normalizeGhlCalendarUrl(envValue);
-  // Si après normalisation on a bien une URL widget GHL valide, on l'utilise.
-  if (/^https:\/\/api\.leadconnectorhq\.com\/widget\/booking\/[A-Za-z0-9]+/.test(normalized)) {
-    return normalized;
-  }
-  // Sinon : warn + fallback hardcodé.
+  if (GHL_VALID_PATH_RE.test(normalized)) return normalized;
   if (typeof console !== 'undefined') {
     console.warn(
       '[GhlBookingEmbed] Env var calendrier mal configurée, fallback sur ID interne. Valeur reçue :',
@@ -120,7 +121,9 @@ export default function GhlBookingEmbed({ url, title, onLoad, prefill }: {
   // normalisation, on affiche un fallback côté admin plutôt que de laisser
   // l'iframe charger une URL qui résout en interne sur notre /not-found
   // (le client verrait un "404 Page introuvable" dans le calendrier).
-  const looksValid = /^https:\/\/api\.leadconnectorhq\.com\/widget\/booking\//i.test(finalUrl);
+  // Accepte /widget/booking/<id> ET /widget/bookings/<slug> (les deux
+  // formats valides côté GHL).
+  const looksValid = GHL_VALID_PATH_RE.test(finalUrl);
   if (!looksValid) {
     return (
       <div style={{
