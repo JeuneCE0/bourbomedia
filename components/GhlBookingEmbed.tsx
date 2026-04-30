@@ -27,28 +27,54 @@ export interface GhlPrefill {
   business_name?: string | null;
 }
 
+const GHL_WIDGET_HOST = 'https://api.leadconnectorhq.com/widget/booking';
+
 // Normalise une valeur d'URL de calendrier GHL. Tolère les configs Vercel
-// où l'admin aurait collé juste l'ID (ex : "RRDC3HvypJEIvLxjy3Gg") au lieu
-// de l'URL widget complète, ou même un path relatif. Sans cette normalisation,
-// l'iframe charge `https://bourbonmedia.fr/<valeur>` qui résout vers notre
-// own /not-found.tsx — ce que le client voit alors comme un "404" dans le
-// calendrier.
+// où l'admin aurait collé juste l'ID, un path relatif, ou une URL sans
+// protocol. Sans cette normalisation, l'iframe charge
+// `https://bourbonmedia.fr/<valeur>` qui résout vers notre own /not-found.tsx
+// — ce que le client voit alors comme un "404" dans le calendrier.
 function normalizeGhlCalendarUrl(input: string): string {
-  if (!input) return input;
+  if (!input) return '';
   const trimmed = input.trim();
-  // Déjà une URL absolue HTTPS → on suppose que c'est correct.
+  if (!trimmed) return '';
+  // URL absolue HTTPS → on suppose que c'est correct.
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  // ID GHL pur (alpha-num, ~20 chars) → on préfixe avec le widget endpoint.
-  if (/^[A-Za-z0-9]{15,32}$/.test(trimmed)) {
-    return `https://api.leadconnectorhq.com/widget/booking/${trimmed}`;
-  }
-  // Path qui ressemble à `/widget/booking/<id>` → préfixe avec le host.
-  if (trimmed.startsWith('/widget/booking/')) {
-    return `https://api.leadconnectorhq.com${trimmed}`;
-  }
-  // Cas fail-safe : on renvoie tel quel et le composant affichera un état
-  // d'erreur (cf. check `looksValid` dans le render).
+  // URL absolue sans protocol (//api.leadconnectorhq.com/...) → préfixe https.
+  if (trimmed.startsWith('//')) return `https:${trimmed}`;
+  // Host GHL sans protocol (api.leadconnectorhq.com/widget/booking/<id>).
+  if (trimmed.startsWith('api.leadconnectorhq.com/')) return `https://${trimmed}`;
+  // Path /widget/booking/<id> → préfixe avec le host.
+  if (trimmed.startsWith('/widget/booking/')) return `https://api.leadconnectorhq.com${trimmed}`;
+  // ID GHL pur (alphanumérique, 15-32 chars) → préfixe widget endpoint complet.
+  if (/^[A-Za-z0-9]{15,32}$/.test(trimmed)) return `${GHL_WIDGET_HOST}/${trimmed}`;
+  // Cas fail-safe : on renvoie tel quel ; le check looksValid dans le render
+  // déclenchera le fallback.
   return trimmed;
+}
+
+// Pattern qui matche les deux formats GHL valides en prod :
+//   /widget/booking/<id>      (ID interne 20-char alphanumérique)
+//   /widget/bookings/<slug>   (slug human-readable, avec tirets)
+const GHL_VALID_PATH_RE = /^https:\/\/api\.leadconnectorhq\.com\/widget\/bookings?\/[A-Za-z0-9_-]+/i;
+
+// Résout l'URL du calendrier de manière garantie : essaie d'abord la valeur
+// env (potentiellement mal configurée), tombe sur l'ID hardcodé en dernier
+// recours. Évite que le client tombe sur "Calendrier indisponible" si
+// l'env Vercel est mal saisie. Logue un warning console pour que l'admin
+// voit le souci en DevTools.
+export function resolveGhlCalendarUrl(envValue: string | undefined, fallbackId: string): string {
+  const fullFallback = `${GHL_WIDGET_HOST}/${fallbackId}`;
+  if (!envValue) return fullFallback;
+  const normalized = normalizeGhlCalendarUrl(envValue);
+  if (GHL_VALID_PATH_RE.test(normalized)) return normalized;
+  if (typeof console !== 'undefined') {
+    console.warn(
+      '[GhlBookingEmbed] Env var calendrier mal configurée, fallback sur ID interne. Valeur reçue :',
+      envValue,
+    );
+  }
+  return fullFallback;
 }
 
 function buildGhlUrlWithPrefill(url: string, prefill?: GhlPrefill): string {
@@ -95,7 +121,9 @@ export default function GhlBookingEmbed({ url, title, onLoad, prefill }: {
   // normalisation, on affiche un fallback côté admin plutôt que de laisser
   // l'iframe charger une URL qui résout en interne sur notre /not-found
   // (le client verrait un "404 Page introuvable" dans le calendrier).
-  const looksValid = /^https:\/\/api\.leadconnectorhq\.com\/widget\/booking\//i.test(finalUrl);
+  // Accepte /widget/booking/<id> ET /widget/bookings/<slug> (les deux
+  // formats valides côté GHL).
+  const looksValid = GHL_VALID_PATH_RE.test(finalUrl);
   if (!looksValid) {
     return (
       <div style={{

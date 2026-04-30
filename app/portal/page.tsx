@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import type { Stripe } from '@stripe/stripe-js';
 import type { Annotation } from '@/components/ScriptAnnotator';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
-import GhlBookingEmbed from '@/components/GhlBookingEmbed';
+import GhlBookingEmbed, { resolveGhlCalendarUrl } from '@/components/GhlBookingEmbed';
 
 // Stripe SDK chargé à la demande la 1ère fois que PaymentStep est rendu :
 // avant ça, ~150KB de JS Stripe ne sont jamais téléchargés (gain énorme
@@ -2030,8 +2030,10 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
   clientInfo: ClientDelivery | null;
   onConfirmed: () => void;
 }) {
-  const calendarUrl = process.env.NEXT_PUBLIC_GHL_PUBLICATION_CALENDAR_URL
-    || 'https://api.leadconnectorhq.com/widget/booking/RRDC3HvypJEIvLxjy3Gg';
+  const calendarUrl = resolveGhlCalendarUrl(
+    process.env.NEXT_PUBLIC_GHL_PUBLICATION_CALENDAR_URL,
+    'RRDC3HvypJEIvLxjy3Gg',
+  );
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [showButton, setShowButton] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -2146,8 +2148,10 @@ function FilmingBookingPanel({ token, clientInfo, onConfirmed, actionLoading }: 
   // Calendrier de tournage GHL. Le fallback générique NEXT_PUBLIC_GHL_CALENDAR_URL
   // remontait l'agenda d'onboarding par erreur quand GHL_FILMING_CALENDAR_URL n'était
   // pas configurée — on default désormais sur l'ID GHL du calendrier tournage.
-  const calendarUrl = process.env.NEXT_PUBLIC_GHL_FILMING_CALENDAR_URL
-    || 'https://api.leadconnectorhq.com/widget/booking/vKw4x99jCNnZnl5FuSig';
+  const calendarUrl = resolveGhlCalendarUrl(
+    process.env.NEXT_PUBLIC_GHL_FILMING_CALENDAR_URL,
+    'vKw4x99jCNnZnl5FuSig',
+  );
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [showButton, setShowButton] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -2895,9 +2899,10 @@ function ScriptVersionPills({ token, currentVersion, currentContent }: {
 
 function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDelivery | null; token: string | null; onRefresh: () => void }) {
   const status = clientInfo?.status || 'script_writing';
-  const onboardingCalendarUrl = process.env.NEXT_PUBLIC_GHL_ONBOARDING_CALENDAR_URL
-    || process.env.NEXT_PUBLIC_GHL_CALENDAR_URL
-    || 'https://api.leadconnectorhq.com/widget/booking/2fmSZkWpwEulfZsvpPmh';
+  const onboardingCalendarUrl = resolveGhlCalendarUrl(
+    process.env.NEXT_PUBLIC_GHL_ONBOARDING_CALENDAR_URL || process.env.NEXT_PUBLIC_GHL_CALENDAR_URL,
+    '2fmSZkWpwEulfZsvpPmh',
+  );
 
   // 1. Onboarding — driven par les flags, pas par le status :
   //    !contract_signed_at  → signature du contrat (iframe inline)
