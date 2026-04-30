@@ -336,6 +336,11 @@ export function ClientsListView() {
     setSelected(new Set());
     setBulkSaving(false);
     loadClients();
+    // Notifie PipelineOnboarding/Kanban onboarding qu'un batch de clients a
+    // changé de statut, pour qu'ils re-fetch sans refresh manuel.
+    if (typeof window !== 'undefined' && ok > 0) {
+      window.dispatchEvent(new CustomEvent('bbm-clients-changed', { detail: { reason: 'bulk_status' } }));
+    }
   }
 
   async function bulkArchive() {
@@ -369,6 +374,11 @@ export function ClientsListView() {
     setSelected(new Set());
     setBulkSaving(false);
     loadClients();
+    // Notifie PipelineOnboarding/Kanban onboarding pour qu'ils retirent les
+    // clients archivés sans nécessiter de refresh manuel.
+    if (typeof window !== 'undefined' && ok > 0) {
+      window.dispatchEvent(new CustomEvent('bbm-clients-changed', { detail: { reason: 'bulk_archive' } }));
+    }
   }
 
   function bulkExportCSV() {
