@@ -912,10 +912,11 @@ function PortalContent() {
 
   // Étapes "calendrier uniquement" : on n'affiche que la timeline + le calendrier
   // pertinent. Pas d'onglets vidéo/feedback/etc. qui distrairaient de l'action
-  // attendue (réserver le créneau).
+  // attendue (réserver le créneau). Cohérent avec la condition d'affichage du
+  // PublicationDatePicker — on ne dépend plus de hasDelivery pour ne pas
+  // bloquer le client si la vidéo n'a pas été propagée.
   const isPublicationCalendarOnly =
-    hasDelivery
-    && (clientInfo?.video_validated_at || clientStatus === 'publication_pending')
+    (clientInfo?.video_validated_at || clientStatus === 'publication_pending')
     && !clientInfo?.publication_date_confirmed;
 
   return (
@@ -1261,9 +1262,14 @@ function PortalContent() {
           />
         )}
 
-        {/* Publication date picker — Tuesdays / Thursdays only */}
-        {hasDelivery
-          && (clientInfo?.video_validated_at || clientInfo?.status === 'publication_pending')
+        {/* Publication date picker — Tuesdays / Thursdays only.
+            On ne dépend plus de hasDelivery : le client doit pouvoir choisir
+            sa date de publication même si la vidéo n'est pas physiquement
+            visible côté portal (ex : admin a posé status=publication_pending
+            avant que le video_url ne soit propagé, ou cas edge post-rollback).
+            Les conditions sémantiques video_validated_at OU status restent
+            les seules nécessaires pour autoriser la prise de créneau. */}
+        {(clientInfo?.video_validated_at || clientInfo?.status === 'publication_pending')
           && !clientInfo?.publication_date_confirmed && (
           <PublicationDatePicker
             token={token!}
