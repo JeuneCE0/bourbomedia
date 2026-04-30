@@ -297,15 +297,18 @@ function computeNextAction(
   // que la vidéo soit physiquement visible côté portail (cas dégradé / rollback admin),
   // le client doit quand même voir le bon CTA "Choisissez votre date de publication"
   // au lieu de retomber dans une branche script/tournage trompeuse.
+  // "Réellement confirmé" : le flag DOIT être accompagné d'une deadline.
+  // Sinon (cas d'auto-confirm parasite), on continue à proposer le picker.
+  const pubReallyConfirmed = !!(client?.publication_date_confirmed && client?.publication_deadline);
   if ((client?.video_validated_at || client?.status === 'publication_pending')
-      && !client?.publication_date_confirmed) {
+      && !pubReallyConfirmed) {
     const nextSlot = nextPublicationSlot(new Date());
     return {
       pill: { tone: 'orange', emoji: '🗓️', label: 'Choisissez votre date de publication' },
       description: `Sélectionnez le mardi ou le jeudi de votre choix. Plus tôt disponible : ${fmtDate(nextSlot)}.`,
     };
   }
-  if (hasDelivery && !hasFeedback && client?.publication_date_confirmed) {
+  if (hasDelivery && !hasFeedback && pubReallyConfirmed) {
     return {
       pill: { tone: 'orange', emoji: '⭐', label: 'Donnez-nous votre avis' },
       description: 'Votre vidéo est planifiée — on aimerait beaucoup connaître votre ressenti.',
@@ -1004,9 +1007,13 @@ function PortalContent() {
   // attendue (réserver le créneau). Cohérent avec la condition d'affichage du
   // PublicationDatePicker — on ne dépend plus de hasDelivery pour ne pas
   // bloquer le client si la vidéo n'a pas été propagée.
+  // "Réellement confirmé" = flag ET deadline set. Si publication_date_confirmed
+  // est seul (sans deadline), c'est une fausse confirmation (typiquement une
+  // auto-confirm GHL qui a misfire) — on traite comme non confirmé.
+  const publicationReallyConfirmed = !!(clientInfo?.publication_date_confirmed && clientInfo?.publication_deadline);
   const isPublicationCalendarOnly =
     (clientInfo?.video_validated_at || clientStatus === 'publication_pending')
-    && !clientInfo?.publication_date_confirmed;
+    && !publicationReallyConfirmed;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -1359,7 +1366,7 @@ function PortalContent() {
             Les conditions sémantiques video_validated_at OU status restent
             les seules nécessaires pour autoriser la prise de créneau. */}
         {(clientInfo?.video_validated_at || clientInfo?.status === 'publication_pending')
-          && !clientInfo?.publication_date_confirmed && (
+          && !publicationReallyConfirmed && (
           <PublicationDatePicker
             token={token!}
             clientInfo={clientInfo}
@@ -3249,7 +3256,9 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
   // date de publication directement plutôt que la fallback générique
   // "Votre script est en préparation" qui serait trompeuse.
   if (status === 'publication_pending' && token) {
-    if (clientInfo?.publication_date_confirmed) {
+    // Réellement confirmée = flag ET deadline set (cf. recovery sur fausse
+    // auto-confirm GHL qui set le flag sans deadline).
+    if (clientInfo?.publication_date_confirmed && clientInfo?.publication_deadline) {
       return (
         <NoScriptShell
           clientInfo={clientInfo}
