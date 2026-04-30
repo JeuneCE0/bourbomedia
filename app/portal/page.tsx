@@ -848,7 +848,13 @@ function PortalContent() {
   const visibleVideos = clientInfo?.publication_date_confirmed
     ? deliveredVideos.slice(0, 1)
     : deliveredVideos;
-  const hasDelivery = visibleVideos.length > 0 || (clientInfo?.delivered_at && clientInfo.video_url);
+  // Gate hasDelivery par le status courant : si l'admin a rétrogradé le client
+  // à une étape pré-livraison (script_writing / script_validated), les rows
+  // 'delivered' de la table videos ne doivent pas remonter côté client. On
+  // n'expose la vidéo qu'à partir des étapes où elle est attendue (review →
+  // publication → publié).
+  const isPostDelivery = ['video_review', 'publication_pending', 'published'].includes(clientInfo?.status || '');
+  const hasDelivery = isPostDelivery && (visibleVideos.length > 0 || (clientInfo?.delivered_at && clientInfo.video_url));
   const clientStatus = clientInfo?.status || '';
 
   // Étapes "calendrier uniquement" : on n'affiche que la timeline + le calendrier

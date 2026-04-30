@@ -181,22 +181,23 @@ export async function PUT(req: NextRequest) {
         fields.video_validated_at = null;
         fields.video_review_comment = null;
         fields.video_changes_requested = false;
-      }
-      // Step 7 ou avant (pré-livraison vidéo)
-      if (ns < 7) {
         fields.video_url = null;
         fields.video_thumbnail_url = null;
         fields.delivered_at = null;
         fields.delivery_notes = null;
-        // On ne touche PAS les rows de la table videos (statut 'delivered'/'draft'
-        // CHECK contraint, pas d'archive). Le portail short-circuite via le test
-        // earlyOnboarding (status='onboarding'/'onboarding_call') donc les vidéos
-        // ne s'affichent pas pour le client. Si l'admin re-promote plus tard,
-        // les vidéos d'origine sont toujours en DB.
+        // Les rows de la table videos restent intactes — la vue admin
+        // continue d'afficher l'historique des livraisons. Côté portail
+        // client, on gate hasDelivery par le client.status ; tant que le
+        // statut est antérieur à video_review, les vidéos livrées ne sont
+        // pas exposées au client (cf. portal/page.tsx).
       }
-      // Status revient à un statut early-onboarding
+      // Status mapping complet : reflète le step de destination, sinon le
+      // portail garderait l'ancien statut ('published') et n'afficherait pas
+      // l'écran du nouveau step.
       if (ns < 5) fields.status = 'onboarding';
-      else if (ns < 6) fields.status = 'script_writing';
+      else if (ns === 5) fields.status = 'script_writing';
+      else if (ns === 6) fields.status = 'script_validated';
+      else if (ns === 7) fields.status = 'publication_pending';
     }
 
     const r = await supaFetch(`clients?id=eq.${id}`, {

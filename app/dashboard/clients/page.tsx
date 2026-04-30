@@ -323,39 +323,25 @@ export function ClientsListView() {
     loadClients();
   }
 
-  async function bulkDelete() {
+  async function bulkArchive() {
     if (selected.size === 0) return;
     const subset = clients.filter(c => selected.has(c.id));
     const names = subset.slice(0, 3).map(c => c.business_name).join(', ');
     const more = subset.length > 3 ? ` et ${subset.length - 3} autre(s)` : '';
-    const first = confirm(
-      `⚠️ Vous allez supprimer DÉFINITIVEMENT :\n\n${names}${more}\n\n(${subset.length} client${subset.length > 1 ? 's' : ''} au total)\n\nCette action est IRRÉVERSIBLE. Continuer ?`
-    );
-    if (!first) return;
-    // Garde-fou contre les clics accidentels : on demande un mot-clé universel
-    // (au lieu de retaper le nom exact, qui était trop strict — accents, casse,
-    // espaces faisaient échouer la suppression silencieusement). Le user a
-    // déjà confirmé le 1er popup, donc on garde un 2e niveau mais facile.
-    const confirmation = prompt(
-      `Pour confirmer la suppression définitive de ${subset.length} client${subset.length > 1 ? 's' : ''}, tapez :\n\nSUPPRIMER`
-    );
-    const normalized = (confirmation || '').trim().toUpperCase();
-    if (normalized !== 'SUPPRIMER') {
-      notify('error', 'Suppression annulée — il fallait taper exactement « SUPPRIMER ».');
-      return;
-    }
+    if (!confirm(
+      `📦 Archiver ${subset.length} client${subset.length > 1 ? 's' : ''} ?\n\n${names}${more}\n\nLes fiches client disparaîtront du pipeline onboarding et de la liste, mais l'historique commercial et l'opportunité GHL liée restent intacts. Cette action est réversible (l'admin peut restaurer depuis la fiche archivée).`,
+    )) return;
     setBulkSaving(true);
     let ok = 0, fail = 0;
     let lastErr = '';
     for (const id of selected) {
       try {
-        // hard:true → suppression définitive en DB. Le confirm UI promet
-        // "DÉFINITIVEMENT" et les FK clients(id) sont déjà ON DELETE CASCADE
-        // (scripts/videos/payments/etc.) ou SET NULL (gh_appointments,
-        // gh_opportunities), donc pas de violation de contrainte.
+        // Soft delete (hard:false par défaut) → marque archived_at = now().
+        // L'opportunité GHL liée et l'historique commercial restent intacts —
+        // le client disparaît juste des vues onboarding / liste clients.
         const r = await fetch('/api/clients', {
           method: 'DELETE', headers: authHeaders(),
-          body: JSON.stringify({ id, hard: true }),
+          body: JSON.stringify({ id }),
         });
         if (r.ok) ok++;
         else { fail++; lastErr = await r.text().catch(() => ''); }
@@ -363,7 +349,7 @@ export function ClientsListView() {
     }
     notify(
       fail > 0 ? 'error' : 'success',
-      `${ok} supprimé(s)${fail > 0 ? `, ${fail} échec(s)${lastErr ? ` — ${lastErr.slice(0, 120)}` : ''}` : ''}`,
+      `${ok} archivé(s)${fail > 0 ? `, ${fail} échec(s)${lastErr ? ` — ${lastErr.slice(0, 120)}` : ''}` : ''}`,
     );
     setSelected(new Set());
     setBulkSaving(false);
@@ -790,7 +776,7 @@ export function ClientsListView() {
             {Object.entries(STATUS_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
           <button onClick={bulkExportCSV} disabled={bulkSaving} style={bulkBtnStyle('var(--text-mid)')}>⬇️ Exporter</button>
-          <button onClick={bulkDelete} disabled={bulkSaving} style={bulkBtnStyle('var(--red)')}>🗑️ Supprimer</button>
+          <button onClick={bulkArchive} disabled={bulkSaving} style={bulkBtnStyle('var(--orange)')}>📦 Archiver</button>
           <button onClick={() => setSelected(new Set())} style={{
             ...bulkBtnStyle('var(--text-muted)'), background: 'transparent', border: '1px solid var(--border-md)',
           }}>Annuler</button>

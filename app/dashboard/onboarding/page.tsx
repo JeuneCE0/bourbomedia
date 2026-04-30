@@ -193,30 +193,18 @@ export default function OnboardingDashboardPage() {
     await loadClients();
   }, [selected, clients, loadClients]);
 
-  // Bulk : suppression DÉFINITIVE des clients sélectionnés (hard delete via
-  // /api/clients DELETE { hard: true }). Mirror du pattern de la page
-  // /dashboard/clients : double confirmation + retape du nom pour éviter les
-  // accidents. Les FK clients(id) sont soit ON DELETE CASCADE soit SET NULL,
-  // donc pas de violation de contrainte.
-  const bulkDelete = useCallback(async () => {
+  // Bulk : archivage doux des clients sélectionnés (soft delete via
+  // /api/clients DELETE sans hard:true → archived_at = now()). L'opportunité
+  // GHL et l'historique commercial restent intacts ; les fiches disparaissent
+  // simplement des vues onboarding / liste clients et peuvent être restaurées.
+  const bulkArchive = useCallback(async () => {
     if (selected.size === 0) return;
     const subset = clients.filter(c => selected.has(c.id));
     const names = subset.slice(0, 3).map(c => c.business_name).join(', ');
     const more = subset.length > 3 ? ` et ${subset.length - 3} autre(s)` : '';
-    const first = window.confirm(
-      `⚠️ Vous allez supprimer DÉFINITIVEMENT :\n\n${names}${more}\n\n(${subset.length} client${subset.length > 1 ? 's' : ''} au total)\n\nLa fiche client, l'historique et l'opportunité GHL liée seront supprimés. Cette action est IRRÉVERSIBLE. Continuer ?`,
-    );
-    if (!first) return;
-    const expected = subset.length === 1 ? subset[0].business_name : `SUPPRIMER ${subset.length}`;
-    const confirmation = window.prompt(
-      subset.length === 1
-        ? `Pour confirmer la suppression de "${expected}", retapez son nom exact ci-dessous :`
-        : `Pour confirmer la suppression de ${subset.length} clients, tapez :\n\n${expected}`,
-    );
-    if (confirmation?.trim() !== expected) {
-      window.alert('Suppression annulée — la confirmation ne correspond pas.');
-      return;
-    }
+    if (!window.confirm(
+      `📦 Archiver ${subset.length} client${subset.length > 1 ? 's' : ''} ?\n\n${names}${more}\n\nLes fiches disparaissent du pipeline mais l'historique reste. Action réversible.`,
+    )) return;
     setBulkSaving(true);
     let ok = 0, fail = 0;
     let lastErr = '';
@@ -224,7 +212,7 @@ export default function OnboardingDashboardPage() {
       try {
         const r = await fetch('/api/clients', {
           method: 'DELETE', headers: authHeaders(),
-          body: JSON.stringify({ id, hard: true }),
+          body: JSON.stringify({ id }),
         });
         if (r.ok) ok++;
         else { fail++; lastErr = await r.text().catch(() => ''); }
@@ -233,7 +221,7 @@ export default function OnboardingDashboardPage() {
     setSelected(new Set());
     setBulkSaving(false);
     if (fail > 0) {
-      window.alert(`${ok} supprimé(s), ${fail} échec(s)${lastErr ? ` — ${lastErr.slice(0, 200)}` : ''}`);
+      window.alert(`${ok} archivé(s), ${fail} échec(s)${lastErr ? ` — ${lastErr.slice(0, 200)}` : ''}`);
     }
     await loadClients();
   }, [selected, clients, loadClients]);
@@ -390,16 +378,16 @@ export default function OnboardingDashboardPage() {
             🗑 Retirer du parcours
           </button>
           <button
-            onClick={bulkDelete}
+            onClick={bulkArchive}
             disabled={bulkSaving}
             style={{
               padding: '8px 14px', borderRadius: 8,
-              background: 'rgba(239,68,68,.14)', border: '1px solid rgba(239,68,68,.5)',
-              color: 'var(--red)', fontSize: '0.84rem', fontWeight: 700,
+              background: 'rgba(232,105,43,.14)', border: '1px solid rgba(232,105,43,.5)',
+              color: 'var(--orange)', fontSize: '0.84rem', fontWeight: 700,
               cursor: bulkSaving ? 'wait' : 'pointer',
             }}
           >
-            ❌ Supprimer définitivement
+            📦 Archiver
           </button>
           <button
             onClick={clearSelection}
