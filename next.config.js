@@ -1,3 +1,10 @@
+// Bundle analyzer : activé via ANALYZE=true npm run build pour générer
+// les rapports HTML dans .next/analyze. Permet d'identifier les chunks
+// lourds à lazy-loader. No-op en dev/prod normaux.
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // trailingSlash:true ⇒ canonique = avec slash final (ex: /onboarding/).
@@ -87,4 +94,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withBundleAnalyzer(nextConfig);

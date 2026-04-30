@@ -45,5 +45,8 @@
     "tailwindcss": "^4.2.4",
     "typescript": "^6.0.3",
     "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.4"
   }
 }
