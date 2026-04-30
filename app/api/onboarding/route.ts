@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { requireAuth, hashPassword, verifyPassword } from '@/lib/auth';
 import { createEmbeddedCheckoutSession } from '@/lib/stripe';
-import { findContractTemplateId, sendDocumentFromTemplate, getDocumentStatus, createGhlContact, findGhlContactByEmailOrPhone, findSignedDocumentByContact } from '@/lib/ghl';
+import { findGhlContactByEmailOrPhone } from '@/lib/ghl';
 import { notifyClientStatusChange } from '@/lib/slack';
 import crypto from 'crypto';
 
@@ -120,45 +120,9 @@ export async function POST(req: NextRequest) {
   if (!clients.length) return NextResponse.json({ error: 'Token invalide' }, { status: 401 });
   const client = clients[0];
 
-  // Step 2: Initiate contract signing via GHL Documents
-  if (action === 'init_contract') {
-    try {
-      const templateId = await findContractTemplateId();
-      if (!templateId) return NextResponse.json({ error: 'Modèle de contrat introuvable dans GHL' }, { status: 400 });
-
-      // Create GHL contact if not already linked
-      let ghlContactId = client.ghl_contact_id;
-      if (!ghlContactId) {
-        const nameParts = client.contact_name.trim().split(' ');
-        ghlContactId = await createGhlContact({
-          firstName: nameParts[0],
-          lastName: nameParts.slice(1).join(' ') || nameParts[0],
-          email: client.email,
-          phone: client.phone || undefined,
-          companyName: client.business_name,
-        });
-        await supaFetch(`clients?id=eq.${client.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ ghl_contact_id: ghlContactId }),
-        }, true);
-      }
-
-      const ghlUserId = process.env.GHL_USER_ID || '';
-      const result = await sendDocumentFromTemplate(templateId, ghlContactId, ghlUserId);
-
-      await supaFetch(`clients?id=eq.${client.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          contract_yousign_id: result.documentId,
-          contract_signature_link: result.signingUrl,
-        }),
-      }, true);
-
-      return NextResponse.json({ signatureLink: result.signingUrl, documentId: result.documentId });
-    } catch (e: unknown) {
-      return NextResponse.json({ error: (e as Error).message }, { status: 500 });
-    }
-  }
+  // (init_contract retiré : action plus appelée depuis le strip du funnel
+  // /onboarding inline. Le portail utilise désormais directement
+  // NEXT_PUBLIC_GHL_CONTRACT_URL en iframe, sans passer par GHL Documents.)
 
   // Step 2: Client confirms contract signed
   if (action === 'check_contract') {
@@ -218,29 +182,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
-  // Step 6: Confirm filming date
-  if (action === 'confirm_filming') {
-    await supaFetch(`clients?id=eq.${client.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ filming_date_confirmed: true, onboarding_step: 7 }),
-    }, true);
-    notifyClientStatusChange(client.business_name, 'Étape 6', 'Date de tournage confirmée');
-    return NextResponse.json({ success: true });
-  }
-
-  // Step 7: Confirm publication date
-  if (action === 'confirm_publication') {
-    await supaFetch(`clients?id=eq.${client.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        publication_date_confirmed: true,
-        onboarding_step: 8,
-        status: 'filming_scheduled',
-      }),
-    }, true);
-    notifyClientStatusChange(client.business_name, 'Étape 7', 'Onboarding terminé — tournage planifié');
-    return NextResponse.json({ success: true });
-  }
+  // (confirm_filming et confirm_publication retirés : ces actions étaient
+  // appelées depuis les steps 6/7 du funnel /onboarding inline qui a été
+  // strippé. Le portail utilise désormais /api/scripts confirm_filming_booked
+  // et confirm_publication_date qui font le même travail avec en plus la
+  // validation jour-de-semaine + détection de conflits sur la deadline.)
 
   return NextResponse.json({ error: 'Action inconnue' }, { status: 400 });
 }
