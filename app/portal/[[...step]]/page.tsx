@@ -2197,20 +2197,29 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const justBooked = useJustBookedFromGhl();
+  const pathnameHook = usePathname() || '';
   const autoConfirmRef = useRef(false);
+  // Slug-gate : on auto-confirm UNIQUEMENT si l'URL slug correspond à un
+  // calendrier de publication. Sinon (ex : retour d'un widget tournage), on
+  // ne touche pas publication_date_confirmed → évite les fausses
+  // confirmations qui cachent ensuite le picker légitime.
+  const slugMatchesPublication = pathnameHook.includes('/publication/')
+    || pathnameHook.includes('/publie/')
+    || pathnameHook.includes('/publi/');
 
-  // Auto-confirm si le client revient de GHL après avoir choisi sa date pub.
-  // Évite la boucle "calendrier qui re-show parce que la DB n'a pas encore
-  // été mise à jour par le webhook".
+  // Auto-confirm si le client revient de GHL APRÈS avoir choisi sa date pub
+  // ET que l'URL slug correspond. Évite la boucle "calendrier qui re-show
+  // parce que la DB n'a pas encore été mise à jour par le webhook".
   useEffect(() => {
     if (!justBooked || autoConfirmRef.current) return;
+    if (!slugMatchesPublication) return;
     autoConfirmRef.current = true;
     setSubmitting(true);
     fetch(`/api/scripts?token=${token}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'confirm_publication_date' }),
     }).then(() => onConfirmed()).catch(() => null).finally(() => setSubmitting(false));
-  }, [justBooked, token, onConfirmed]);
+  }, [justBooked, slugMatchesPublication, token, onConfirmed]);
 
   // Bouton de confirmation 30s après le chargement de l'iframe (cohérent avec
   // FilmingBookingPanel et l'appel onboarding) — laisse le temps au client de
@@ -2227,8 +2236,13 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
   // signal admin que la vidéo est implicitement validée — on affiche le
   // calendrier même si video_validated_at n'a jamais été set côté client.
   if (!clientInfo?.video_validated_at && clientInfo?.status !== 'publication_pending') return null;
-  if (clientInfo?.publication_date_confirmed) return null;
-  if (justBooked) return <BookingConfirmedShell label="Date de publication" />;
+  // "Réellement" confirmé = le flag ET la deadline sont set. Si publication_
+  // date_confirmed=true mais publication_deadline=null, c'est un état corrompu
+  // (probablement une fausse auto-confirm sur un retour GHL d'un autre
+  // calendrier) — on traite comme non-confirmé pour ré-afficher le picker.
+  const reallyConfirmed = !!(clientInfo?.publication_date_confirmed && clientInfo?.publication_deadline);
+  if (reallyConfirmed) return null;
+  if (justBooked && slugMatchesPublication) return <BookingConfirmedShell label="Date de publication" />;
 
   async function confirmDate() {
     if (!window.confirm('Avez-vous bien finalisé et confirmé votre date de publication ?')) return;
@@ -2331,7 +2345,12 @@ function FilmingBookingPanel({ token, clientInfo, onConfirmed, actionLoading }: 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const justBooked = useJustBookedFromGhl();
+  const pathnameHookF = usePathname() || '';
   const autoConfirmRef = useRef(false);
+  // Slug-gate : auto-confirm uniquement si l'URL pointe sur un calendrier
+  // de tournage. Évite les fausses confirmations quand le client revient
+  // de GHL pour un autre type de booking (publication, appel, etc.).
+  const slugMatchesFilming = pathnameHookF.includes('/tournage/');
 
   // Auto-confirm + auto-refresh si le client revient de GHL après booking :
   // sans ça, GHL redirige vers /portal/tournage/ → la page re-render le
@@ -2340,13 +2359,14 @@ function FilmingBookingPanel({ token, clientInfo, onConfirmed, actionLoading }: 
   // apparaître). Détection via document.referrer pointant sur le widget GHL.
   useEffect(() => {
     if (!justBooked || autoConfirmRef.current) return;
+    if (!slugMatchesFilming) return;
     autoConfirmRef.current = true;
     setSubmitting(true);
     fetch(`/api/scripts?token=${token}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'confirm_filming_booked' }),
     }).then(() => onConfirmed()).catch(() => null).finally(() => setSubmitting(false));
-  }, [justBooked, token, onConfirmed]);
+  }, [justBooked, slugMatchesFilming, token, onConfirmed]);
 
   // Show "I booked" button 30s after iframe loads — laisse le temps au client
   // de finaliser dans GHL et au webhook de propager. Cohérent avec l'appel onboarding.
@@ -2360,7 +2380,7 @@ function FilmingBookingPanel({ token, clientInfo, onConfirmed, actionLoading }: 
 
   // Si on vient de GHL, on n'affiche pas le calendrier (sinon UX boucle) —
   // on bascule sur un écran "Réservation enregistrée, confirmation en cours".
-  if (justBooked) {
+  if (justBooked && slugMatchesFilming) {
     return <BookingConfirmedShell label="Tournage" />;
   }
 
@@ -3298,20 +3318,26 @@ function OnboardingCallStep({ token, calendarUrl, clientInfo, onBooked }: {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const justBooked = useJustBookedFromGhl();
+  const pathnameHookO = usePathname() || '';
   const autoConfirmRef = useRef(false);
+  // Slug-gate : auto-confirm uniquement si l'URL pointe sur l'appel
+  // onboarding (script-wait après redirect GHL ou appel-onboarding direct).
+  const slugMatchesOnboardingCall = pathnameHookO.includes('/script-wait/')
+    || pathnameHookO.includes('/appel-onboarding/');
 
   // Auto-confirm si retour de GHL après réservation — évite la boucle de
   // re-affichage du calendrier le temps que le webhook GHL pose
   // onboarding_call_booked en DB.
   useEffect(() => {
     if (!justBooked || autoConfirmRef.current) return;
+    if (!slugMatchesOnboardingCall) return;
     autoConfirmRef.current = true;
     setSubmitting(true);
     fetch(`/api/onboarding?token=${token}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'call_booked', date: new Date().toISOString() }),
     }).then(() => onBooked()).catch(() => null).finally(() => setSubmitting(false));
-  }, [justBooked, token, onBooked]);
+  }, [justBooked, slugMatchesOnboardingCall, token, onBooked]);
 
   // 30s d'attente avant d'afficher le bouton — laisse le temps au client de
   // finaliser la réservation et au webhook GHL de remonter le rendez-vous.
