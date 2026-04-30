@@ -243,13 +243,22 @@ export function ClientsListView() {
         setShowForm(false);
         setForm({ business_name: '', contact_name: '', email: '', phone: '', city: '', category: '' });
         loadClients();
+        notify('success', `Client "${form.business_name}" créé`);
         // Notifie les autres vues (PipelineOnboarding, /dashboard/onboarding
         // kanban) qu'un client vient d'être créé pour qu'elles re-fetch
         // sans nécessiter un refresh manuel de la page.
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('bbm-clients-changed', { detail: { reason: 'created' } }));
         }
+      } else {
+        // Avant : la création échouait silencieusement (form ne se fermait pas
+        // mais aucun feedback). Maintenant on remonte le message serveur pour
+        // que l'admin sache pourquoi (email déjà pris, champ requis, etc.).
+        const data = await r.json().catch(() => ({}));
+        notify('error', data.error || `Erreur ${r.status} lors de la création`);
       }
+    } catch (err: unknown) {
+      notify('error', (err as Error).message || 'Erreur réseau');
     } finally { setSaving(false); }
   }
 
