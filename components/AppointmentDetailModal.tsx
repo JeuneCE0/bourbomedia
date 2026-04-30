@@ -347,11 +347,20 @@ export default function AppointmentDetailModal({
               </div>
 
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={onClose} style={{
-                  padding: '10px 16px', borderRadius: 8, background: 'transparent',
-                  border: '1px solid var(--border-md)', color: 'var(--text-muted)',
-                  cursor: 'pointer', fontSize: '0.84rem', fontWeight: 600,
-                }}>Annuler</button>
+                <button
+                  onClick={() => {
+                    // Confirm avant de fermer si l'admin a tapé des notes /
+                    // changé le statut (et qu'on les enverrait à la trappe).
+                    const dirtyNotes = notes.trim() !== (apt?.notes || '').trim();
+                    const dirtyStatus = (status || '') !== (apt?.prospect_status || '');
+                    if ((dirtyNotes || dirtyStatus) && !confirm('Vos modifications ne seront pas enregistrées. Fermer quand même ?')) return;
+                    onClose();
+                  }}
+                  style={{
+                    padding: '10px 16px', borderRadius: 8, background: 'transparent',
+                    border: '1px solid var(--border-md)', color: 'var(--text-muted)',
+                    cursor: 'pointer', fontSize: '0.84rem', fontWeight: 600,
+                  }}>Annuler</button>
                 <button onClick={save} disabled={saving} style={{
                   padding: '10px 18px', borderRadius: 8, background: 'var(--orange)',
                   border: 'none', color: '#fff', cursor: 'pointer', fontSize: '0.84rem',
