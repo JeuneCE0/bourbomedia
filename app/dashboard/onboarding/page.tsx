@@ -127,6 +127,29 @@ export default function OnboardingDashboardPage() {
     }
   }, [clients]);
 
+  // Retire un client du parcours d'onboarding sans le supprimer de la pipeline
+  // commerciale. On nullifie onboarding_step (la GET API filtre déjà sur
+  // onboarding_step is not null) — la fiche client reste accessible et
+  // l'opportunité GHL est intacte.
+  const removeFromOnboarding = useCallback(async (clientId: string, businessName: string) => {
+    if (!window.confirm(`Retirer "${businessName}" du parcours d'onboarding ?\n\nLa fiche client et la pipeline ne sont pas impactées — seules les étapes d'onboarding sont effacées.`)) return;
+
+    const previousClients = clients;
+    setClients(prev => prev.filter(c => c.id !== clientId));
+
+    try {
+      const r = await fetch('/api/clients', {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ id: clientId, onboarding_step: null }),
+      });
+      if (!r.ok) throw new Error('Erreur API');
+    } catch {
+      setClients(previousClients);
+      window.alert("Impossible de retirer ce client de l'onboarding. Réessayez.");
+    }
+  }, [clients]);
+
   function onDragStart(e: React.DragEvent, clientId: string, currentStep: number) {
     setDragClientId(clientId);
     setDragSourceStep(currentStep);
@@ -262,9 +285,10 @@ export default function OnboardingDashboardPage() {
           onColumnDragOver={onColumnDragOver}
           onColumnDragLeave={onColumnDragLeave}
           onColumnDrop={onColumnDrop}
+          onRemoveFromOnboarding={removeFromOnboarding}
         />
       ) : (
-        <ListView clients={filtered} />
+        <ListView clients={filtered} onRemoveFromOnboarding={removeFromOnboarding} />
       )}
     </div>
   );
@@ -325,6 +349,7 @@ interface KanbanViewProps {
   onColumnDragOver: (e: React.DragEvent, stepNum: number) => void;
   onColumnDragLeave: () => void;
   onColumnDrop: (e: React.DragEvent, stepNum: number) => void;
+  onRemoveFromOnboarding: (clientId: string, businessName: string) => void;
 }
 
 function KanbanView({
@@ -337,6 +362,7 @@ function KanbanView({
   onColumnDragOver,
   onColumnDragLeave,
   onColumnDrop,
+  onRemoveFromOnboarding,
 }: KanbanViewProps) {
   return (
     <div style={{
@@ -439,6 +465,7 @@ function KanbanView({
                   isDragging={dragClientId === c.id}
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
+                  onRemoveFromOnboarding={onRemoveFromOnboarding}
                 />
               ))
             )}
@@ -455,12 +482,14 @@ function KanbanCard({
   isDragging,
   onDragStart,
   onDragEnd,
+  onRemoveFromOnboarding,
 }: {
   client: OnboardingClient;
   color: string;
   isDragging: boolean;
   onDragStart: (e: React.DragEvent, clientId: string, currentStep: number) => void;
   onDragEnd: (e: React.DragEvent) => void;
+  onRemoveFromOnboarding: (clientId: string, businessName: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const initials = getInitials(client.business_name);
@@ -468,6 +497,7 @@ function KanbanCard({
   const isStuck = daysSinceCreation > 3 && client.onboarding_step < 3;
 
   const cardStyle: CSSProperties = {
+    position: 'relative',
     background: 'var(--night-card)',
     border: '1px solid',
     borderColor: hovered ? color + '60' : 'var(--border)',
@@ -495,6 +525,42 @@ function KanbanCard({
       onMouseLeave={() => setHovered(false)}
       style={cardStyle}
     >
+      {/* Bouton "retirer de l'onboarding" — visible au survol. Icône poubelle
+          dans une pastille discrète, en haut à droite. Le clic n'ouvre pas la
+          fiche client (stopPropagation + preventDefault sur le Link parent). */}
+      <button
+        type="button"
+        title="Retirer du parcours d'onboarding"
+        aria-label="Retirer du parcours d'onboarding"
+        onMouseDown={e => e.stopPropagation()}
+        onClick={e => {
+          e.preventDefault();
+          e.stopPropagation();
+          onRemoveFromOnboarding(client.id, client.business_name);
+        }}
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          width: 22,
+          height: 22,
+          borderRadius: 6,
+          border: 'none',
+          background: hovered ? 'rgba(239,68,68,.18)' : 'transparent',
+          color: hovered ? 'var(--red)' : 'var(--text-muted)',
+          opacity: hovered ? 1 : 0,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '0.85rem',
+          lineHeight: 1,
+          transition: 'opacity .15s, background .15s',
+          zIndex: 2,
+        }}
+      >
+        🗑
+      </button>
       <Link
         href={`/dashboard/clients/${client.id}`}
         style={{ textDecoration: 'none', color: 'inherit', display: 'contents' }}
@@ -570,7 +636,10 @@ function KanbanCard({
   );
 }
 
-function ListView({ clients }: { clients: OnboardingClient[] }) {
+function ListView({ clients, onRemoveFromOnboarding }: {
+  clients: OnboardingClient[];
+  onRemoveFromOnboarding: (clientId: string, businessName: string) => void;
+}) {
   if (clients.length === 0) {
     return (
       <div style={{
@@ -595,7 +664,7 @@ function ListView({ clients }: { clients: OnboardingClient[] }) {
     }}>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '2.5fr 1.5fr 1fr 2fr 1fr',
+        gridTemplateColumns: '2.5fr 1.5fr 1fr 2fr 0.8fr 36px',
         gap: 16,
         padding: '12px 20px',
         borderBottom: '1px solid var(--border)',
@@ -610,13 +679,17 @@ function ListView({ clients }: { clients: OnboardingClient[] }) {
         <div>Email</div>
         <div>&Eacute;tape</div>
         <div style={{ textAlign: 'right' }}>Cr&eacute;&eacute;</div>
+        <div></div>
       </div>
-      {clients.map(c => <ListRow key={c.id} client={c} />)}
+      {clients.map(c => <ListRow key={c.id} client={c} onRemoveFromOnboarding={onRemoveFromOnboarding} />)}
     </div>
   );
 }
 
-function ListRow({ client }: { client: OnboardingClient }) {
+function ListRow({ client, onRemoveFromOnboarding }: {
+  client: OnboardingClient;
+  onRemoveFromOnboarding: (clientId: string, businessName: string) => void;
+}) {
   const [hovered, setHovered] = useState(false);
   const step = client.onboarding_step || 1;
   const stepInfo = STEPS.find(s => s.num === step) || STEPS[0];
@@ -627,7 +700,7 @@ function ListRow({ client }: { client: OnboardingClient }) {
       href={`/dashboard/clients/${client.id}`}
       style={{
         display: 'grid',
-        gridTemplateColumns: '2.5fr 1.5fr 1fr 2fr 1fr',
+        gridTemplateColumns: '2.5fr 1.5fr 1fr 2fr 0.8fr 36px',
         gap: 16,
         padding: '14px 20px',
         borderBottom: '1px solid var(--border)',
@@ -690,6 +763,34 @@ function ListRow({ client }: { client: OnboardingClient }) {
       }}>
         {relativeTime(client.created_at)}
       </div>
+      <button
+        type="button"
+        title="Retirer du parcours d'onboarding"
+        aria-label="Retirer du parcours d'onboarding"
+        onClick={e => {
+          e.preventDefault();
+          e.stopPropagation();
+          onRemoveFromOnboarding(client.id, client.business_name);
+        }}
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 6,
+          border: 'none',
+          background: hovered ? 'rgba(239,68,68,.15)' : 'transparent',
+          color: hovered ? 'var(--red)' : 'var(--text-muted)',
+          opacity: hovered ? 1 : 0.5,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '0.85rem',
+          transition: 'opacity .15s, background .15s',
+          justifySelf: 'end',
+        }}
+      >
+        🗑
+      </button>
     </Link>
   );
 }
