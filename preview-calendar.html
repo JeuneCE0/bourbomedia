@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Preview · Calendrier BourbonMédia</title>
+<style>
+  :root {
+    --night: #0F0F12;
+    --night-mid: #18181C;
+    --night-card: #1F1F24;
+    --night-raised: #28282E;
+    --border: rgba(255,255,255,.08);
+    --border-md: rgba(255,255,255,.14);
+    --border-orange: rgba(232,105,43,.40);
+    --text: #F5F5F7;
+    --text-mid: #B8B8BD;
+    --text-muted: #8A8A90;
+    --orange: #E8692B;
+    --yellow: #FACC15;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--night);
+    color: var(--text);
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .header h1 {
+    color: var(--orange);
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+  .header p {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0;
+  }
+  /* Carte d'étape */
+  .card {
+    background: var(--night-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 18px;
+  }
+  .step-icon {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: rgba(232,105,43,.12);
+    border: 1px solid var(--border-orange);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px;
+    font-size: 1.7rem;
+    color: var(--orange);
+  }
+  .step-title {
+    text-align: center;
+    color: var(--text);
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -.2px;
+  }
+  .step-subtitle {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.86rem;
+    margin: 8px 0 0;
+    line-height: 1.5;
+  }
+
+  /* Wrapper du calendrier — la modification BBM */
+  .calendar-wrapper {
+    border-radius: 14px;
+    border: 1px solid var(--border-orange);
+    background: #fff;
+    min-height: 720px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(232,105,43,.08);
+    margin-top: 24px;
+  }
+  .calendar-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: linear-gradient(135deg, rgba(232,105,43,.08), rgba(250,204,21,.04));
+    border-bottom: 1px solid var(--border-md);
+    font-size: 0.78rem;
+    color: var(--text-mid);
+    font-weight: 600;
+  }
+  .calendar-header .badge {
+    margin-left: auto;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .calendar-header .badge strong {
+    color: var(--orange);
+  }
+  iframe {
+    width: 100%;
+    border: none;
+    display: block;
+    min-height: 720px;
+    background: #fff;
+  }
+  .info-panel {
+    margin-top: 24px;
+    padding: 16px 18px;
+    background: var(--night-mid);
+    border: 1px dashed var(--border-md);
+    border-radius: 10px;
+    font-size: 0.84rem;
+    color: var(--text-mid);
+    line-height: 1.6;
+  }
+  .info-panel strong {
+    color: var(--orange);
+  }
+  .info-panel ul {
+    margin: 8px 0 0;
+    padding-left: 20px;
+  }
+  .info-panel li {
+    margin-bottom: 4px;
+  }
+  .selector {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 24px;
+    justify-content: center;
+  }
+  .selector button {
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: var(--night-mid);
+    border: 1px solid var(--border-md);
+    color: var(--text-mid);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .selector button.active {
+    background: var(--orange);
+    color: #fff;
+    border-color: var(--orange);
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>BourbonMédia</h1>
+    <p>Preview du wrapper + pré-remplissage des calendriers GHL</p>
+  </div>
+
+  <!-- Sélecteur de calendrier -->
+  <div class="selector">
+    <button data-cal="onboarding" class="active">📞 Appel onboarding</button>
+    <button data-cal="filming">🎬 Tournage</button>
+    <button data-cal="publication">📺 Publication</button>
+  </div>
+
+  <!-- Carte d'étape (mimique le portail / onboarding) -->
+  <div class="card">
+    <div class="step-icon" id="step-icon">📞</div>
+    <h2 class="step-title" id="step-title">Appel de lancement</h2>
+    <p class="step-subtitle" id="step-subtitle">Réservez 30 minutes avec notre équipe pour cadrer votre projet</p>
+
+    <!-- Wrapper modifié BBM : header + iframe -->
+    <div class="calendar-wrapper">
+      <div class="calendar-header">
+        <span aria-hidden style="font-size:0.95rem">📅</span>
+        <span>Calendrier BourbonMédia</span>
+        <span class="badge">Pré-rempli pour <strong id="prefill-name">Marie Dupont</strong></span>
+      </div>
+      <iframe
+        id="ghl-iframe"
+        src=""
+        title="Réservation appel onboarding"
+        scrolling="no">
+      </iframe>
+    </div>
+
+    <div class="info-panel">
+      <strong>Ce que tu vois ici :</strong>
+      <ul>
+        <li><strong>Bordure orange</strong> + ombre légère = wrapper branded BBM (au lieu de la bordure grise du widget GHL brut)</li>
+        <li><strong>Header "📅 Calendrier BourbonMédia"</strong> + badge "Pré-rempli pour Marie Dupont"</li>
+        <li><strong>Auto-prefill</strong> : sélectionne un créneau dans l'iframe → le formulaire GHL apparaît avec prénom, nom, email, téléphone et entreprise déjà remplis (pas besoin de retaper)</li>
+        <li>Le script <code>form_embed.js</code> est chargé pour que l'iframe s'auto-redimensionne et que tous les créneaux soient visibles (au lieu d'être rognés en bas)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script src="https://link.msgsndr.com/js/form_embed.js" type="text/javascript" async></script>
+
+<script>
+  // URLs réelles slug-based (telles que configurées sur Vercel) — celles
+  // que les clients verront en prod après redéploiement.
+  const CALENDARS = {
+    onboarding: {
+      url: 'https://api.leadconnectorhq.com/widget/bookings/onboarding-simeon',
+      icon: '📞',
+      title: 'Appel de lancement (onboarding)',
+      subtitle: 'Réservez 30 minutes avec notre équipe pour cadrer votre projet',
+    },
+    filming: {
+      url: 'https://api.leadconnectorhq.com/widget/bookings/appel-avec-simonhb9d3b',
+      icon: '🎬',
+      title: 'Réservez votre créneau de tournage',
+      subtitle: 'Choisissez une plage de 3 heures dans le calendrier ci-dessous',
+    },
+    publication: {
+      url: 'https://api.leadconnectorhq.com/widget/bookings/appel-avec-simonhb9d3bgusxbn',
+      icon: '📺',
+      title: 'Choisissez votre date de publication',
+      subtitle: 'Les publications sont planifiées le mardi ou le jeudi',
+    },
+  };
+
+  // Pré-remplissage simulé d'un client BBM (mêmes paramètres que ceux que ton
+  // app pousse réellement quand le client est connecté).
+  const PREFILL = {
+    first_name: 'Marie',
+    last_name: 'Dupont',
+    email: 'marie@boulangerie-saint-denis.re',
+    phone: '+262692123456',
+    company_name: 'Boulangerie Saint-Denis',
+  };
+
+  function buildUrl(base) {
+    const sep = base.includes('?') ? '&' : '?';
+    const qs = new URLSearchParams(PREFILL).toString();
+    return base + sep + qs;
+  }
+
+  function loadCalendar(key) {
+    const cal = CALENDARS[key];
+    if (!cal) return;
+    const calId = cal.url.split('/').pop();
+    const iframe = document.getElementById('ghl-iframe');
+    iframe.id = `${calId}_${Date.now()}`;
+    iframe.src = buildUrl(cal.url);
+    iframe.title = cal.title;
+    document.getElementById('step-icon').textContent = cal.icon;
+    document.getElementById('step-title').textContent = cal.title;
+    document.getElementById('step-subtitle').textContent = cal.subtitle;
+    document.getElementById('prefill-name').textContent = `${PREFILL.first_name} ${PREFILL.last_name}`;
+  }
+
+  document.querySelectorAll('.selector button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.selector button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadCalendar(btn.dataset.cal);
+    });
+  });
+
+  loadCalendar('onboarding');
+</script>
+</body>
+</html>

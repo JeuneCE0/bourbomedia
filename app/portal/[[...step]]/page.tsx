@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { Stripe } from '@stripe/stripe-js';
 import type { Annotation } from '@/components/ScriptAnnotator';
@@ -121,6 +121,44 @@ interface SatisfactionData {
   comment?: string;
   allow_testimonial: boolean;
   created_at: string;
+}
+
+// Mapping étape logique → slug URL. Permet à l'admin de partager des liens
+// type bourbonmedia.fr/portal/contrat/?token=... ou de bookmarker chaque
+// étape. Le slug sert de reflet visuel ; le rendu réel reste piloté par
+// clientInfo.status + flags (la DB est la source de vérité). Si un client
+// visite /portal/script-review/ alors qu'il n'a plus de script à relire,
+// l'URL est silencieusement remplacée par celle qui correspond à son
+// véritable état.
+type StepSlug =
+  | 'contrat' | 'paiement' | 'appel-onboarding'
+  | 'script-wait' | 'script-review' | 'script-valide'
+  | 'tournage' | 'video-review' | 'publication' | 'publie';
+
+function computeStepSlug(client: ClientDelivery | null, scriptStatus: string | null | undefined, hasDelivery: boolean): StepSlug | null {
+  if (!client) return null;
+  const s = client.status || '';
+  // Onboarding strict — décompose par flags
+  if (s === 'onboarding') {
+    if (!client.contract_signed_at) return 'contrat';
+    if (!client.paid_at) return 'paiement';
+    if (!client.onboarding_call_booked) return 'appel-onboarding';
+    return 'script-wait';
+  }
+  if (s === 'onboarding_call') return 'script-wait';
+  if (s === 'script_writing') return 'script-wait';
+  if (s === 'script_review') {
+    return scriptStatus === 'awaiting_changes' ? 'script-review' : 'script-review';
+  }
+  if (s === 'script_validated') return client.filming_date ? 'tournage' : 'script-valide';
+  if (s === 'filming_scheduled' || s === 'filming_done' || s === 'editing') return 'tournage';
+  if (s === 'video_review') {
+    if (client.video_validated_at) return 'publication';
+    return hasDelivery ? 'video-review' : 'tournage';
+  }
+  if (s === 'publication_pending') return 'publication';
+  if (s === 'published') return 'publie';
+  return null;
 }
 
 const STATUS_LABELS_PORTAL: Record<string, string> = {
@@ -356,6 +394,8 @@ function relativeTime(dateStr: string): string {
 
 function PortalContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const token = searchParams.get('token');
 
   const [script, setScript] = useState<Script | null>(null);
@@ -912,6 +952,23 @@ function PortalContent() {
   const isPostDelivery = ['video_review', 'publication_pending', 'published'].includes(clientInfo?.status || '');
   const hasDelivery = isPostDelivery && (visibleVideos.length > 0 || (clientInfo?.delivered_at && clientInfo.video_url));
   const clientStatus = clientInfo?.status || '';
+
+  // Synchronise l'URL avec l'étape logique courante. /portal/contrat/?token=...,
+  // /portal/paiement/?token=..., etc. — ça permet à l'admin de partager des
+  // liens étape-spécifiques et au client de bookmarker chaque page. Le slug
+  // est purement informatif : la DB reste la source de vérité, donc visiter
+  // /portal/script-review/ alors qu'on est en réalité au paiement remplace
+  // l'URL par /portal/paiement/. router.replace pour ne pas polluer l'history.
+  useEffect(() => {
+    if (!clientInfo || !token) return;
+    const slug = computeStepSlug(clientInfo, script?.status, !!hasDelivery);
+    if (!slug) return;
+    const expected = `/portal/${slug}/`;
+    if (pathname && pathname !== expected) {
+      const qs = searchParams.toString();
+      router.replace(qs ? `${expected}?${qs}` : expected);
+    }
+  }, [clientInfo, script?.status, hasDelivery, token, pathname, router, searchParams]);
 
   // Étapes "calendrier uniquement" : on n'affiche que la timeline + le calendrier
   // pertinent. Pas d'onglets vidéo/feedback/etc. qui distrairaient de l'action
