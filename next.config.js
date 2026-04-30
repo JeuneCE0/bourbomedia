@@ -2,6 +2,19 @@
 const nextConfig = {
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
+  async redirects() {
+    // trailingSlash:true + skipTrailingSlashRedirect:true ⇒ une URL sans slash
+    // final renvoie 404 au lieu d'être redirigée vers la version canonique.
+    // Cela cassait les liens partagés en appel (ex : bourbonmedia.fr/onboarding).
+    // On redirige explicitement les routes Next dynamiques vers leur version
+    // avec trailing slash pour récupérer un comportement humain-friendly.
+    return [
+      { source: '/onboarding', destination: '/onboarding/', permanent: true },
+      { source: '/portal', destination: '/portal/', permanent: true },
+      { source: '/nps', destination: '/nps/', permanent: true },
+      { source: '/dashboard', destination: '/dashboard/', permanent: true },
+    ];
+  },
   async rewrites() {
     return {
       beforeFiles: [

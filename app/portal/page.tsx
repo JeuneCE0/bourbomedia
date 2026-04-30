@@ -1183,7 +1183,12 @@ function PortalContent() {
             (filming_scheduled / filming_done / editing / video_review / etc.),
             the calendar disappears. */}
         {clientInfo?.status === 'script_validated' && !clientInfo?.filming_date && !hasDelivery && (
-          <FilmingBookingPanel token={token!} onConfirmed={() => { loadScript(); loadNotifications(); }} actionLoading={actionLoading} />
+          <FilmingBookingPanel
+            token={token!}
+            clientInfo={clientInfo}
+            onConfirmed={() => { loadScript(); loadNotifications(); }}
+            actionLoading={actionLoading}
+          />
         )}
 
         {/* Publication date picker — Tuesdays / Thursdays only */}
@@ -2014,6 +2019,12 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
         url={calendarUrl}
         title="Réservation publication"
         onLoad={() => setIframeLoaded(true)}
+        prefill={clientInfo ? {
+          contact_name: clientInfo.contact_name,
+          email: clientInfo.email,
+          phone: clientInfo.phone,
+          business_name: clientInfo.business_name,
+        } : undefined}
       />
 
       {showButton ? (
@@ -2047,8 +2058,9 @@ function PublicationDatePicker({ token, clientInfo, onConfirmed }: {
   );
 }
 
-function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
+function FilmingBookingPanel({ token, clientInfo, onConfirmed, actionLoading }: {
   token: string;
+  clientInfo: ClientDelivery | null;
   onConfirmed: () => void;
   actionLoading: boolean;
 }) {
@@ -2127,6 +2139,12 @@ function FilmingBookingPanel({ token, onConfirmed, actionLoading }: {
             url={calendarUrl}
             title="Réservation tournage"
             onLoad={() => setIframeLoaded(true)}
+            prefill={clientInfo ? {
+              contact_name: clientInfo.contact_name,
+              email: clientInfo.email,
+              phone: clientInfo.phone,
+              business_name: clientInfo.business_name,
+            } : undefined}
           />
 
           {showButton ? (
@@ -2335,7 +2353,38 @@ function VideoEmbed({ url, thumbnail }: { url: string; thumbnail?: string }) {
 
 let formEmbedScriptLoaded = false;
 
-function GhlBookingEmbed({ url, title, onLoad }: { url: string; title: string; onLoad?: () => void }) {
+interface GhlPrefill {
+  contact_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  business_name?: string | null;
+}
+
+// Construit l'URL du widget GHL avec les paramètres de pré-remplissage. GHL
+// reconnaît first_name / last_name / email / phone / company_name au niveau
+// query-string et les injecte automatiquement dans le formulaire de
+// réservation — le client n'a plus à retaper ses infos qui sont déjà connues
+// côté plateforme. Sans prefill, l'URL est renvoyée telle quelle.
+function buildGhlUrlWithPrefill(url: string, prefill?: GhlPrefill): string {
+  if (!url || !prefill) return url;
+  const parts = (prefill.contact_name || '').trim().split(/\s+/).filter(Boolean);
+  const params = new URLSearchParams();
+  if (parts[0]) params.set('first_name', parts[0]);
+  if (parts.length > 1) params.set('last_name', parts.slice(1).join(' '));
+  if (prefill.email) params.set('email', prefill.email);
+  if (prefill.phone) params.set('phone', prefill.phone);
+  if (prefill.business_name) params.set('company_name', prefill.business_name);
+  const qs = params.toString();
+  if (!qs) return url;
+  return url + (url.includes('?') ? '&' : '?') + qs;
+}
+
+function GhlBookingEmbed({ url, title, onLoad, prefill }: {
+  url: string;
+  title: string;
+  onLoad?: () => void;
+  prefill?: GhlPrefill;
+}) {
   // Inject the form_embed.js script once for the lifetime of the page
   useEffect(() => {
     if (formEmbedScriptLoaded) return;
@@ -2350,25 +2399,48 @@ function GhlBookingEmbed({ url, title, onLoad }: { url: string; title: string; o
     formEmbedScriptLoaded = true;
   }, []);
 
+  const finalUrl = useMemo(() => buildGhlUrlWithPrefill(url, prefill), [url, prefill]);
+
   // Stable iframe id matching GHL's pattern (calendarId_timestamp). Le script
   // form_embed.js retrouve l'iframe par id pour pousser les resize via
   // postMessage — un id qui change à chaque render casse ce mécanisme et
   // l'iframe reste figée à sa hauteur initiale, masquant les créneaux.
-  const calendarId = url.split('/').pop() || 'calendar';
+  const calendarId = url.split('/').pop()?.split('?')[0] || 'calendar';
   const iframeId = useMemo(() => `${calendarId}_${Date.now()}`, [calendarId]);
 
   return (
     <div style={{
-      borderRadius: 12, border: '1px solid var(--border-md)',
-      background: '#fff', minHeight: 720,
+      borderRadius: 14,
+      border: '1px solid var(--border-orange)',
+      background: '#fff',
+      minHeight: 720,
+      overflow: 'hidden',
+      boxShadow: '0 4px 20px rgba(232,105,43,.08)',
     }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '10px 14px',
+        background: 'linear-gradient(135deg, rgba(232,105,43,.08), rgba(250,204,21,.04))',
+        borderBottom: '1px solid var(--border-md)',
+        fontSize: '0.78rem', color: 'var(--text-mid)', fontWeight: 600,
+      }}>
+        <span aria-hidden style={{ fontSize: '0.95rem' }}>📅</span>
+        <span>Calendrier BourbonMédia</span>
+        {prefill?.contact_name && (
+          <span style={{
+            marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500,
+          }}>
+            Pré-rempli pour <strong style={{ color: 'var(--orange)' }}>{prefill.contact_name}</strong>
+          </span>
+        )}
+      </div>
       <iframe
         id={iframeId}
-        src={url}
+        src={finalUrl}
         title={title}
         scrolling="no"
         onLoad={onLoad}
-        style={{ width: '100%', border: 'none', display: 'block', minHeight: 720 }}
+        style={{ width: '100%', border: 'none', display: 'block', minHeight: 720, background: '#fff' }}
       />
     </div>
   );
@@ -2885,7 +2957,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
           title="Réservez votre appel onboarding"
           subtitle="Un appel de cadrage de 30 min avec notre équipe pour bien démarrer votre vidéo."
         >
-          <OnboardingCallStep token={token} calendarUrl={onboardingCalendarUrl} onBooked={onRefresh} />
+          <OnboardingCallStep token={token} calendarUrl={onboardingCalendarUrl} clientInfo={clientInfo} onBooked={onRefresh} />
         </NoScriptShell>
       );
     }
@@ -2977,9 +3049,10 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
 }
 
 /* ── Étape appel onboarding (inline dans /portal — booking GHL) ─────── */
-function OnboardingCallStep({ token, calendarUrl, onBooked }: {
+function OnboardingCallStep({ token, calendarUrl, clientInfo, onBooked }: {
   token: string;
   calendarUrl: string;
+  clientInfo: ClientDelivery | null;
   onBooked: () => void;
 }) {
   const [iframeLoaded, setIframeLoaded] = useState(false);
@@ -3024,6 +3097,12 @@ function OnboardingCallStep({ token, calendarUrl, onBooked }: {
         url={calendarUrl}
         title="Appel onboarding"
         onLoad={() => setIframeLoaded(true)}
+        prefill={clientInfo ? {
+          contact_name: clientInfo.contact_name,
+          email: clientInfo.email,
+          phone: clientInfo.phone,
+          business_name: clientInfo.business_name,
+        } : undefined}
       />
 
       {showButton ? (
