@@ -11,6 +11,7 @@
 
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { trackFunnel } from '@/lib/funnel';
 
 const FORM_DRAFT_KEY = 'ob_form_draft_v1';
 
@@ -143,6 +144,8 @@ function OnboardingContent() {
       // pour le bouton "Reprendre mon onboarding" et le fallback /onboarding.
       localStorage.setItem('ob_token', data.token);
       const portalToken = data.portalToken || data.client?.portal_token;
+      // Track funnel : signup réussi (1ère étape mesurable du funnel).
+      trackFunnel({ event: 'signup_completed', source: 'onboarding', token: portalToken || data.token });
       if (portalToken) {
         router.replace(`/portal?token=${portalToken}`);
         return;
