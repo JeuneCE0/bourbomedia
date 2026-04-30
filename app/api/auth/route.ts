@@ -9,12 +9,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!process.env.ADMIN_PASSWORD) {
-    return NextResponse.json({ error: 'Admin password not configured' }, { status: 500 });
-  }
   const { username, password } = await req.json();
-  if (checkCredentials(username, password)) {
-    return NextResponse.json({ token: createToken() });
+  if (!username || !password) {
+    return NextResponse.json({ error: 'Identifiant et mot de passe requis' }, { status: 400 });
+  }
+  const result = await checkCredentials(username, password);
+  if (result.ok) {
+    return NextResponse.json({ token: createToken(result.sub) });
   }
   return NextResponse.json({ error: 'Identifiants incorrects' }, { status: 401 });
 }

@@ -19,6 +19,9 @@ interface Appointment {
   notes_completed_at: string | null;
   prospect_status: string | null;
   client_id: string | null;
+  rescheduled_at?: string | null;
+  previous_starts_at?: string | null;
+  reschedule_count?: number | null;
 }
 
 interface GhlContact {
@@ -181,9 +184,24 @@ export default function AppointmentDetailModal({
               {meta ? meta.label : 'Rendez-vous'}
             </h2>
             {apt && (
-              <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
-                {fmtDateTime(apt.starts_at)}
-              </p>
+              <>
+                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
+                  {fmtDateTime(apt.starts_at)}
+                </p>
+                {apt.rescheduled_at && apt.previous_starts_at && (
+                  <div style={{
+                    marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '4px 10px', borderRadius: 999,
+                    background: 'rgba(250,204,21,.14)', border: '1px solid rgba(250,204,21,.45)',
+                    color: '#FACC15', fontSize: '0.7rem', fontWeight: 700,
+                  }}>
+                    🔄 Reporté{(apt.reschedule_count || 0) > 1 ? ` ×${apt.reschedule_count}` : ''}
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>
+                      · initialement {fmtDateTime(apt.previous_starts_at)}
+                    </span>
+                  </div>
+                )}
+              </>
             )}
           </div>
           <button onClick={onClose} aria-label="Fermer" style={{
