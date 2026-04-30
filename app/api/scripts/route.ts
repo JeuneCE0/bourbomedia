@@ -5,6 +5,7 @@ import { computePublicationDeadline } from '@/lib/filming';
 import { notifyScriptValidated, notifyFilmingScheduled, notifyAnnotationsSent } from '@/lib/slack';
 import { triggerWorkflow } from '@/lib/ghl-workflows';
 import { trackFunnelServer } from '@/lib/funnel';
+import { sendPushToAll } from '@/lib/push';
 
 export async function GET(req: NextRequest) {
   const clientId = req.nextUrl.searchParams.get('client_id');
@@ -176,6 +177,12 @@ export async function PUT(req: NextRequest) {
         logEvent('script_validated');
         triggerWorkflow(client.ghl_contact_id, 'script_validated').catch(() => {});
         void trackFunnelServer({ event: 'script_validated', source: 'portal', clientId: client.id });
+        void sendPushToAll({
+          title: '✅ Script validé',
+          body: `${client.business_name || 'Un client'} a validé son script. Prêt à shooter.`,
+          url: `/dashboard/clients/${client.id}?tab=script`,
+          tag: `script-${client.id}`,
+        });
 
         const data = await sr.json();
         return NextResponse.json(data[0]);
@@ -227,6 +234,12 @@ export async function PUT(req: NextRequest) {
         logEvent('filming_scheduled', date ? { date } : {});
         triggerWorkflow(cl.ghl_contact_id || null, 'filming_scheduled').catch(() => {});
         void trackFunnelServer({ event: 'filming_booked', source: 'portal', clientId: cid, metadata: date ? { date } : null });
+        void sendPushToAll({
+          title: '🎬 Tournage réservé',
+          body: `${cl.business_name || 'Un client'} a réservé son tournage${date ? ` le ${new Date(date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}` : ''}.`,
+          url: `/dashboard/clients/${cid}?tab=journey`,
+          tag: `filming-${cid}`,
+        });
 
         return NextResponse.json({ ok: true, filming_date: updates.filming_date || null });
       }
@@ -255,6 +268,12 @@ export async function PUT(req: NextRequest) {
         // Reuse the satisfaction workflow tag — the user can branch on it in GHL
         triggerWorkflow(cl.ghl_contact_id || null, 'feedback_requested').catch(() => {});
         void trackFunnelServer({ event: 'video_validated', source: 'portal', clientId: cid });
+        void sendPushToAll({
+          title: '👍 Vidéo validée',
+          body: `${cl.business_name || 'Un client'} a validé sa vidéo. Prochaine étape : choix de la date de publication.`,
+          url: `/dashboard/clients/${cid}?tab=delivery`,
+          tag: `video-validated-${cid}`,
+        });
         return NextResponse.json({ ok: true });
       }
 
@@ -273,7 +292,17 @@ export async function PUT(req: NextRequest) {
         }, true);
         if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
 
+        const cR = await supaFetch(`clients?id=eq.${cid}&select=business_name`, {}, true);
+        const arr = cR.ok ? await cR.json() : [];
+        const cl = arr[0] || {};
         logEvent('video_changes_requested', { comment_preview: comment.slice(0, 80) });
+        void trackFunnelServer({ event: 'video_changes_requested', source: 'portal', clientId: cid, metadata: comment ? { comment_preview: comment.slice(0, 120) } : null });
+        void sendPushToAll({
+          title: '✏️ Modifications demandées',
+          body: `${cl.business_name || 'Un client'} demande des changements sur sa vidéo${comment ? ` : « ${comment.slice(0, 60)}${comment.length > 60 ? '…' : ''} »` : '.'}`,
+          url: `/dashboard/clients/${cid}?tab=delivery`,
+          tag: `video-changes-${cid}`,
+        });
         return NextResponse.json({ ok: true });
       }
 
@@ -326,6 +355,12 @@ export async function PUT(req: NextRequest) {
         logEvent('publication_scheduled', dateStr ? { date: dateStr } : {});
         triggerWorkflow(cl.ghl_contact_id || null, 'project_published').catch(() => {});
         void trackFunnelServer({ event: 'publication_booked', source: 'portal', clientId: cid, metadata: dateStr ? { date: dateStr } : null });
+        void sendPushToAll({
+          title: '🗓️ Date de publication choisie',
+          body: `${cl.business_name || 'Un client'} a choisi sa date de publication${dateStr ? ` (${new Date(dateStr).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' })})` : ''}.`,
+          url: `/dashboard/clients/${cid}?tab=delivery`,
+          tag: `publication-${cid}`,
+        });
         return NextResponse.json({ ok: true, publication_deadline: updates.publication_deadline || null });
       }
 
