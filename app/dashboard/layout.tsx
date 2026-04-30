@@ -3,15 +3,22 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { ToastProvider } from '@/components/ui/Toast';
-import WelcomeWizard from '@/components/WelcomeWizard';
-import NotificationBell from '@/components/NotificationBell';
-import AiCopilot from '@/components/AiCopilot';
 import ErrorBoundary from '@/components/ErrorBoundary';
-import OfflineIndicator from '@/components/OfflineIndicator';
-import ShortcutsCheatsheet from '@/components/ShortcutsCheatsheet';
 import DensityProvider from '@/components/DensityProvider';
-import CommandPalette from '@/components/CommandPalette';
+
+// Composants chargés à la demande : aucun n'est visible au mount du
+// dashboard, ils ne deviennent utiles qu'au déclenchement d'un trigger
+// (Cmd+K pour CommandPalette, première visite pour WelcomeWizard, hover
+// pour AiCopilot, ?/h pour ShortcutsCheatsheet, dégradation réseau pour
+// OfflineIndicator). Lazy-load économise du JS first-load sur le dashboard.
+const NotificationBell = dynamic(() => import('@/components/NotificationBell'), { ssr: false });
+const AiCopilot = dynamic(() => import('@/components/AiCopilot'), { ssr: false });
+const WelcomeWizard = dynamic(() => import('@/components/WelcomeWizard'), { ssr: false });
+const CommandPalette = dynamic(() => import('@/components/CommandPalette'), { ssr: false });
+const ShortcutsCheatsheet = dynamic(() => import('@/components/ShortcutsCheatsheet'), { ssr: false });
+const OfflineIndicator = dynamic(() => import('@/components/OfflineIndicator'), { ssr: false });
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
@@ -24,6 +31,8 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon:
       { href: '/dashboard/calendar',    label: 'Calendriers',     icon: '📅' },
       { href: '/dashboard/finance',     label: 'Finances',        icon: '💰' },
       { href: '/dashboard/stats',       label: 'Statistiques',    icon: '📈' },
+      { href: '/dashboard/funnel',      label: 'Funnel',          icon: '📊' },
+      { href: '/dashboard/errors',      label: 'Erreurs',         icon: '🪲' },
       { href: '/dashboard/settings',    label: 'Paramètres',      icon: '⚙️' },
     ],
   },

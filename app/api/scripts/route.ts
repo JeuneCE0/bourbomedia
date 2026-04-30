@@ -4,6 +4,7 @@ import { supaFetch } from '@/lib/supabase';
 import { computePublicationDeadline } from '@/lib/filming';
 import { notifyScriptValidated, notifyFilmingScheduled, notifyAnnotationsSent } from '@/lib/slack';
 import { triggerWorkflow } from '@/lib/ghl-workflows';
+import { trackFunnelServer } from '@/lib/funnel';
 
 export async function GET(req: NextRequest) {
   const clientId = req.nextUrl.searchParams.get('client_id');
@@ -174,6 +175,7 @@ export async function PUT(req: NextRequest) {
         notifyScriptValidated(client.business_name || 'Client', client.contact_name || '');
         logEvent('script_validated');
         triggerWorkflow(client.ghl_contact_id, 'script_validated').catch(() => {});
+        void trackFunnelServer({ event: 'script_validated', source: 'portal', clientId: client.id });
 
         const data = await sr.json();
         return NextResponse.json(data[0]);
@@ -224,6 +226,7 @@ export async function PUT(req: NextRequest) {
         if (date) notifyFilmingScheduled(cl.business_name || 'Client', date);
         logEvent('filming_scheduled', date ? { date } : {});
         triggerWorkflow(cl.ghl_contact_id || null, 'filming_scheduled').catch(() => {});
+        void trackFunnelServer({ event: 'filming_booked', source: 'portal', clientId: cid, metadata: date ? { date } : null });
 
         return NextResponse.json({ ok: true, filming_date: updates.filming_date || null });
       }
@@ -251,6 +254,7 @@ export async function PUT(req: NextRequest) {
         logEvent('video_validated');
         // Reuse the satisfaction workflow tag — the user can branch on it in GHL
         triggerWorkflow(cl.ghl_contact_id || null, 'feedback_requested').catch(() => {});
+        void trackFunnelServer({ event: 'video_validated', source: 'portal', clientId: cid });
         return NextResponse.json({ ok: true });
       }
 
@@ -321,6 +325,7 @@ export async function PUT(req: NextRequest) {
         const cl = arr[0] || {};
         logEvent('publication_scheduled', dateStr ? { date: dateStr } : {});
         triggerWorkflow(cl.ghl_contact_id || null, 'project_published').catch(() => {});
+        void trackFunnelServer({ event: 'publication_booked', source: 'portal', clientId: cid, metadata: dateStr ? { date: dateStr } : null });
         return NextResponse.json({ ok: true, publication_deadline: updates.publication_deadline || null });
       }
 

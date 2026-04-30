@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { reportClientError } from '@/lib/error-log';
 
 // Error boundary racine de l'app — capture toutes les erreurs runtime non
 // interceptées par les <ErrorBoundary> internes (dashboard / portal). Sans
@@ -18,8 +19,17 @@ export default function Error({
 }) {
   useEffect(() => {
     // Log côté Vercel Functions (visible dans le dashboard Vercel → Logs).
-    // Quand on intégrera Sentry, on pourra Sentry.captureException(error) ici.
     console.error('[app/error.tsx]', error);
+    // Persiste dans la table error_logs côté Supabase pour qu'on puisse
+    // visualiser dans /dashboard/errors. Best-effort, fire-and-forget.
+    reportClientError({
+      digest: error.digest || null,
+      message: error.message || null,
+      stack: error.stack || null,
+      url: typeof window !== 'undefined' ? window.location.href : null,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+      metadata: { boundary: 'app/error.tsx' },
+    });
   }, [error]);
 
   return (

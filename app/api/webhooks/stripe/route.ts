@@ -5,6 +5,7 @@ import { notifyClientStatusChange } from '@/lib/slack';
 import { sendPushToAll } from '@/lib/push';
 import { findOrCreateClientByEmail } from '@/lib/client-resolver';
 import { markProspectContracted } from '@/lib/mark-contracted';
+import { trackFunnelServer } from '@/lib/funnel';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -169,6 +170,15 @@ async function recordPayment(opts: {
 
   // Auto-flip GHL : opportunité + appointments → "Contracté"
   await markProspectContracted(opts.clientId, opts.email || null);
+
+  // Track funnel — payment_completed (étape clé du funnel onboarding,
+  // mesurable seulement ici car c'est le webhook qui confirme côté Stripe).
+  void trackFunnelServer({
+    event: 'payment_completed',
+    source: 'webhook',
+    clientId: opts.clientId,
+    metadata: { amount_cents: opts.amountCents },
+  });
 
   // Slack + push
   notifyClientStatusChange(opts.businessName, 'Paiement', `${(opts.amountCents / 100).toLocaleString('fr-FR')} €`).catch(() => null);

@@ -4,6 +4,7 @@ import { requireAuth, hashPassword, verifyPassword } from '@/lib/auth';
 import { createEmbeddedCheckoutSession } from '@/lib/stripe';
 import { findGhlContactByEmailOrPhone } from '@/lib/ghl';
 import { notifyClientStatusChange } from '@/lib/slack';
+import { trackFunnelServer } from '@/lib/funnel';
 import crypto from 'crypto';
 
 export async function GET(req: NextRequest) {
@@ -132,6 +133,7 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({ contract_signed_at: new Date().toISOString(), onboarding_step: 3 }),
       }, true);
       notifyClientStatusChange(client.business_name, 'Étape 2', 'Contrat signé');
+      void trackFunnelServer({ event: 'contract_signed', source: 'portal', clientId: client.id });
       return NextResponse.json({ signed: true });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
@@ -179,6 +181,7 @@ export async function POST(req: NextRequest) {
       }),
     }, true);
     notifyClientStatusChange(client.business_name, 'Étape 4', 'Appel onboarding réservé');
+    void trackFunnelServer({ event: 'call_booked', source: 'portal', clientId: client.id });
     return NextResponse.json({ success: true });
   }
 
