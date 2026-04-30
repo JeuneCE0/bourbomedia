@@ -23,6 +23,20 @@ async function pushNotification(clientId: string, type: string, title: string, b
   } catch { /* non-blocking */ }
 }
 
+// Defense-in-depth : retire les champs sensibles avant de renvoyer une row
+// clients à l'admin. password_hash n'a aucune raison d'arriver dans le
+// frontend (admin n'authentifie pas le client en local) ; onboarding_token
+// est un jeton public mais ne sert qu'au funnel inscription, l'admin n'en
+// a pas besoin non plus. On garde tout le reste — la ressource reste
+// 1:1 avec la table sauf ces 2 colonnes.
+function stripSensitive<T extends Record<string, unknown> | null | undefined>(row: T): T {
+  if (!row) return row;
+  const r = row as Record<string, unknown>;
+  if ('password_hash' in r) delete r.password_hash;
+  if ('onboarding_token' in r) delete r.onboarding_token;
+  return row;
+}
+
 export async function GET(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   try {
@@ -31,7 +45,7 @@ export async function GET(req: NextRequest) {
       const r = await supaFetch(`clients?id=eq.${id}&select=*,scripts(*,script_comments(*)),videos(*)`, {}, true);
       if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
       const data = await r.json();
-      return NextResponse.json(data[0] || null);
+      return NextResponse.json(stripSensitive(data[0] || null));
     }
 
     // List path with optional pagination
@@ -61,16 +75,18 @@ export async function GET(req: NextRequest) {
     if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
     const data = await r.json();
 
+    const sanitized = Array.isArray(data) ? data.map(stripSensitive) : data;
+
     // If client requested pagination, send pagination envelope
     if (limit > 0) {
       const contentRange = r.headers.get('content-range') || '';
       const totalMatch = contentRange.match(/\/(\d+)$/);
-      const total = totalMatch ? Number(totalMatch[1]) : data.length;
-      return NextResponse.json({ data, total, limit, offset, hasMore: offset + data.length < total });
+      const total = totalMatch ? Number(totalMatch[1]) : sanitized.length;
+      return NextResponse.json({ data: sanitized, total, limit, offset, hasMore: offset + sanitized.length < total });
     }
 
     // Back-compat : raw array when no pagination requested
-    return NextResponse.json(data);
+    return NextResponse.json(sanitized);
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
@@ -87,7 +103,7 @@ export async function POST(req: NextRequest) {
     }, true);
     if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
     const data = await r.json();
-    return NextResponse.json(data[0], { status: 201 });
+    return NextResponse.json(stripSensitive(data[0]), { status: 201 });
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
@@ -290,7 +306,7 @@ export async function PUT(req: NextRequest) {
     };
     fireAndForget().catch(e => console.error('Notification error:', e));
 
-    return NextResponse.json(updated);
+    return NextResponse.json(stripSensitive(updated));
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
