@@ -773,6 +773,17 @@ function PortalContent() {
     </div>
   );
 
+  // Si l'admin a rétrogradé le client à une étape early-onboarding (drag
+  // backward dans le kanban), on force NoScriptStage MÊME si un script
+  // existe en DB — sinon le portail rendrait la vue script complète et
+  // sauterait le contrat / paiement / appel onboarding que le client doit
+  // refaire. Le statut 'onboarding' / 'onboarding_call' est garanti propre
+  // par /api/clients PUT (rollback automatique).
+  const earlyOnboarding = clientInfo?.status === 'onboarding' || clientInfo?.status === 'onboarding_call';
+  if (earlyOnboarding) {
+    return <NoScriptStage clientInfo={clientInfo} token={token} onRefresh={() => { loadScript(); loadNotifications(); }} />;
+  }
+
   if (!script) {
     // If video already delivered, show it even without a script
     if (clientInfo?.video_url) {

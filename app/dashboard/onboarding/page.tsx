@@ -122,67 +122,23 @@ export default function OnboardingDashboardPage() {
 
   // --- Drag & Drop handlers ---
 
-  // Quand on rétrograde un client (ex : drag step 4 → step 2 pour qu'il
-  // resigne le contrat), il faut aussi RAZ les milestones des étapes qu'on
-  // re-traverse, sinon /portal et /onboarding voient les flags encore cochés
-  // et sautent par-dessus l'étape "à refaire". Mapping : flags posés à la
-  // fin de chaque étape — quand le nouveau step est < N, on clear les flags
-  // de step N et au-delà.
-  function rollbackFieldsForStep(newStep: number): Record<string, unknown> {
-    const fields: Record<string, unknown> = {};
-    // Step 2 → clearé si newStep < 2
-    if (newStep < 2) {
-      fields.contract_signed_at = null;
-      fields.contract_signature_link = null;
-      fields.contract_yousign_id = null;
-    }
-    // Step 3 → clearé si newStep < 3
-    if (newStep < 3) {
-      fields.paid_at = null;
-    }
-    // Step 4 → clearé si newStep < 4
-    if (newStep < 4) {
-      fields.onboarding_call_booked = false;
-      fields.onboarding_call_date = null;
-    }
-    // Step 6 → clearé si newStep < 6
-    if (newStep < 6) {
-      fields.filming_date_confirmed = false;
-    }
-    // Step 7 → clearé si newStep < 7
-    if (newStep < 7) {
-      fields.publication_date_confirmed = false;
-    }
-    // Status : revient à 'onboarding' tant qu'on est avant l'appel,
-    // 'onboarding_call' une fois l'appel réservé.
-    if (newStep < 5) fields.status = 'onboarding';
-    return fields;
-  }
-
   const moveClient = useCallback(async (clientId: string, newStep: number) => {
-    // Optimistic update: immediately move the card
+    // Le rollback (RAZ des milestones, vidéo, script…) est appliqué
+    // server-side par /api/clients PUT quand newStep < onboarding_step actuel.
+    // Frontend = optimistic update + appel API simple.
     const previousClients = clients;
-    const current = clients.find(c => c.id === clientId);
-    const currentStep = current?.onboarding_step || 1;
-    const isBackwards = newStep < currentStep;
-
     setClients(prev =>
       prev.map(c => c.id === clientId ? { ...c, onboarding_step: newStep } : c)
     );
 
     try {
-      const body: Record<string, unknown> = { id: clientId, onboarding_step: newStep };
-      if (isBackwards) {
-        Object.assign(body, rollbackFieldsForStep(newStep));
-      }
       const r = await fetch('/api/clients', {
         method: 'PUT',
         headers: authHeaders(),
-        body: JSON.stringify(body),
+        body: JSON.stringify({ id: clientId, onboarding_step: newStep }),
       });
       if (!r.ok) throw new Error('Erreur API');
     } catch {
-      // Revert on failure
       setClients(previousClients);
       console.error('Erreur lors du déplacement du client, changement annulé.');
     }

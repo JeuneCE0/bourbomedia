@@ -126,6 +126,79 @@ export async function PUT(req: NextRequest) {
       fields.video_changes_requested = false;
     }
 
+    // Rollback automatique : quand l'admin déplace un client vers une étape
+    // antérieure dans le kanban onboarding, on purge tout ce qui appartient
+    // aux étapes "futures" pour que le portail affiche réellement l'étape
+    // courante (le calendrier de booking ne pouvait pas s'afficher tant que
+    // delivered_at / video_url / script.status='confirmed' restaient set).
+    // On clear également les vidéos livrées et on remet le script à 'draft'
+    // pour repartir d'une page propre — la donnée brute (script.content,
+    // versions) est préservée, seul le statut bouge.
+    if (
+      prev
+      && typeof fields.onboarding_step === 'number'
+      && typeof prev.onboarding_step === 'number'
+      && fields.onboarding_step < prev.onboarding_step
+    ) {
+      const ns = fields.onboarding_step as number;
+      // Step 2 (Contrat)
+      if (ns < 2) {
+        fields.contract_signed_at = null;
+        fields.contract_signature_link = null;
+        fields.contract_yousign_id = null;
+      }
+      // Step 3 (Paiement)
+      if (ns < 3) {
+        fields.paid_at = null;
+      }
+      // Step 4 (Appel onboarding) — milestone à refaire
+      if (ns < 4) {
+        fields.onboarding_call_booked = false;
+        fields.onboarding_call_date = null;
+      }
+      // Step 5 (Script) — script à réécrire/revalider
+      if (ns < 5) {
+        // On reset le statut du script existant à 'draft' (préserve le contenu).
+        // Le portail check `if (!script)` puis script.status pour l'affichage,
+        // mais NoScriptStage est aussi déclenché côté portal quand status est
+        // dans onboarding/onboarding_call (ajouté en parallèle).
+        await supaFetch(`scripts?client_id=eq.${id}`, {
+          method: 'PATCH',
+          headers: { 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ status: 'draft', updated_at: new Date().toISOString() }),
+        }, true);
+      }
+      // Step 6 (Tournage)
+      if (ns < 6) {
+        fields.filming_date = null;
+        fields.filming_date_confirmed = false;
+      }
+      // Step 7 (Publication) + post-livraison vidéo
+      if (ns < 7) {
+        fields.publication_date = null;
+        fields.publication_date_confirmed = false;
+        fields.publication_deadline = null;
+        fields.video_validated_at = null;
+        fields.video_review_comment = null;
+        fields.video_changes_requested = false;
+      }
+      // Step 7 ou avant (pré-livraison vidéo)
+      if (ns < 7) {
+        fields.video_url = null;
+        fields.video_thumbnail_url = null;
+        fields.delivered_at = null;
+        fields.delivery_notes = null;
+        // On ne touche PAS les rows de la table videos (statut 'delivered'/'draft'
+        // CHECK contraint, pas d'archive). Le portail short-circuite via le test
+        // earlyOnboarding (status='onboarding'/'onboarding_call') donc les vidéos
+        // ne s'affichent pas pour le client. Si l'admin re-promote plus tard,
+        // les vidéos d'origine sont toujours en DB.
+      }
+      // Status revient à un statut early-onboarding
+      if (ns < 5) fields.status = 'onboarding';
+      else if (ns < 6) fields.status = 'script_writing';
+    }
+
     const r = await supaFetch(`clients?id=eq.${id}`, {
       method: 'PATCH',
       body: JSON.stringify(fields),
