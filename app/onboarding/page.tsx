@@ -107,6 +107,18 @@ function OnboardingContent() {
       const r = await fetch(`/api/onboarding?token=${t}`);
       if (!r.ok) throw new Error('Token invalide');
       const data = await r.json();
+      // /onboarding est l'URL d'entrée publique partagée en appel ; une fois
+      // que le prospect est inscrit (a un portal_token), on bascule pour de
+      // bon sur /portal qui est l'espace client riche (script, vidéo, dates,
+      // notifs). Du coup le commercial n'a qu'une seule URL à partager —
+      // /onboarding/ — et toutes les visites suivantes routent automatiquement
+      // au bon endroit. On ne set pas l'état avant le redirect pour éviter
+      // un flash du funnel inline. Fallback : clients legacy sans portal_token
+      // → on garde le funnel inline (set state ci-dessous).
+      if (data.portal_token) {
+        router.replace(`/portal?token=${data.portal_token}`);
+        return data;
+      }
       setClient(data);
       setCurrentStep(data.onboarding_step || 1);
       return data;
@@ -114,7 +126,7 @@ function OnboardingContent() {
       setError('Lien invalide ou expiré');
       return null;
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (tokenParam) {
