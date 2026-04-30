@@ -109,6 +109,16 @@ function OnboardingContent() {
       if (saved) {
         setToken(saved);
         fetchClient(saved);
+      } else {
+        // Visiteur new : pas de token URL ni localStorage = haut de funnel.
+        // Track une fois par session pour mesurer le top de l'entonnoir.
+        try {
+          const SESSION_KEY = 'bbm_onboarding_landed_tracked';
+          if (!sessionStorage.getItem(SESSION_KEY)) {
+            sessionStorage.setItem(SESSION_KEY, '1');
+            trackFunnel({ event: 'onboarding_landed', source: 'onboarding' });
+          }
+        } catch { /* tolerate */ }
       }
     }
   }, [tokenParam, fetchClient]);

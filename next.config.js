@@ -71,6 +71,9 @@ const nextConfig = {
               "base-uri 'self'",
               "form-action 'self'",
               "frame-ancestors 'self'",
+              // Reporting endpoint : les violations sont POSTées ici
+              // et persistées dans error_logs pour visualisation admin.
+              'report-uri /api/csp-report',
             ].join('; '),
           },
         ],
