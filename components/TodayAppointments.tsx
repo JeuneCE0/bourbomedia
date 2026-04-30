@@ -212,11 +212,21 @@ export default function TodayAppointments() {
               }}
             />
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button onClick={() => setNotesModal(null)} style={{
-                flex: 1, padding: '11px', borderRadius: 10, background: 'var(--night-mid)',
-                border: '1px solid var(--border-md)', color: 'var(--text-mid)',
-                fontSize: '0.86rem', fontWeight: 600, cursor: 'pointer',
-              }}>Annuler</button>
+              <button
+                onClick={() => {
+                  // Confirm avant de fermer si l'admin a tapé des notes ou
+                  // changé le statut prospect (sinon ses changements partent
+                  // à la trappe sans warning).
+                  const dirtyNotes = notesModal.text.trim() !== (notesModal.apt.notes || '').trim();
+                  const dirtyStatus = (notesModal.status || '') !== (notesModal.apt.prospect_status || '');
+                  if ((dirtyNotes || dirtyStatus) && !confirm('Vos modifications ne seront pas enregistrées. Fermer quand même ?')) return;
+                  setNotesModal(null);
+                }}
+                style={{
+                  flex: 1, padding: '11px', borderRadius: 10, background: 'var(--night-mid)',
+                  border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+                  fontSize: '0.86rem', fontWeight: 600, cursor: 'pointer',
+                }}>Annuler</button>
               <button onClick={saveModal} disabled={savingId === notesModal.apt.id} style={{
                 flex: 2, padding: '11px', borderRadius: 10, background: 'var(--orange)',
                 border: 'none', color: '#fff', fontSize: '0.86rem', fontWeight: 700,
