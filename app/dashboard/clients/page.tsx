@@ -332,14 +332,16 @@ export function ClientsListView() {
       `⚠️ Vous allez supprimer DÉFINITIVEMENT :\n\n${names}${more}\n\n(${subset.length} client${subset.length > 1 ? 's' : ''} au total)\n\nCette action est IRRÉVERSIBLE. Continuer ?`
     );
     if (!first) return;
-    const expected = subset.length === 1 ? subset[0].business_name : `SUPPRIMER ${subset.length}`;
+    // Garde-fou contre les clics accidentels : on demande un mot-clé universel
+    // (au lieu de retaper le nom exact, qui était trop strict — accents, casse,
+    // espaces faisaient échouer la suppression silencieusement). Le user a
+    // déjà confirmé le 1er popup, donc on garde un 2e niveau mais facile.
     const confirmation = prompt(
-      subset.length === 1
-        ? `Pour confirmer la suppression de "${expected}", retapez son nom exact ci-dessous :`
-        : `Pour confirmer la suppression de ${subset.length} clients, tapez :\n\n${expected}`
+      `Pour confirmer la suppression définitive de ${subset.length} client${subset.length > 1 ? 's' : ''}, tapez :\n\nSUPPRIMER`
     );
-    if (confirmation?.trim() !== expected) {
-      notify('error', 'Suppression annulée — la confirmation ne correspond pas.');
+    const normalized = (confirmation || '').trim().toUpperCase();
+    if (normalized !== 'SUPPRIMER') {
+      notify('error', 'Suppression annulée — il fallait taper exactement « SUPPRIMER ».');
       return;
     }
     setBulkSaving(true);
