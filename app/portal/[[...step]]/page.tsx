@@ -417,19 +417,24 @@ function PortalContent() {
       if (token !== urlToken) setToken(urlToken);
       return;
     }
+    // urlToken absent : essaie de restaurer depuis localStorage. Tous les
+    // accès sont try/catch (quota / privacy mode) + null-checks défensifs
+    // sur pathname pour éviter qu'un null se glisse dans router.replace
+    // pendant la transition SSR→client.
     try {
       const saved = localStorage.getItem(PORTAL_TOKEN_KEY);
-      if (saved) {
-        setToken(saved);
-        // Réinjecte dans l'URL — sinon les useEffect qui dépendent de
-        // searchParams ne se déclenchent pas, et un partage de l'URL
-        // courante perdrait le token.
+      if (saved && pathname) {
+        if (token !== saved) setToken(saved);
         const qs = new URLSearchParams(searchParams.toString());
         qs.set('token', saved);
         router.replace(`${pathname}?${qs.toString()}`);
       }
     } catch { /* tolerate */ }
-  }, [urlToken, pathname, router, searchParams, token]);
+  // searchParams retiré du dep array : il change à chaque router.replace,
+  // créant un cycle re-render. On lit sa valeur courante mais on ne réagit
+  // pas à ses changements ici (urlToken couvre déjà le cas du param token).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlToken, pathname, router, token]);
 
   const [script, setScript] = useState<Script | null>(null);
   const [clientInfo, setClientInfo] = useState<ClientDelivery | null>(null);
@@ -994,14 +999,21 @@ function PortalContent() {
   // l'URL par /portal/paiement/. router.replace pour ne pas polluer l'history.
   useEffect(() => {
     if (!clientInfo || !token) return;
-    const slug = computeStepSlug(clientInfo, script?.status, !!hasDelivery);
+    if (typeof pathname !== 'string') return;
+    let slug: StepSlug | null = null;
+    try {
+      slug = computeStepSlug(clientInfo, script?.status, !!hasDelivery);
+    } catch { return; }
     if (!slug) return;
     const expected = `/portal/${slug}/`;
-    if (pathname && pathname !== expected) {
-      const qs = searchParams.toString();
-      router.replace(qs ? `${expected}?${qs}` : expected);
+    if (pathname !== expected) {
+      const qs = new URLSearchParams();
+      qs.set('token', token);
+      router.replace(`${expected}?${qs.toString()}`);
     }
-  }, [clientInfo, script?.status, hasDelivery, token, pathname, router, searchParams]);
+  // searchParams retiré (cf. raison ci-dessus dans l'effet localStorage).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientInfo, script?.status, hasDelivery, token, pathname, router]);
 
   // Étapes "calendrier uniquement" : on n'affiche que la timeline + le calendrier
   // pertinent. Pas d'onglets vidéo/feedback/etc. qui distrairaient de l'action
