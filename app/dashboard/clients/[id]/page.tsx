@@ -1138,6 +1138,13 @@ export default function ClientDetailPage() {
                 </span>
               )}
             </div>
+
+            {/* URL du portail client — visible en lecture rapide pour
+                que l'admin puisse copier-partager d'un coup. Hover →
+                bouton "Copier" qui pousse l'URL dans le clipboard. */}
+            {portalUrl && (
+              <PortalUrlRow url={portalUrl} />
+            )}
           </div>
 
           {/* Right: status + actions */}
@@ -2303,6 +2310,72 @@ function ConversationTimeline({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Affiche l'URL du portail client en lecture rapide sous le header de la
+// fiche admin. Click → ouvre dans un nouvel onglet. Bouton "Copier" pour
+// partager rapidement avec un client en appel.
+function PortalUrlRow({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* tolerate */ }
+  }
+  return (
+    <div style={{
+      marginTop: 8,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 8,
+      padding: '5px 10px 5px 12px',
+      borderRadius: 8,
+      background: 'rgba(232,105,43,.06)',
+      border: '1px solid rgba(232,105,43,.20)',
+      fontSize: '0.74rem',
+      maxWidth: '100%',
+    }}>
+      <span aria-hidden style={{ fontSize: '0.85rem' }}>🔗</span>
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        title="Ouvrir le portail client (nouvel onglet)"
+        style={{
+          color: 'var(--orange)',
+          textDecoration: 'none',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          maxWidth: 420,
+          fontWeight: 500,
+        }}
+      >
+        {url.replace(/^https?:\/\//, '')}
+      </a>
+      <button
+        type="button"
+        onClick={copy}
+        title="Copier l'URL"
+        style={{
+          padding: '3px 8px',
+          borderRadius: 6,
+          border: '1px solid rgba(232,105,43,.30)',
+          background: copied ? 'var(--orange)' : 'transparent',
+          color: copied ? '#fff' : 'var(--orange)',
+          fontSize: '0.7rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          transition: 'all .15s',
+        }}
+      >
+        {copied ? '✓ Copié' : 'Copier'}
+      </button>
     </div>
   );
 }
