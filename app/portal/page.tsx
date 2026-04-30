@@ -357,10 +357,14 @@ function PortalContent() {
   const lastSeenClientStatusRef = useRef<string | null>(null);
   const bellRef = useRef<HTMLDivElement>(null);
 
-  // Show a transient toast (auto-dismisses after 5s)
+  // Show a transient toast (auto-dismisses after 5s).
+  // Bug fix : on capture la clé au moment du setTimeout — sans ça, Date.now()
+  // dans le callback renvoie l'instant T+5s et la comparaison échoue toujours,
+  // donc le toast ne se fermait jamais tout seul.
   const showToast = useCallback((emoji: string, message: string) => {
-    setLiveToast({ emoji, message, key: Date.now() });
-    setTimeout(() => setLiveToast(curr => (curr && curr.key === Date.now() ? null : curr)), 5000);
+    const key = Date.now();
+    setLiveToast({ emoji, message, key });
+    setTimeout(() => setLiveToast(curr => (curr && curr.key === key ? null : curr)), 5000);
   }, []);
 
   // Close bell dropdown on click outside
@@ -2422,8 +2426,11 @@ function GhlBookingEmbed({ url, title, onLoad, prefill }: {
   // form_embed.js retrouve l'iframe par id pour pousser les resize via
   // postMessage — un id qui change à chaque render casse ce mécanisme et
   // l'iframe reste figée à sa hauteur initiale, masquant les créneaux.
+  // useState avec initializer ⇒ Date.now() évalué une seule fois au mount
+  // côté client (pas de mismatch SSR/hydratation, pas de re-calcul si
+  // calendarId change vraiment — mais il ne change pas dans nos cas d'usage).
   const calendarId = url.split('/').pop()?.split('?')[0] || 'calendar';
-  const iframeId = useMemo(() => `${calendarId}_${Date.now()}`, [calendarId]);
+  const [iframeId] = useState(() => `${calendarId}_${Date.now()}`);
 
   return (
     <div style={{
