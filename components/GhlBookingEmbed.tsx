@@ -34,7 +34,7 @@ const GHL_WIDGET_HOST = 'https://api.leadconnectorhq.com/widget/booking';
 // protocol. Sans cette normalisation, l'iframe charge
 // `https://bourbonmedia.fr/<valeur>` qui résout vers notre own /not-found.tsx
 // — ce que le client voit alors comme un "404" dans le calendrier.
-function normalizeGhlCalendarUrl(input: string): string {
+export function normalizeGhlCalendarUrl(input: string): string {
   if (!input) return '';
   const trimmed = input.trim();
   if (!trimmed) return '';
@@ -77,7 +77,7 @@ export function resolveGhlCalendarUrl(envValue: string | undefined, fallbackId: 
   return fullFallback;
 }
 
-function buildGhlUrlWithPrefill(url: string, prefill?: GhlPrefill): string {
+export function buildGhlUrlWithPrefill(url: string, prefill?: GhlPrefill): string {
   const normalized = normalizeGhlCalendarUrl(url);
   if (!normalized || !prefill) return normalized;
   const parts = (prefill.contact_name || '').trim().split(/\s+/).filter(Boolean);

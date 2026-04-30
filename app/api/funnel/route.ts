@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
+import { requireAuth } from '@/lib/auth';
 
 // POST /api/funnel — endpoint public (pas de Bearer requis) qui reçoit
 // les events tracking depuis le frontend. Stocke dans funnel_events après
 // résolution du client_id via le portal_token (best-effort).
 //
-// GET /api/funnel — endpoint admin (requireAuth dans la suite si besoin)
-// pour récupérer les events agrégés. Pour l'instant on garde simple :
-// la lecture passe par /api/funnel-stats (à faire dans une session
-// future si on veut un dashboard).
+// GET /api/funnel?client_id=<uuid>&limit=N — endpoint admin (requireAuth)
+// pour la fiche client : remonte les funnel_events liés à un client donné.
+// Permet à l'admin de voir l'historique chronologique des actions
+// (signup, contract, payment, etc.) sans devoir requeter directement la DB.
 
 const VALID_SOURCES = new Set(['portal', 'onboarding', 'admin', 'webhook']);
 // Whitelist du vocabulaire pour ne pas accepter du garbage si un dev
@@ -100,5 +101,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ ok: false }, { status: 200 });
+  }
+}
+
+export async function GET(req: NextRequest) {
+  if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  try {
+    const clientId = req.nextUrl.searchParams.get('client_id');
+    const limit = Math.min(200, Number(req.nextUrl.searchParams.get('limit') || '50'));
+    if (!clientId) {
+      return NextResponse.json({ error: 'client_id requis' }, { status: 400 });
+    }
+    const r = await supaFetch(
+      `funnel_events?client_id=eq.${encodeURIComponent(clientId)}&select=event,source,metadata,created_at&order=created_at.desc&limit=${limit}`,
+      {}, true,
+    );
+    if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
+    return NextResponse.json(await r.json());
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 }

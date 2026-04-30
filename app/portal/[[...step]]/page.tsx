@@ -7,6 +7,8 @@ import type { Stripe } from '@stripe/stripe-js';
 import type { Annotation } from '@/components/ScriptAnnotator';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
 import GhlBookingEmbed, { resolveGhlCalendarUrl } from '@/components/GhlBookingEmbed';
+import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
+import { addBusinessDays, nextPublicationSlot, fmtDate } from '@/lib/dates';
 
 // Stripe SDK chargé à la demande la 1ère fois que PaymentStep est rendu :
 // avant ça, ~150KB de JS Stripe ne sont jamais téléchargés (gain énorme
@@ -219,33 +221,8 @@ interface NextAction {
   cta?: { label: string; tab?: 'video' | 'script' | 'comments' | 'feedback' };
 }
 
-// ── ETA helpers ────────────────────────────────────────────────────────────
-// Skip weekends when adding business days.
-function addBusinessDays(from: Date, days: number): Date {
-  const d = new Date(from);
-  let added = 0;
-  while (added < days) {
-    d.setDate(d.getDate() + 1);
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) added++;
-  }
-  return d;
-}
-
-// Next Tuesday or Thursday strictly after `from`. Used for publication ETA.
-function nextPublicationSlot(from: Date): Date {
-  const d = new Date(from);
-  for (let i = 1; i <= 14; i++) {
-    d.setDate(d.getDate() + 1);
-    const dow = d.getDay();
-    if (dow === 2 || dow === 4) return new Date(d);
-  }
-  return d;
-}
-
-function fmtDate(d: Date): string {
-  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-}
+// ── ETA helpers : addBusinessDays / nextPublicationSlot / fmtDate sont
+// extraits dans @/lib/dates pour testabilité (pures fonctions, pas de DOM).
 
 function computeNextAction(
   scriptStatus: string | null,
@@ -628,42 +605,19 @@ function PortalContent() {
   // tab so admin replies and team comments feel instantaneous. We bump from
   // 60s (passive) to 5s (active tab) to stay within Vercel/Supabase quotas
   // while still feeling near-real-time.
-  useEffect(() => {
+  // Polling cadence : faster on script/comments tabs (5s) where the client
+  // expects near-real-time updates from admin annotations & replies. Other
+  // tabs poll every 10s pour un compromis fraîcheur / coût Supabase.
+  // Le hook useVisibilityAwarePolling skip si l'onglet est hidden + refresh
+  // instantané au focus retour. ~50% requêtes économisées sur les onglets idle.
+  const portalPollMs = (tab === 'script' || tab === 'comments') ? 5_000 : 10_000;
+  const tickPortal = useCallback(() => {
     if (!token) return;
-    // Polling cadence : faster on script/comments tabs (5s) where the client
-    // expects near-real-time updates from admin annotations & replies. On
-    // other tabs we still poll every 10s so any admin stage change (script
-    // sent, video delivered, status moved manually) is reflected within ~10s.
-    // Skip si l'onglet est en arrière-plan (visibilityState === 'hidden') —
-    // ~50% des requêtes Supabase économisées chez les clients qui laissent
-    // /portal ouvert sans regarder. Au focus retour, un visibilitychange
-    // déclenche un loadScript/loadNotifications instantané (effet ci-dessous).
-    const ms = (tab === 'script' || tab === 'comments') ? 5_000 : 10_000;
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      loadScript();
-      loadNotifications();
-      if (tab === 'script') loadAnnotations();
-    }, ms);
-    return () => clearInterval(interval);
+    loadScript();
+    loadNotifications();
+    if (tab === 'script') loadAnnotations();
   }, [token, tab, loadScript, loadNotifications, loadAnnotations]);
-
-  // Refresh instantané au retour du tab (catch-up des updates manqués pendant
-  // que le polling était suspendu). Évite que le client voie un état périmé
-  // de plusieurs minutes après être revenu sur l'onglet.
-  useEffect(() => {
-    if (!token) return;
-    if (typeof document === 'undefined') return;
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        loadScript();
-        loadNotifications();
-        if (tab === 'script') loadAnnotations();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [token, tab, loadScript, loadNotifications, loadAnnotations]);
+  useVisibilityAwarePolling(tickPortal, token ? portalPollMs : null);
 
   // Detect new admin comments on the script — fire a live alert with browser notif
   const lastSeenCommentIdRef = useRef<string | null>(null);
@@ -1057,7 +1011,10 @@ function PortalContent() {
           </button>
           {bellOpen && (
             <div className="bm-fade-in" style={{
-              position: 'absolute', top: '100%', right: 0, marginTop: 8, width: 320,
+              position: 'absolute', top: '100%', right: 0, marginTop: 8,
+              // Mobile-friendly : largeur fluide cappée à 320px ; sur petit
+              // écran le panel ne déborde plus à gauche du viewport.
+              width: 'min(320px, calc(100vw - 24px))',
               background: 'var(--night-card)', border: '1px solid var(--border-md)',
               borderRadius: 12, maxHeight: 400, overflowY: 'auto',
               boxShadow: '0 12px 32px rgba(0,0,0,.5)', zIndex: 1000,
