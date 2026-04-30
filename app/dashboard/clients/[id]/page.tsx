@@ -385,9 +385,15 @@ export default function ClientDetailPage() {
 
   // Auto-refresh the conversation timeline every 15s so new events surface
   // without manual reload (paiement Stripe, validation script, feedback vidéo…).
+  // Skip si l'onglet est en arrière-plan (visibilityState === 'hidden') —
+  // évite de cramer la quota Supabase quand l'admin laisse plein d'onglets
+  // de fiches clients ouverts en arrière-plan.
   useEffect(() => {
     if (tab !== 'conversation') return;
-    const t = setInterval(() => loadTimeline(), 15_000);
+    const t = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      loadTimeline();
+    }, 15_000);
     return () => clearInterval(t);
   }, [tab, loadTimeline]);
 
@@ -417,9 +423,12 @@ export default function ClientDetailPage() {
 
   // Live polling on the script tab — detect new client activity (comments,
   // annotations, replies) every 5s while the admin has the tab open.
+  // Skip si l'onglet est en arrière-plan (économise ~50% des requêtes
+  // Supabase quand l'admin a 3-4 fiches clients ouvertes en background).
   useEffect(() => {
     if (tab !== 'script' || !script) return;
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       loadClient();
       loadAnnotations();
     }, 5_000);
