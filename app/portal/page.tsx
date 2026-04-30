@@ -524,13 +524,35 @@ function PortalContent() {
     // expects near-real-time updates from admin annotations & replies. On
     // other tabs we still poll every 10s so any admin stage change (script
     // sent, video delivered, status moved manually) is reflected within ~10s.
+    // Skip si l'onglet est en arrière-plan (visibilityState === 'hidden') —
+    // ~50% des requêtes Supabase économisées chez les clients qui laissent
+    // /portal ouvert sans regarder. Au focus retour, un visibilitychange
+    // déclenche un loadScript/loadNotifications instantané (effet ci-dessous).
     const ms = (tab === 'script' || tab === 'comments') ? 5_000 : 10_000;
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       loadScript();
       loadNotifications();
       if (tab === 'script') loadAnnotations();
     }, ms);
     return () => clearInterval(interval);
+  }, [token, tab, loadScript, loadNotifications, loadAnnotations]);
+
+  // Refresh instantané au retour du tab (catch-up des updates manqués pendant
+  // que le polling était suspendu). Évite que le client voie un état périmé
+  // de plusieurs minutes après être revenu sur l'onglet.
+  useEffect(() => {
+    if (!token) return;
+    if (typeof document === 'undefined') return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        loadScript();
+        loadNotifications();
+        if (tab === 'script') loadAnnotations();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [token, tab, loadScript, loadNotifications, loadAnnotations]);
 
   // Detect new admin comments on the script — fire a live alert with browser notif

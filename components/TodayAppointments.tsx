@@ -130,7 +130,12 @@ export default function TodayAppointments() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {[...upcoming, ...past].map(a => (
+        {/* Affichage strictement chronologique (asc, déjà l'ordre renvoyé par
+            /api/gh-appointments?today=1). On gardait avant un découpage
+            [upcoming, past] qui mettait un appel de 09h passé après un appel
+            de 15h à venir — c'était pas l'ordre attendu en lecture rapide.
+            Maintenant l'admin voit la journée du matin au soir, point. */}
+        {appts.map(a => (
           <ApptCard key={a.id} apt={a}
             saving={savingId === a.id}
             onPatch={(patch) => patchAppt(a.id, patch)}
