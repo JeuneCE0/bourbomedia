@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
+import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import ThreadPanel from '@/components/ThreadPanel';
 import PresenceIndicator from '@/components/PresenceIndicator';
@@ -385,17 +386,9 @@ export default function ClientDetailPage() {
 
   // Auto-refresh the conversation timeline every 15s so new events surface
   // without manual reload (paiement Stripe, validation script, feedback vidéo…).
-  // Skip si l'onglet est en arrière-plan (visibilityState === 'hidden') —
-  // évite de cramer la quota Supabase quand l'admin laisse plein d'onglets
-  // de fiches clients ouverts en arrière-plan.
-  useEffect(() => {
-    if (tab !== 'conversation') return;
-    const t = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      loadTimeline();
-    }, 15_000);
-    return () => clearInterval(t);
-  }, [tab, loadTimeline]);
+  // Le hook skip les ticks pendant que l'onglet est hidden — utile quand
+  // l'admin a plein d'onglets de fiches clients ouverts en background.
+  useVisibilityAwarePolling(loadTimeline, tab === 'conversation' ? 15_000 : null, [tab]);
 
   async function loadVersions() {
     if (!script) return;
@@ -423,17 +416,15 @@ export default function ClientDetailPage() {
 
   // Live polling on the script tab — detect new client activity (comments,
   // annotations, replies) every 5s while the admin has the tab open.
-  // Skip si l'onglet est en arrière-plan (économise ~50% des requêtes
-  // Supabase quand l'admin a 3-4 fiches clients ouvertes en background).
-  useEffect(() => {
-    if (tab !== 'script' || !script) return;
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      loadClient();
-      loadAnnotations();
-    }, 5_000);
-    return () => clearInterval(interval);
-  }, [tab, script, loadClient, loadAnnotations]);
+  const tickClientScript = useCallback(() => {
+    loadClient();
+    loadAnnotations();
+  }, [loadClient, loadAnnotations]);
+  useVisibilityAwarePolling(
+    tickClientScript,
+    (tab === 'script' && !!script) ? 5_000 : null,
+    [tab, script],
+  );
 
   // Detect new client comments on the script
   const lastSeenAdminCommentIdRef = useRef<string | null>(null);
