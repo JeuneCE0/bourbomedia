@@ -122,67 +122,23 @@ export default function OnboardingDashboardPage() {
 
   // --- Drag & Drop handlers ---
 
-  // Quand on rétrograde un client (ex : drag step 4 → step 2 pour qu'il
-  // resigne le contrat), il faut aussi RAZ les milestones des étapes qu'on
-  // re-traverse, sinon /portal et /onboarding voient les flags encore cochés
-  // et sautent par-dessus l'étape "à refaire". Mapping : flags posés à la
-  // fin de chaque étape — quand le nouveau step est < N, on clear les flags
-  // de step N et au-delà.
-  function rollbackFieldsForStep(newStep: number): Record<string, unknown> {
-    const fields: Record<string, unknown> = {};
-    // Step 2 → clearé si newStep < 2
-    if (newStep < 2) {
-      fields.contract_signed_at = null;
-      fields.contract_signature_link = null;
-      fields.contract_yousign_id = null;
-    }
-    // Step 3 → clearé si newStep < 3
-    if (newStep < 3) {
-      fields.paid_at = null;
-    }
-    // Step 4 → clearé si newStep < 4
-    if (newStep < 4) {
-      fields.onboarding_call_booked = false;
-      fields.onboarding_call_date = null;
-    }
-    // Step 6 → clearé si newStep < 6
-    if (newStep < 6) {
-      fields.filming_date_confirmed = false;
-    }
-    // Step 7 → clearé si newStep < 7
-    if (newStep < 7) {
-      fields.publication_date_confirmed = false;
-    }
-    // Status : revient à 'onboarding' tant qu'on est avant l'appel,
-    // 'onboarding_call' une fois l'appel réservé.
-    if (newStep < 5) fields.status = 'onboarding';
-    return fields;
-  }
-
   const moveClient = useCallback(async (clientId: string, newStep: number) => {
-    // Optimistic update: immediately move the card
+    // Le rollback (RAZ des milestones, vidéo, script…) est appliqué
+    // server-side par /api/clients PUT quand newStep < onboarding_step actuel.
+    // Frontend = optimistic update + appel API simple.
     const previousClients = clients;
-    const current = clients.find(c => c.id === clientId);
-    const currentStep = current?.onboarding_step || 1;
-    const isBackwards = newStep < currentStep;
-
     setClients(prev =>
       prev.map(c => c.id === clientId ? { ...c, onboarding_step: newStep } : c)
     );
 
     try {
-      const body: Record<string, unknown> = { id: clientId, onboarding_step: newStep };
-      if (isBackwards) {
-        Object.assign(body, rollbackFieldsForStep(newStep));
-      }
       const r = await fetch('/api/clients', {
         method: 'PUT',
         headers: authHeaders(),
-        body: JSON.stringify(body),
+        body: JSON.stringify({ id: clientId, onboarding_step: newStep }),
       });
       if (!r.ok) throw new Error('Erreur API');
     } catch {
-      // Revert on failure
       setClients(previousClients);
       console.error('Erreur lors du déplacement du client, changement annulé.');
     }
@@ -237,30 +193,18 @@ export default function OnboardingDashboardPage() {
     await loadClients();
   }, [selected, clients, loadClients]);
 
-  // Bulk : suppression DÉFINITIVE des clients sélectionnés (hard delete via
-  // /api/clients DELETE { hard: true }). Mirror du pattern de la page
-  // /dashboard/clients : double confirmation + retape du nom pour éviter les
-  // accidents. Les FK clients(id) sont soit ON DELETE CASCADE soit SET NULL,
-  // donc pas de violation de contrainte.
-  const bulkDelete = useCallback(async () => {
+  // Bulk : archivage doux des clients sélectionnés (soft delete via
+  // /api/clients DELETE sans hard:true → archived_at = now()). L'opportunité
+  // GHL et l'historique commercial restent intacts ; les fiches disparaissent
+  // simplement des vues onboarding / liste clients et peuvent être restaurées.
+  const bulkArchive = useCallback(async () => {
     if (selected.size === 0) return;
     const subset = clients.filter(c => selected.has(c.id));
     const names = subset.slice(0, 3).map(c => c.business_name).join(', ');
     const more = subset.length > 3 ? ` et ${subset.length - 3} autre(s)` : '';
-    const first = window.confirm(
-      `⚠️ Vous allez supprimer DÉFINITIVEMENT :\n\n${names}${more}\n\n(${subset.length} client${subset.length > 1 ? 's' : ''} au total)\n\nLa fiche client, l'historique et l'opportunité GHL liée seront supprimés. Cette action est IRRÉVERSIBLE. Continuer ?`,
-    );
-    if (!first) return;
-    const expected = subset.length === 1 ? subset[0].business_name : `SUPPRIMER ${subset.length}`;
-    const confirmation = window.prompt(
-      subset.length === 1
-        ? `Pour confirmer la suppression de "${expected}", retapez son nom exact ci-dessous :`
-        : `Pour confirmer la suppression de ${subset.length} clients, tapez :\n\n${expected}`,
-    );
-    if (confirmation?.trim() !== expected) {
-      window.alert('Suppression annulée — la confirmation ne correspond pas.');
-      return;
-    }
+    if (!window.confirm(
+      `📦 Archiver ${subset.length} client${subset.length > 1 ? 's' : ''} ?\n\n${names}${more}\n\nLes fiches disparaissent du pipeline mais l'historique reste. Action réversible.`,
+    )) return;
     setBulkSaving(true);
     let ok = 0, fail = 0;
     let lastErr = '';
@@ -268,7 +212,7 @@ export default function OnboardingDashboardPage() {
       try {
         const r = await fetch('/api/clients', {
           method: 'DELETE', headers: authHeaders(),
-          body: JSON.stringify({ id, hard: true }),
+          body: JSON.stringify({ id }),
         });
         if (r.ok) ok++;
         else { fail++; lastErr = await r.text().catch(() => ''); }
@@ -277,7 +221,7 @@ export default function OnboardingDashboardPage() {
     setSelected(new Set());
     setBulkSaving(false);
     if (fail > 0) {
-      window.alert(`${ok} supprimé(s), ${fail} échec(s)${lastErr ? ` — ${lastErr.slice(0, 200)}` : ''}`);
+      window.alert(`${ok} archivé(s), ${fail} échec(s)${lastErr ? ` — ${lastErr.slice(0, 200)}` : ''}`);
     }
     await loadClients();
   }, [selected, clients, loadClients]);
@@ -434,16 +378,16 @@ export default function OnboardingDashboardPage() {
             🗑 Retirer du parcours
           </button>
           <button
-            onClick={bulkDelete}
+            onClick={bulkArchive}
             disabled={bulkSaving}
             style={{
               padding: '8px 14px', borderRadius: 8,
-              background: 'rgba(239,68,68,.14)', border: '1px solid rgba(239,68,68,.5)',
-              color: 'var(--red)', fontSize: '0.84rem', fontWeight: 700,
+              background: 'rgba(232,105,43,.14)', border: '1px solid rgba(232,105,43,.5)',
+              color: 'var(--orange)', fontSize: '0.84rem', fontWeight: 700,
               cursor: bulkSaving ? 'wait' : 'pointer',
             }}
           >
-            ❌ Supprimer définitivement
+            📦 Archiver
           </button>
           <button
             onClick={clearSelection}
