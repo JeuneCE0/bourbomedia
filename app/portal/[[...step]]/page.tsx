@@ -1182,167 +1182,10 @@ function PortalContent() {
           </>
         )}
 
-        {/* Project timeline — single source of truth for progression */}
-        <div style={{
-          marginBottom: 14, padding: '16px 18px', borderRadius: 12,
-          background: 'var(--night-card)', border: '1px solid var(--border)',
-        }}>
-          <h3 style={{
-            fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
-            fontSize: '0.95rem', color: 'var(--text)', margin: '0 0 16px',
-          }}>
-            🗺️ Avancement de votre projet
-          </h3>
-          {(() => {
-            // Pour le statut DB 'onboarding', on affine selon les flags du funnel
-            // (contrat signé / paiement / appel réservé) — sinon, le stepper
-            // resterait bloqué sur "Inscription" pendant tout le pré-appel.
-            const stageIdx = (() => {
-              if (clientStatus === 'onboarding' && clientInfo) {
-                if (!clientInfo.contract_signed_at) return 1; // current : Contrat
-                if (!clientInfo.paid_at) return 2;            // current : Paiement
-                if (!clientInfo.onboarding_call_booked) return 3; // current : Appel
-                // Tous les flags onboarding sont OK mais le status n'a pas
-                // encore été flippé en 'onboarding_call' / 'script_writing'
-                // (race entre webhook GHL et refresh client) → on affiche
-                // déjà l'écriture du script comme étape courante pour ne
-                // pas figer l'utilisateur sur "Appel onboarding".
-                return 4;
-              }
-              return PROJECT_STAGES.findIndex(s => s.key === clientStatus);
-            })();
-            const effectiveIdx = stageIdx >= 0 ? stageIdx : 0;
-            const total = PROJECT_STAGES.length;
-            // Progress = stages done + 0.5 pour l'étape courante
-            const progressPct = Math.min(100, Math.round(((effectiveIdx + 0.5) / total) * 100));
-
-            // ETA prédite pour les pending steps : on suppose ~2 jours ouvrés
-            // entre chaque étape, sauf publication (mardi/jeudi prochain).
-            const baseDate = clientInfo?.updated_at ? new Date(clientInfo.updated_at) : new Date();
-            const confirmedPublicationDate = clientInfo?.publication_date_confirmed && clientInfo?.publication_deadline
-              ? new Date(clientInfo.publication_deadline)
-              : null;
-            const stageEta = (i: number, key: string): string | null => {
-              if (i <= effectiveIdx) return null;
-              const stepsAhead = i - effectiveIdx;
-              if (key === 'published') {
-                // Date confirmée par le client → affichée en vert via dateExtra,
-                // pas d'estimation à dupliquer ici.
-                if (confirmedPublicationDate) return null;
-                const d = nextPublicationSlot(addBusinessDays(baseDate, (stepsAhead - 1) * 2));
-                return `Estimation : ${fmtDate(d)}`;
-              }
-              const d = addBusinessDays(baseDate, stepsAhead * 2);
-              const days = Math.ceil((d.getTime() - Date.now()) / 86400000);
-              if (days <= 0) return null;
-              if (days === 1) return 'Estimation : demain';
-              if (days <= 7) return `Estimation : dans ~${days}j`;
-              return `Estimation : ${fmtDate(d)}`;
-            };
-
-            return (
-              <>
-                {/* Progress bar */}
-                <div style={{ marginBottom: 22 }}>
-                  <div style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-                    marginBottom: 6, fontSize: 12,
-                  }}>
-                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
-                      Étape {effectiveIdx + 1} sur {total}
-                    </span>
-                    <span style={{ color: 'var(--orange)', fontWeight: 800, fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 16 }}>
-                      {progressPct}%
-                    </span>
-                  </div>
-                  <div style={{
-                    height: 8, borderRadius: 99,
-                    background: 'var(--night-mid)', border: '1px solid var(--border)',
-                    overflow: 'hidden',
-                  }}>
-                    <div style={{
-                      height: '100%', width: `${progressPct}%`,
-                      background: clientStatus === 'published'
-                        ? 'linear-gradient(90deg, var(--green) 0%, #16A34A 100%)'
-                        : 'linear-gradient(90deg, var(--orange) 0%, #C45520 100%)',
-                      transition: 'width .8s cubic-bezier(.4,1.3,.6,1)',
-                      borderRadius: 99,
-                    }} />
-                  </div>
-                </div>
-
-                <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {PROJECT_STAGES.map((stage, i) => {
-                    const status: 'done' | 'current' | 'pending' = i < effectiveIdx ? 'done' : i === effectiveIdx ? 'current' : 'pending';
-                    const isLast = i === PROJECT_STAGES.length - 1;
-                    const dotBg = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'transparent';
-                    const dotBorder = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'var(--border-md)';
-                    const lineBg = status === 'done' ? 'var(--green)' : 'var(--border)';
-                    const titleColor = status === 'pending' ? 'var(--text-mid)' : 'var(--text)';
-                    const dateExtra = stage.key === 'filming_scheduled' && clientInfo?.filming_date
-                      ? new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-                      : stage.key === 'published' && confirmedPublicationDate
-                        ? confirmedPublicationDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-                        : null;
-                    const eta = stageEta(i, stage.key);
-                    const isCurrent = status === 'current';
-                    return (
-                      <li key={stage.key} style={{
-                        display: 'grid', gridTemplateColumns: '36px 1fr', gap: 12, alignItems: 'flex-start',
-                      }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 54 }}>
-                          <span aria-hidden style={{
-                            width: isCurrent ? 36 : 30, height: isCurrent ? 36 : 30, borderRadius: '50%',
-                            background: dotBg, border: `2px solid ${dotBorder}`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#fff', fontSize: isCurrent ? 16 : 14, flexShrink: 0,
-                            fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
-                            boxShadow: isCurrent ? '0 0 0 6px rgba(232,105,43,.18)' : 'none',
-                            transition: 'all .3s ease',
-                          }}>{status === 'done' ? '✓' : stage.emoji}</span>
-                          {!isLast && <span aria-hidden style={{ flex: 1, width: 2, background: lineBg, marginTop: 4 }} />}
-                        </div>
-                        <div style={{
-                          paddingBottom: 18,
-                          padding: isCurrent ? '8px 12px' : '0',
-                          marginBottom: isCurrent ? 18 : 0,
-                          marginTop: isCurrent ? -4 : 0,
-                          borderRadius: isCurrent ? 10 : 0,
-                          background: isCurrent ? 'rgba(232,105,43,.06)' : 'transparent',
-                          border: isCurrent ? '1px solid rgba(232,105,43,.25)' : 'none',
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: isCurrent ? 700 : 600, color: titleColor, fontSize: isCurrent ? 15 : 14.5 }}>
-                              {stage.label}
-                            </span>
-                            {isCurrent && (
-                              <span className="bm-pulse-glow" style={{
-                                padding: '2px 8px', borderRadius: 999,
-                                background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
-                                color: '#FFB58A', fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
-                              }}>VOUS ÊTES ICI</span>
-                            )}
-                          </div>
-                          {dateExtra && (
-                            <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2, fontWeight: 600 }}>📅 {dateExtra}</div>
-                          )}
-                          {eta && (
-                            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic' }}>
-                              ⏱️ {eta}
-                            </div>
-                          )}
-                          <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginTop: 3, lineHeight: 1.5 }}>
-                            {stage.description}
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </>
-            );
-          })()}
-        </div>
+        {/* Project timeline — single source of truth for progression. Same
+            component utilisé aussi par NoScriptShell pour que pré-script et
+            post-script aient une expérience identique. */}
+        {clientInfo && <FullProjectTimeline clientInfo={clientInfo} />}
 
         {/* Filming booking — only when client is actively in the script_validated
             stage AND has no filming_date yet. As soon as the booking is confirmed
@@ -3659,7 +3502,7 @@ function NoScriptShell({ emoji, title, subtitle, children, clientInfo }: {
             que le client voie où il en est (étapes validées + à venir),
             même quand il n'y a pas encore de script ou de vidéo. clientInfo
             est passé par chaque branche de NoScriptStage. */}
-        {clientInfo && <MiniProjectTimeline clientInfo={clientInfo} />}
+        {clientInfo && <FullProjectTimeline clientInfo={clientInfo} />}
         {children && <div style={{ textAlign: 'left' }}>{children}</div>}
       </main>
     </div>
@@ -3670,7 +3513,14 @@ function NoScriptShell({ emoji, title, subtitle, children, clientInfo }: {
 // le grand timeline du main render, mais montre quand même progression +
 // liste des étapes done/current/pending. Logique d'inférence du step
 // courant identique à celle du grand timeline pour rester cohérent.
-function MiniProjectTimeline({ clientInfo }: { clientInfo: ClientDelivery }) {
+// Timeline complète avec dates / ETA / "VOUS ÊTES ICI" pill, partagée entre
+// le main render (post-script) et NoScriptShell (pré-script). C'était à
+// l'origine deux versions divergentes — une mini sans dates et une full —
+// qui rendait l'UX incohérente : un client en "Contrat signé" voyait juste
+// les noms des étapes sans dates, alors qu'à partir du script il voyait
+// tout. Désormais TOUS les clients voient la même timeline détaillée à
+// chaque étape de leur parcours.
+function FullProjectTimeline({ clientInfo }: { clientInfo: ClientDelivery }) {
   const clientStatus = clientInfo.status || '';
   const stageIdx = (() => {
     if (clientStatus === 'onboarding') {
@@ -3685,68 +3535,130 @@ function MiniProjectTimeline({ clientInfo }: { clientInfo: ClientDelivery }) {
   const total = PROJECT_STAGES.length;
   const progressPct = Math.min(100, Math.round(((effectiveIdx + 0.5) / total) * 100));
 
+  const baseDate = clientInfo.updated_at ? new Date(clientInfo.updated_at) : new Date();
+  const confirmedPublicationDate = clientInfo.publication_date_confirmed && clientInfo.publication_deadline
+    ? new Date(clientInfo.publication_deadline)
+    : null;
+  const stageEta = (i: number, key: string): string | null => {
+    if (i <= effectiveIdx) return null;
+    const stepsAhead = i - effectiveIdx;
+    if (key === 'published') {
+      if (confirmedPublicationDate) return null;
+      const d = nextPublicationSlot(addBusinessDays(baseDate, (stepsAhead - 1) * 2));
+      return `Estimation : ${fmtDate(d)}`;
+    }
+    const d = addBusinessDays(baseDate, stepsAhead * 2);
+    const days = Math.ceil((d.getTime() - Date.now()) / 86400000);
+    if (days <= 0) return null;
+    if (days === 1) return 'Estimation : demain';
+    if (days <= 7) return `Estimation : dans ~${days}j`;
+    return `Estimation : ${fmtDate(d)}`;
+  };
+
   return (
     <div style={{
-      marginBottom: 22, padding: '14px 16px', borderRadius: 12,
+      marginBottom: 14, padding: '16px 18px', borderRadius: 12,
       background: 'var(--night-card)', border: '1px solid var(--border)',
     }}>
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        marginBottom: 10, fontSize: 12,
+      <h3 style={{
+        fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+        fontSize: '0.95rem', color: 'var(--text)', margin: '0 0 16px',
       }}>
-        <span style={{ color: 'var(--text)', fontWeight: 700, fontSize: '0.85rem' }}>
-          🗺️ Avancement du projet
-        </span>
-        <span style={{
-          color: 'var(--orange)', fontWeight: 800,
-          fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 14,
-        }}>
-          {effectiveIdx + 1} / {total}
-        </span>
-      </div>
-      <div style={{
-        height: 6, borderRadius: 99, marginBottom: 14,
-        background: 'var(--night-mid)', border: '1px solid var(--border)',
-        overflow: 'hidden',
-      }}>
+        🗺️ Avancement de votre projet
+      </h3>
+      {/* Progress bar */}
+      <div style={{ marginBottom: 22 }}>
         <div style={{
-          height: '100%', width: `${progressPct}%`,
-          background: clientStatus === 'published'
-            ? 'linear-gradient(90deg, var(--green) 0%, #16A34A 100%)'
-            : 'linear-gradient(90deg, var(--orange) 0%, #C45520 100%)',
-          transition: 'width .8s cubic-bezier(.4,1.3,.6,1)',
-        }} />
+          display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+          marginBottom: 6, fontSize: 12,
+        }}>
+          <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+            Étape {effectiveIdx + 1} sur {total}
+          </span>
+          <span style={{ color: 'var(--orange)', fontWeight: 800, fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 16 }}>
+            {progressPct}%
+          </span>
+        </div>
+        <div style={{
+          height: 8, borderRadius: 99,
+          background: 'var(--night-mid)', border: '1px solid var(--border)',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            height: '100%', width: `${progressPct}%`,
+            background: clientStatus === 'published'
+              ? 'linear-gradient(90deg, var(--green) 0%, #16A34A 100%)'
+              : 'linear-gradient(90deg, var(--orange) 0%, #C45520 100%)',
+            transition: 'width .8s cubic-bezier(.4,1.3,.6,1)',
+            borderRadius: 99,
+          }} />
+        </div>
       </div>
-      <ol style={{
-        listStyle: 'none', padding: 0, margin: 0,
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-        gap: 6,
-      }}>
+
+      <ol style={{ listStyle: 'none', padding: 0, margin: 0, textAlign: 'left' }}>
         {PROJECT_STAGES.map((stage, i) => {
           const status: 'done' | 'current' | 'pending' = i < effectiveIdx ? 'done' : i === effectiveIdx ? 'current' : 'pending';
+          const isLast = i === PROJECT_STAGES.length - 1;
+          const dotBg = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'transparent';
+          const dotBorder = status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--green)' : 'var(--border-md)';
+          const lineBg = status === 'done' ? 'var(--green)' : 'var(--border)';
+          const titleColor = status === 'pending' ? 'var(--text-mid)' : 'var(--text)';
+          const dateExtra = stage.key === 'filming_scheduled' && clientInfo.filming_date
+            ? new Date(clientInfo.filming_date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+            : stage.key === 'published' && confirmedPublicationDate
+              ? confirmedPublicationDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+              : null;
+          const eta = stageEta(i, stage.key);
+          const isCurrent = status === 'current';
           return (
             <li key={stage.key} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '5px 8px', borderRadius: 7,
-              background: status === 'current' ? 'rgba(232,105,43,.10)' : 'transparent',
-              opacity: status === 'pending' ? 0.55 : 1,
+              display: 'grid', gridTemplateColumns: '36px 1fr', gap: 12, alignItems: 'flex-start',
             }}>
-              <span aria-hidden style={{
-                width: 18, height: 18, borderRadius: '50%',
-                background: status === 'done' ? 'var(--green)' : status === 'current' ? 'var(--orange)' : 'transparent',
-                border: status === 'pending' ? '1.5px solid var(--border-md)' : 'none',
-                color: '#fff', fontSize: '0.65rem', fontWeight: 800,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 54 }}>
+                <span aria-hidden style={{
+                  width: isCurrent ? 36 : 30, height: isCurrent ? 36 : 30, borderRadius: '50%',
+                  background: dotBg, border: `2px solid ${dotBorder}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontSize: isCurrent ? 16 : 14, flexShrink: 0,
+                  fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+                  boxShadow: isCurrent ? '0 0 0 6px rgba(232,105,43,.18)' : 'none',
+                  transition: 'all .3s ease',
+                }}>{status === 'done' ? '✓' : stage.emoji}</span>
+                {!isLast && <span aria-hidden style={{ flex: 1, width: 2, background: lineBg, marginTop: 4 }} />}
+              </div>
+              <div style={{
+                paddingBottom: 18,
+                padding: isCurrent ? '8px 12px' : '0',
+                marginBottom: isCurrent ? 18 : 0,
+                marginTop: isCurrent ? -4 : 0,
+                borderRadius: isCurrent ? 10 : 0,
+                background: isCurrent ? 'rgba(232,105,43,.06)' : 'transparent',
+                border: isCurrent ? '1px solid rgba(232,105,43,.25)' : 'none',
               }}>
-                {status === 'done' ? '✓' : status === 'current' ? '●' : ''}
-              </span>
-              <span style={{
-                fontSize: '0.72rem',
-                fontWeight: status === 'current' ? 700 : 500,
-                color: status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--text)' : 'var(--text-muted)',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>{stage.label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: isCurrent ? 700 : 600, color: titleColor, fontSize: isCurrent ? 15 : 14.5 }}>
+                    {stage.label}
+                  </span>
+                  {isCurrent && (
+                    <span className="bm-pulse-glow" style={{
+                      padding: '2px 8px', borderRadius: 999,
+                      background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
+                      color: '#FFB58A', fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+                    }}>VOUS ÊTES ICI</span>
+                  )}
+                </div>
+                {dateExtra && (
+                  <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2, fontWeight: 600 }}>📅 {dateExtra}</div>
+                )}
+                {eta && (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2, fontStyle: 'italic' }}>
+                    ⏱️ {eta}
+                  </div>
+                )}
+                <div style={{ fontSize: 12.5, color: 'var(--text-mid)', marginTop: 3, lineHeight: 1.5 }}>
+                  {stage.description}
+                </div>
+              </div>
             </li>
           );
         })}
