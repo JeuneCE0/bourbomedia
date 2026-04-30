@@ -22,21 +22,91 @@ interface Client {
   created_at: string;
   updated_at?: string;
   tags?: string[];
+  // Flags qui découpent le bucket "onboarding" en sous-étapes virtuelles
+  // côté pipeline (Compte / Contrat signé / Paiement reçu).
+  contract_signed_at?: string | null;
+  onboarding_call_booked?: boolean | null;
+  onboarding_call_date?: string | null;
 }
 
+// Le pipeline expose désormais les 3 micro-étapes de l'onboarding (Compte
+// créé, Contrat signé, Paiement reçu) en plus de l'Appel onboarding et
+// des étapes post-script. Côté DB, ces 3 micro-étapes partagent le même
+// status='onboarding' — on les distingue via les flags contract_signed_at
+// + paid_at + onboarding_call_booked. Les clés `onboarding:*` sont des
+// stages virtuels uniquement côté UI ; deriveStage(client) → clé virtuelle,
+// stageKeyToFields(key) → patch DB à appliquer pour matcher la stage cible.
 const STAGES: { key: string; label: string; color: string }[] = [
-  { key: 'onboarding',          label: 'Onboarding',     color: '#8A7060' },
+  { key: 'onboarding:account',  label: 'Compte créé',     color: '#8A7060' },
+  { key: 'onboarding:contract', label: 'Contrat signé',   color: '#F28C55' },
+  { key: 'onboarding:payment',  label: 'Paiement reçu',   color: '#FACC15' },
   { key: 'onboarding_call',     label: 'Appel onboarding', color: '#14B8A6' },
-  { key: 'script_writing',      label: 'Script',         color: '#FACC15' },
-  { key: 'script_review',       label: 'Relecture',      color: '#F28C55' },
-  { key: 'script_validated',    label: 'Validé',         color: '#22C55E' },
-  { key: 'filming_scheduled',   label: 'Tournage',       color: '#3B82F6' },
-  { key: 'filming_done',        label: 'Tourné',         color: '#8B5CF6' },
-  { key: 'editing',             label: 'Montage',        color: '#EC4899' },
+  { key: 'script_writing',      label: 'Script',          color: '#FACC15' },
+  { key: 'script_review',       label: 'Relecture',       color: '#F28C55' },
+  { key: 'script_validated',    label: 'Validé',          color: '#22C55E' },
+  { key: 'filming_scheduled',   label: 'Tournage',        color: '#3B82F6' },
+  { key: 'filming_done',        label: 'Tourné',          color: '#8B5CF6' },
+  { key: 'editing',             label: 'Montage',         color: '#EC4899' },
   { key: 'video_review',        label: 'Vidéo à valider', color: '#F97316' },
-  { key: 'publication_pending', label: 'Date publi',     color: '#FB923C' },
-  { key: 'published',           label: 'Publié',         color: '#22C55E' },
+  { key: 'publication_pending', label: 'Date publi',      color: '#FB923C' },
+  { key: 'published',           label: 'Publié',          color: '#22C55E' },
 ];
+
+// Mappe un client vers sa colonne virtuelle dans le pipeline.
+// Pour status='onboarding' : déduit la sous-étape via les flags.
+// Pour les autres status : 1:1 avec la clé.
+function deriveStage(c: Client): string {
+  if (c.status === 'onboarding') {
+    if (!c.contract_signed_at) return 'onboarding:account';
+    if (!c.paid_at) return 'onboarding:contract';
+    if (!c.onboarding_call_booked) return 'onboarding:payment';
+    // Tous les flags sont posés mais le status n'a pas avancé — cas edge,
+    // on les laisse dans la dernière colonne onboarding pour visibilité.
+    return 'onboarding:payment';
+  }
+  return c.status;
+}
+
+// Le patch DB à appliquer quand l'admin drag un client vers une stage cible.
+// Pour les stages virtuelles 'onboarding:*' on touche uniquement les flags
+// (status reste 'onboarding'). Pour les autres on patch le status.
+function stageKeyToFields(key: string): Record<string, unknown> {
+  switch (key) {
+    case 'onboarding:account':
+      return {
+        status: 'onboarding',
+        contract_signed_at: null,
+        paid_at: null,
+        onboarding_call_booked: false,
+        onboarding_call_date: null,
+      };
+    case 'onboarding:contract':
+      return {
+        status: 'onboarding',
+        contract_signed_at: new Date().toISOString(),
+        paid_at: null,
+        onboarding_call_booked: false,
+        onboarding_call_date: null,
+      };
+    case 'onboarding:payment':
+      return {
+        status: 'onboarding',
+        contract_signed_at: new Date().toISOString(),
+        paid_at: new Date().toISOString(),
+        onboarding_call_booked: false,
+        onboarding_call_date: null,
+      };
+    case 'onboarding_call':
+      return {
+        status: 'onboarding_call',
+        contract_signed_at: new Date().toISOString(),
+        paid_at: new Date().toISOString(),
+        onboarding_call_booked: true,
+      };
+    default:
+      return { status: key };
+  }
+}
 
 type CardField = 'contact' | 'city' | 'category' | 'email' | 'phone' | 'filming_date' | 'payment' | 'tags' | 'days';
 
@@ -87,7 +157,7 @@ export default function PipelineOnboarding() {
     } catch { /* */ }
   }, []);
 
-  useEffect(() => {
+  const loadClients = useCallback(() => {
     fetch('/api/clients', { headers: authHeaders() })
       .then(async r => {
         if (!r.ok) throw new Error('Erreur de chargement');
@@ -97,6 +167,27 @@ export default function PipelineOnboarding() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadClients(); }, [loadClients]);
+
+  // Refresh auto : (1) au retour sur l'onglet (visibilitychange) pour
+  // capturer les modifs faites depuis un autre device/onglet, (2) sur
+  // l'event 'bbm-clients-changed' qu'on dispatche localement quand un
+  // client vient d'être créé ou modifié — ça évite le "il faut F5" que
+  // l'admin remontait après l'ajout manuel d'un client.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadClients();
+    };
+    const onChanged = () => loadClients();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('bbm-clients-changed', onChanged);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('bbm-clients-changed', onChanged);
+    };
+  }, [loadClients]);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -119,22 +210,33 @@ export default function PipelineOnboarding() {
   const grouped = useMemo(() => {
     const g: Record<string, Client[]> = {};
     STAGES.forEach(s => { g[s.key] = []; });
-    filtered.forEach(c => { if (g[c.status]) g[c.status].push(c); });
+    filtered.forEach(c => {
+      const key = deriveStage(c);
+      if (g[key]) g[key].push(c);
+    });
     Object.values(g).forEach(arr => arr.sort((a, b) => daysIn(b) - daysIn(a)));
     return g;
   }, [filtered]);
 
-  const moveClient = useCallback(async (clientId: string, newStatus: string) => {
+  const moveClient = useCallback(async (clientId: string, newStageKey: string) => {
     const client = clients.find(x => x.id === clientId);
-    const stage = STAGES.find(s => s.key === newStatus);
+    const stage = STAGES.find(s => s.key === newStageKey);
+    const fields = stageKeyToFields(newStageKey);
     setMovingId(clientId);
     try {
       const r = await fetch('/api/clients', {
         method: 'PUT', headers: authHeaders(),
-        body: JSON.stringify({ id: clientId, status: newStatus }),
+        body: JSON.stringify({ id: clientId, ...fields }),
       });
       if (r.ok) {
-        setClients(prev => prev.map(x => x.id === clientId ? { ...x, status: newStatus, updated_at: new Date().toISOString() } : x));
+        // Patch local en miroir des fields envoyés pour rester en cohérence
+        // avec deriveStage() — ne pas patcher uniquement status sinon les
+        // micro-étapes onboarding partagent toutes le même status='onboarding'
+        // et la carte resterait dans la même colonne après le drop.
+        setClients(prev => prev.map(x => x.id === clientId
+          ? { ...x, ...fields, updated_at: new Date().toISOString() } as Client
+          : x,
+        ));
         if (client && stage) {
           toast.success(`${client.business_name} → ${stage.label}`, { emoji: '🎯' });
         }
@@ -195,7 +297,9 @@ export default function PipelineOnboarding() {
     const id = e.dataTransfer.getData('text/plain');
     if (id && id !== stageKey) {
       const c = clients.find(x => x.id === id);
-      if (c && c.status !== stageKey) moveClient(id, stageKey);
+      // Compare avec la stage dérivée (pas le status nu) pour gérer les
+      // 3 micro-étapes 'onboarding:*' qui partagent toutes status='onboarding'.
+      if (c && deriveStage(c) !== stageKey) moveClient(id, stageKey);
     }
   }
 
@@ -418,7 +522,7 @@ function PipelineCard({
   const days = daysIn(c);
   const stale = days > 7;
   const [menuOpen, setMenuOpen] = useState(false);
-  const stage = STAGES.find(s => s.key === c.status);
+  const stage = STAGES.find(s => s.key === deriveStage(c));
 
   return (
     <div
@@ -541,7 +645,7 @@ function PipelineCard({
             display: 'flex', flexDirection: 'column', gap: 1,
             maxHeight: 280, overflowY: 'auto',
           }}>
-            {STAGES.filter(s => s.key !== c.status).map(stage => (
+            {STAGES.filter(s => s.key !== deriveStage(c)).map(stage => (
               <button
                 key={stage.key}
                 type="button"

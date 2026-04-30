@@ -243,6 +243,12 @@ export function ClientsListView() {
         setShowForm(false);
         setForm({ business_name: '', contact_name: '', email: '', phone: '', city: '', category: '' });
         loadClients();
+        // Notifie les autres vues (PipelineOnboarding, /dashboard/onboarding
+        // kanban) qu'un client vient d'être créé pour qu'elles re-fetch
+        // sans nécessiter un refresh manuel de la page.
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('bbm-clients-changed', { detail: { reason: 'created' } }));
+        }
       }
     } finally { setSaving(false); }
   }
