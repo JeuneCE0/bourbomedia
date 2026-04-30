@@ -5,6 +5,7 @@ import { createEmbeddedCheckoutSession } from '@/lib/stripe';
 import { findGhlContactByEmailOrPhone } from '@/lib/ghl';
 import { notifyClientStatusChange } from '@/lib/slack';
 import { trackFunnelServer } from '@/lib/funnel';
+import { sendPushToAll } from '@/lib/push';
 import crypto from 'crypto';
 
 export async function GET(req: NextRequest) {
@@ -73,6 +74,12 @@ export async function POST(req: NextRequest) {
       const data = await r.json();
 
       notifyClientStatusChange(business_name, '—', 'Compte créé (onboarding)');
+      void sendPushToAll({
+        title: '📝 Nouveau signup',
+        body: `${business_name} (${contact_name}) vient de créer son compte onboarding.`,
+        url: data?.[0]?.id ? `/dashboard/clients/${data[0].id}?tab=journey` : '/dashboard',
+        tag: data?.[0]?.id ? `signup-${data[0].id}` : 'signup',
+      });
 
       return NextResponse.json({ token: onboardingToken, portalToken, client: data[0] }, { status: 201 });
     } catch (e: unknown) {
@@ -134,6 +141,12 @@ export async function POST(req: NextRequest) {
       }, true);
       notifyClientStatusChange(client.business_name, 'Étape 2', 'Contrat signé');
       void trackFunnelServer({ event: 'contract_signed', source: 'portal', clientId: client.id });
+      void sendPushToAll({
+        title: '✍️ Contrat signé',
+        body: `${client.business_name} vient de signer le contrat.`,
+        url: `/dashboard/clients/${client.id}?tab=journey`,
+        tag: `contract-${client.id}`,
+      });
       return NextResponse.json({ signed: true });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
@@ -182,6 +195,12 @@ export async function POST(req: NextRequest) {
     }, true);
     notifyClientStatusChange(client.business_name, 'Étape 4', 'Appel onboarding réservé');
     void trackFunnelServer({ event: 'call_booked', source: 'portal', clientId: client.id });
+    void sendPushToAll({
+      title: '📞 Appel onboarding réservé',
+      body: `${client.business_name} a réservé son appel onboarding${body.date ? ` (${new Date(body.date).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})` : ''}.`,
+      url: `/dashboard/clients/${client.id}?tab=journey`,
+      tag: `call-${client.id}`,
+    });
     return NextResponse.json({ success: true });
   }
 

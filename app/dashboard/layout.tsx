@@ -33,6 +33,7 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon:
       { href: '/dashboard/stats',       label: 'Statistiques',    icon: '📈' },
       { href: '/dashboard/funnel',      label: 'Funnel',          icon: '📊' },
       { href: '/dashboard/errors',      label: 'Erreurs',         icon: '🪲' },
+      { href: '/dashboard/health',      label: 'Health',          icon: '🩺' },
       { href: '/dashboard/settings',    label: 'Paramètres',      icon: '⚙️' },
     ],
   },

@@ -233,10 +233,10 @@ export default function ClientDetailPage() {
   const id = params.id as string;
 
   const searchParams = useSearchParams();
-  type TabKey = 'conversation' | 'info' | 'ghl' | 'script' | 'delivery' | 'payments';
+  type TabKey = 'conversation' | 'info' | 'ghl' | 'script' | 'delivery' | 'payments' | 'journey';
   const initialTab = (() => {
     const t = searchParams.get('tab');
-    return (['conversation', 'info', 'ghl', 'script', 'filming', 'delivery', 'payments'] as const).includes(t as TabKey) ? (t as TabKey) : 'conversation';
+    return (['conversation', 'info', 'ghl', 'script', 'delivery', 'payments', 'journey'] as const).includes(t as TabKey) ? (t as TabKey) : 'conversation';
   })();
 
   const [client, setClient] = useState<Client | null>(null);
@@ -1070,6 +1070,7 @@ export default function ClientDetailPage() {
 
   const TAB_LIST: { key: typeof tab; label: string; badge?: string }[] = [
     { key: 'conversation', label: '💬 Conversation' },
+    { key: 'journey', label: '🗺️ Parcours' },
     { key: 'script', label: 'Script', badge: script?.script_comments?.length ? `${script.script_comments.length}` : undefined },
     { key: 'delivery', label: 'Montage', badge: pendingFeedbackCount > 0 ? `${pendingFeedbackCount}` : (client.delivered_at ? '✓' : undefined) },
     { key: 'ghl', label: 'Closing & RDV' },
@@ -1438,6 +1439,8 @@ export default function ClientDetailPage() {
           />
         </div>
       )}
+
+      {tab === 'journey' && <ClientJourneyTab clientId={id} />}
 
       {/* Closing & RDV tab — GHL opportunities + appointments linked to this client */}
       {tab === 'ghl' && (
@@ -2156,6 +2159,148 @@ const miniActionStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   fontSize: '0.85rem', textDecoration: 'none', color: 'var(--text-mid)',
 };
+
+// Onglet "Parcours" — affiche les funnel_events de ce client en ligne
+// chronologique inverse. Source de vérité pour reconstituer ce qu'un
+// client a fait (signup → contract → payment → ...) sans avoir à compulser
+// toutes les autres tabs séparément.
+interface JourneyEvent {
+  event: string;
+  source: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+const JOURNEY_EVENT_LABELS: Record<string, { emoji: string; label: string; color: string }> = {
+  onboarding_landed:        { emoji: '👋', label: 'Visite onboarding',     color: 'var(--text-muted)' },
+  signup_completed:         { emoji: '📝', label: 'Inscription',           color: '#8A7060' },
+  contract_signed:          { emoji: '✍️', label: 'Contrat signé',         color: '#F28C55' },
+  payment_completed:        { emoji: '💳', label: 'Paiement reçu',         color: '#FACC15' },
+  call_booked:              { emoji: '📞', label: 'Appel onboarding réservé', color: '#14B8A6' },
+  script_proposed:          { emoji: '📜', label: 'Script envoyé',         color: '#FACC15' },
+  script_validated:         { emoji: '✅', label: 'Script validé',         color: '#22C55E' },
+  filming_booked:           { emoji: '🎬', label: 'Tournage réservé',      color: '#3B82F6' },
+  video_delivered:          { emoji: '📹', label: 'Vidéo livrée',          color: '#8B5CF6' },
+  video_validated:          { emoji: '👍', label: 'Vidéo validée',         color: '#22C55E' },
+  video_changes_requested:  { emoji: '✏️', label: 'Modifications demandées', color: '#F97316' },
+  publication_booked:       { emoji: '🗓️', label: 'Date publication choisie', color: '#FB923C' },
+  project_published:        { emoji: '🎉', label: 'Vidéo publiée',         color: 'var(--green)' },
+};
+
+function ClientJourneyTab({ clientId }: { clientId: string }) {
+  const [events, setEvents] = useState<JourneyEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/funnel?client_id=${clientId}&limit=200`, { headers: authHeaders() });
+        if (!r.ok) throw new Error('fetch failed');
+        const data = await r.json();
+        if (!cancelled && Array.isArray(data)) setEvents(data);
+      } catch { /* tolerate */ }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [clientId]);
+
+  if (loading) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+        Chargement du parcours…
+      </div>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <div style={{
+        padding: '32px 20px', borderRadius: 12,
+        background: 'var(--night-card)', border: '1px solid var(--border)',
+        textAlign: 'center', color: 'var(--text-muted)',
+      }}>
+        <div style={{ fontSize: '2rem', marginBottom: 8 }}>📭</div>
+        <div style={{ fontSize: '0.95rem', color: 'var(--text)', fontWeight: 600, marginBottom: 4 }}>
+          Pas encore d&apos;événement enregistré
+        </div>
+        <div style={{ fontSize: '0.82rem' }}>
+          Le parcours se remplira automatiquement au fur et à mesure des actions client
+          (signup, signature, paiement, etc.).
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      background: 'var(--night-card)', borderRadius: 14,
+      border: '1px solid var(--border)', overflow: 'hidden',
+    }}>
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+        <h3 style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+          fontSize: '1.05rem', color: 'var(--text)', margin: 0,
+        }}>
+          🗺️ Parcours du client
+        </h3>
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 4 }}>
+          {events.length} événement{events.length > 1 ? 's' : ''} — du plus récent au plus ancien.
+        </div>
+      </div>
+      <ol style={{ listStyle: 'none', padding: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {events.map((e, i) => {
+          const meta = JOURNEY_EVENT_LABELS[e.event] || { emoji: '🔹', label: e.event, color: 'var(--text-muted)' };
+          const date = new Date(e.created_at);
+          const dateStr = date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+          const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          const isLast = i === events.length - 1;
+          return (
+            <li key={`${e.event}-${e.created_at}`} style={{
+              display: 'grid', gridTemplateColumns: '36px 1fr', gap: 12, alignItems: 'flex-start',
+              padding: '6px 0',
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 50 }}>
+                <span aria-hidden style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  background: `${meta.color}25`, border: `2px solid ${meta.color}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, flexShrink: 0,
+                  fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+                }}>{meta.emoji}</span>
+                {!isLast && <span aria-hidden style={{ flex: 1, width: 2, background: 'var(--border)', marginTop: 4 }} />}
+              </div>
+              <div style={{ paddingBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text)', fontSize: '0.92rem' }}>
+                    {meta.label}
+                  </span>
+                  <span style={{
+                    fontSize: '0.7rem', padding: '2px 6px', borderRadius: 4,
+                    background: 'var(--night-mid)', color: 'var(--text-muted)', fontWeight: 600,
+                  }}>{e.source}</span>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                  {dateStr} à {timeStr}
+                </div>
+                {e.metadata && Object.keys(e.metadata).length > 0 && (
+                  <div style={{
+                    fontSize: '0.72rem', color: 'var(--text-mid)',
+                    fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                    marginTop: 4, padding: '4px 8px', borderRadius: 4,
+                    background: 'var(--night-mid)', display: 'inline-block',
+                  }}>
+                    {Object.entries(e.metadata).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
 
 function ConversationTimeline({
   items, loading, onJump,

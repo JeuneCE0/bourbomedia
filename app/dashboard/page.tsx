@@ -7,6 +7,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import AppointmentsToDocument from '@/components/AppointmentsToDocument';
 import ProspectsToFollowUp from '@/components/ProspectsToFollowUp';
 import TodayAppointments from '@/components/TodayAppointments';
+import ActivityFeed from '@/components/ActivityFeed';
 import OrphanPaymentsCard from '@/components/OrphanPaymentsCard';
 
 interface Client {
@@ -274,6 +275,9 @@ export default function DashboardPage() {
 
           {/* Paiements Stripe orphelins (pas de client identifié) — action rapide */}
           <OrphanPaymentsCard />
+
+          {/* Activité client en direct (funnel events des dernières 24h) */}
+          <ActivityFeed />
 
           {/* Appels du jour (closing/onboarding/tournage) — visibilité rapide */}
           <TodayAppointments />

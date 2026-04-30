@@ -11,6 +11,19 @@ interface FunnelStats {
   conversions: (Conversion | null)[];
 }
 
+interface CohortRow {
+  month: string;
+  total_signups: number;
+  reached: Record<string, number>;
+  rates: Record<string, number>;
+}
+interface CohortStats {
+  months: number;
+  since: string;
+  stages: string[];
+  cohorts: CohortRow[];
+}
+
 const EVENT_LABELS: Record<string, { label: string; emoji: string }> = {
   onboarding_landed:        { label: 'Visite onboarding',     emoji: '👋' },
   signup_completed:         { label: 'Inscription',           emoji: '📝' },
@@ -31,21 +44,31 @@ function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('bbp_token')}`, 'Content-Type': 'application/json' };
 }
 
+type ViewMode = 'global' | 'cohorts';
+
 export default function FunnelPage() {
   const [data, setData] = useState<FunnelStats | null>(null);
+  const [cohorts, setCohorts] = useState<CohortStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'7' | '30' | '90'>('30');
+  const [view, setView] = useState<ViewMode>('global');
+  const [cohortMonths, setCohortMonths] = useState<3 | 6 | 12>(6);
 
   useEffect(() => { document.title = 'Funnel onboarding — BourbonMédia Admin'; }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const since = new Date(Date.now() - Number(period) * 86_400_000).toISOString().slice(0, 10);
-      const r = await fetch(`/api/funnel-stats?since=${since}`, { headers: authHeaders() });
-      if (r.ok) setData(await r.json());
+      if (view === 'global') {
+        const since = new Date(Date.now() - Number(period) * 86_400_000).toISOString().slice(0, 10);
+        const r = await fetch(`/api/funnel-stats?since=${since}`, { headers: authHeaders() });
+        if (r.ok) setData(await r.json());
+      } else {
+        const r = await fetch(`/api/funnel-cohorts?months=${cohortMonths}`, { headers: authHeaders() });
+        if (r.ok) setCohorts(await r.json());
+      }
     } finally { setLoading(false); }
-  }, [period]);
+  }, [period, view, cohortMonths]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -60,11 +83,13 @@ export default function FunnelPage() {
             📊 Funnel onboarding
           </h1>
           <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            Conversion stage-par-stage des prospects sur les {period} derniers jours.
+            {view === 'global'
+              ? `Conversion stage-par-stage des prospects sur les ${period} derniers jours.`
+              : `Comparaison mois par mois — chaque ligne suit une cohorte (signups groupés par mois).`}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          {(['7', '30', '90'] as const).map(p => (
+          {view === 'global' && (['7', '30', '90'] as const).map(p => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
@@ -79,11 +104,50 @@ export default function FunnelPage() {
               {p}j
             </button>
           ))}
+          {view === 'cohorts' && ([3, 6, 12] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => setCohortMonths(m)}
+              style={{
+                padding: '7px 14px', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600,
+                background: cohortMonths === m ? 'var(--orange)' : 'var(--night-mid)',
+                color: cohortMonths === m ? '#fff' : 'var(--text-mid)',
+                border: `1px solid ${cohortMonths === m ? 'var(--orange)' : 'var(--border-md)'}`,
+                cursor: 'pointer',
+              }}
+            >
+              {m} mois
+            </button>
+          ))}
         </div>
+      </div>
+
+      {/* View toggle */}
+      <div style={{
+        display: 'inline-flex', gap: 4, marginBottom: 16,
+        background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+        borderRadius: 10, padding: 4,
+      }}>
+        {(['global', 'cohorts'] as const).map(v => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            style={{
+              padding: '7px 14px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600,
+              background: view === v ? 'var(--night-card)' : 'transparent',
+              color: view === v ? 'var(--text)' : 'var(--text-muted)',
+              border: 'none', cursor: 'pointer',
+            }}
+          >
+            {v === 'global' ? '📊 Funnel global' : '📅 Cohortes mensuelles'}
+          </button>
+        ))}
       </div>
 
       {loading ? (
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>Chargement…</div>
+      ) : view === 'cohorts' ? (
+        <CohortsView data={cohorts} />
       ) : !data || data.stages.every(s => s.uniqueClients === 0) ? (
         <div style={{
           padding: '40px 20px', textAlign: 'center', borderRadius: 12,
@@ -177,11 +241,126 @@ export default function FunnelPage() {
         background: 'var(--night-card)', border: '1px dashed var(--border-md)',
         fontSize: '0.78rem', color: 'var(--text-mid)', lineHeight: 1.6,
       }}>
-        💡 <strong>Lecture :</strong> chaque ligne montre le nombre de prospects
-        uniques ayant atteint cette étape. Le pourcentage entre deux lignes est le
-        taux de conversion. Une chute brutale signale un point de friction
-        (ex: prospects qui signent le contrat mais ne paient pas).
+        💡 <strong>Lecture :</strong> {view === 'global'
+          ? 'chaque ligne montre le nombre de prospects uniques ayant atteint cette étape. Le pourcentage entre deux lignes est le taux de conversion. Une chute brutale signale un point de friction.'
+          : 'chaque ligne est la cohorte des clients ayant signup ce mois-là, suivie de leur taux d\'atteinte de chaque étape. Comparer mois par mois permet de spotter une dégradation (ex: avril 80% paiement, mai 50%).'}
       </div>
+    </div>
+  );
+}
+
+const STAGE_META: Record<string, { label: string; emoji: string }> = {
+  signup_completed:   { label: 'Inscription',     emoji: '📝' },
+  contract_signed:    { label: 'Contrat',         emoji: '✍️' },
+  payment_completed:  { label: 'Paiement',        emoji: '💳' },
+  call_booked:        { label: 'Onboarding call', emoji: '📞' },
+  script_validated:   { label: 'Script validé',   emoji: '✅' },
+  filming_booked:     { label: 'Tournage',        emoji: '🎬' },
+  video_delivered:    { label: 'Vidéo livrée',    emoji: '📹' },
+  video_validated:    { label: 'Vidéo validée',   emoji: '👍' },
+  project_published:  { label: 'Publié',          emoji: '🎉' },
+};
+
+function rateColor(rate: number): string {
+  if (rate >= 75) return 'var(--green)';
+  if (rate >= 50) return '#FACC15';
+  if (rate >= 25) return '#F97316';
+  return 'var(--red)';
+}
+
+function fmtMonth(m: string): string {
+  const [year, month] = m.split('-');
+  const date = new Date(Number(year), Number(month) - 1, 1);
+  return date.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+}
+
+function CohortsView({ data }: { data: CohortStats | null }) {
+  if (!data || data.cohorts.length === 0) {
+    return (
+      <div style={{
+        padding: '40px 20px', textAlign: 'center', borderRadius: 12,
+        background: 'var(--night-card)', border: '1px solid var(--border)',
+        color: 'var(--text-muted)',
+      }}>
+        📭 Aucune cohorte sur la période.
+        <div style={{ marginTop: 8, fontSize: '0.78rem' }}>
+          Chaque cohorte démarre avec un signup_completed. Sans signup tracké
+          dans la fenêtre, pas de cohorte à comparer.
+        </div>
+      </div>
+    );
+  }
+
+  // Stages affichés (skip signup_completed dans les colonnes — c'est la base
+  // de référence à 100%, déjà donnée par "n signups")
+  const displayStages = data.stages.filter(s => s !== 'signup_completed');
+
+  return (
+    <div style={{
+      background: 'var(--night-card)', borderRadius: 14,
+      border: '1px solid var(--border)', overflow: 'auto',
+    }}>
+      <table style={{
+        width: '100%', borderCollapse: 'collapse', minWidth: 720,
+        fontSize: '0.78rem',
+      }}>
+        <thead>
+          <tr style={{ background: 'var(--night-mid)', borderBottom: '1px solid var(--border)' }}>
+            <th style={{ padding: '12px 14px', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Cohorte
+            </th>
+            <th style={{ padding: '12px 10px', textAlign: 'right', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Signups
+            </th>
+            {displayStages.map(s => {
+              const meta = STAGE_META[s] || { label: s, emoji: '🔹' };
+              return (
+                <th key={s} style={{
+                  padding: '12px 10px', textAlign: 'center',
+                  color: 'var(--text-muted)', fontWeight: 600,
+                  fontSize: '0.72rem', minWidth: 78,
+                }}>
+                  <div aria-hidden style={{ fontSize: '1rem', marginBottom: 2 }}>{meta.emoji}</div>
+                  <div>{meta.label}</div>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {data.cohorts.map(c => (
+            <tr key={c.month} style={{ borderBottom: '1px solid var(--border)' }}>
+              <td style={{ padding: '14px', color: 'var(--text)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                {fmtMonth(c.month)}
+              </td>
+              <td style={{ padding: '14px 10px', textAlign: 'right', color: 'var(--text)', fontWeight: 700, fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+                {c.total_signups}
+              </td>
+              {displayStages.map(s => {
+                const rate = c.rates[s] || 0;
+                const reached = c.reached[s] || 0;
+                return (
+                  <td key={s} style={{ padding: '10px', textAlign: 'center' }}>
+                    <div style={{
+                      display: 'inline-block', minWidth: 56,
+                      padding: '4px 8px', borderRadius: 6,
+                      background: rate > 0 ? `color-mix(in srgb, ${rateColor(rate)} 12%, transparent)` : 'transparent',
+                      border: `1px solid ${rate > 0 ? `color-mix(in srgb, ${rateColor(rate)} 30%, transparent)` : 'var(--border)'}`,
+                    }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.84rem', color: rate > 0 ? rateColor(rate) : 'var(--text-muted)' }}>
+                        {rate}%
+                      </div>
+                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                        {reached}/{c.total_signups}
+                      </div>
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
