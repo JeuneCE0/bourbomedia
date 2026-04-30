@@ -27,8 +27,33 @@ export interface GhlPrefill {
   business_name?: string | null;
 }
 
+// Normalise une valeur d'URL de calendrier GHL. Tolère les configs Vercel
+// où l'admin aurait collé juste l'ID (ex : "RRDC3HvypJEIvLxjy3Gg") au lieu
+// de l'URL widget complète, ou même un path relatif. Sans cette normalisation,
+// l'iframe charge `https://bourbonmedia.fr/<valeur>` qui résout vers notre
+// own /not-found.tsx — ce que le client voit alors comme un "404" dans le
+// calendrier.
+function normalizeGhlCalendarUrl(input: string): string {
+  if (!input) return input;
+  const trimmed = input.trim();
+  // Déjà une URL absolue HTTPS → on suppose que c'est correct.
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  // ID GHL pur (alpha-num, ~20 chars) → on préfixe avec le widget endpoint.
+  if (/^[A-Za-z0-9]{15,32}$/.test(trimmed)) {
+    return `https://api.leadconnectorhq.com/widget/booking/${trimmed}`;
+  }
+  // Path qui ressemble à `/widget/booking/<id>` → préfixe avec le host.
+  if (trimmed.startsWith('/widget/booking/')) {
+    return `https://api.leadconnectorhq.com${trimmed}`;
+  }
+  // Cas fail-safe : on renvoie tel quel et le composant affichera un état
+  // d'erreur (cf. check `looksValid` dans le render).
+  return trimmed;
+}
+
 function buildGhlUrlWithPrefill(url: string, prefill?: GhlPrefill): string {
-  if (!url || !prefill) return url;
+  const normalized = normalizeGhlCalendarUrl(url);
+  if (!normalized || !prefill) return normalized;
   const parts = (prefill.contact_name || '').trim().split(/\s+/).filter(Boolean);
   const params = new URLSearchParams();
   if (parts[0]) params.set('first_name', parts[0]);
@@ -37,8 +62,8 @@ function buildGhlUrlWithPrefill(url: string, prefill?: GhlPrefill): string {
   if (prefill.phone) params.set('phone', prefill.phone);
   if (prefill.business_name) params.set('company_name', prefill.business_name);
   const qs = params.toString();
-  if (!qs) return url;
-  return url + (url.includes('?') ? '&' : '?') + qs;
+  if (!qs) return normalized;
+  return normalized + (normalized.includes('?') ? '&' : '?') + qs;
 }
 
 export default function GhlBookingEmbed({ url, title, onLoad, prefill }: {
@@ -61,10 +86,38 @@ export default function GhlBookingEmbed({ url, title, onLoad, prefill }: {
   }, []);
 
   const finalUrl = useMemo(() => buildGhlUrlWithPrefill(url, prefill), [url, prefill]);
-  const calendarId = url.split('/').pop()?.split('?')[0] || 'calendar';
+  const calendarId = finalUrl.split('/').pop()?.split('?')[0] || 'calendar';
   // Timestamp évalué une seule fois au mount (lazy init) — pas de SSR
   // mismatch et l'id reste stable pour form_embed.js.
   const [iframeId] = useState(() => `${calendarId}_${Date.now()}`);
+
+  // Garde-fou : si l'URL ne ressemble pas à un widget GHL valide après
+  // normalisation, on affiche un fallback côté admin plutôt que de laisser
+  // l'iframe charger une URL qui résout en interne sur notre /not-found
+  // (le client verrait un "404 Page introuvable" dans le calendrier).
+  const looksValid = /^https:\/\/api\.leadconnectorhq\.com\/widget\/booking\//i.test(finalUrl);
+  if (!looksValid) {
+    return (
+      <div style={{
+        borderRadius: 14,
+        border: '1px dashed var(--border-md)',
+        background: 'var(--night-mid)',
+        padding: '24px 22px',
+        color: 'var(--text-mid)',
+        fontSize: '0.86rem',
+        lineHeight: 1.6,
+      }}>
+        <div style={{ fontWeight: 700, color: 'var(--orange)', marginBottom: 8 }}>
+          ⚠️ Calendrier indisponible
+        </div>
+        <p style={{ margin: 0 }}>
+          Le lien du calendrier n&apos;est pas correctement configuré côté admin.
+          L&apos;équipe BourbonMédia va vous proposer un créneau directement —
+          vous serez recontacté·e très vite.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div style={{
