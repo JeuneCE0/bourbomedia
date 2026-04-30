@@ -57,17 +57,33 @@ export default function OnboardingDashboardPage() {
   const [dragClientId, setDragClientId] = useState<string | null>(null);
   const [dragSourceStep, setDragSourceStep] = useState<number | null>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkSaving, setBulkSaving] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/onboarding', { headers: authHeaders() })
-      .then(async r => {
-        if (!r.ok) throw new Error((await r.json().catch(() => ({ error: r.statusText }))).error || 'Erreur');
-        return r.json();
-      })
-      .then(d => { if (Array.isArray(d)) setClients(d); })
-      .catch(e => console.error('Erreur chargement onboarding:', e))
-      .finally(() => setLoading(false));
+  function toggleSelected(id: string) {
+    setSelected(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+
+  function clearSelection() { setSelected(new Set()); }
+
+  const loadClients = useCallback(async () => {
+    try {
+      const r = await fetch('/api/onboarding', { headers: authHeaders() });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({ error: r.statusText }))).error || 'Erreur');
+      const d = await r.json();
+      if (Array.isArray(d)) setClients(d);
+    } catch (e) {
+      console.error('Erreur chargement onboarding:', e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { loadClients(); }, [loadClients]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -147,8 +163,79 @@ export default function OnboardingDashboardPage() {
     } catch {
       setClients(previousClients);
       window.alert("Impossible de retirer ce client de l'onboarding. Réessayez.");
+      await loadClients();
     }
-  }, [clients]);
+  }, [clients, loadClients]);
+
+  // Bulk : retirer du parcours d'onboarding (onboarding_step = null) — la
+  // fiche client et l'opportunité GHL restent intactes.
+  const bulkRemoveFromOnboarding = useCallback(async () => {
+    if (selected.size === 0) return;
+    const subset = clients.filter(c => selected.has(c.id));
+    const names = subset.slice(0, 3).map(c => c.business_name).join(', ');
+    const more = subset.length > 3 ? ` et ${subset.length - 3} autre(s)` : '';
+    if (!window.confirm(`Retirer ${subset.length} client${subset.length > 1 ? 's' : ''} du parcours d'onboarding ?\n\n${names}${more}\n\nLa fiche client et la pipeline ne sont pas impactées.`)) return;
+    setBulkSaving(true);
+    let ok = 0, fail = 0;
+    for (const id of selected) {
+      try {
+        const r = await fetch('/api/clients', {
+          method: 'PUT', headers: authHeaders(),
+          body: JSON.stringify({ id, onboarding_step: null }),
+        });
+        if (r.ok) ok++; else fail++;
+      } catch { fail++; }
+    }
+    setSelected(new Set());
+    setBulkSaving(false);
+    if (fail > 0) window.alert(`${ok} retiré(s), ${fail} échec(s) — réessayez.`);
+    await loadClients();
+  }, [selected, clients, loadClients]);
+
+  // Bulk : suppression DÉFINITIVE des clients sélectionnés (hard delete via
+  // /api/clients DELETE { hard: true }). Mirror du pattern de la page
+  // /dashboard/clients : double confirmation + retape du nom pour éviter les
+  // accidents. Les FK clients(id) sont soit ON DELETE CASCADE soit SET NULL,
+  // donc pas de violation de contrainte.
+  const bulkDelete = useCallback(async () => {
+    if (selected.size === 0) return;
+    const subset = clients.filter(c => selected.has(c.id));
+    const names = subset.slice(0, 3).map(c => c.business_name).join(', ');
+    const more = subset.length > 3 ? ` et ${subset.length - 3} autre(s)` : '';
+    const first = window.confirm(
+      `⚠️ Vous allez supprimer DÉFINITIVEMENT :\n\n${names}${more}\n\n(${subset.length} client${subset.length > 1 ? 's' : ''} au total)\n\nLa fiche client, l'historique et l'opportunité GHL liée seront supprimés. Cette action est IRRÉVERSIBLE. Continuer ?`,
+    );
+    if (!first) return;
+    const expected = subset.length === 1 ? subset[0].business_name : `SUPPRIMER ${subset.length}`;
+    const confirmation = window.prompt(
+      subset.length === 1
+        ? `Pour confirmer la suppression de "${expected}", retapez son nom exact ci-dessous :`
+        : `Pour confirmer la suppression de ${subset.length} clients, tapez :\n\n${expected}`,
+    );
+    if (confirmation?.trim() !== expected) {
+      window.alert('Suppression annulée — la confirmation ne correspond pas.');
+      return;
+    }
+    setBulkSaving(true);
+    let ok = 0, fail = 0;
+    let lastErr = '';
+    for (const id of selected) {
+      try {
+        const r = await fetch('/api/clients', {
+          method: 'DELETE', headers: authHeaders(),
+          body: JSON.stringify({ id, hard: true }),
+        });
+        if (r.ok) ok++;
+        else { fail++; lastErr = await r.text().catch(() => ''); }
+      } catch (e) { fail++; lastErr = (e as Error).message || ''; }
+    }
+    setSelected(new Set());
+    setBulkSaving(false);
+    if (fail > 0) {
+      window.alert(`${ok} supprimé(s), ${fail} échec(s)${lastErr ? ` — ${lastErr.slice(0, 200)}` : ''}`);
+    }
+    await loadClients();
+  }, [selected, clients, loadClients]);
 
   function onDragStart(e: React.DragEvent, clientId: string, currentStep: number) {
     setDragClientId(clientId);
@@ -265,6 +352,69 @@ export default function OnboardingDashboardPage() {
         </div>
       </div>
 
+      {/* Bulk action toolbar — apparaît dès qu'au moins un prospect est
+          sélectionné via la checkbox sur sa carte (ou ligne en mode liste). */}
+      {selected.size > 0 && (
+        <div style={{
+          position: 'sticky',
+          top: 12,
+          zIndex: 10,
+          marginBottom: 16,
+          padding: '12px 16px',
+          borderRadius: 12,
+          background: 'var(--night-card)',
+          border: '1px solid var(--border-orange)',
+          boxShadow: '0 6px 24px rgba(0,0,0,.35)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}>
+          <span style={{
+            fontSize: '0.85rem', color: 'var(--text)', fontWeight: 700,
+          }}>
+            {selected.size} sélectionné{selected.size > 1 ? 's' : ''}
+          </span>
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={bulkRemoveFromOnboarding}
+            disabled={bulkSaving}
+            style={{
+              padding: '8px 14px', borderRadius: 8,
+              background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+              color: 'var(--text)', fontSize: '0.84rem', fontWeight: 600,
+              cursor: bulkSaving ? 'wait' : 'pointer',
+            }}
+          >
+            🗑 Retirer du parcours
+          </button>
+          <button
+            onClick={bulkDelete}
+            disabled={bulkSaving}
+            style={{
+              padding: '8px 14px', borderRadius: 8,
+              background: 'rgba(239,68,68,.14)', border: '1px solid rgba(239,68,68,.5)',
+              color: 'var(--red)', fontSize: '0.84rem', fontWeight: 700,
+              cursor: bulkSaving ? 'wait' : 'pointer',
+            }}
+          >
+            ❌ Supprimer définitivement
+          </button>
+          <button
+            onClick={clearSelection}
+            disabled={bulkSaving}
+            style={{
+              padding: '8px 14px', borderRadius: 8,
+              background: 'transparent', border: '1px solid var(--border-md)',
+              color: 'var(--text-muted)', fontSize: '0.84rem',
+              cursor: bulkSaving ? 'wait' : 'pointer',
+            }}
+          >
+            Annuler
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div style={{
           color: 'var(--text-muted)',
@@ -286,9 +436,16 @@ export default function OnboardingDashboardPage() {
           onColumnDragLeave={onColumnDragLeave}
           onColumnDrop={onColumnDrop}
           onRemoveFromOnboarding={removeFromOnboarding}
+          selected={selected}
+          onToggleSelected={toggleSelected}
         />
       ) : (
-        <ListView clients={filtered} onRemoveFromOnboarding={removeFromOnboarding} />
+        <ListView
+          clients={filtered}
+          onRemoveFromOnboarding={removeFromOnboarding}
+          selected={selected}
+          onToggleSelected={toggleSelected}
+        />
       )}
     </div>
   );
@@ -350,6 +507,8 @@ interface KanbanViewProps {
   onColumnDragLeave: () => void;
   onColumnDrop: (e: React.DragEvent, stepNum: number) => void;
   onRemoveFromOnboarding: (clientId: string, businessName: string) => void;
+  selected: Set<string>;
+  onToggleSelected: (id: string) => void;
 }
 
 function KanbanView({
@@ -363,6 +522,8 @@ function KanbanView({
   onColumnDragLeave,
   onColumnDrop,
   onRemoveFromOnboarding,
+  selected,
+  onToggleSelected,
 }: KanbanViewProps) {
   return (
     <div style={{
@@ -466,6 +627,8 @@ function KanbanView({
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
                   onRemoveFromOnboarding={onRemoveFromOnboarding}
+                  isSelected={selected.has(c.id)}
+                  onToggleSelected={onToggleSelected}
                 />
               ))
             )}
@@ -483,6 +646,8 @@ function KanbanCard({
   onDragStart,
   onDragEnd,
   onRemoveFromOnboarding,
+  isSelected,
+  onToggleSelected,
 }: {
   client: OnboardingClient;
   color: string;
@@ -490,6 +655,8 @@ function KanbanCard({
   onDragStart: (e: React.DragEvent, clientId: string, currentStep: number) => void;
   onDragEnd: (e: React.DragEvent) => void;
   onRemoveFromOnboarding: (clientId: string, businessName: string) => void;
+  isSelected: boolean;
+  onToggleSelected: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const initials = getInitials(client.business_name);
@@ -498,11 +665,11 @@ function KanbanCard({
 
   const cardStyle: CSSProperties = {
     position: 'relative',
-    background: 'var(--night-card)',
+    background: isSelected ? 'rgba(232,105,43,.10)' : 'var(--night-card)',
     border: '1px solid',
-    borderColor: hovered ? color + '60' : 'var(--border)',
+    borderColor: isSelected ? 'var(--orange)' : (hovered ? color + '60' : 'var(--border)'),
     borderRadius: 10,
-    padding: 12,
+    padding: '28px 12px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
@@ -525,12 +692,35 @@ function KanbanCard({
       onMouseLeave={() => setHovered(false)}
       style={cardStyle}
     >
+      {/* Checkbox de sélection — visible en permanence (pour qu'il soit clair
+          qu'on peut sélectionner) en haut à gauche. Le clic ne déclenche ni
+          le drag, ni la navigation vers la fiche client. */}
+      <input
+        type="checkbox"
+        checked={isSelected}
+        onChange={() => onToggleSelected(client.id)}
+        onClick={e => e.stopPropagation()}
+        onMouseDown={e => e.stopPropagation()}
+        aria-label={`Sélectionner ${client.business_name}`}
+        style={{
+          position: 'absolute',
+          top: 8,
+          left: 8,
+          width: 16,
+          height: 16,
+          margin: 0,
+          accentColor: 'var(--orange)',
+          cursor: 'pointer',
+          zIndex: 2,
+        }}
+      />
+
       {/* Bouton "retirer de l'onboarding" — visible au survol. Icône poubelle
           dans une pastille discrète, en haut à droite. Le clic n'ouvre pas la
           fiche client (stopPropagation + preventDefault sur le Link parent). */}
       <button
         type="button"
-        title="Retirer du parcours d'onboarding"
+        title="Retirer du parcours d'onboarding (la fiche client reste)"
         aria-label="Retirer du parcours d'onboarding"
         onMouseDown={e => e.stopPropagation()}
         onClick={e => {
@@ -636,9 +826,11 @@ function KanbanCard({
   );
 }
 
-function ListView({ clients, onRemoveFromOnboarding }: {
+function ListView({ clients, onRemoveFromOnboarding, selected, onToggleSelected }: {
   clients: OnboardingClient[];
   onRemoveFromOnboarding: (clientId: string, businessName: string) => void;
+  selected: Set<string>;
+  onToggleSelected: (id: string) => void;
 }) {
   if (clients.length === 0) {
     return (
@@ -664,7 +856,7 @@ function ListView({ clients, onRemoveFromOnboarding }: {
     }}>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '2.5fr 1.5fr 1fr 2fr 0.8fr 36px',
+        gridTemplateColumns: '24px 2.5fr 1.5fr 1fr 2fr 0.8fr 36px',
         gap: 16,
         padding: '12px 20px',
         borderBottom: '1px solid var(--border)',
@@ -674,6 +866,7 @@ function ListView({ clients, onRemoveFromOnboarding }: {
         letterSpacing: '.3px',
         textTransform: 'uppercase',
       }}>
+        <div></div>
         <div>Client</div>
         <div>Contact</div>
         <div>Email</div>
@@ -681,14 +874,24 @@ function ListView({ clients, onRemoveFromOnboarding }: {
         <div style={{ textAlign: 'right' }}>Cr&eacute;&eacute;</div>
         <div></div>
       </div>
-      {clients.map(c => <ListRow key={c.id} client={c} onRemoveFromOnboarding={onRemoveFromOnboarding} />)}
+      {clients.map(c => (
+        <ListRow
+          key={c.id}
+          client={c}
+          onRemoveFromOnboarding={onRemoveFromOnboarding}
+          isSelected={selected.has(c.id)}
+          onToggleSelected={onToggleSelected}
+        />
+      ))}
     </div>
   );
 }
 
-function ListRow({ client, onRemoveFromOnboarding }: {
+function ListRow({ client, onRemoveFromOnboarding, isSelected, onToggleSelected }: {
   client: OnboardingClient;
   onRemoveFromOnboarding: (clientId: string, businessName: string) => void;
+  isSelected: boolean;
+  onToggleSelected: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const step = client.onboarding_step || 1;
@@ -700,18 +903,29 @@ function ListRow({ client, onRemoveFromOnboarding }: {
       href={`/dashboard/clients/${client.id}`}
       style={{
         display: 'grid',
-        gridTemplateColumns: '2.5fr 1.5fr 1fr 2fr 0.8fr 36px',
+        gridTemplateColumns: '24px 2.5fr 1.5fr 1fr 2fr 0.8fr 36px',
         gap: 16,
         padding: '14px 20px',
         borderBottom: '1px solid var(--border)',
         textDecoration: 'none',
-        background: hovered ? 'var(--night-raised)' : 'transparent',
+        background: isSelected ? 'rgba(232,105,43,.08)' : (hovered ? 'var(--night-raised)' : 'transparent'),
         transition: 'background .15s',
         alignItems: 'center',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      <input
+        type="checkbox"
+        checked={isSelected}
+        onChange={() => onToggleSelected(client.id)}
+        onClick={e => e.stopPropagation()}
+        aria-label={`Sélectionner ${client.business_name}`}
+        style={{
+          width: 16, height: 16, margin: 0,
+          accentColor: 'var(--orange)', cursor: 'pointer',
+        }}
+      />
       <div style={{
         fontSize: '0.88rem',
         color: 'var(--text)',
