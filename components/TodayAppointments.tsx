@@ -18,6 +18,9 @@ interface Appointment {
   notes_completed_at: string | null;
   prospect_status: string | null;
   client_id: string | null;
+  rescheduled_at?: string | null;
+  previous_starts_at?: string | null;
+  reschedule_count?: number | null;
 }
 
 const KIND_META: Record<Appointment['calendar_kind'], { emoji: string; label: string; color: string }> = {
@@ -45,6 +48,12 @@ function fmtTime(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
   return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtPrevDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 export default function TodayAppointments() {
@@ -262,7 +271,26 @@ function ApptCard({
             </span>
             {documented && <span style={{ fontSize: '0.7rem', color: 'var(--green)', fontWeight: 600 }}>✓ documenté</span>}
             {cancelled && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{apt.status === 'no_show' ? '⌧ no-show' : '⌧ annulé'}</span>}
+            {apt.rescheduled_at && apt.previous_starts_at && (
+              <span title={`Reporté le ${new Date(apt.rescheduled_at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
+                style={{
+                  fontSize: '0.65rem', fontWeight: 700,
+                  padding: '2px 8px', borderRadius: 999,
+                  background: 'rgba(250,204,21,.14)', border: '1px solid rgba(250,204,21,.45)',
+                  color: '#FACC15',
+                }}>
+                🔄 Reporté{(apt.reschedule_count || 0) > 1 ? ` ×${apt.reschedule_count}` : ''}
+              </span>
+            )}
           </div>
+          {apt.rescheduled_at && apt.previous_starts_at && (
+            <div style={{
+              fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2,
+              fontStyle: 'italic',
+            }}>
+              Initialement prévu le {fmtPrevDateTime(apt.previous_starts_at)}
+            </div>
+          )}
           <div style={{ fontSize: '0.83rem', color: 'var(--text-mid)', marginTop: 1, fontWeight: 500 }}>
             {apt.opportunity_name || apt.contact_name || apt.contact_email || '—'}
           </div>

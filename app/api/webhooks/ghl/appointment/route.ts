@@ -86,12 +86,15 @@ export async function POST(req: NextRequest) {
     last_name: lastName || null,
   });
 
-  // Check whether this appointment already exists (to detect a "completed" transition)
+  // Check whether this appointment already exists (to detect a "completed"
+  // transition AND a reschedule — same ghl_appointment_id, different starts_at).
   let wasAlreadyCompleted = false;
   let existingNotesCompletedAt: string | null = null;
+  let existingStartsAt: string | null = null;
+  let existingRescheduleCount = 0;
   try {
     const lookup = await supaFetch(
-      `gh_appointments?ghl_appointment_id=eq.${encodeURIComponent(ghlAppointmentId)}&select=status,notes_completed_at&limit=1`,
+      `gh_appointments?ghl_appointment_id=eq.${encodeURIComponent(ghlAppointmentId)}&select=status,notes_completed_at,starts_at,reschedule_count&limit=1`,
       {},
       true,
     );
@@ -100,9 +103,15 @@ export async function POST(req: NextRequest) {
       if (arr[0]) {
         wasAlreadyCompleted = arr[0].status === 'completed';
         existingNotesCompletedAt = arr[0].notes_completed_at;
+        existingStartsAt = arr[0].starts_at;
+        existingRescheduleCount = arr[0].reschedule_count || 0;
       }
     }
   } catch { /* tolerate */ }
+
+  const incomingStartsIso = new Date(startsAt).toISOString();
+  const isReschedule = !!existingStartsAt
+    && new Date(existingStartsAt).getTime() !== new Date(incomingStartsIso).getTime();
 
   // Best-effort enrich with the related GHL opportunity (name + pipeline stage).
   // Only for closing calls (the others don't live in the sales pipeline).
@@ -142,7 +151,7 @@ export async function POST(req: NextRequest) {
     ghl_contact_id: ghlContactId || null,
     calendar_kind: calendarKind,
     status,
-    starts_at: new Date(startsAt).toISOString(),
+    starts_at: incomingStartsIso,
     ends_at: endsAt ? new Date(endsAt).toISOString() : null,
     contact_email: email || null,
     contact_phone: phone || null,
@@ -160,6 +169,14 @@ export async function POST(req: NextRequest) {
   // admin's manual choice in the dashboard wins on subsequent updates).
   if (prospect_status_from_pipeline && !wasAlreadyCompleted && !existingNotesCompletedAt) {
     row.prospect_status = prospect_status_from_pipeline;
+  }
+  // Reschedule detection : on garde l'ancien starts_at + on incrémente le
+  // compteur. L'UI s'en sert pour afficher un badge "Reporté" et la date
+  // précédente, qu'il s'agisse d'un déplacement par l'admin ou par le client.
+  if (isReschedule) {
+    row.previous_starts_at = existingStartsAt;
+    row.rescheduled_at = new Date().toISOString();
+    row.reschedule_count = existingRescheduleCount + 1;
   }
 
   const upsert = await supaFetch('gh_appointments?on_conflict=ghl_appointment_id', {
