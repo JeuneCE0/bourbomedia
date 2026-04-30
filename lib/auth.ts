@@ -115,14 +115,55 @@ async function authFailureDelay(): Promise<void> {
 // L'API /api/users POST stockait déjà les comptes équipe dans saas_users mais
 // /api/auth ne consultait que les variables d'env, ce qui faisait que les
 // identifiants d'équipe étaient acceptés à la création mais refusés au login.
-export async function checkCredentials(username: string, password: string): Promise<{ ok: boolean; sub?: string }> {
+// Lockout policy : N échecs consécutifs sur le même email ⇒ blocage temporaire.
+// Plus robuste que le throttle 250-450ms qui ne sert qu'à uniformiser le
+// timing — un attaquant patient peut quand même pousser quelques tentatives
+// par seconde sur des IPs différentes. Avec un lock à 5 → 15 min, le coût
+// devient prohibitif.
+const FAILED_LOGIN_THRESHOLD = 5;
+const LOCKOUT_MINUTES = 15;
+
+async function recordLoginFailure(userId: string, currentCount: number): Promise<void> {
+  const next = currentCount + 1;
+  const patch: Record<string, unknown> = {
+    failed_login_count: next,
+    updated_at: new Date().toISOString(),
+  };
+  if (next >= FAILED_LOGIN_THRESHOLD) {
+    patch.locked_until = new Date(Date.now() + LOCKOUT_MINUTES * 60_000).toISOString();
+  }
+  try {
+    await supaFetch(`saas_users?id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify(patch),
+    }, true);
+  } catch { /* tolerate */ }
+}
+
+async function clearLoginFailures(userId: string): Promise<void> {
+  try {
+    await supaFetch(`saas_users?id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        failed_login_count: 0,
+        locked_until: null,
+        updated_at: new Date().toISOString(),
+      }),
+    }, true);
+  } catch { /* tolerate */ }
+}
+
+export async function checkCredentials(username: string, password: string): Promise<{ ok: boolean; sub?: string; lockedUntil?: string }> {
   if (ADMIN_PASS && username === ADMIN_USER && password === ADMIN_PASS) {
     return { ok: true, sub: ADMIN_USER };
   }
 
   try {
+    // Select inclut maintenant les champs lockout pour les vérifier inline.
     const r = await supaFetch(
-      `saas_users?email=eq.${encodeURIComponent(username)}&active=eq.true&select=id,email,password_hash`,
+      `saas_users?email=eq.${encodeURIComponent(username)}&active=eq.true&select=id,email,password_hash,failed_login_count,locked_until`,
       {},
       true,
     );
@@ -133,8 +174,27 @@ export async function checkCredentials(username: string, password: string): Prom
       return { ok: false };
     }
     const user = rows[0];
+
+    // Si le compte est lock-out, on refuse immédiatement même si le mot de
+    // passe est bon — pour ne pas confirmer à l'attaquant qu'il a trouvé
+    // pendant la fenêtre. Au passage on n'incrémente pas le compteur (sinon
+    // on ne sortirait jamais du lock).
+    if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
+      await authFailureDelay();
+      return { ok: false, lockedUntil: user.locked_until };
+    }
+
     const { ok, needsUpgrade } = verifyPassword(password, user.password_hash);
-    if (!ok) { await authFailureDelay(); return { ok: false }; }
+    if (!ok) {
+      await recordLoginFailure(user.id, user.failed_login_count || 0);
+      await authFailureDelay();
+      return { ok: false };
+    }
+
+    // Login réussi → reset compteur + lock pour repartir d'une page propre.
+    if ((user.failed_login_count || 0) > 0 || user.locked_until) {
+      await clearLoginFailures(user.id);
+    }
 
     // Upgrade transparent du hash legacy → scrypt au prochain login réussi.
     // Best-effort : si la mise à jour échoue, l'auth réussit quand même

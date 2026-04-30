@@ -17,5 +17,15 @@ export async function POST(req: NextRequest) {
   if (result.ok) {
     return NextResponse.json({ token: createToken(result.sub) });
   }
+  // Si le compte est verrouillé suite à des tentatives répétées, on remonte
+  // 423 Locked + délai d'attente pour que le frontend affiche un message
+  // explicite (au lieu d'un "identifiants incorrects" qui prête à confusion).
+  if (result.lockedUntil) {
+    const minutesRemaining = Math.max(1, Math.ceil((new Date(result.lockedUntil).getTime() - Date.now()) / 60_000));
+    return NextResponse.json(
+      { error: `Compte temporairement verrouillé suite à plusieurs tentatives échouées. Réessayez dans ${minutesRemaining} min.`, lockedUntil: result.lockedUntil },
+      { status: 423 },
+    );
+  }
   return NextResponse.json({ error: 'Identifiants incorrects' }, { status: 401 });
 }
