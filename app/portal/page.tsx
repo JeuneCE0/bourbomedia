@@ -3,16 +3,42 @@
 import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { loadStripe } from '@stripe/stripe-js';
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js';
+import type { Stripe } from '@stripe/stripe-js';
 import type { Annotation } from '@/components/ScriptAnnotator';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
-import TimestampedVideoPlayer from '@/components/TimestampedVideoPlayer';
 import GhlBookingEmbed from '@/components/GhlBookingEmbed';
 
-const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
-  : null;
+// Stripe SDK chargé à la demande la 1ère fois que PaymentStep est rendu :
+// avant ça, ~150KB de JS Stripe ne sont jamais téléchargés (gain énorme
+// pour les visites /portal qui ne passent pas par le paiement, càd 99%).
+let stripePromise: Promise<Stripe | null> | null = null;
+function getStripePromise(): Promise<Stripe | null> | null {
+  if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) return null;
+  if (!stripePromise) {
+    stripePromise = import('@stripe/stripe-js').then(m =>
+      m.loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+    );
+  }
+  return stripePromise;
+}
+// Composants Stripe Embedded — dynamic pour les exclure du bundle initial.
+const EmbeddedCheckoutProvider = dynamic(
+  () => import('@stripe/react-stripe-js').then(m => m.EmbeddedCheckoutProvider),
+  { ssr: false },
+);
+const EmbeddedCheckout = dynamic(
+  () => import('@stripe/react-stripe-js').then(m => m.EmbeddedCheckout),
+  { ssr: false },
+);
+
+// TimestampedVideoPlayer = wrapper video.js custom + handlers feedback ;
+// pèse lourd et n'est utilisé que sur l'onglet "Vidéo" (post-livraison).
+// Lazy → onglet vidéo charge ~500ms plus tard mais les visites
+// pré-livraison (script_writing, etc.) n'ont jamais ce coût.
+const TimestampedVideoPlayer = dynamic(
+  () => import('@/components/TimestampedVideoPlayer'),
+  { ssr: false },
+);
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
 const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
@@ -3135,7 +3161,8 @@ function PaymentStep({ token, onPaid }: { token: string; onPaid: () => void }) {
     );
   }
 
-  if (!stripePromise) {
+  const stripePromiseLazy = getStripePromise();
+  if (!stripePromiseLazy) {
     return (
       <div style={{ padding: 16, borderRadius: 10, background: 'var(--night-mid)', border: '1px dashed var(--border-md)', fontSize: '0.85rem', color: 'var(--text-mid)', textAlign: 'center' }}>
         ⚠ Stripe n&apos;est pas configuré côté front (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY manquante).
@@ -3158,7 +3185,7 @@ function PaymentStep({ token, onPaid }: { token: string; onPaid: () => void }) {
 
   return (
     <div style={{ borderRadius: 12, overflow: 'hidden' }}>
-      <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret }}>
+      <EmbeddedCheckoutProvider stripe={stripePromiseLazy} options={{ clientSecret }}>
         <EmbeddedCheckout />
       </EmbeddedCheckoutProvider>
     </div>
