@@ -18,6 +18,7 @@ interface Client {
   delivered_at?: string;
   email?: string;
   ghl_contact_id?: string | null;
+  contract_signed_at?: string | null;
 }
 
 interface Payment {
@@ -158,6 +159,55 @@ function rangeStart(r: Range): number {
   return 0;
 }
 
+// Bornes [start, end[ de la période ET de la période précédente (même
+// durée). Sert à comparer "ce mois vs M-1", "cette semaine vs S-1", etc.
+// Pour 'all' on n'a pas de période précédente, donc prev = null.
+function rangeBoundsWithPrev(r: Range): { start: number; end: number; prevStart: number | null; prevEnd: number | null } {
+  const now = new Date();
+  const endMs = Date.now();
+  if (r === 'today') {
+    const start = new Date(now); start.setHours(0, 0, 0, 0);
+    const prevStart = new Date(start); prevStart.setDate(prevStart.getDate() - 1);
+    return { start: start.getTime(), end: endMs, prevStart: prevStart.getTime(), prevEnd: start.getTime() };
+  }
+  if (r === 'week') {
+    const start = new Date(now); start.setHours(0, 0, 0, 0);
+    const dow = start.getDay() === 0 ? 7 : start.getDay();
+    start.setDate(start.getDate() - (dow - 1));
+    const prevStart = new Date(start); prevStart.setDate(prevStart.getDate() - 7);
+    return { start: start.getTime(), end: endMs, prevStart: prevStart.getTime(), prevEnd: start.getTime() };
+  }
+  if (r === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+    return { start, end: endMs, prevStart, prevEnd: start };
+  }
+  if (r === '90d') {
+    const start = endMs - 90 * 86400000;
+    return { start, end: endMs, prevStart: start - 90 * 86400000, prevEnd: start };
+  }
+  if (r === '365d') {
+    const start = endMs - 365 * 86400000;
+    return { start, end: endMs, prevStart: start - 365 * 86400000, prevEnd: start };
+  }
+  return { start: 0, end: endMs, prevStart: null, prevEnd: null };
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+const TTPAY_BUCKETS = [
+  { max: 1,   label: '< 24h',  color: 'var(--green)' },
+  { max: 3,   label: '1–3 j',  color: '#86EFAC' },
+  { max: 7,   label: '4–7 j',  color: '#FACC15' },
+  { max: 14,  label: '8–14 j', color: '#F97316' },
+  { max: 999, label: '15 j+',  color: 'var(--red)' },
+] as const;
+
 function rangeToIsoBounds(r: Range): { from: string; to: string } {
   const startMs = r === 'all' ? new Date('2020-01-01').getTime() : rangeStart(r);
   const fromDate = new Date(startMs);
@@ -297,17 +347,65 @@ export default function FinancePage() {
   const maxMonthly = Math.max(...monthly.map(m => m.cents), 1);
   const totalRevenueAllTime = allRevenue.reduce((s, r) => s + r.cents, 0);
 
+  // Time-to-pay : pour chaque paiement, on calcule le délai entre l'inscription
+  // du client (created_at) et le paiement, puis entre la signature du contrat
+  // et le paiement. Médiane = robuste aux outliers (1 client qui paie après 6 mois
+  // ne pollue pas la stat). Buckets pour spotter la queue lente (15j+).
+  const timeToPay = useMemo(() => {
+    const clientById = new Map(clients.map(c => [c.id, c]));
+    const fromSignup: number[] = [];
+    const fromContract: number[] = [];
+    const buckets = TTPAY_BUCKETS.map(b => ({ label: b.label, color: b.color, count: 0 }));
+    for (const r of allRevenue) {
+      const c = clientById.get(r.client_id);
+      if (!c) continue;
+      const payMs = new Date(r.date).getTime();
+      if (c.created_at) {
+        const days = (payMs - new Date(c.created_at).getTime()) / 86400000;
+        if (days >= 0 && days < 365) {
+          fromSignup.push(days);
+          for (let i = 0; i < TTPAY_BUCKETS.length; i++) {
+            if (days <= TTPAY_BUCKETS[i].max) { buckets[i].count++; break; }
+          }
+        }
+      }
+      if (c.contract_signed_at) {
+        const days = (payMs - new Date(c.contract_signed_at).getTime()) / 86400000;
+        if (days >= 0 && days < 365) fromContract.push(days);
+      }
+    }
+    return {
+      medianSignup: median(fromSignup),
+      medianContract: median(fromContract),
+      countSignup: fromSignup.length,
+      countContract: fromContract.length,
+      buckets,
+    };
+  }, [allRevenue, clients]);
+
   // Range-based KPI (today / week / month / 90d / 365d / all)
-  const rangeStartMs = rangeStart(range);
+  const { start: rangeStartMs, prevStart, prevEnd } = rangeBoundsWithPrev(range);
   const inRangeRevenue = range === 'all' ? allRevenue : allRevenue.filter(r => new Date(r.date).getTime() >= rangeStartMs);
   const rangeCents = inRangeRevenue.reduce((s, r) => s + r.cents, 0);
 
-  // Previous-period delta for "this month" only (other ranges are too volatile)
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
-  const thisMonthCents = allRevenue.filter(r => new Date(r.date).getTime() >= monthStart).reduce((s, r) => s + r.cents, 0);
-  const lastMonthCents = allRevenue.filter(r => new Date(r.date).getTime() >= lastMonthStart && new Date(r.date).getTime() < monthStart).reduce((s, r) => s + r.cents, 0);
-  const monthDelta = lastMonthCents > 0 ? Math.round(((thisMonthCents - lastMonthCents) / lastMonthCents) * 100) : null;
+  // Comparaison période vs période précédente de même durée. Calculé pour
+  // tous les ranges (sauf 'all' qui n'a pas de précédent). Affiché inline
+  // sur le KPI "Encaissé" et descriptif sous le chart 12 mois.
+  const prevPeriodCents = prevStart !== null && prevEnd !== null
+    ? allRevenue.filter(r => {
+        const t = new Date(r.date).getTime();
+        return t >= prevStart && t < prevEnd;
+      }).reduce((s, r) => s + r.cents, 0)
+    : null;
+  const prevPeriodCount = prevStart !== null && prevEnd !== null
+    ? allRevenue.filter(r => {
+        const t = new Date(r.date).getTime();
+        return t >= prevStart && t < prevEnd;
+      }).length
+    : null;
+  const rangeDelta = (prevPeriodCents !== null && prevPeriodCents > 0)
+    ? Math.round(((rangeCents - prevPeriodCents) / prevPeriodCents) * 100)
+    : null;
 
   // Avg ticket
   const avgTicket = allRevenue.length > 0 ? Math.round(totalRevenueAllTime / allRevenue.length) : 0;
@@ -391,8 +489,8 @@ export default function FinancePage() {
           <div className="bm-stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <Kpi
               emoji="💸" label={`Encaissé · ${RANGE_LABEL[range]}`} value={fmtEUR(rangeCents)} color="var(--green)"
-              extra={range === 'month' && monthDelta !== null
-                ? <span style={{ color: monthDelta >= 0 ? 'var(--green)' : 'var(--red)' }}>{monthDelta >= 0 ? '+' : ''}{monthDelta}% vs M-1</span>
+              extra={rangeDelta !== null
+                ? <span style={{ color: rangeDelta >= 0 ? 'var(--green)' : 'var(--red)' }}>{rangeDelta >= 0 ? '+' : ''}{rangeDelta}% vs période précédente</span>
                 : `${inRangeRevenue.length} paiement${inRangeRevenue.length > 1 ? 's' : ''} reçu${inRangeRevenue.length > 1 ? 's' : ''}`}
             />
             <Kpi
@@ -459,6 +557,59 @@ export default function FinancePage() {
               })}
             </div>
           </Card>
+
+          {/* Time-to-pay : combien de temps entre signup/contrat et paiement.
+              Médiane robuste aux outliers + distribution en buckets pour
+              spotter une queue lente (15j+ = friction). */}
+          {(timeToPay.medianSignup !== null || timeToPay.medianContract !== null) && (
+            <Card title="⏱️ Time-to-pay">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
+                <Kpi
+                  emoji="📝"
+                  label="Inscription → paiement"
+                  value={timeToPay.medianSignup !== null ? `${timeToPay.medianSignup.toFixed(1)} j` : '—'}
+                  color="var(--orange)"
+                  extra={timeToPay.countSignup > 0 ? `médiane sur ${timeToPay.countSignup} paiement${timeToPay.countSignup > 1 ? 's' : ''}` : undefined}
+                />
+                <Kpi
+                  emoji="✍️"
+                  label="Contrat → paiement"
+                  value={timeToPay.medianContract !== null ? `${timeToPay.medianContract.toFixed(1)} j` : '—'}
+                  color="#3B82F6"
+                  extra={timeToPay.countContract > 0 ? `médiane sur ${timeToPay.countContract} paiement${timeToPay.countContract > 1 ? 's' : ''}` : 'aucun contrat tracé'}
+                />
+              </div>
+              {timeToPay.countSignup > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>
+                    Distribution (depuis l&apos;inscription)
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 80 }}>
+                    {timeToPay.buckets.map(b => {
+                      const pct = timeToPay.countSignup > 0 ? (b.count / timeToPay.countSignup) * 100 : 0;
+                      return (
+                        <div key={b.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text)', fontWeight: 700 }}>{b.count || ''}</div>
+                          <div style={{ width: '100%', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
+                            <div style={{
+                              width: '100%', height: `${Math.max(pct, b.count > 0 ? 6 : 0)}%`,
+                              background: b.count > 0 ? b.color : 'var(--night-mid)',
+                              borderRadius: '4px 4px 0 0', transition: 'height .4s ease',
+                            }} />
+                          </div>
+                          <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>{b.label}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 10, lineHeight: 1.5 }}>
+                    💡 Les paiements <strong>15 j+</strong> signalent une friction (relances, hésitation,
+                    contrat ré-envoyé). Si ce bucket grossit, vérifier les relances auto et le funnel paiement.
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* Section dédiée : Factures en attente d'encaissement */}
           {pendingInvoices.length > 0 && (
