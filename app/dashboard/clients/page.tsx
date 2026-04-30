@@ -344,13 +344,25 @@ export function ClientsListView() {
     }
     setBulkSaving(true);
     let ok = 0, fail = 0;
+    let lastErr = '';
     for (const id of selected) {
       try {
-        const r = await fetch('/api/clients', { method: 'DELETE', headers: authHeaders(), body: JSON.stringify({ id }) });
-        if (r.ok) ok++; else fail++;
-      } catch { fail++; }
+        // hard:true → suppression définitive en DB. Le confirm UI promet
+        // "DÉFINITIVEMENT" et les FK clients(id) sont déjà ON DELETE CASCADE
+        // (scripts/videos/payments/etc.) ou SET NULL (gh_appointments,
+        // gh_opportunities), donc pas de violation de contrainte.
+        const r = await fetch('/api/clients', {
+          method: 'DELETE', headers: authHeaders(),
+          body: JSON.stringify({ id, hard: true }),
+        });
+        if (r.ok) ok++;
+        else { fail++; lastErr = await r.text().catch(() => ''); }
+      } catch (e) { fail++; lastErr = (e as Error).message || ''; }
     }
-    notify(fail > 0 ? 'error' : 'success', `${ok} supprimé(s)${fail > 0 ? `, ${fail} échec(s)` : ''}`);
+    notify(
+      fail > 0 ? 'error' : 'success',
+      `${ok} supprimé(s)${fail > 0 ? `, ${fail} échec(s)${lastErr ? ` — ${lastErr.slice(0, 120)}` : ''}` : ''}`,
+    );
     setSelected(new Set());
     setBulkSaving(false);
     loadClients();
