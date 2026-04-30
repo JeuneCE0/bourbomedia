@@ -3014,6 +3014,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
     if (!clientInfo?.contract_signed_at && token) {
       return (
         <NoScriptShell
+          clientInfo={clientInfo}
           emoji="✍️"
           title="Signez votre contrat"
           subtitle="Lisez, remplissez et signez votre contrat ci-dessous. Cela formalise notre collaboration."
@@ -3026,6 +3027,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
     if (!clientInfo?.paid_at && token) {
       return (
         <NoScriptShell
+          clientInfo={clientInfo}
           emoji="💳"
           title="Paiement sécurisé"
           subtitle="Réglez votre prestation en toute sécurité avec Stripe."
@@ -3038,6 +3040,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
     if (!clientInfo?.onboarding_call_booked && token) {
       return (
         <NoScriptShell
+          clientInfo={clientInfo}
           emoji="📞"
           title="Réservez votre appel onboarding"
           subtitle="Un appel de cadrage de 30 min avec notre équipe pour bien démarrer votre vidéo."
@@ -3054,6 +3057,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
   if (status === 'onboarding_call') {
     return (
       <NoScriptShell
+          clientInfo={clientInfo}
         emoji="📞"
         title="Appel onboarding réservé"
         subtitle="Votre rendez-vous est planifié. Notre équipe attaque l'écriture de votre script juste après l'appel."
@@ -3068,6 +3072,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
     const daysRemaining = eta ? Math.max(0, Math.ceil((eta.getTime() - Date.now()) / 86400000)) : null;
     return (
       <NoScriptShell
+          clientInfo={clientInfo}
         emoji="✍️"
         title="Votre script est en préparation"
         subtitle="Notre équipe planche sur votre vidéo. On revient vers vous très vite avec une 1ère version à valider."
@@ -3120,7 +3125,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
       editing: { emoji: '🎞️', title: 'Votre vidéo est en montage', subtitle: 'Compte à rebours avant la livraison ! On vous envoie un message dès que c\'est prêt.' },
     };
     const m = messages[status];
-    return <NoScriptShell emoji={m.emoji} title={m.title} subtitle={m.subtitle} />;
+    return <NoScriptShell clientInfo={clientInfo} emoji={m.emoji} title={m.title} subtitle={m.subtitle} />;
   }
 
   // 4bis. publication_pending / video_review sans script chargé (cas dégradé,
@@ -3132,6 +3137,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
     if (clientInfo?.publication_date_confirmed) {
       return (
         <NoScriptShell
+          clientInfo={clientInfo}
           emoji="✅"
           title="Date de publication confirmée"
           subtitle={clientInfo?.publication_deadline
@@ -3142,6 +3148,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
     }
     return (
       <NoScriptShell
+          clientInfo={clientInfo}
         emoji="🗓️"
         title="Choisissez votre date de publication"
         subtitle="Réservez votre créneau (mardi ou jeudi) ci-dessous pour planifier la mise en ligne de votre vidéo."
@@ -3154,6 +3161,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
   if (status === 'video_review') {
     return (
       <NoScriptShell
+          clientInfo={clientInfo}
         emoji="👀"
         title="Votre vidéo est en cours de finalisation"
         subtitle="Notre équipe met la dernière main à votre vidéo — vous serez notifié·e dès qu'elle sera prête à valider."
@@ -3164,6 +3172,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
   if (status === 'published') {
     return (
       <NoScriptShell
+          clientInfo={clientInfo}
         emoji="🎉"
         title="Votre vidéo est en ligne !"
         subtitle="Merci pour votre confiance. Votre projet est terminé."
@@ -3174,6 +3183,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
   // 5. Default fallback
   return (
     <NoScriptShell
+          clientInfo={clientInfo}
       emoji="✍️"
       title="Votre script est en préparation"
       subtitle="Notre équipe travaille sur votre script vidéo. Vous recevrez une notification dès qu'il sera prêt pour votre relecture."
@@ -3468,7 +3478,13 @@ function ContractStep({ clientInfo, token, onSigned }: {
   );
 }
 
-function NoScriptShell({ emoji, title, subtitle, children }: { emoji: string; title: string; subtitle: string; children?: React.ReactNode }) {
+function NoScriptShell({ emoji, title, subtitle, children, clientInfo }: {
+  emoji: string;
+  title: string;
+  subtitle: string;
+  children?: React.ReactNode;
+  clientInfo?: ClientDelivery | null;
+}) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <header style={{
@@ -3481,17 +3497,113 @@ function NoScriptShell({ emoji, title, subtitle, children }: { emoji: string; ti
         }}>BourbonMédia</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '4px 0 0' }}>Espace client</p>
       </header>
-      <main style={{ flex: 1, maxWidth: 720, width: '100%', margin: '0 auto', padding: 'clamp(20px, 5vw, 40px)', textAlign: 'center' }}>
-        <div style={{ fontSize: '3rem', margin: '20px 0' }}>{emoji}</div>
-        <h2 style={{
-          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
-          fontSize: '1.4rem', color: 'var(--text)', margin: '0 0 10px',
-        }}>{title}</h2>
-        <p style={{ color: 'var(--text-mid)', fontSize: '0.9rem', lineHeight: 1.6, margin: '0 auto 24px', maxWidth: 520 }}>
-          {subtitle}
-        </p>
+      <main style={{ flex: 1, maxWidth: 720, width: '100%', margin: '0 auto', padding: 'clamp(20px, 5vw, 40px)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '3rem', margin: '20px 0' }}>{emoji}</div>
+          <h2 style={{
+            fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+            fontSize: '1.4rem', color: 'var(--text)', margin: '0 0 10px',
+          }}>{title}</h2>
+          <p style={{ color: 'var(--text-mid)', fontSize: '0.9rem', lineHeight: 1.6, margin: '0 auto 24px', maxWidth: 520 }}>
+            {subtitle}
+          </p>
+        </div>
+        {/* Mini-timeline : visible sur toutes les pages NoScriptStage pour
+            que le client voie où il en est (étapes validées + à venir),
+            même quand il n'y a pas encore de script ou de vidéo. clientInfo
+            est passé par chaque branche de NoScriptStage. */}
+        {clientInfo && <MiniProjectTimeline clientInfo={clientInfo} />}
         {children && <div style={{ textAlign: 'left' }}>{children}</div>}
       </main>
+    </div>
+  );
+}
+
+// Version compacte du timeline rendu dans NoScriptShell — moins lourde que
+// le grand timeline du main render, mais montre quand même progression +
+// liste des étapes done/current/pending. Logique d'inférence du step
+// courant identique à celle du grand timeline pour rester cohérent.
+function MiniProjectTimeline({ clientInfo }: { clientInfo: ClientDelivery }) {
+  const clientStatus = clientInfo.status || '';
+  const stageIdx = (() => {
+    if (clientStatus === 'onboarding') {
+      if (!clientInfo.contract_signed_at) return 1;
+      if (!clientInfo.paid_at) return 2;
+      if (!clientInfo.onboarding_call_booked) return 3;
+      return 4;
+    }
+    return PROJECT_STAGES.findIndex(s => s.key === clientStatus);
+  })();
+  const effectiveIdx = stageIdx >= 0 ? stageIdx : 0;
+  const total = PROJECT_STAGES.length;
+  const progressPct = Math.min(100, Math.round(((effectiveIdx + 0.5) / total) * 100));
+
+  return (
+    <div style={{
+      marginBottom: 22, padding: '14px 16px', borderRadius: 12,
+      background: 'var(--night-card)', border: '1px solid var(--border)',
+    }}>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        marginBottom: 10, fontSize: 12,
+      }}>
+        <span style={{ color: 'var(--text)', fontWeight: 700, fontSize: '0.85rem' }}>
+          🗺️ Avancement du projet
+        </span>
+        <span style={{
+          color: 'var(--orange)', fontWeight: 800,
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 14,
+        }}>
+          {effectiveIdx + 1} / {total}
+        </span>
+      </div>
+      <div style={{
+        height: 6, borderRadius: 99, marginBottom: 14,
+        background: 'var(--night-mid)', border: '1px solid var(--border)',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          height: '100%', width: `${progressPct}%`,
+          background: clientStatus === 'published'
+            ? 'linear-gradient(90deg, var(--green) 0%, #16A34A 100%)'
+            : 'linear-gradient(90deg, var(--orange) 0%, #C45520 100%)',
+          transition: 'width .8s cubic-bezier(.4,1.3,.6,1)',
+        }} />
+      </div>
+      <ol style={{
+        listStyle: 'none', padding: 0, margin: 0,
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+        gap: 6,
+      }}>
+        {PROJECT_STAGES.map((stage, i) => {
+          const status: 'done' | 'current' | 'pending' = i < effectiveIdx ? 'done' : i === effectiveIdx ? 'current' : 'pending';
+          return (
+            <li key={stage.key} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '5px 8px', borderRadius: 7,
+              background: status === 'current' ? 'rgba(232,105,43,.10)' : 'transparent',
+              opacity: status === 'pending' ? 0.55 : 1,
+            }}>
+              <span aria-hidden style={{
+                width: 18, height: 18, borderRadius: '50%',
+                background: status === 'done' ? 'var(--green)' : status === 'current' ? 'var(--orange)' : 'transparent',
+                border: status === 'pending' ? '1.5px solid var(--border-md)' : 'none',
+                color: '#fff', fontSize: '0.65rem', fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                {status === 'done' ? '✓' : status === 'current' ? '●' : ''}
+              </span>
+              <span style={{
+                fontSize: '0.72rem',
+                fontWeight: status === 'current' ? 700 : 500,
+                color: status === 'current' ? 'var(--orange)' : status === 'done' ? 'var(--text)' : 'var(--text-muted)',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>{stage.label}</span>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }
