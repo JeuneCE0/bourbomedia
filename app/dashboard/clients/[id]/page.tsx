@@ -64,6 +64,8 @@ interface Client {
   paid_at?: string;
   payment_amount?: number;
   ghl_contact_id?: string | null;
+  montage_notes?: string | null;
+  montage_status?: 'draft' | 'in_progress' | 'awaiting_review' | 'done' | null;
 }
 
 interface ProviderFee {
@@ -221,6 +223,29 @@ const SCRIPT_STATUS: Record<string, string> = {
   confirmed: 'Confirmé',
 };
 
+type MontageStatus = 'draft' | 'in_progress' | 'awaiting_review' | 'done';
+
+const MONTAGE_STATUS_LABEL: Record<MontageStatus, string> = {
+  draft: 'Brouillon',
+  in_progress: 'Montage en cours',
+  awaiting_review: 'Relecture interne',
+  done: 'Prêt à livrer',
+};
+
+const MONTAGE_STATUS_BADGE: Record<MontageStatus, string> = {
+  draft: '',
+  in_progress: '⚙️',
+  awaiting_review: '👀',
+  done: '✓',
+};
+
+const MONTAGE_STATUS_COLOR: Record<MontageStatus, { bg: string; fg: string }> = {
+  draft:           { bg: 'var(--night-mid)',         fg: 'var(--text-mid)' },
+  in_progress:     { bg: 'rgba(232,105,43,.12)',     fg: 'var(--orange)' },
+  awaiting_review: { bg: 'rgba(250,204,21,.12)',     fg: 'var(--yellow)' },
+  done:            { bg: 'rgba(34,197,94,.12)',      fg: 'var(--green)' },
+};
+
 const STEPS = Object.keys(STATUS_LABELS);
 
 function authHeaders() {
@@ -233,10 +258,10 @@ export default function ClientDetailPage() {
   const id = params.id as string;
 
   const searchParams = useSearchParams();
-  type TabKey = 'conversation' | 'info' | 'ghl' | 'script' | 'delivery' | 'payments' | 'journey';
+  type TabKey = 'conversation' | 'info' | 'ghl' | 'script' | 'montage' | 'delivery' | 'payments' | 'journey';
   const initialTab = (() => {
     const t = searchParams.get('tab');
-    return (['conversation', 'info', 'ghl', 'script', 'delivery', 'payments', 'journey'] as const).includes(t as TabKey) ? (t as TabKey) : 'conversation';
+    return (['conversation', 'info', 'ghl', 'script', 'montage', 'delivery', 'payments', 'journey'] as const).includes(t as TabKey) ? (t as TabKey) : 'conversation';
   })();
 
   const [client, setClient] = useState<Client | null>(null);
@@ -283,6 +308,10 @@ export default function ClientDetailPage() {
   const [annotations, setAnnotations] = useState<AdminAnnotation[]>([]);
   const [feeForm, setFeeForm] = useState<{ type: 'filmmaker' | 'editor' | 'voiceover' | 'other'; amount: string; description: string }>({ type: 'filmmaker', amount: '', description: '' });
   const [addingFee, setAddingFee] = useState(false);
+  const [montageNotes, setMontageNotes] = useState('');
+  const [montageStatus, setMontageStatus] = useState<MontageStatus>('draft');
+  const [montageDirty, setMontageDirty] = useState(false);
+  const [savingMontage, setSavingMontage] = useState(false);
 
   async function addFee(e: React.FormEvent) {
     e.preventDefault();
@@ -341,6 +370,15 @@ export default function ClientDetailPage() {
       if (d?.scripts?.length) {
         setScript(d.scripts[0]);
       }
+      // Sync montage state seulement si l'utilisateur n'a pas commencé
+      // à éditer (sinon on écraserait sa frappe en cours sur reload).
+      setMontageDirty(prevDirty => {
+        if (!prevDirty) {
+          setMontageNotes(d?.montage_notes || '');
+          setMontageStatus((d?.montage_status as MontageStatus) || 'draft');
+        }
+        return prevDirty;
+      });
     } catch (e: unknown) {
       notify('error', (e as Error).message);
     } finally {
@@ -633,6 +671,24 @@ export default function ClientDetailPage() {
     } catch (e: unknown) {
       notify('error', (e as Error).message);
     } finally { setSaving(false); }
+  }
+
+  async function handleSaveMontage(nextStatus?: MontageStatus) {
+    setSavingMontage(true);
+    try {
+      const statusToSend = nextStatus ?? montageStatus;
+      const r = await fetch('/api/clients', {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ id, montage_notes: montageNotes, montage_status: statusToSend }),
+      });
+      if (!r.ok) throw new Error(await parseErr(r));
+      if (nextStatus) setMontageStatus(nextStatus);
+      setMontageDirty(false);
+      notify('success', nextStatus ? `Montage : ${MONTAGE_STATUS_LABEL[nextStatus]}` : 'Brief montage enregistré');
+      loadClient();
+    } catch (e: unknown) {
+      notify('error', (e as Error).message);
+    } finally { setSavingMontage(false); }
   }
 
   async function handleSendToClient() {
@@ -1072,7 +1128,8 @@ export default function ClientDetailPage() {
     { key: 'conversation', label: '💬 Conversation' },
     { key: 'journey', label: '🗺️ Parcours' },
     { key: 'script', label: 'Script', badge: script?.script_comments?.length ? `${script.script_comments.length}` : undefined },
-    { key: 'delivery', label: 'Montage', badge: pendingFeedbackCount > 0 ? `${pendingFeedbackCount}` : (client.delivered_at ? '✓' : undefined) },
+    { key: 'montage', label: 'Montage', badge: client.montage_status && client.montage_status !== 'draft' ? MONTAGE_STATUS_BADGE[client.montage_status] : undefined },
+    { key: 'delivery', label: 'Livraison', badge: pendingFeedbackCount > 0 ? `${pendingFeedbackCount}` : (client.delivered_at ? '✓' : undefined) },
     { key: 'ghl', label: 'Closing & RDV' },
     { key: 'payments', label: 'Paiements', badge: payments.length > 0 ? `${payments.length}` : undefined },
     { key: 'info', label: 'Détails' },
@@ -1662,6 +1719,128 @@ export default function ClientDetailPage() {
       )}
 
 
+      {/* Montage tab — brief / instructions pour l'éditeur. Mirror UX du Script tab :
+          status badge + bouton "Avancer", textarea long-format, save explicite. */}
+      {tab === 'montage' && (
+        <div key="tab-montage" className="bm-fade-in" style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            marginBottom: 16, flexWrap: 'wrap', gap: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: '0.74rem', padding: '4px 12px', borderRadius: 12, fontWeight: 600,
+                background: MONTAGE_STATUS_COLOR[montageStatus].bg,
+                color: MONTAGE_STATUS_COLOR[montageStatus].fg,
+              }}>{MONTAGE_STATUS_LABEL[montageStatus]}</span>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>
+                🎞️ Brief montage
+              </h3>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {montageStatus === 'draft' && (
+                <button
+                  onClick={() => handleSaveMontage('in_progress')}
+                  disabled={savingMontage || !montageNotes.trim()}
+                  style={montageBtnPrimary(savingMontage || !montageNotes.trim())}
+                >▶ Démarrer le montage</button>
+              )}
+              {montageStatus === 'in_progress' && (
+                <button
+                  onClick={() => handleSaveMontage('awaiting_review')}
+                  disabled={savingMontage}
+                  style={montageBtnPrimary(savingMontage)}
+                >👀 Envoyer en relecture</button>
+              )}
+              {montageStatus === 'awaiting_review' && (
+                <>
+                  <button
+                    onClick={() => handleSaveMontage('in_progress')}
+                    disabled={savingMontage}
+                    style={montageBtnSecondary(savingMontage)}
+                  >↩ Retour au montage</button>
+                  <button
+                    onClick={() => handleSaveMontage('done')}
+                    disabled={savingMontage}
+                    style={montageBtnPrimary(savingMontage)}
+                  >✓ Prêt à livrer</button>
+                </>
+              )}
+              {montageStatus === 'done' && (
+                <button
+                  onClick={() => setTab('delivery')}
+                  style={montageBtnPrimary(false)}
+                >🚀 Aller à la livraison</button>
+              )}
+            </div>
+          </div>
+
+          {montageStatus === 'awaiting_review' && (
+            <div style={{
+              padding: '10px 14px', borderRadius: 10, marginBottom: 14,
+              background: 'rgba(250,204,21,.08)', border: '1px solid rgba(250,204,21,.25)',
+              color: '#FDE68A', fontSize: '0.84rem',
+            }}>
+              👀 Le montage est en attente de relecture interne. Valide-le pour passer à la livraison.
+            </div>
+          )}
+          {montageStatus === 'done' && (
+            <div style={{
+              padding: '10px 14px', borderRadius: 10, marginBottom: 14,
+              background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.2)',
+              color: 'var(--green)', fontSize: '0.84rem',
+            }}>
+              ✅ Montage prêt — passe à l&apos;onglet Livraison pour uploader la vidéo finale.
+            </div>
+          )}
+
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            margin: '0 0 8px',
+          }}>
+            <h4 style={{
+              fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-mid)',
+              margin: 0, textTransform: 'uppercase', letterSpacing: 0.5,
+            }}>✏️ Brief / instructions éditeur</h4>
+            <button
+              onClick={() => handleSaveMontage()}
+              disabled={savingMontage || !montageDirty}
+              style={{
+                padding: '6px 14px', borderRadius: 8,
+                background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                color: 'var(--text)', cursor: savingMontage || !montageDirty ? 'default' : 'pointer',
+                fontSize: '0.78rem', fontWeight: 600,
+                opacity: savingMontage || !montageDirty ? 0.5 : 1,
+              }}
+            >{savingMontage ? '⏳ Enregistrement…' : montageDirty ? '💾 Enregistrer' : '✓ À jour'}</button>
+          </div>
+
+          <textarea
+            value={montageNotes}
+            onChange={e => { setMontageNotes(e.target.value); setMontageDirty(true); }}
+            placeholder={`Brief pour l'éditeur : ton, structure, durée cible, b-rolls, musique, références…\n\nEx :\n• Durée : 60-75s\n• Ton : énergique, narratif\n• Hook : plan large extérieur (0-3s)\n• Inserts : produits + mains à 12s, 24s\n• Musique : upbeat, sans paroles\n• Sous-titres : oui, brand orange\n• CTA fin : logo + contact`}
+            rows={20}
+            style={{
+              width: '100%', padding: 14, borderRadius: 10,
+              background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+              color: 'var(--text)', fontSize: '0.88rem', lineHeight: 1.6,
+              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, monospace',
+              resize: 'vertical', outline: 'none',
+            }}
+          />
+
+          <div style={{
+            marginTop: 14, padding: '10px 14px', borderRadius: 10,
+            background: 'var(--night-mid)', border: '1px dashed var(--border-md)',
+            fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.6,
+          }}>
+            💡 Ce brief reste interne (pas exposé au portail client). Il sert à cadrer le travail
+            de l&apos;éditeur ; la livraison vidéo se fait dans l&apos;onglet <strong>Livraison</strong>.
+          </div>
+        </div>
+      )}
+
+
       {/* Delivery tab */}
       {tab === 'delivery' && (
         <div key="tab-delivery" className="bm-fade-in" style={{ background: 'var(--night-card)', borderRadius: 12, border: '1px solid var(--border)', padding: 20 }}>
@@ -2152,6 +2331,23 @@ const videoInputStyle: React.CSSProperties = {
   background: 'var(--night-mid)', border: '1px solid var(--border-md)',
   color: 'var(--text)', fontSize: '0.82rem', boxSizing: 'border-box', outline: 'none',
 };
+
+function montageBtnPrimary(disabled: boolean): React.CSSProperties {
+  return {
+    padding: '7px 14px', borderRadius: 8, background: 'var(--orange)',
+    color: '#fff', border: 'none', fontSize: '0.78rem', fontWeight: 600,
+    cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
+  };
+}
+
+function montageBtnSecondary(disabled: boolean): React.CSSProperties {
+  return {
+    padding: '7px 14px', borderRadius: 8,
+    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+    color: 'var(--text-mid)', fontSize: '0.78rem', fontWeight: 600,
+    cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
+  };
+}
 
 const miniActionStyle: React.CSSProperties = {
   width: 32, height: 32, borderRadius: 8,
