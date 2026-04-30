@@ -7,6 +7,7 @@ import type { Stripe } from '@stripe/stripe-js';
 import type { Annotation } from '@/components/ScriptAnnotator';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
 import GhlBookingEmbed, { resolveGhlCalendarUrl } from '@/components/GhlBookingEmbed';
+import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
 
 // Stripe SDK chargé à la demande la 1ère fois que PaymentStep est rendu :
 // avant ça, ~150KB de JS Stripe ne sont jamais téléchargés (gain énorme
@@ -628,42 +629,19 @@ function PortalContent() {
   // tab so admin replies and team comments feel instantaneous. We bump from
   // 60s (passive) to 5s (active tab) to stay within Vercel/Supabase quotas
   // while still feeling near-real-time.
-  useEffect(() => {
+  // Polling cadence : faster on script/comments tabs (5s) where the client
+  // expects near-real-time updates from admin annotations & replies. Other
+  // tabs poll every 10s pour un compromis fraîcheur / coût Supabase.
+  // Le hook useVisibilityAwarePolling skip si l'onglet est hidden + refresh
+  // instantané au focus retour. ~50% requêtes économisées sur les onglets idle.
+  const portalPollMs = (tab === 'script' || tab === 'comments') ? 5_000 : 10_000;
+  const tickPortal = useCallback(() => {
     if (!token) return;
-    // Polling cadence : faster on script/comments tabs (5s) where the client
-    // expects near-real-time updates from admin annotations & replies. On
-    // other tabs we still poll every 10s so any admin stage change (script
-    // sent, video delivered, status moved manually) is reflected within ~10s.
-    // Skip si l'onglet est en arrière-plan (visibilityState === 'hidden') —
-    // ~50% des requêtes Supabase économisées chez les clients qui laissent
-    // /portal ouvert sans regarder. Au focus retour, un visibilitychange
-    // déclenche un loadScript/loadNotifications instantané (effet ci-dessous).
-    const ms = (tab === 'script' || tab === 'comments') ? 5_000 : 10_000;
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      loadScript();
-      loadNotifications();
-      if (tab === 'script') loadAnnotations();
-    }, ms);
-    return () => clearInterval(interval);
+    loadScript();
+    loadNotifications();
+    if (tab === 'script') loadAnnotations();
   }, [token, tab, loadScript, loadNotifications, loadAnnotations]);
-
-  // Refresh instantané au retour du tab (catch-up des updates manqués pendant
-  // que le polling était suspendu). Évite que le client voie un état périmé
-  // de plusieurs minutes après être revenu sur l'onglet.
-  useEffect(() => {
-    if (!token) return;
-    if (typeof document === 'undefined') return;
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        loadScript();
-        loadNotifications();
-        if (tab === 'script') loadAnnotations();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [token, tab, loadScript, loadNotifications, loadAnnotations]);
+  useVisibilityAwarePolling(tickPortal, token ? portalPollMs : null);
 
   // Detect new admin comments on the script — fire a live alert with browser notif
   const lastSeenCommentIdRef = useRef<string | null>(null);
