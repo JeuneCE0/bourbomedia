@@ -139,9 +139,23 @@ export default function NotificationBell() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Skip le poll quand l'onglet est en arrière-plan — la cloche se rafraichira
+  // au retour via le visibilitychange ci-dessous.
   useEffect(() => {
-    const t = setInterval(() => load(), 60_000);
+    const t = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      load();
+    }, 60_000);
     return () => clearInterval(t);
+  }, [load]);
+
+  // Refresh instantané quand l'admin revient sur l'onglet — sinon le badge
+  // affiche un état périmé de plusieurs minutes.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [load]);
 
   // Click outside to close

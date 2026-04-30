@@ -66,9 +66,14 @@ export default function InboxPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-refresh every 30s
+  // Auto-refresh every 30s — skip si l'onglet est en background pour
+  // ne pas hammer l'API pour rien quand l'admin a /dashboard/inbox ouvert
+  // mais focus sur autre chose.
   useEffect(() => {
-    const t = setInterval(() => load(), 30_000);
+    const t = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      load();
+    }, 30_000);
     return () => clearInterval(t);
   }, [load]);
 
