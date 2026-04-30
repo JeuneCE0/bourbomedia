@@ -8,6 +8,7 @@ import type { Annotation } from '@/components/ScriptAnnotator';
 import { fireLiveAlert, ensureNotificationPermission } from '@/lib/live-notify';
 import GhlBookingEmbed, { resolveGhlCalendarUrl } from '@/components/GhlBookingEmbed';
 import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
+import { addBusinessDays, nextPublicationSlot, fmtDate } from '@/lib/dates';
 
 // Stripe SDK chargé à la demande la 1ère fois que PaymentStep est rendu :
 // avant ça, ~150KB de JS Stripe ne sont jamais téléchargés (gain énorme
@@ -220,33 +221,8 @@ interface NextAction {
   cta?: { label: string; tab?: 'video' | 'script' | 'comments' | 'feedback' };
 }
 
-// ── ETA helpers ────────────────────────────────────────────────────────────
-// Skip weekends when adding business days.
-function addBusinessDays(from: Date, days: number): Date {
-  const d = new Date(from);
-  let added = 0;
-  while (added < days) {
-    d.setDate(d.getDate() + 1);
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) added++;
-  }
-  return d;
-}
-
-// Next Tuesday or Thursday strictly after `from`. Used for publication ETA.
-function nextPublicationSlot(from: Date): Date {
-  const d = new Date(from);
-  for (let i = 1; i <= 14; i++) {
-    d.setDate(d.getDate() + 1);
-    const dow = d.getDay();
-    if (dow === 2 || dow === 4) return new Date(d);
-  }
-  return d;
-}
-
-function fmtDate(d: Date): string {
-  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-}
+// ── ETA helpers : addBusinessDays / nextPublicationSlot / fmtDate sont
+// extraits dans @/lib/dates pour testabilité (pures fonctions, pas de DOM).
 
 function computeNextAction(
   scriptStatus: string | null,
