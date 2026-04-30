@@ -991,29 +991,13 @@ function PortalContent() {
   const hasDelivery = isPostDelivery && (visibleVideos.length > 0 || (clientInfo?.delivered_at && clientInfo.video_url));
   const clientStatus = clientInfo?.status || '';
 
-  // Synchronise l'URL avec l'étape logique courante. /portal/contrat/?token=...,
-  // /portal/paiement/?token=..., etc. — ça permet à l'admin de partager des
-  // liens étape-spécifiques et au client de bookmarker chaque page. Le slug
-  // est purement informatif : la DB reste la source de vérité, donc visiter
-  // /portal/script-review/ alors qu'on est en réalité au paiement remplace
-  // l'URL par /portal/paiement/. router.replace pour ne pas polluer l'history.
-  useEffect(() => {
-    if (!clientInfo || !token) return;
-    if (typeof pathname !== 'string') return;
-    let slug: StepSlug | null = null;
-    try {
-      slug = computeStepSlug(clientInfo, script?.status, !!hasDelivery);
-    } catch { return; }
-    if (!slug) return;
-    const expected = `/portal/${slug}/`;
-    if (pathname !== expected) {
-      const qs = new URLSearchParams();
-      qs.set('token', token);
-      router.replace(`${expected}?${qs.toString()}`);
-    }
-  // searchParams retiré (cf. raison ci-dessus dans l'effet localStorage).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientInfo, script?.status, hasDelivery, token, pathname, router]);
+  // Sync URL ↔ étape logique : disabled temporairement le 2026-04-30 — soupçon
+  // de causer un crash runtime côté client (router.replace pendant le cycle
+  // de polling déclenchait peut-être un cycle infini ou une mauvaise hydration).
+  // Le portail reste fonctionnel sur /portal/ ou /portal/<slug>/ — l'URL ne
+  // s'auto-aligne juste plus avec le step en cours. À ré-activer une fois la
+  // root cause identifiée (Sentry ou repro locale).
+  void computeStepSlug; void pathname; void router; void hasDelivery;
 
   // Étapes "calendrier uniquement" : on n'affiche que la timeline + le calendrier
   // pertinent. Pas d'onglets vidéo/feedback/etc. qui distrairaient de l'action
