@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { reportClientError } from '@/lib/error-log';
 
 // global-error.tsx capture les erreurs qui s'échappent du root layout
 // (très rare — typiquement un crash dans le layout lui-même). Doit
@@ -15,6 +16,14 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error('[app/global-error.tsx]', error);
+    reportClientError({
+      digest: error.digest || null,
+      message: error.message || null,
+      stack: error.stack || null,
+      url: typeof window !== 'undefined' ? window.location.href : null,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+      metadata: { boundary: 'app/global-error.tsx' },
+    });
   }, [error]);
 
   return (
