@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, hashPassword, verifyPassword } from '@/lib/auth';
 import { createEmbeddedCheckoutSession } from '@/lib/stripe';
 import { findContractTemplateId, sendDocumentFromTemplate, getDocumentStatus, createGhlContact, findGhlContactByEmailOrPhone, findSignedDocumentByContact } from '@/lib/ghl';
 import { notifyClientStatusChange } from '@/lib/slack';
 import crypto from 'crypto';
-
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
-}
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token');
@@ -93,8 +89,20 @@ export async function POST(req: NextRequest) {
       const results = await r.json();
       if (!results.length) return NextResponse.json({ error: 'Aucun compte trouvé avec cet email' }, { status: 404 });
       const found = results[0];
-      if (found.password_hash !== hashPassword(password)) {
+      const { ok, needsUpgrade } = verifyPassword(password, found.password_hash || '');
+      if (!ok) {
         return NextResponse.json({ error: 'Mot de passe incorrect' }, { status: 401 });
+      }
+      // Upgrade transparent du hash legacy → scrypt sur les comptes client
+      // historiques. Best-effort, non-bloquant.
+      if (needsUpgrade) {
+        try {
+          await supaFetch(`clients?id=eq.${found.id}`, {
+            method: 'PATCH',
+            headers: { 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ password_hash: hashPassword(password) }),
+          }, true);
+        } catch { /* tolerate */ }
       }
       return NextResponse.json({ token: found.onboarding_token });
     } catch (e: unknown) {
