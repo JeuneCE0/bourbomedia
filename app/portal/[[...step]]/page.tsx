@@ -1011,7 +1011,10 @@ function PortalContent() {
           </button>
           {bellOpen && (
             <div className="bm-fade-in" style={{
-              position: 'absolute', top: '100%', right: 0, marginTop: 8, width: 320,
+              position: 'absolute', top: '100%', right: 0, marginTop: 8,
+              // Mobile-friendly : largeur fluide cappée à 320px ; sur petit
+              // écran le panel ne déborde plus à gauche du viewport.
+              width: 'min(320px, calc(100vw - 24px))',
               background: 'var(--night-card)', border: '1px solid var(--border-md)',
               borderRadius: 12, maxHeight: 400, overflowY: 'auto',
               boxShadow: '0 12px 32px rgba(0,0,0,.5)', zIndex: 1000,
