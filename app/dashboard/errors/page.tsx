@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
 
 interface ErrorLog {
   id: string;
@@ -64,14 +65,9 @@ export default function ErrorsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Refresh auto : visibilitychange (tab refocus) — cohérent avec le reste
-  // du dashboard qui suit le pattern.
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [load]);
+  // Refresh-on-focus uniquement (pas de polling actif — le user clique
+  // "↻ Rafraîchir" si besoin de plus récent qu'au mount).
+  useVisibilityAwarePolling(load, null);
 
   const grouped = useMemo(() => {
     const map = new Map<string, ErrorLog[]>();

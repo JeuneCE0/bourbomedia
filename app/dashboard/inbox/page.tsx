@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
 
 interface InboxItem {
   id: string;
@@ -66,16 +67,9 @@ export default function InboxPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-refresh every 30s — skip si l'onglet est en background pour
-  // ne pas hammer l'API pour rien quand l'admin a /dashboard/inbox ouvert
-  // mais focus sur autre chose.
-  useEffect(() => {
-    const t = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      load();
-    }, 30_000);
-    return () => clearInterval(t);
-  }, [load]);
+  // Auto-refresh tous les 30s + refresh instantané au retour du tab.
+  // Skip pendant que l'onglet est caché — cf. useVisibilityAwarePolling.
+  useVisibilityAwarePolling(load, 30_000);
 
   const filtered = useMemo(
     () => items.filter(it => filter === 'all' || it.kind === filter),
