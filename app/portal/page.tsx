@@ -254,9 +254,12 @@ function computeNextAction(
       cta: { label: 'Voir ma vidéo', tab: 'video' },
     };
   }
-  // Video validated (ou admin a poussé en publication_pending), pas encore de date choisie
-  if (hasDelivery
-      && (client?.video_validated_at || client?.status === 'publication_pending')
+  // Video validated (ou admin a poussé en publication_pending), pas encore de date choisie.
+  // On ne dépend PAS de hasDelivery : si l'admin a posé status=publication_pending sans
+  // que la vidéo soit physiquement visible côté portail (cas dégradé / rollback admin),
+  // le client doit quand même voir le bon CTA "Choisissez votre date de publication"
+  // au lieu de retomber dans une branche script/tournage trompeuse.
+  if ((client?.video_validated_at || client?.status === 'publication_pending')
       && !client?.publication_date_confirmed) {
     const nextSlot = nextPublicationSlot(new Date());
     return {
@@ -3011,6 +3014,54 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
     };
     const m = messages[status];
     return <NoScriptShell emoji={m.emoji} title={m.title} subtitle={m.subtitle} />;
+  }
+
+  // 4bis. publication_pending / video_review sans script chargé (cas dégradé,
+  // ex : rollback admin a viré le script mais laissé status=publication_pending
+  // avec video_validated_at — cf. cas Fred Mallet). On affiche le picker de
+  // date de publication directement plutôt que la fallback générique
+  // "Votre script est en préparation" qui serait trompeuse.
+  if (status === 'publication_pending' && token) {
+    if (clientInfo?.publication_date_confirmed) {
+      return (
+        <NoScriptShell
+          emoji="✅"
+          title="Date de publication confirmée"
+          subtitle={clientInfo?.publication_deadline
+            ? `Votre vidéo sera mise en ligne le ${new Date(clientInfo.publication_deadline).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}.`
+            : 'Votre vidéo sera bientôt mise en ligne.'}
+        />
+      );
+    }
+    return (
+      <NoScriptShell
+        emoji="🗓️"
+        title="Choisissez votre date de publication"
+        subtitle="Réservez votre créneau (mardi ou jeudi) ci-dessous pour planifier la mise en ligne de votre vidéo."
+      >
+        <PublicationDatePicker token={token} clientInfo={clientInfo} onConfirmed={onRefresh} />
+      </NoScriptShell>
+    );
+  }
+
+  if (status === 'video_review') {
+    return (
+      <NoScriptShell
+        emoji="👀"
+        title="Votre vidéo est en cours de finalisation"
+        subtitle="Notre équipe met la dernière main à votre vidéo — vous serez notifié·e dès qu'elle sera prête à valider."
+      />
+    );
+  }
+
+  if (status === 'published') {
+    return (
+      <NoScriptShell
+        emoji="🎉"
+        title="Votre vidéo est en ligne !"
+        subtitle="Merci pour votre confiance. Votre projet est terminé."
+      />
+    );
   }
 
   // 5. Default fallback
