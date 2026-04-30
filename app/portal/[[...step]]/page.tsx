@@ -2116,15 +2116,23 @@ function VideoReviewPanel({ token, hasDelivery, clientInfo, onActed }: {
 // avoir confirmé un créneau. Dans ce cas on bascule l'UI sur un état
 // "Réservation enregistrée" + auto-confirm en background, au lieu de
 // re-monter le calendrier (qui donnait l'impression d'une boucle infinie).
+//
+// IMPORTANT : notre Referrer-Policy = strict-origin-when-cross-origin
+// strip le path du Referer en cross-origin. Donc document.referrer renvoie
+// "https://api.leadconnectorhq.com/" (origine seule, sans /widget/booking/...).
+// On compare donc seulement sur le host pour ne pas rater l'event de retour.
 function useJustBookedFromGhl(): boolean {
   const [justBooked, setJustBooked] = useState(false);
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const ref = document.referrer || '';
-    if (ref.includes('api.leadconnectorhq.com/widget/booking')
-      || ref.includes('api.leadconnectorhq.com/widget/bookings')) {
-      setJustBooked(true);
-    }
+    if (!ref) return;
+    try {
+      const host = new URL(ref).host;
+      if (host === 'api.leadconnectorhq.com' || host.endsWith('.leadconnectorhq.com')) {
+        setJustBooked(true);
+      }
+    } catch { /* referrer non parseable */ }
   }, []);
   return justBooked;
 }
