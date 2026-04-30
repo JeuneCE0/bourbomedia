@@ -173,10 +173,17 @@ export async function PUT(req: NextRequest) {
         fields.filming_date = null;
         fields.filming_date_confirmed = false;
       }
-      // Step 7 (Publication) + post-livraison vidéo
+      // Step 7 (Publication) — la date doit toujours être re-bookée si on
+      // rétrograde dans la branche, qu'on cible step 7 lui-même (depuis 8)
+      // ou un step antérieur. Sinon publication_date_confirmed=true bloque
+      // l'affichage du PublicationDatePicker (return null à l'entrée).
+      fields.publication_date = null;
+      fields.publication_date_confirmed = false;
+
+      // Step 7 strictement antérieur — clear la livraison vidéo et tout le
+      // post-livraison. À ns=7 on garde la vidéo (étape "publication" attend
+      // une vidéo validée à publier).
       if (ns < 7) {
-        fields.publication_date = null;
-        fields.publication_date_confirmed = false;
         fields.publication_deadline = null;
         fields.video_validated_at = null;
         fields.video_review_comment = null;
