@@ -392,11 +392,44 @@ function relativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
+// Clé localStorage dans laquelle on persiste le portal_token quand il
+// arrive via l'URL la première fois. Permet aux URLs de redirection GHL
+// (qui n'ont pas accès au token côté admin GHL) de fonctionner : le client
+// revient sur /portal/<step>/ sans ?token=... → on restaure depuis localStorage.
+const PORTAL_TOKEN_KEY = 'bbm_portal_token';
+
 function PortalContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const token = searchParams.get('token');
+  const urlToken = searchParams.get('token');
+  // Token résolu : URL prioritaire, sinon localStorage (lazy init côté client).
+  const [token, setToken] = useState<string | null>(urlToken);
+
+  // Au mount client : si pas de token URL mais un token persisté en
+  // localStorage, on restaure + on réinjecte dans l'URL pour cohérence
+  // (deep links partageables, refresh propre, etc.). À l'inverse, si on
+  // a un token URL, on le persiste pour les futures visites sans param.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (urlToken) {
+      try { localStorage.setItem(PORTAL_TOKEN_KEY, urlToken); } catch { /* quota */ }
+      if (token !== urlToken) setToken(urlToken);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(PORTAL_TOKEN_KEY);
+      if (saved) {
+        setToken(saved);
+        // Réinjecte dans l'URL — sinon les useEffect qui dépendent de
+        // searchParams ne se déclenchent pas, et un partage de l'URL
+        // courante perdrait le token.
+        const qs = new URLSearchParams(searchParams.toString());
+        qs.set('token', saved);
+        router.replace(`${pathname}?${qs.toString()}`);
+      }
+    } catch { /* tolerate */ }
+  }, [urlToken, pathname, router, searchParams, token]);
 
   const [script, setScript] = useState<Script | null>(null);
   const [clientInfo, setClientInfo] = useState<ClientDelivery | null>(null);
