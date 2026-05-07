@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { downloadCsv } from '@/lib/csv-export';
+import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
 import ThreadPanel from '@/components/ThreadPanel';
 import PresenceIndicator from '@/components/PresenceIndicator';
 
@@ -115,6 +116,8 @@ export default function PipelineCommerciale() {
     return () => document.removeEventListener('keydown', onKey);
   }, [selectMode]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
   const load = useCallback(() => {
     fetch('/api/gh-opportunities', { headers: authHeaders() })
@@ -127,6 +130,37 @@ export default function PipelineCommerciale() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Real-time : webhook GHL → /api/webhooks/ghl/opportunity persiste
+  // dans gh_opportunities dès qu'une opp change côté CRM. Le polling
+  // 10s côté UI pull cette data fraîche pour que la kanban soit à jour
+  // dans la même fenêtre de temps qu'un nouveau lead arrive en GHL.
+  // Skipped quand l'onglet est en arrière-plan (économise les requêtes).
+  useVisibilityAwarePolling(load, 10_000);
+
+  // Sync GHL → backfill 7 derniers jours puis recharge la liste. Sert de
+  // safety net quand le cron */15min ne tourne pas (ex: free tier Vercel
+  // qui downgrade les schedules) et qu'un nouvel optin n'apparaît pas.
+  const syncGhl = useCallback(async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const since = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+      const r = await fetch(`/api/admin/ghl-backfill?since=${since}`, {
+        method: 'POST', headers: authHeaders(),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json().catch(() => ({}));
+      const oppsCount = (d?.opportunities_processed ?? d?.opps_synced ?? 0) as number;
+      load();
+      setSyncMsg({ tone: 'ok', text: `✓ ${oppsCount} opportunités synchronisées` });
+    } catch (e: unknown) {
+      setSyncMsg({ tone: 'err', text: `✗ Sync échouée : ${(e as Error).message}` });
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(null), 6000);
+    }
+  }, [load]);
 
   const selected = useMemo(() => opps.find(o => o.id === selectedId) || null, [opps, selectedId]);
 
@@ -213,6 +247,17 @@ export default function PipelineCommerciale() {
           }}
         >{selectMode ? '✓ Sélection' : '☐ Sélection'}</button>
         <button
+          onClick={syncGhl}
+          disabled={syncing}
+          title="Récupère les opportunités GHL des 7 derniers jours et rafraîchit la liste"
+          style={{
+            padding: '8px 14px', borderRadius: 10, background: 'var(--night-card)',
+            border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+            cursor: syncing ? 'wait' : 'pointer', fontSize: '0.8rem', fontWeight: 600,
+            opacity: syncing ? 0.6 : 1,
+          }}
+        >{syncing ? '⏳ Sync…' : '🔄 Sync GHL'}</button>
+        <button
           onClick={() => setShowAddForm(true)}
           style={{
             padding: '8px 14px', borderRadius: 10,
@@ -222,6 +267,14 @@ export default function PipelineCommerciale() {
           }}
         >+ Nouveau prospect</button>
       </div>
+      {syncMsg && (
+        <div style={{
+          marginBottom: 10, padding: '8px 12px', borderRadius: 8, fontSize: '0.78rem',
+          background: syncMsg.tone === 'ok' ? 'rgba(34,197,94,.10)' : 'rgba(239,68,68,.10)',
+          border: `1px solid ${syncMsg.tone === 'ok' ? 'rgba(34,197,94,.35)' : 'rgba(239,68,68,.35)'}`,
+          color: syncMsg.tone === 'ok' ? 'var(--green)' : 'var(--red)',
+        }}>{syncMsg.text}</div>
+      )}
 
       {loading ? (
         <SkeletonCard lines={6} />

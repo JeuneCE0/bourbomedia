@@ -277,7 +277,8 @@ function IntegrationsPanel() {
             POST https://bourbonmedia.fr/api/webhooks/ghl/opportunity?secret=&lt;GHL_WEBHOOK_SECRET&gt;
           </div>
           <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>
-            Trigger : <em>Pipeline Stage Changed</em> (sync GHL → Bourbomedia)
+            Triggers : <em>Opportunity Created</em> <strong>+</strong> <em>Pipeline Stage Changed</em> (sync GHL → Bourbomedia).
+            Sans le trigger <em>Created</em>, les nouveaux optins qui apparaissent direct dans la 1ère étape du pipeline ne sont jamais notifiés.
           </p>
         </div>
       </Card>
