@@ -3,6 +3,7 @@ import { supaFetch } from '@/lib/supabase';
 import { requireAuth, hashPassword, verifyPassword } from '@/lib/auth';
 import { createEmbeddedCheckoutSession, findPaidSessionForClient, getPaymentReceipt } from '@/lib/stripe';
 import { markProspectContracted } from '@/lib/mark-contracted';
+import { listCalendarEvents } from '@/lib/ghl-opportunities';
 import { findGhlContactByEmailOrPhone } from '@/lib/ghl';
 import { notifyClientStatusChange } from '@/lib/slack';
 import { trackFunnelServer } from '@/lib/funnel';
@@ -259,6 +260,58 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ paid: true, source: 'verified' });
     } catch (e: unknown) {
       return NextResponse.json({ paid: false, error: (e as Error).message }, { status: 200 });
+    }
+  }
+
+  // Step 4 (fallback) : vérifie côté GHL que le client a bien réservé un
+  // créneau onboarding, appelé en boucle par le portail après que l'iframe
+  // a été chargée (l'embed ne navigue pas, donc le détecteur "justBooked"
+  // par referrer ne se déclenche jamais et le webhook GHL peut ne pas être
+  // configuré). Idempotent : sort vite si déjà flagué.
+  if (action === 'verify_call_booked') {
+    try {
+      if (client.onboarding_call_booked) {
+        return NextResponse.json({ booked: true, source: 'cached' });
+      }
+      const onboardingCalendarId = process.env.GHL_ONBOARDING_CALENDAR_ID || '';
+      if (!onboardingCalendarId || !client.ghl_contact_id) {
+        return NextResponse.json({ booked: false, reason: 'no_calendar_or_contact' });
+      }
+      // Window : 14j en arrière (au cas où le user prend un créneau passé en
+      // test) et 60j en avant (couvre la plupart des bookings onboarding).
+      const fromIso = new Date(Date.now() - 14 * 86400000).toISOString();
+      const toIso = new Date(Date.now() + 60 * 86400000).toISOString();
+      const { events } = await listCalendarEvents(onboardingCalendarId, fromIso, toIso);
+      const match = events.find(e => e.contactId === client.ghl_contact_id
+        && (!e.appointmentStatus || !/cancel/i.test(e.appointmentStatus)));
+      if (!match) {
+        return NextResponse.json({ booked: false });
+      }
+      await supaFetch(`clients?id=eq.${client.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          onboarding_call_booked: true,
+          onboarding_call_date: match.startTime,
+          onboarding_step: 5,
+          status: 'onboarding_call',
+        }),
+      }, true);
+      notifyClientStatusChange(client.business_name, 'Étape 4', 'Appel onboarding réservé (vérif portail)');
+      void trackFunnelServer({
+        event: 'call_booked',
+        source: 'portal',
+        clientId: client.id,
+        metadata: { via: 'verify_call_booked', appointment_id: match.id },
+      });
+      void sendPushToAll({
+        title: '📞 Appel onboarding réservé',
+        body: `${client.business_name} a réservé son appel onboarding (vérif portail).`,
+        url: `/dashboard/clients/${client.id}?tab=journey`,
+        tag: `call-${client.id}`,
+      });
+      return NextResponse.json({ booked: true, source: 'verified', date: match.startTime });
+    } catch (e: unknown) {
+      return NextResponse.json({ booked: false, error: (e as Error).message }, { status: 200 });
     }
   }
 

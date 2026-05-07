@@ -190,6 +190,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'upsert failed', detail: txt }, { status: 500 });
   }
 
+  // Bridge appointment → client : sans ça, gh_appointments est posé mais
+  // clients.onboarding_call_booked reste false → le portail ne sort jamais
+  // de l'écran "Réservez votre appel onboarding" (boucle infinie côté UX
+  // car l'inférence de stage du portail dépend du flag, pas de la table
+  // gh_appointments). Fait uniquement pour le calendrier onboarding et
+  // si on a pu résoudre le client local. Idempotent : ne re-écrit pas
+  // si déjà flagué (préserve l'horodatage initial).
+  if (calendarKind === 'onboarding' && clientId && status !== 'cancelled') {
+    try {
+      const cur = await supaFetch(
+        `clients?id=eq.${encodeURIComponent(clientId)}&select=onboarding_call_booked&limit=1`,
+        {}, true,
+      );
+      const curArr = cur.ok ? await cur.json() : [];
+      if (!curArr[0]?.onboarding_call_booked) {
+        await supaFetch(`clients?id=eq.${encodeURIComponent(clientId)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            onboarding_call_booked: true,
+            onboarding_call_date: row.starts_at as string,
+            status: 'onboarding_call',
+          }),
+        }, true).catch(() => null);
+      }
+    } catch { /* tolerate */ }
+  }
+
   // Fire the "à documenter" notification when the appointment transitions to completed
   // and the admin hasn't already filled in the notes.
   const justCompleted = status === 'completed' && !wasAlreadyCompleted && !existingNotesCompletedAt;

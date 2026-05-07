@@ -3129,14 +3129,14 @@ function OnboardingCallStep({ token, calendarUrl, clientInfo, onBooked }: {
   const justBooked = useJustBookedFromGhl();
   const pathnameHookO = usePathname() || '';
   const autoConfirmRef = useRef(false);
-  // Slug-gate : auto-confirm uniquement si l'URL pointe sur l'appel
-  // onboarding (script-wait après redirect GHL ou appel-onboarding direct).
+  // Slug-gate : auto-confirm via referrer GHL uniquement si l'URL pointe sur
+  // l'appel onboarding (anciens funnels /script-wait/ ou /appel-onboarding/).
+  // Le path /portal utilise verify_call_booked à la place — l'embed iframe ne
+  // navigue pas donc useJustBookedFromGhl ne se déclenche jamais.
   const slugMatchesOnboardingCall = pathnameHookO.includes('/script-wait/')
     || pathnameHookO.includes('/appel-onboarding/');
 
-  // Auto-confirm si retour de GHL après réservation — évite la boucle de
-  // re-affichage du calendrier le temps que le webhook GHL pose
-  // onboarding_call_booked en DB.
+  // Auto-confirm si retour de GHL après réservation (vieux funnel non-embed).
   useEffect(() => {
     if (!justBooked || autoConfirmRef.current) return;
     if (!slugMatchesOnboardingCall) return;
@@ -3147,6 +3147,34 @@ function OnboardingCallStep({ token, calendarUrl, clientInfo, onBooked }: {
       body: JSON.stringify({ action: 'call_booked', date: new Date().toISOString() }),
     }).then(() => onBooked()).catch(() => null).finally(() => setSubmitting(false));
   }, [justBooked, slugMatchesOnboardingCall, token, onBooked]);
+
+  // Vérif GHL en arrière-plan : tant que l'iframe est chargée et que le
+  // client n'est pas encore flagué côté DB, on poll /api/onboarding
+  // verify_call_booked toutes les 5s. L'action liste les events GHL du
+  // calendrier onboarding et matche par ghl_contact_id. Dès qu'un créneau
+  // est trouvé, le PATCH client → re-render parent sans OnboardingCallStep.
+  // Stop après 5min (60 ticks) pour éviter de tourner indéfiniment.
+  useEffect(() => {
+    if (!iframeLoaded) return;
+    if (clientInfo?.onboarding_call_booked) return;
+    let attempts = 0;
+    const tick = async () => {
+      attempts++;
+      try {
+        const r = await fetch(`/api/onboarding?token=${token}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'verify_call_booked' }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d?.booked) onBooked();
+      } catch { /* tolerate */ }
+    };
+    const interval = setInterval(() => {
+      if (attempts > 60) { clearInterval(interval); return; }
+      void tick();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [iframeLoaded, clientInfo?.onboarding_call_booked, token, onBooked]);
 
   // 30s d'attente avant d'afficher le bouton — laisse le temps au client de
   // finaliser la réservation et au webhook GHL de remonter le rendez-vous.
