@@ -774,6 +774,20 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
           method: 'PATCH', headers: authHeaders(),
           body: JSON.stringify({ id: appointment.id, notes: notes.trim() || null, prospect_status: status || null }),
         });
+        // Réplique le PATCH dans le state local pour que la note apparaisse
+        // immédiatement dans l'historique RDV sans attendre la prochaine
+        // ouverture du drawer (le useEffect qui re-fetch n'a pas forcément
+        // de raison de re-tirer si status n'a pas bougé).
+        const trimmedNotes = notes.trim() || null;
+        const completedAt = trimmedNotes ? new Date().toISOString() : null;
+        setAllAppts(prev => prev.map(a => a.id === appointment.id
+          ? { ...a, notes: trimmedNotes, notes_completed_at: completedAt, prospect_status: status || a.prospect_status }
+          : a,
+        ));
+        setAppointment(prev => prev && prev.id === appointment.id
+          ? { ...prev, notes: trimmedNotes, notes_completed_at: completedAt, prospect_status: status || prev.prospect_status }
+          : prev,
+        );
       }
       // 2. Update the opportunity (stage + monetary value) → push to GHL
       const newValueCents = valueEUR.trim() === '' ? null : Math.round(parseFloat(valueEUR) * 100);
@@ -1048,6 +1062,22 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
                           background: pastBadge.c + '20', color: pastBadge.c, border: `1px solid ${pastBadge.c}40`,
                         }}>{pastBadge.l}</span>
                       </div>
+                      {/* Note documentée — preview en lecture seule sous le RDV.
+                          Sans ça, l'admin documentait depuis ce drawer (ou depuis
+                          AppointmentDetailModal côté /dashboard) mais la remarque
+                          n'était jamais visible sur la fiche prospect — seul un
+                          badge "✅ Documenté" trahissait sa présence. */}
+                      {a.notes && a.notes.trim() && (
+                        <div style={{
+                          padding: '8px 10px', borderRadius: 6,
+                          background: 'rgba(34,197,94,.06)',
+                          borderLeft: '2px solid var(--green)',
+                          fontSize: '0.74rem', color: 'var(--text-mid)',
+                          lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                        }}>
+                          {a.notes.length > 360 ? a.notes.slice(0, 360) + '…' : a.notes}
+                        </div>
+                      )}
                       {/* Actions GHL : Annuler / No-show / Replanifier */}
                       {isActionable && (
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>

@@ -180,6 +180,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .catch(() => { localStorage.removeItem('bbp_token'); router.replace('/dashboard/login'); });
   }, [router, isLoginPage]);
 
+  // Sync GHL → SaaS en arrière-plan, niveau layout : tant qu'un admin a
+  // n'importe quelle page dashboard ouverte, on tire en parallèle les
+  // opportunités + RDV depuis GHL toutes les 60s (skip si onglet en
+  // arrière-plan ou si pas authentifié). Sans cron Vercel ni webhook
+  // fiable, c'est ce qui garantit le quasi temps-réel sur toutes les
+  // pages sans devoir câbler du polling sur chacune.
+  useEffect(() => {
+    if (isLoginPage || checking) return;
+    const sync = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      const token = localStorage.getItem('bbp_token');
+      if (!token) return;
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      // Fire-and-forget en parallèle. Les endpoints sont idempotents
+      // (upsert on_conflict) — pas de risque de double écriture.
+      void fetch('/api/admin/ghl-sync-opps', { method: 'POST', headers }).catch(() => null);
+      void fetch('/api/admin/ghl-sync-appointments', { method: 'POST', headers }).catch(() => null);
+    };
+    sync(); // immédiat à l'ouverture du dashboard
+    const interval = window.setInterval(sync, 60_000);
+    const onVis = () => { if (document.visibilityState === 'visible') sync(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [isLoginPage, checking]);
+
   if (isLoginPage) return <ToastProvider><DensityProvider>{children}</DensityProvider></ToastProvider>;
 
   if (checking) return (

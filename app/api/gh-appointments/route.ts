@@ -25,11 +25,16 @@ export async function GET(req: NextRequest) {
   if (id) {
     path = `gh_appointments?id=eq.${encodeURIComponent(id)}&select=*&limit=1`;
   } else if (today) {
-    const now = new Date();
-    const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(now);   dayEnd.setHours(23, 59, 59, 999);
-    path = `gh_appointments?starts_at=gte.${encodeURIComponent(dayStart.toISOString())}`
-      + `&starts_at=lte.${encodeURIComponent(dayEnd.toISOString())}`
+    // Vercel tourne en UTC mais l'utilisateur (Réunion GMT+4) booke dans son
+    // fuseau local. Un RDV à 02:00 Réunion = 22:00 UTC veille → tombait
+    // hors fenêtre avec un filtre UTC strict. On élargit ±14h, le client
+    // refiltre localement en JS contre sa vraie heure locale (cf
+    // TodayAppointments). 14h couvre tous les fuseaux y compris DST.
+    const now = Date.now();
+    const fromIso = new Date(now - 14 * 3600 * 1000).toISOString();
+    const toIso   = new Date(now + 14 * 3600 * 1000).toISOString();
+    path = `gh_appointments?starts_at=gte.${encodeURIComponent(fromIso)}`
+      + `&starts_at=lte.${encodeURIComponent(toIso)}`
       + `&select=*&order=starts_at.asc&limit=200`;
   } else if (from && to) {
     const fromIso = new Date(`${from}T00:00:00`).toISOString();

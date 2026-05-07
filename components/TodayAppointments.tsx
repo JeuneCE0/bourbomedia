@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
 
 interface Appointment {
   id: string;
@@ -74,6 +75,34 @@ export default function TodayAppointments() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Sync GHL → gh_appointments en arrière-plan : sans cron Vercel ni
+  // webhook fiable, un RDV booké pour le jour même n'apparaît pas. On
+  // déclenche un sync léger (window -12h / +48h) au mount + toutes les
+  // 30s quand l'onglet est visible. À chaque retour, on recharge la
+  // liste locale.
+  const autoSync = useCallback(() => {
+    fetch('/api/admin/ghl-sync-appointments', { method: 'POST', headers: authHeaders() })
+      .then(() => load())
+      .catch(() => null);
+  }, [load]);
+  useEffect(() => { autoSync(); }, [autoSync]);
+  useVisibilityAwarePolling(autoSync, 30_000);
+
+  // Filtre client-side strict sur la "vraie" journée locale du user :
+  // l'API renvoie une fenêtre ±14h pour ne pas rater les RDV de fuseau
+  // (Réunion GMT+4 vs Vercel UTC), c'est ici qu'on resserre sur la
+  // date du jour côté navigateur.
+  const visibleAppts = useMemo(() => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = now.getMonth();
+    const dd = now.getDate();
+    return appts.filter(a => {
+      const d = new Date(a.starts_at);
+      return d.getFullYear() === yyyy && d.getMonth() === mm && d.getDate() === dd;
+    });
+  }, [appts]);
+
   async function patchAppt(id: string, patch: Partial<Appointment>) {
     setSavingId(id);
     try {
@@ -95,11 +124,11 @@ export default function TodayAppointments() {
   }
 
   if (loading) return null;
-  if (appts.length === 0) return null;
+  if (visibleAppts.length === 0) return null;
 
   const now = new Date();
-  const upcoming = appts.filter(a => new Date(a.starts_at).getTime() >= now.getTime());
-  const past = appts.filter(a => new Date(a.starts_at).getTime() < now.getTime());
+  const upcoming = visibleAppts.filter(a => new Date(a.starts_at).getTime() >= now.getTime());
+  const past = visibleAppts.filter(a => new Date(a.starts_at).getTime() < now.getTime());
 
   return (
     <div style={{
@@ -126,7 +155,7 @@ export default function TodayAppointments() {
           padding: '3px 10px', borderRadius: 999,
           background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
           color: '#FFB58A', fontSize: '0.72rem', fontWeight: 700,
-        }}>{appts.length} RDV</span>
+        }}>{visibleAppts.length} RDV</span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -135,7 +164,7 @@ export default function TodayAppointments() {
             [upcoming, past] qui mettait un appel de 09h passé après un appel
             de 15h à venir — c'était pas l'ordre attendu en lecture rapide.
             Maintenant l'admin voit la journée du matin au soir, point. */}
-        {appts.map(a => (
+        {visibleAppts.map(a => (
           <ApptCard key={a.id} apt={a}
             saving={savingId === a.id}
             onPatch={(patch) => patchAppt(a.id, patch)}
