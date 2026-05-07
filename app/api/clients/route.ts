@@ -4,6 +4,7 @@ import { supaFetch } from '@/lib/supabase';
 import { sendWhatsAppMessage, sendEmailMessage } from '@/lib/ghl';
 import { triggerWorkflow } from '@/lib/ghl-workflows';
 import { notifyMontageReviewRequested } from '@/lib/slack';
+import { trackFunnelServer } from '@/lib/funnel';
 import crypto from 'crypto';
 
 async function logEvent(clientId: string, type: string, payload?: Record<string, unknown>) {
@@ -141,6 +142,52 @@ export async function PUT(req: NextRequest) {
         }
       }
       fields.video_changes_requested = false;
+    }
+
+    // Forward auto-fill onboarding milestones : quand l'admin avance
+    // manuellement un client dans le kanban (drag step N → N+k), on
+    // présume que tous les milestones intermédiaires sont remplis
+    // (contrat signé en paper, paiement par virement, appel pris hors
+    // plateforme…). Sinon le portail client reste bloqué sur l'étape
+    // précédente : il infère l'état depuis les flags
+    // (contract_signed_at / paid_at / onboarding_call_booked), pas
+    // depuis onboarding_step. Les flags explicitement passés dans le
+    // PUT (y compris null pour rollback) gagnent toujours.
+    // Side effects (funnel + log) déclenchés plus bas dans fireAndForget.
+    const isForwardKanbanMove =
+      prev
+      && typeof fields.onboarding_step === 'number'
+      && typeof prev.onboarding_step === 'number'
+      && fields.onboarding_step > prev.onboarding_step;
+
+    let autoMarkedContract = false;
+    let autoMarkedPaid = false;
+    let autoMarkedCallBooked = false;
+
+    if (isForwardKanbanMove && prev) {
+      const prevStep = prev.onboarding_step as number;
+      const nextStep = fields.onboarding_step as number;
+
+      // Step 2 (Contrat) — contrat signé out-of-band (PDF papier, etc.)
+      if (prevStep <= 2 && nextStep > 2 && !prev.contract_signed_at && fields.contract_signed_at !== null && !fields.contract_signed_at) {
+        fields.contract_signed_at = new Date().toISOString();
+        autoMarkedContract = true;
+      }
+      // Step 3 (Paiement) — typiquement un virement bancaire ; payment_amount
+      // reste null (à compléter manuellement, audit revenue filtre sur les deux).
+      if (prevStep <= 3 && nextStep > 3 && !prev.paid_at && fields.paid_at !== null && !fields.paid_at) {
+        fields.paid_at = new Date().toISOString();
+        autoMarkedPaid = true;
+      }
+      // Step 4 (Appel) — appel pris hors plateforme. Synchro status avec
+      // /api/onboarding handler call_booked qui pose 'onboarding_call'.
+      if (prevStep <= 4 && nextStep > 4 && !prev.onboarding_call_booked && fields.onboarding_call_booked !== false) {
+        fields.onboarding_call_booked = true;
+        if (!fields.status && (prev.status === 'onboarding' || !prev.status)) {
+          fields.status = 'onboarding_call';
+        }
+        autoMarkedCallBooked = true;
+      }
     }
 
     // Rollback automatique : quand l'admin déplace un client vers une étape
@@ -313,6 +360,38 @@ export async function PUT(req: NextRequest) {
         if (fields.montage_status === 'awaiting_review') {
           notifyMontageReviewRequested(updated.business_name || 'Client', updated.montage_notes || '').catch(() => null);
         }
+      }
+
+      // Auto-marquage milestones onboarding (forward kanban) : log dédié
+      // + funnel event avec source='admin' pour distinguer des canaux
+      // normaux (Yousign, Stripe, GHL booking) dans les analytics.
+      // Pas de Slack/push : c'est l'admin qui agit, pas une surprise.
+      if (autoMarkedContract) {
+        logEvent(id, 'contract_recorded_admin', { method: 'manual' });
+        void trackFunnelServer({
+          event: 'contract_signed',
+          source: 'admin',
+          clientId: id,
+          metadata: { method: 'manual' },
+        });
+      }
+      if (autoMarkedPaid) {
+        logEvent(id, 'payment_recorded_admin', { method: 'manual', assumed_source: 'bank_transfer' });
+        void trackFunnelServer({
+          event: 'payment_completed',
+          source: 'admin',
+          clientId: id,
+          metadata: { method: 'manual', assumed_source: 'bank_transfer' },
+        });
+      }
+      if (autoMarkedCallBooked) {
+        logEvent(id, 'call_booked_admin', { method: 'manual' });
+        void trackFunnelServer({
+          event: 'call_booked',
+          source: 'admin',
+          clientId: id,
+          metadata: { method: 'manual' },
+        });
       }
     };
     fireAndForget().catch(e => console.error('Notification error:', e));
