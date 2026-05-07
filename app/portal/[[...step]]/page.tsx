@@ -316,23 +316,56 @@ function computeNextAction(
       description: `Vos retours ont été pris en compte. Nouvelle version prête vers le ${fmtDate(eta)}.`,
     };
   }
-  // Once filming is booked, talk about the filming + delivery, not "réservez"
-  if (client?.filming_date && (client?.status === 'filming_scheduled' || client?.status === 'filming_done' || client?.status === 'editing')) {
-    const filming = new Date(client.filming_date);
+  // Stages "post-script" prioritaires sur l'état du script. Quand l'admin
+  // drag un client en avant dans la kanban (filming_scheduled / done /
+  // editing / video_review) sans avoir explicitement posé filming_date, on
+  // ne doit PAS retomber sur le placeholder "Notre équipe rédige votre
+  // script" — c'est trompeur côté client. Le status admin est la source
+  // de vérité ; filming_date n'est qu'un enrichissement quand dispo.
+  if (client?.status === 'filming_scheduled' || client?.status === 'filming_done'
+      || client?.status === 'editing' || client?.status === 'video_review') {
+    const filming = client?.filming_date ? new Date(client.filming_date) : null;
     const now = new Date();
-    if (filming > now) {
+    // Cas tournage planifié dans le futur — on annonce la date
+    if (filming && filming.getTime() > now.getTime() && client.status === 'filming_scheduled') {
       return {
         pill: { tone: 'blue', emoji: '🎬', label: 'Tournage planifié' },
         description: `Tournage prévu ${fmtDate(filming)} — vidéo livrée environ 5 jours après (vers le ${fmtDate(addBusinessDays(filming, 5))}).`,
       };
     }
-    const eta = addBusinessDays(filming, 5);
-    return {
-      pill: { tone: 'blue', emoji: '🎞️', label: 'Montage en cours' },
-      description: `Notre équipe monte votre vidéo — livraison vers le ${fmtDate(eta)}.`,
-    };
+    // Tournage encore "scheduled" mais pas de date = tournage à confirmer
+    if (client.status === 'filming_scheduled' && !filming) {
+      return {
+        pill: { tone: 'blue', emoji: '🎬', label: 'Tournage à venir' },
+        description: 'Votre tournage est planifié — la date exacte vous sera communiquée par l\'équipe.',
+      };
+    }
+    // filming_done = tournage tourné, montage à venir
+    if (client.status === 'filming_done') {
+      const eta = filming ? addBusinessDays(filming, 5) : addBusinessDays(stageEnteredAt, 5);
+      return {
+        pill: { tone: 'blue', emoji: '🎬', label: 'Tournage dans la boîte !' },
+        description: `Le tournage est terminé. Notre équipe attaque le montage — livraison vers le ${fmtDate(eta)}.`,
+      };
+    }
+    // editing = montage en cours
+    if (client.status === 'editing') {
+      const eta = filming ? addBusinessDays(filming, 5) : addBusinessDays(stageEnteredAt, 4);
+      return {
+        pill: { tone: 'blue', emoji: '🎞️', label: 'Montage en cours' },
+        description: `Notre équipe monte votre vidéo — livraison vers le ${fmtDate(eta)}.`,
+      };
+    }
+    // video_review sans hasDelivery (déjà filtré par hasDelivery plus haut)
+    // = état dégradé, on annonce que la vidéo arrive
+    if (client.status === 'video_review') {
+      return {
+        pill: { tone: 'blue', emoji: '👀', label: 'Vidéo en cours de finalisation' },
+        description: 'Votre vidéo arrive très bientôt — vous pourrez la valider dès qu\'elle sera disponible.',
+      };
+    }
   }
-  if (scriptStatus === 'confirmed') {
+  if (scriptStatus === 'confirmed' || client?.status === 'script_validated') {
     return {
       pill: { tone: 'orange', emoji: '📅', label: 'Réservez votre tournage' },
       description: 'Votre script est validé. Choisissez maintenant un créneau de tournage (3h) dans le calendrier ci-dessous.',
