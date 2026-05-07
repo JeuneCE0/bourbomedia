@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { requireAuth, hashPassword, verifyPassword } from '@/lib/auth';
-import { createEmbeddedCheckoutSession } from '@/lib/stripe';
+import { createEmbeddedCheckoutSession, findPaidSessionForClient, getPaymentReceipt } from '@/lib/stripe';
+import { markProspectContracted } from '@/lib/mark-contracted';
 import { findGhlContactByEmailOrPhone } from '@/lib/ghl';
 import { notifyClientStatusChange } from '@/lib/slack';
 import { trackFunnelServer } from '@/lib/funnel';
@@ -176,6 +177,88 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ clientSecret });
     } catch (e: unknown) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    }
+  }
+
+  // Step 3 (fallback) : vérifie côté Stripe que le client a bien payé,
+  // appelé en boucle par le portail après redirect ?payment=success quand
+  // le webhook /api/webhooks/stripe ne tombe pas (config manquante côté
+  // Stripe Dashboard, ou retry en cours). Idempotent : si paid_at déjà
+  // posé, sort vite. Sinon, cherche une session Stripe payée matchant
+  // metadata.client_id et réplique les side effects du webhook.
+  if (action === 'verify_payment') {
+    try {
+      if (client.paid_at) {
+        return NextResponse.json({ paid: true, source: 'cached' });
+      }
+      const session = await findPaidSessionForClient(client.id);
+      if (!session) {
+        return NextResponse.json({ paid: false });
+      }
+      const receipt = session.paymentIntentId
+        ? await getPaymentReceipt(session.paymentIntentId)
+        : null;
+      // PATCH client : paid_at + bump step + amount + ids Stripe (idem webhook)
+      await supaFetch(`clients?id=eq.${client.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          stripe_session_id: session.sessionId,
+          stripe_payment_id: session.paymentIntentId,
+          paid_at: new Date().toISOString(),
+          payment_amount: session.amountTotal,
+          onboarding_step: 4,
+        }),
+      }, true);
+      // Insert dans payments si pas déjà présent (matche sur session_id)
+      const dup = await supaFetch(
+        `payments?stripe_session_id=eq.${encodeURIComponent(session.sessionId)}&select=id&limit=1`,
+        {}, true,
+      );
+      const dupArr = dup.ok ? await dup.json() : [];
+      if (!dupArr.length) {
+        await supaFetch('payments', {
+          method: 'POST',
+          body: JSON.stringify({
+            client_id: client.id,
+            stripe_session_id: session.sessionId,
+            stripe_payment_intent: session.paymentIntentId,
+            amount: session.amountTotal,
+            currency: 'eur',
+            status: 'completed',
+            description: 'Production vidéo BourbonMédia',
+            receipt_url: receipt?.receipt_url || null,
+            invoice_pdf_url: receipt?.invoice_pdf || null,
+            invoice_number: receipt?.invoice_number || null,
+          }),
+        }, true);
+      }
+      // Notif portail + Slack + push admin (best-effort, ne bloque pas la réponse)
+      void supaFetch('client_notifications', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_id: client.id,
+          type: 'payment_received',
+          title: 'Paiement reçu ✓',
+          body: `Merci ! Votre paiement de ${(session.amountTotal / 100).toLocaleString('fr-FR')} € a bien été enregistré.`,
+        }),
+      }, true);
+      notifyClientStatusChange(client.business_name, 'Étape 3', 'Paiement reçu (vérif portail)');
+      void sendPushToAll({
+        title: '💸 Paiement reçu',
+        body: `${client.business_name} — ${(session.amountTotal / 100).toLocaleString('fr-FR')} € (vérif portail)`,
+        url: `/dashboard/clients/${client.id}?tab=payments`,
+        tag: `payment-${session.sessionId}`,
+      });
+      void trackFunnelServer({
+        event: 'payment_completed',
+        source: 'portal',
+        clientId: client.id,
+        metadata: { amount_cents: session.amountTotal, via: 'verify_payment' },
+      });
+      void markProspectContracted(client.id, client.email || null);
+      return NextResponse.json({ paid: true, source: 'verified' });
+    } catch (e: unknown) {
+      return NextResponse.json({ paid: false, error: (e as Error).message }, { status: 200 });
     }
   }
 

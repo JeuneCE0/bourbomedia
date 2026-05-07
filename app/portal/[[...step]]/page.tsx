@@ -3250,13 +3250,37 @@ function PaymentStep({ token, onPaid }: { token: string; onPaid: () => void }) {
     })();
   }, [token, clientSecret, paymentReturn]);
 
-  // Stripe redirige vers ?payment=success — on poll le portail jusqu'à ce que
-  // le webhook ait posé paid_at, puis on quitte cette étape.
+  // Stripe redirige vers ?payment=success — on bascule en mode vérif et on
+  // poll en parallèle :
+  //  1. /api/onboarding action=verify_payment : pull Stripe directement et
+  //     persiste paid_at si la session a payment_status='paid'. Sert de
+  //     fallback quand le webhook /api/webhooks/stripe ne tombe pas
+  //     (STRIPE_WEBHOOK_SECRET pas configuré dans Stripe Dashboard, etc.).
+  //  2. onPaid() : refresh des infos client. Dès que paid_at est posé
+  //     (par le webhook OU par verify_payment), le parent re-render sans
+  //     PaymentStep et le portail enchaîne sur l'appel onboarding.
+  // Tick toutes les 3s, max 60s. Au-delà, l'utilisateur peut refresh.
   useEffect(() => {
     if (!paymentReturn) return;
-    const interval = setInterval(() => onPaid(), 3000);
+    let attempts = 0;
+    const tick = async () => {
+      attempts++;
+      try {
+        await fetch(`/api/onboarding?token=${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'verify_payment' }),
+        });
+      } catch { /* tolerate */ }
+      onPaid();
+    };
+    void tick(); // fire immédiat
+    const interval = setInterval(() => {
+      if (attempts > 20) return; // safety stop après ~60s
+      void tick();
+    }, 3000);
     return () => clearInterval(interval);
-  }, [paymentReturn, onPaid]);
+  }, [paymentReturn, onPaid, token]);
 
   if (paymentReturn) {
     return (

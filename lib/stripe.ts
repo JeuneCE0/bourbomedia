@@ -129,3 +129,36 @@ export async function verifyWebhookSignature(body: string, signature: string): P
 export function getWebhookSecret() {
   return STRIPE_WEBHOOK_SECRET;
 }
+
+// Cherche une checkout session Stripe payée correspondant à un clientId
+// (filtré via metadata.client_id). Utilisé en fallback portail-side quand
+// le webhook ne tombe pas (env STRIPE_WEBHOOK_SECRET pas configuré dans
+// Stripe Dashboard, ou retry queue plantée). Pas idéal — on scan les 50
+// dernières sessions — mais ok pour un check post-checkout (typiquement
+// la session du client est dans les 1-2 plus récentes).
+export async function findPaidSessionForClient(clientId: string): Promise<{
+  sessionId: string;
+  paymentIntentId: string | null;
+  amountTotal: number;
+} | null> {
+  if (!STRIPE_SECRET_KEY || !clientId) return null;
+  try {
+    const sessions = await getStripe().checkout.sessions.list({
+      limit: 50,
+    });
+    const match = sessions.data.find(s =>
+      s.metadata?.client_id === clientId
+      && s.payment_status === 'paid'
+    );
+    if (!match) return null;
+    return {
+      sessionId: match.id,
+      paymentIntentId: typeof match.payment_intent === 'string'
+        ? match.payment_intent
+        : match.payment_intent?.id || null,
+      amountTotal: match.amount_total || 0,
+    };
+  } catch {
+    return null;
+  }
+}
