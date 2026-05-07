@@ -12,6 +12,7 @@ interface Opportunity {
   id: string;
   ghl_opportunity_id: string;
   ghl_contact_id: string | null;
+  client_id: string | null;
   pipeline_id: string;
   pipeline_stage_id: string;
   pipeline_stage_name: string | null;
@@ -884,6 +885,13 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
             </div>
           )}
 
+          {/* Création compte onboarding — bascule un prospect en client en
+              production. Visible uniquement si l'opp n'est pas déjà liée à
+              un client. La fiche client est créée à l'étape choisie avec
+              les infos GHL pré-remplies. */}
+          <CreateOnboardingClientButton opp={opp} onCreated={onSaved} />
+
+
           {/* Contact info — fusion gh_opportunities + GHL fiche complète */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
             {(ghlContact?.email || opp.contact_email) && <InfoRow icon="📧" value={ghlContact?.email || opp.contact_email!} />}
@@ -1506,6 +1514,152 @@ function InfoRow({ icon, value }: { icon: string; value: string }) {
     }}>
       <span aria-hidden style={{ flexShrink: 0 }}>{icon}</span>
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+    </div>
+  );
+}
+
+const ONBOARDING_STEP_OPTIONS = [
+  { num: 1, label: 'Compte créé' },
+  { num: 2, label: 'Contrat à signer' },
+  { num: 3, label: 'Paiement à régler' },
+  { num: 4, label: 'Appel onboarding à booker' },
+  { num: 5, label: 'Script en écriture' },
+  { num: 6, label: 'Tournage à booker' },
+  { num: 7, label: 'Publication à planifier' },
+];
+
+function CreateOnboardingClientButton({ opp, onCreated }: {
+  opp: Opportunity;
+  onCreated: () => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [step, setStep] = useState(5);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const alreadyLinked = !!opp.client_id;
+
+  async function submit() {
+    setSubmitting(true);
+    setError('');
+    try {
+      const r = await fetch('/api/clients/from-ghl-opportunity', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ opportunity_id: opp.id, onboarding_step: step }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setError(d.error || 'Création impossible.');
+        return;
+      }
+      // Préviens PipelineOnboarding qu'un client vient d'être créé pour
+      // qu'il refresh sans F5.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('bbm-clients-changed'));
+      }
+      setShowForm(false);
+      onCreated();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (alreadyLinked) {
+    return (
+      <div style={{
+        padding: '10px 12px', borderRadius: 8,
+        background: 'rgba(34,197,94,.06)', border: '1px solid rgba(34,197,94,.30)',
+        fontSize: '0.78rem', color: 'var(--text-mid)',
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <span aria-hidden>✓</span>
+        <span>Compte client en production déjà créé pour cette opportunité.</span>
+      </div>
+    );
+  }
+
+  if (!showForm) {
+    return (
+      <button
+        onClick={() => setShowForm(true)}
+        style={{
+          width: '100%', padding: '11px 14px', borderRadius: 10,
+          background: 'linear-gradient(135deg, var(--orange), #C45520)',
+          border: 'none', color: '#fff', cursor: 'pointer',
+          fontSize: '0.86rem', fontWeight: 700,
+          boxShadow: '0 4px 14px rgba(232,105,43,.30)',
+          fontFamily: 'inherit',
+        }}
+      >🚀 Créer un compte onboarding</button>
+    );
+  }
+
+  return (
+    <div style={{
+      padding: '14px 14px',
+      borderRadius: 10,
+      background: 'var(--night-mid)',
+      border: '1px solid rgba(232,105,43,.40)',
+    }}>
+      <div style={{
+        fontSize: '0.86rem', fontWeight: 700, color: 'var(--text)',
+        marginBottom: 10, fontFamily: "'Bricolage Grotesque', sans-serif",
+      }}>
+        🚀 Nouveau compte en production
+      </div>
+      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+        Crée la fiche client à partir des infos GHL ({opp.contact_email || opp.contact_name || 'sans email'}).
+        Les flags d&apos;avant l&apos;étape choisie sont marqués comme acquis (ex. paiement par virement bancaire).
+      </div>
+      <label style={{ display: 'block', marginBottom: 12 }}>
+        <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>
+          Étape de départ
+        </span>
+        <select
+          value={step}
+          onChange={e => setStep(parseInt(e.target.value, 10))}
+          style={{
+            width: '100%', padding: '8px 10px', borderRadius: 6,
+            background: 'var(--night-card)', border: '1px solid var(--border-md)',
+            color: 'var(--text)', fontSize: '0.85rem', outline: 'none', fontFamily: 'inherit',
+          }}
+        >
+          {ONBOARDING_STEP_OPTIONS.map(o => (
+            <option key={o.num} value={o.num}>Étape {o.num} — {o.label}</option>
+          ))}
+        </select>
+      </label>
+      {error && (
+        <div style={{
+          padding: '8px 10px', borderRadius: 6, marginBottom: 10,
+          background: 'rgba(239,68,68,.08)', borderLeft: '3px solid var(--red)',
+          fontSize: '0.74rem', color: '#fca5a5',
+        }}>{error}</div>
+      )}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={() => { setShowForm(false); setError(''); }}
+          disabled={submitting}
+          style={{
+            padding: '8px 14px', borderRadius: 8,
+            background: 'transparent', border: '1px solid var(--border-md)',
+            color: 'var(--text-muted)', cursor: 'pointer',
+            fontSize: '0.78rem', fontWeight: 600, fontFamily: 'inherit',
+          }}
+        >Annuler</button>
+        <button
+          onClick={submit}
+          disabled={submitting}
+          style={{
+            flex: 1, padding: '8px 14px', borderRadius: 8,
+            background: 'var(--orange)', border: 'none', color: '#fff',
+            cursor: submitting ? 'wait' : 'pointer',
+            fontSize: '0.82rem', fontWeight: 700, fontFamily: 'inherit',
+            opacity: submitting ? 0.6 : 1,
+          }}
+        >{submitting ? '⏳ Création…' : '✓ Créer la fiche'}</button>
+      </div>
     </div>
   );
 }

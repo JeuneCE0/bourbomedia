@@ -8,6 +8,7 @@ import AppointmentsToDocument from '@/components/AppointmentsToDocument';
 import ProspectsToFollowUp from '@/components/ProspectsToFollowUp';
 import TodayAppointments from '@/components/TodayAppointments';
 import ActivityFeed from '@/components/ActivityFeed';
+import ClientFeedbackAlerts from '@/components/ClientFeedbackAlerts';
 import OrphanPaymentsCard from '@/components/OrphanPaymentsCard';
 
 interface Client {
@@ -270,6 +271,11 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="bm-stagger">
+          {/* Retours clients en attente sur les vidéos livrées —
+              en haut pour qu'on les rate pas (au lieu de juste un badge
+              sur la sonnerie). */}
+          <ClientFeedbackAlerts />
+
           {/* Daily metrics — editable: calls / ads / closing rate / gross profit */}
           <DailyMetricsCard clients={clients} />
 
