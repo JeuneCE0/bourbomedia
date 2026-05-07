@@ -6,6 +6,7 @@ import { notifyScriptValidated, notifyFilmingScheduled, notifyAnnotationsSent } 
 import { triggerWorkflow } from '@/lib/ghl-workflows';
 import { trackFunnelServer } from '@/lib/funnel';
 import { sendPushToAll } from '@/lib/push';
+import { listCalendarEvents } from '@/lib/ghl-opportunities';
 
 export async function GET(req: NextRequest) {
   const clientId = req.nextUrl.searchParams.get('client_id');
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
   if (portalToken) {
     try {
       const cr = await supaFetch(
-        `clients?portal_token=eq.${portalToken}&select=id,business_name,contact_name,email,phone,video_url,video_thumbnail_url,delivery_notes,delivered_at,status,filming_date,publication_deadline,publication_date_confirmed,video_validated_at,video_review_comment,video_changes_requested,contract_pdf_url,contract_signature_link,contract_signed_at,paid_at,onboarding_call_booked`,
+        `clients?portal_token=eq.${portalToken}&select=id,business_name,contact_name,email,phone,video_url,video_thumbnail_url,delivery_notes,delivered_at,status,filming_date,filming_date_confirmed,publication_deadline,publication_date_confirmed,video_validated_at,video_review_comment,video_changes_requested,contract_pdf_url,contract_signature_link,contract_signed_at,paid_at,onboarding_call_booked`,
         {},
         true
       );
@@ -188,6 +189,61 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json(data[0]);
       }
 
+      // Vérification GHL côté portail : appelée en boucle par
+      // FilmingBookingPanel après que l'iframe est chargée. L'embed iframe
+      // ne navigue pas, donc useJustBookedFromGhl ne se déclenche jamais
+      // et le webhook GHL peut ne pas être configuré → le portail
+      // restait coincé sur l'écran de réservation. On pull les events GHL
+      // du calendrier tournage et on matche par ghl_contact_id. Idempotent.
+      if (action === 'verify_filming_booked') {
+        try {
+          // Lookup client info nécessaire pour le match
+          const cR2 = await supaFetch(`clients?id=eq.${cid}&select=filming_date,filming_date_confirmed,ghl_contact_id,business_name&limit=1`, {}, true);
+          const cArr = cR2.ok ? await cR2.json() : [];
+          const cl2 = cArr[0];
+          if (!cl2) return NextResponse.json({ booked: false, reason: 'no_client' });
+          if (cl2.filming_date_confirmed) {
+            return NextResponse.json({ booked: true, source: 'cached' });
+          }
+          const filmingCalendarId = process.env.GHL_FILMING_CALENDAR_ID || '';
+          if (!filmingCalendarId || !cl2.ghl_contact_id) {
+            return NextResponse.json({ booked: false, reason: 'no_calendar_or_contact' });
+          }
+          const fromIso = new Date(Date.now() - 7 * 86400000).toISOString();
+          const toIso = new Date(Date.now() + 90 * 86400000).toISOString();
+          const { events } = await listCalendarEvents(filmingCalendarId, fromIso, toIso);
+          const match = events.find(e => e.contactId === cl2.ghl_contact_id
+            && (!e.appointmentStatus || !/cancel/i.test(e.appointmentStatus)));
+          if (!match) return NextResponse.json({ booked: false });
+          await supaFetch(`clients?id=eq.${cid}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              filming_date: match.startTime,
+              filming_date_confirmed: true,
+              status: 'filming_scheduled',
+              updated_at: new Date().toISOString(),
+            }),
+          }, true);
+          notifyFilmingScheduled(cl2.business_name || 'Client', match.startTime);
+          logEvent('filming_scheduled', { date: match.startTime, via: 'verify_filming_booked' });
+          void trackFunnelServer({
+            event: 'filming_booked',
+            source: 'portal',
+            clientId: cid,
+            metadata: { via: 'verify_filming_booked', date: match.startTime, appointment_id: match.id },
+          });
+          void sendPushToAll({
+            title: '🎬 Tournage réservé',
+            body: `${cl2.business_name || 'Un client'} a réservé son tournage le ${new Date(match.startTime).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })} (vérif portail).`,
+            url: `/dashboard/clients/${cid}?tab=journey`,
+            tag: `filming-${cid}`,
+          });
+          return NextResponse.json({ booked: true, source: 'verified', date: match.startTime });
+        } catch (e: unknown) {
+          return NextResponse.json({ booked: false, error: (e as Error).message }, { status: 200 });
+        }
+      }
+
       // Client confirms they booked their tournage slot on the GHL calendar.
       // Optional: pass `date` (ISO string) to record it on the client record;
       // otherwise the admin reads it from GHL and updates the client manually.
@@ -195,6 +251,7 @@ export async function PUT(req: NextRequest) {
         const date = typeof reqBody.date === 'string' ? (reqBody.date as string) : null;
         const updates: Record<string, unknown> = {
           status: 'filming_scheduled',
+          filming_date_confirmed: true,
           updated_at: new Date().toISOString(),
         };
         if (date) {

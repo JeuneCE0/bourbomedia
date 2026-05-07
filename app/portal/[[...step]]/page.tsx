@@ -74,6 +74,7 @@ interface ClientDelivery {
   delivery_notes?: string;
   delivered_at?: string;
   filming_date?: string;
+  filming_date_confirmed?: boolean;
   publication_deadline?: string;
   publication_date_confirmed?: boolean;
   video_validated_at?: string | null;
@@ -2159,11 +2160,10 @@ function FilmingBookingPanel({ token, clientInfo, onConfirmed, actionLoading }: 
   // de GHL pour un autre type de booking (publication, appel, etc.).
   const slugMatchesFilming = pathnameHookF.includes('/tournage/');
 
-  // Auto-confirm + auto-refresh si le client revient de GHL après booking :
-  // sans ça, GHL redirige vers /portal/tournage/ → la page re-render le
-  // FilmingBookingPanel → l'iframe re-charge le calendrier, le client a
-  // l'impression d'une boucle infinie (le bouton "J'ai réservé" met 30s à
-  // apparaître). Détection via document.referrer pointant sur le widget GHL.
+  // Auto-confirm + auto-refresh si le client revient de GHL après booking
+  // (vieux funnel non-embed). Le path /portal utilise verify_filming_booked
+  // ci-dessous à la place — l'embed iframe ne navigue pas donc
+  // useJustBookedFromGhl ne se déclenche jamais.
   useEffect(() => {
     if (!justBooked || autoConfirmRef.current) return;
     if (!slugMatchesFilming) return;
@@ -2174,6 +2174,33 @@ function FilmingBookingPanel({ token, clientInfo, onConfirmed, actionLoading }: 
       body: JSON.stringify({ action: 'confirm_filming_booked' }),
     }).then(() => onConfirmed()).catch(() => null).finally(() => setSubmitting(false));
   }, [justBooked, slugMatchesFilming, token, onConfirmed]);
+
+  // Vérif GHL en arrière-plan pendant que l'iframe est chargée et que le
+  // tournage n'est pas encore confirmé côté DB. Pull les events GHL du
+  // calendrier tournage et matche par ghl_contact_id ; dès qu'un créneau
+  // existe, PATCH le client → re-render parent sans FilmingBookingPanel.
+  // Stop après 5min (60 ticks).
+  useEffect(() => {
+    if (!iframeLoaded) return;
+    if (clientInfo?.filming_date_confirmed) return;
+    let attempts = 0;
+    const tick = async () => {
+      attempts++;
+      try {
+        const r = await fetch(`/api/scripts?token=${token}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'verify_filming_booked' }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d?.booked) onConfirmed();
+      } catch { /* tolerate */ }
+    };
+    const interval = setInterval(() => {
+      if (attempts > 60) { clearInterval(interval); return; }
+      void tick();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [iframeLoaded, clientInfo?.filming_date_confirmed, token, onConfirmed]);
 
   // Show "I booked" button 30s after iframe loads — laisse le temps au client
   // de finaliser dans GHL et au webhook de propager. Cohérent avec l'appel onboarding.

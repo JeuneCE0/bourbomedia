@@ -217,6 +217,31 @@ export async function POST(req: NextRequest) {
     } catch { /* tolerate */ }
   }
 
+  // Idem côté tournage : un RDV pris sur le calendrier filming doit poser
+  // clients.filming_date + status='filming_scheduled' pour que le portail
+  // sorte de l'écran "Réservez votre tournage" et que la fiche admin
+  // bascule en "Tournage planifié". Idempotent : on ne re-écrit pas si
+  // filming_date_confirmed=true (l'admin a peut-être déjà figé une date).
+  if (calendarKind === 'tournage' && clientId && status !== 'cancelled') {
+    try {
+      const cur = await supaFetch(
+        `clients?id=eq.${encodeURIComponent(clientId)}&select=filming_date,filming_date_confirmed&limit=1`,
+        {}, true,
+      );
+      const curArr = cur.ok ? await cur.json() : [];
+      if (!curArr[0]?.filming_date_confirmed) {
+        await supaFetch(`clients?id=eq.${encodeURIComponent(clientId)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            filming_date: row.starts_at as string,
+            filming_date_confirmed: true,
+            status: 'filming_scheduled',
+          }),
+        }, true).catch(() => null);
+      }
+    } catch { /* tolerate */ }
+  }
+
   // Fire the "à documenter" notification when the appointment transitions to completed
   // and the admin hasn't already filled in the notes.
   const justCompleted = status === 'completed' && !wasAlreadyCompleted && !existingNotesCompletedAt;
