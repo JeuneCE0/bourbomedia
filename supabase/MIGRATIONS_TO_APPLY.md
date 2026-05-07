@@ -132,6 +132,26 @@ vide ("Aucun event tracé sur la période").
 
 ---
 
+## 029 — Brief montage interne (admin)
+
+Ajoute deux colonnes à `clients` pour stocker le brief montage rédigé
+côté admin (onglet Montage de la fiche client) et son statut workflow
+(`draft` → `in_progress` → `awaiting_review` → `done`).
+
+```sql
+ALTER TABLE clients
+  ADD COLUMN IF NOT EXISTS montage_notes TEXT,
+  ADD COLUMN IF NOT EXISTS montage_status TEXT
+    CHECK (montage_status IN ('draft', 'in_progress', 'awaiting_review', 'done'));
+```
+
+**Sans ça** : l'onglet Montage de la fiche client se charge en lecture
+seule (les champs sont undefined côté API), et tout PUT vers
+`/api/clients` qui inclut `montage_notes` / `montage_status` renvoie
+une erreur Supabase ("column does not exist").
+
+---
+
 ## Vérification post-application
 
 Après les avoir collées dans Supabase SQL editor → **RUN**, tu peux
@@ -150,10 +170,14 @@ WHERE table_name = 'gh_appointments'
 SELECT column_name FROM information_schema.columns
 WHERE table_name = 'saas_users'
   AND column_name IN ('failed_login_count', 'locked_until');
+
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'clients'
+  AND column_name IN ('montage_notes', 'montage_status');
 ```
 
-Tu dois voir 6 lignes au total (2 tables + 3 colonnes gh_appointments + 2
-colonnes saas_users).
+Tu dois voir 8 lignes au total (2 tables + 3 colonnes gh_appointments + 2
+colonnes saas_users + 2 colonnes clients).
 
 Si tu veux tester :
 1. Va sur `/dashboard/errors` → tu dois voir "🎉 Aucune erreur récente"
