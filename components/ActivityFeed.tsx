@@ -21,11 +21,12 @@ const EVENT_META: Record<string, { emoji: string; verb: string; color: string }>
   payment_completed:        { emoji: '💳', verb: 'a payé son acompte',               color: '#FACC15' },
   call_booked:              { emoji: '📞', verb: 'a réservé son appel onboarding',   color: '#14B8A6' },
   script_proposed:          { emoji: '📜', verb: 'a reçu son script',                color: '#FACC15' },
+  script_changes_requested: { emoji: '🖍️', verb: 'a demandé des modifs sur le script', color: '#F97316' },
   script_validated:         { emoji: '✅', verb: 'a validé son script',              color: '#22C55E' },
   filming_booked:           { emoji: '🎬', verb: 'a réservé son tournage',           color: '#3B82F6' },
   video_delivered:          { emoji: '📹', verb: 'a reçu sa vidéo',                  color: '#8B5CF6' },
   video_validated:          { emoji: '👍', verb: 'a validé sa vidéo',                color: '#22C55E' },
-  video_changes_requested:  { emoji: '✏️', verb: 'a demandé des modifications',      color: '#F97316' },
+  video_changes_requested:  { emoji: '✏️', verb: 'a demandé des modifs sur le montage', color: '#F97316' },
   publication_booked:       { emoji: '🗓️', verb: 'a choisi sa date de publication', color: '#FB923C' },
   project_published:        { emoji: '🎉', verb: 'a sa vidéo en ligne',              color: 'var(--green)' },
 };

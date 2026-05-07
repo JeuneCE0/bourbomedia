@@ -31,11 +31,12 @@ const EVENT_LABELS: Record<string, { label: string; emoji: string }> = {
   payment_completed:        { label: 'Paiement reçu',         emoji: '💳' },
   call_booked:              { label: 'Appel onboarding',      emoji: '📞' },
   script_proposed:          { label: 'Script envoyé',         emoji: '📜' },
+  script_changes_requested: { label: 'Modifs script demandées', emoji: '🖍️' },
   script_validated:         { label: 'Script validé',         emoji: '✅' },
   filming_booked:           { label: 'Tournage réservé',      emoji: '🎬' },
   video_delivered:          { label: 'Vidéo livrée',          emoji: '📹' },
   video_validated:          { label: 'Vidéo validée',         emoji: '👍' },
-  video_changes_requested:  { label: 'Modifications demandées', emoji: '✏️' },
+  video_changes_requested:  { label: 'Modifs vidéo demandées', emoji: '✏️' },
   publication_booked:       { label: 'Date publi choisie',    emoji: '🗓️' },
   project_published:        { label: 'Vidéo publiée',         emoji: '🎉' },
 };

@@ -10,11 +10,12 @@ export type FunnelEvent =
   | 'payment_completed'        // paid_at posé (webhook Stripe ou manuel)
   | 'call_booked'              // onboarding_call_booked = true
   | 'script_proposed'          // Admin pousse v1 du script au client
+  | 'script_changes_requested' // Client renvoie des annotations sur le script
   | 'script_validated'         // Client valide le script
   | 'filming_booked'           // filming_date posé
   | 'video_delivered'          // delivered_at posé sur clients
   | 'video_validated'          // Client valide la vidéo livrée
-  | 'video_changes_requested'  // Client demande des modifs
+  | 'video_changes_requested'  // Client demande des modifs sur la vidéo / montage
   | 'publication_booked'       // publication_date_confirmed + deadline
   | 'project_published';       // status='published'
 

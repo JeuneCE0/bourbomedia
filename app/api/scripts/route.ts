@@ -433,17 +433,20 @@ export async function PUT(req: NextRequest) {
           body: JSON.stringify({ status: 'script_review', updated_at: new Date().toISOString() }),
         }, true);
 
-        // Pull current annotations to enrich the Slack ping
+        // Pull current annotations to enrich the Slack ping + le push
+        let annotsCount = 0;
+        let clientName = 'Un client';
         try {
           const cR = await supaFetch(`clients?id=eq.${cid}&select=business_name`, {}, true);
           const clientArr = cR.ok ? await cR.json() : [];
-          const clientName = clientArr[0]?.business_name || 'Client';
+          clientName = clientArr[0]?.business_name || 'Un client';
           const sIdR = await supaFetch(`scripts?client_id=eq.${cid}&select=id`, {}, true);
           const sArr = sIdR.ok ? await sIdR.json() : [];
           const sid = sArr[0]?.id;
           if (sid) {
             const aR = await supaFetch(`script_annotations?script_id=eq.${sid}&resolved=eq.false&select=quote,note&order=created_at.desc`, {}, true);
             const annots = aR.ok ? await aR.json() : [];
+            annotsCount = annots.length;
             if (annots.length) {
               notifyAnnotationsSent(
                 clientName,
@@ -455,6 +458,22 @@ export async function PUT(req: NextRequest) {
         } catch { /* non-blocking */ }
 
         logEvent('script_changes_requested');
+        // Funnel + push admin : avant on n'avait que Slack, donc l'event ne
+        // remontait pas dans ActivityFeed (qui lit funnel_events) ni dans
+        // la sonnerie push portail. Maintenant aligné avec
+        // request_video_changes pour que l'admin voie tout au même endroit.
+        void trackFunnelServer({
+          event: 'script_changes_requested',
+          source: 'portal',
+          clientId: cid,
+          metadata: annotsCount > 0 ? { annotations_count: annotsCount } : null,
+        });
+        void sendPushToAll({
+          title: '✏️ Modifications script demandées',
+          body: `${clientName} a renvoyé ${annotsCount > 0 ? `${annotsCount} annotation${annotsCount > 1 ? 's' : ''}` : 'des changements'} sur son script.`,
+          url: `/dashboard/clients/${cid}?tab=script`,
+          tag: `script-changes-${cid}`,
+        });
 
         // GHL workflow: notify the client we received their changes
         try {
