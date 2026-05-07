@@ -157,6 +157,24 @@ export function notifyAnnotationCreated(clientName: string, contactName: string,
   });
 }
 
+export function notifyMontageReviewRequested(clientName: string, notesPreview?: string) {
+  const trimmed = (notesPreview || '').trim();
+  return sendSlackNotification({
+    text: `🎞️ Montage à relire — ${clientName}`,
+    blocks: [
+      { type: 'header', text: { type: 'plain_text', text: '🎞️ Montage à relire', emoji: true } },
+      { type: 'section', fields: [
+        { type: 'mrkdwn', text: `*Commerce:*\n${clientName}` },
+        { type: 'mrkdwn', text: `*Statut:*\nawaiting_review` },
+      ]},
+      ...(trimmed ? [{ type: 'section' as const, text: { type: 'mrkdwn' as const, text: `*Brief :*\n> ${trimmed.slice(0, 300)}${trimmed.length > 300 ? '…' : ''}` } }] : []),
+      { type: 'context', elements: [
+        { type: 'mrkdwn', text: '👉 Ouvrir la fiche client → onglet Montage pour valider ou demander des changements.' },
+      ]},
+    ],
+  });
+}
+
 export function notifyPublished(clientName: string) {
   return sendSlackNotification({
     text: `Vidéo publiée — ${clientName}`,

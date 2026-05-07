@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
 import { sendWhatsAppMessage, sendEmailMessage } from '@/lib/ghl';
 import { triggerWorkflow } from '@/lib/ghl-workflows';
+import { notifyMontageReviewRequested } from '@/lib/slack';
 import crypto from 'crypto';
 
 async function logEvent(clientId: string, type: string, payload?: Record<string, unknown>) {
@@ -302,6 +303,16 @@ export async function PUT(req: NextRequest) {
       // Generic status change logging
       if (prev && fields.status && prev.status !== fields.status) {
         logEvent(id, 'status_changed', { from: prev.status, to: fields.status });
+      }
+
+      // Montage workflow : log toutes les transitions de montage_status,
+      // ping Slack uniquement sur awaiting_review (moment où le team lead
+      // doit relire). Reste interne — pas d'event funnel client.
+      if (prev && fields.montage_status && prev.montage_status !== fields.montage_status) {
+        logEvent(id, 'montage_status_changed', { from: prev.montage_status, to: fields.montage_status });
+        if (fields.montage_status === 'awaiting_review') {
+          notifyMontageReviewRequested(updated.business_name || 'Client', updated.montage_notes || '').catch(() => null);
+        }
       }
     };
     fireAndForget().catch(e => console.error('Notification error:', e));
