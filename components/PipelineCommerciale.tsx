@@ -131,11 +131,25 @@ export default function PipelineCommerciale() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Real-time : webhook GHL → /api/webhooks/ghl/opportunity persiste
-  // dans gh_opportunities dès qu'une opp change côté CRM. Le polling
-  // 10s côté UI pull cette data fraîche pour que la kanban soit à jour
-  // dans la même fenêtre de temps qu'un nouveau lead arrive en GHL.
-  // Skipped quand l'onglet est en arrière-plan (économise les requêtes).
+  // Auto-sync GHL → gh_opportunities : sans cron Vercel ni webhook fiable
+  // sur les "Opportunity Created", on fire-and-forget une sync légère au
+  // mount et toutes les 60s tant que l'onglet est visible. Le endpoint
+  // /api/admin/ghl-sync-opps est idempotent (upsert) et ne pull que les
+  // opps (pas les calendars), ~1-3s en pratique. Combiné au poll 10s du
+  // local DB juste en dessous, un nouvel optin GHL apparaît dans la
+  // kanban en moins de 70s sans aucun clic.
+  const autoSync = useCallback(() => {
+    fetch('/api/admin/ghl-sync-opps', { method: 'POST', headers: authHeaders() })
+      .then(() => load())
+      .catch(() => null);
+  }, [load]);
+  // Fire une fois au mount (setInterval n'envoie pas de tick à t=0)
+  useEffect(() => { autoSync(); }, [autoSync]);
+  useVisibilityAwarePolling(autoSync, 60_000);
+
+  // Local refresh : pull /api/gh-opportunities toutes les 10s pour
+  // capter aussi les updates poussées par le webhook GHL stage change
+  // (pas couvertes par autoSync car déjà persistées en DB).
   useVisibilityAwarePolling(load, 10_000);
 
   // Sync GHL → backfill 7 derniers jours puis recharge la liste. Sert de
