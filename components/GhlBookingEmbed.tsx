@@ -147,12 +147,23 @@ export default function GhlBookingEmbed({ url, title, onLoad, prefill }: {
     );
   }
 
+  // Hauteur fail-safe : si form_embed.js ne tombe pas (race au mount, CSP,
+  // ou widget GHL qui n'émet pas le postMessage de resize), on garantit
+  // assez de place pour le calendrier + le formulaire de contact + le
+  // bouton natif "Book Now". Sans ça, l'utilisateur voit le formulaire
+  // cropped avec aucun moyen de cliquer sur submit.
+  // 1400 couvre la combinaison verticale calendrier (~600) + form (~600)
+  // + bouton submit (~80) avec marge confort. form_embed.js pourra
+  // toujours faire grandir au-delà via postMessage si jamais le contenu
+  // est plus long.
+  const FAILSAFE_MIN_HEIGHT = 1400;
+
   return (
     <div style={{
       borderRadius: 14,
       border: '1px solid var(--border-orange)',
       background: '#fff',
-      minHeight: 720,
+      minHeight: FAILSAFE_MIN_HEIGHT,
       overflow: 'hidden',
       boxShadow: '0 4px 20px rgba(232,105,43,.08)',
     }}>
@@ -173,13 +184,15 @@ export default function GhlBookingEmbed({ url, title, onLoad, prefill }: {
           </span>
         )}
       </div>
+      {/* scrolling supprimé : sans ça, si form_embed.js ne resize pas,
+          le contenu est rogné sans aucune issue. On laisse le navigateur
+          gérer l'overflow comme un fallback ultime. */}
       <iframe
         id={iframeId}
         src={finalUrl}
         title={title}
-        scrolling="no"
         onLoad={onLoad}
-        style={{ width: '100%', border: 'none', display: 'block', minHeight: 720, background: '#fff' }}
+        style={{ width: '100%', border: 'none', display: 'block', minHeight: FAILSAFE_MIN_HEIGHT, background: '#fff' }}
       />
     </div>
   );
