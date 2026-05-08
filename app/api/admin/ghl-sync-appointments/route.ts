@@ -17,17 +17,25 @@ function normalizeStatus(raw: string | undefined): 'scheduled' | 'completed' | '
   return 'scheduled';
 }
 
-// Sync léger des appointments GHL → gh_appointments. Window resserrée
-// (-12h pour les RDV en cours et passés du matin / +48h pour le
-// lendemain) pour rester rapide. Pensé pour être appelé fréquemment
-// depuis TodayAppointments / dashboard quand le webhook GHL et le cron
-// Vercel sont muets.
+// POST /api/admin/ghl-sync-appointments?past_days=N&future_days=M
 //
-// IMPORTANT : pour que les RDV bookés "le jour même" apparaissent
-// instantanément côté admin, ce endpoint doit pouvoir tourner sur la
-// fenêtre courante sans dépendre d'un cron */15min.
+// Sync GHL → gh_appointments sur les 3 calendriers (closing/onboarding/
+// tournage). Window paramétrable :
+//   - past_days   : nombre de jours en arrière (default 1, max 90)
+//   - future_days : nombre de jours en avant   (default 14, max 180)
+// Sans param = sync léger (1j arrière, 14j avant) optimisé pour le
+// polling 60s du dashboard. Avec ?past_days=30 ou plus, sert au "deep
+// sync" manuel pour re-puller l'historique depuis le bouton Settings.
+//
+// Optimisation rate-limit GHL : on ne re-fetch contact_email/phone/name
+// QUE si la row locale ne les a pas déjà. Sans cette short-circuit, un
+// deep sync sur 90j = 100+ getContact() = on tape le rate limit GHL.
 export async function POST(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+
+  const url = req.nextUrl;
+  const pastDays = Math.max(0, Math.min(90, parseInt(url.searchParams.get('past_days') || '1', 10)));
+  const futureDays = Math.max(0, Math.min(180, parseInt(url.searchParams.get('future_days') || '14', 10)));
 
   const calendars = [
     { id: CLOSING_ID,    envName: 'GHL_CLOSING_CALENDAR_ID' },
@@ -36,67 +44,116 @@ export async function POST(req: NextRequest) {
   ];
 
   const now = Date.now();
-  const fromIso = new Date(now - 12 * 3600 * 1000).toISOString();
-  const toIso = new Date(now + 48 * 3600 * 1000).toISOString();
+  const fromIso = new Date(now - pastDays * 86400 * 1000).toISOString();
+  const toIso = new Date(now + futureDays * 86400 * 1000).toISOString();
 
   let synced = 0;
   let processed = 0;
+  let enriched = 0;
   let errors = 0;
 
+  // Pré-fetch les rows déjà miroirées (par appointment_id) pour skip
+  // l'enrichissement contact si la row a déjà email/phone/name.
+  const eventsByCalendar: { calId: string; events: Awaited<ReturnType<typeof listCalendarEvents>>['events'] }[] = [];
   for (const cal of calendars) {
     if (!cal.id) continue;
     try {
       const { events } = await listCalendarEvents(cal.id, fromIso, toIso);
-      // Process events in parallel pour rester rapide même si la fenêtre
-      // contient ~10 RDV. getContact + matchClientFromContact font 1-2
-      // appels chacun, on tape donc max ~50 calls par run mais en
-      // parallèle Promise.all c'est <2s en pratique.
-      await Promise.all(events.map(async (ev) => {
-        processed++;
-        try {
-          const contact = ev.contactId ? await getContact(ev.contactId) : null;
-          const calendarKind = classifyCalendar(cal.id);
-          const status = normalizeStatus(ev.appointmentStatus);
+      eventsByCalendar.push({ calId: cal.id, events });
+    } catch {
+      errors++;
+    }
+  }
 
-          const clientId = await matchClientFromContact({
+  const allIds = eventsByCalendar.flatMap(c => c.events.map(e => e.id)).filter(Boolean);
+  type ExistingRow = { ghl_appointment_id: string; contact_email: string | null; contact_phone: string | null; contact_name: string | null };
+  const existing = new Map<string, ExistingRow>();
+  if (allIds.length > 0) {
+    const inList = allIds.map(id => `"${id}"`).join(',');
+    const r = await supaFetch(
+      `gh_appointments?ghl_appointment_id=in.(${encodeURIComponent(inList)})`
+      + `&select=ghl_appointment_id,contact_email,contact_phone,contact_name`,
+      {}, true,
+    ).catch(() => null);
+    if (r?.ok) {
+      const rows: ExistingRow[] = await r.json();
+      for (const row of rows) existing.set(row.ghl_appointment_id, row);
+    }
+  }
+
+  for (const { calId, events } of eventsByCalendar) {
+    await Promise.all(events.map(async (ev) => {
+      processed++;
+      try {
+        const exist = existing.get(ev.id);
+        const needsEnrich = !exist || (!exist.contact_email && !exist.contact_phone);
+
+        let contactEmail = exist?.contact_email || null;
+        let contactPhone = exist?.contact_phone || null;
+        let contactName = exist?.contact_name || null;
+        let clientId: string | null = null;
+
+        if (needsEnrich && ev.contactId) {
+          const contact = await getContact(ev.contactId).catch(() => null);
+          if (contact) {
+            contactEmail = contact.email || contactEmail;
+            contactPhone = contact.phone || contactPhone;
+            contactName = contact.name
+              || [contact.firstName, contact.lastName].filter(Boolean).join(' ').trim()
+              || contactName;
+            enriched++;
+          }
+          clientId = await matchClientFromContact({
             ghl_contact_id: ev.contactId || null,
             email: contact?.email || null,
             phone: contact?.phone || null,
             first_name: contact?.firstName || null,
             last_name: contact?.lastName || null,
           });
-
-          const fullName = contact?.name
-            || [contact?.firstName, contact?.lastName].filter(Boolean).join(' ').trim()
-            || null;
-
-          await supaFetch('gh_appointments?on_conflict=ghl_appointment_id', {
-            method: 'POST',
-            headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-            body: JSON.stringify({
-              ghl_appointment_id: ev.id,
-              ghl_calendar_id: cal.id,
-              ghl_contact_id: ev.contactId || null,
-              calendar_kind: calendarKind,
-              status,
-              starts_at: new Date(ev.startTime).toISOString(),
-              ends_at: ev.endTime ? new Date(ev.endTime).toISOString() : null,
-              contact_email: contact?.email || null,
-              contact_phone: contact?.phone || null,
-              contact_name: fullName,
-              client_id: clientId,
-              updated_at: new Date().toISOString(),
-            }),
-          }, true).catch(() => null);
-          synced++;
-        } catch {
-          errors++;
+        } else if (ev.contactId) {
+          clientId = await matchClientFromContact({
+            ghl_contact_id: ev.contactId,
+            email: contactEmail,
+            phone: contactPhone,
+            first_name: null,
+            last_name: null,
+          });
         }
-      }));
-    } catch {
-      errors++;
-    }
+
+        const calendarKind = classifyCalendar(calId);
+        const status = normalizeStatus(ev.appointmentStatus);
+
+        await supaFetch('gh_appointments?on_conflict=ghl_appointment_id', {
+          method: 'POST',
+          headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({
+            ghl_appointment_id: ev.id,
+            ghl_calendar_id: calId,
+            ghl_contact_id: ev.contactId || null,
+            calendar_kind: calendarKind,
+            status,
+            starts_at: new Date(ev.startTime).toISOString(),
+            ends_at: ev.endTime ? new Date(ev.endTime).toISOString() : null,
+            contact_email: contactEmail,
+            contact_phone: contactPhone,
+            contact_name: contactName,
+            client_id: clientId,
+            updated_at: new Date().toISOString(),
+          }),
+        }, true).catch(() => null);
+        synced++;
+      } catch {
+        errors++;
+      }
+    }));
   }
 
-  return NextResponse.json({ ok: true, processed, synced, errors, window: { from: fromIso, to: toIso } });
+  return NextResponse.json({
+    ok: true,
+    processed,
+    synced,
+    enriched,
+    errors,
+    window: { from: fromIso, to: toIso, past_days: pastDays, future_days: futureDays },
+  });
 }

@@ -300,8 +300,74 @@ function IntegrationsPanel() {
         </div>
       </Card>
 
+      <DeepSyncAppointmentsCard />
       <BackfillCard />
     </>
+  );
+}
+
+function DeepSyncAppointmentsCard() {
+  const [running, setRunning] = useState(false);
+  const [pastDays, setPastDays] = useState(30);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+
+  async function run() {
+    setRunning(true);
+    setResult(null);
+    try {
+      const r = await fetch(
+        `/api/admin/ghl-sync-appointments?past_days=${pastDays}&future_days=60`,
+        { method: 'POST', headers: authHeaders() },
+      );
+      const d = await r.json().catch(() => ({}));
+      setResult(d);
+    } finally { setRunning(false); }
+  }
+
+  return (
+    <Card title="📅 Deep sync RDV — pull GHL des 3 calendriers" subtitle="Re-pull les rendez-vous (closing / onboarding / tournage) sur une fenêtre élargie. Skip l'enrichissement contact pour les RDV déjà complets, donc rapide même sur 90 jours.">
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 10 }}>
+        <label style={{ flex: '1 1 160px' }}>
+          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Jours en arrière</span>
+          <select
+            value={pastDays}
+            onChange={e => setPastDays(parseInt(e.target.value, 10))}
+            style={{
+              width: '100%', padding: '8px 12px', borderRadius: 8,
+              background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+              color: 'var(--text)', fontSize: '0.85rem', outline: 'none', fontFamily: 'inherit',
+            }}
+          >
+            <option value={7}>7 derniers jours</option>
+            <option value={14}>14 derniers jours</option>
+            <option value={30}>30 derniers jours</option>
+            <option value={60}>60 derniers jours</option>
+            <option value={90}>90 derniers jours</option>
+          </select>
+        </label>
+        <button onClick={run} disabled={running} style={{
+          padding: '10px 18px', borderRadius: 8, background: 'var(--orange)',
+          color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
+          opacity: running ? 0.5 : 1,
+        }}>
+          {running ? '⏳ Sync…' : '📥 Pull les RDV'}
+        </button>
+      </div>
+      {result && (
+        <pre style={{
+          padding: '12px 14px', borderRadius: 8,
+          background: 'var(--night-mid)', border: '1px solid var(--border)',
+          fontSize: '0.74rem', color: 'var(--text-mid)', overflow: 'auto', margin: 0,
+          maxHeight: 220,
+        }}>
+          {JSON.stringify(result, null, 2)}
+        </pre>
+      )}
+      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 10, marginBottom: 0 }}>
+        Window jusqu&apos;à +60j en avant pour aussi capturer les RDV bookés à l&apos;avance.
+        Idempotent : ré-exécutable sans risque (upsert).
+      </p>
+    </Card>
   );
 }
 
