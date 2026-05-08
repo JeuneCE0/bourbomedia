@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -24,9 +24,11 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon:
   {
     title: '',
     items: [
-      { href: '/dashboard',             label: 'Dashboard',       icon: '🏠' },
-      { href: '/dashboard/pipeline',    label: 'Pipeline',        icon: '🌊' },
-      { href: '/dashboard/tasks',       label: 'Tâches',          icon: '✅' },
+      { href: '/dashboard',                       label: 'Dashboard',     icon: '🏠' },
+      { href: '/dashboard/pipeline?tab=commerciale', label: 'Prospects GHL', icon: '🎯' },
+      { href: '/dashboard/pipeline?tab=onboarding',  label: 'Production',    icon: '🚀' },
+      { href: '/dashboard/pipeline?tab=clients',     label: 'Clients',       icon: '👥' },
+      { href: '/dashboard/tasks',                 label: 'Tâches',        icon: '✅' },
       { href: '/dashboard/scripts',     label: 'Scripts',         icon: '📝' },
       { href: '/dashboard/calendar',    label: 'Calendriers',     icon: '📅' },
       { href: '/dashboard/finance',     label: 'Finances',        icon: '💰' },
@@ -85,6 +87,7 @@ function resultIconStyle(r: SearchResult): React.CSSProperties {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState(false);
   const [checking, setChecking] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -217,7 +220,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   const p = pathname?.replace(/\/$/, '') || '';
-  const isActive = (href: string) => href === '/dashboard' ? p === '/dashboard' : p.startsWith(href);
+  // Active state : pour /dashboard exact-match, pour /dashboard/pipeline on
+  // matche aussi sur le tab si l'href en contient un (sinon les 3 entrées
+  // sidebar Prospects/Production/Clients seraient actives en même temps).
+  const currentTab = searchParams?.get('tab') || '';
+  const isActive = (href: string) => {
+    if (href === '/dashboard') return p === '/dashboard';
+    const [hrefPath, hrefQuery] = href.split('?');
+    const cleanHrefPath = hrefPath.replace(/\/$/, '');
+    if (!hrefQuery) {
+      // Item sans query : actif si pathname commence par lui ET aucun
+      // autre item avec le même path mais query ne matche pas. Mais comme
+      // dans notre nav on remplace les items "pipeline" par 3 items avec
+      // ?tab=, l'absence de query dans href signifie "pas d'item parent".
+      return p.startsWith(cleanHrefPath);
+    }
+    if (p !== cleanHrefPath) return false;
+    const tabParam = new URLSearchParams(hrefQuery).get('tab');
+    // Pour /pipeline?tab=commerciale, le tab par défaut est 'commerciale' donc
+    // on l'active aussi si aucun tab n'est explicitement set dans l'URL.
+    if (cleanHrefPath === '/dashboard/pipeline' && tabParam === 'commerciale' && !currentTab) return true;
+    return currentTab === tabParam;
+  };
 
   const sidebarWidth = collapsed && !isMobile ? 60 : 220;
 

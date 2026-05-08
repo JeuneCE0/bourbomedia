@@ -705,6 +705,7 @@ function CreateFromProspectButton() {
   const [open, setOpen] = useState(false);
   const [opps, setOpps] = useState<OppMini[]>([]);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
   const [step, setStep] = useState(5);
@@ -727,7 +728,27 @@ function CreateFromProspectButton() {
     }
   }, []);
 
-  useEffect(() => { if (open) loadOpps(); }, [open, loadOpps]);
+  // Force un sync GHL → DB (pull fresh + enrichi email/phone) puis recharge.
+  // Sert quand un prospect existe côté GHL mais pas dans le picker car la
+  // mirror locale est en retard ou a contact_email=null.
+  const syncFromGhl = useCallback(async () => {
+    setSyncing(true);
+    setError('');
+    try {
+      await fetch('/api/admin/ghl-sync-opps', { method: 'POST', headers: authHeaders() });
+      await loadOpps();
+    } catch {
+      setError('Sync GHL en échec.');
+    } finally {
+      setSyncing(false);
+    }
+  }, [loadOpps]);
+
+  useEffect(() => {
+    if (!open) return;
+    // Sync + load au mount pour garantir qu'on a les derniers prospects GHL
+    void syncFromGhl();
+  }, [open, syncFromGhl]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -776,7 +797,7 @@ function CreateFromProspectButton() {
           cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700,
           boxShadow: '0 4px 14px rgba(232,105,43,.30)',
         }}
-      >+ Depuis prospect</button>
+      >+ Ajouter</button>
 
       {open && (
         <div
@@ -808,17 +829,31 @@ function CreateFromProspectButton() {
             </div>
 
             <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
-              <input
-                type="text"
-                placeholder="🔍 Filtrer par nom / email / stage…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                style={{
-                  padding: '8px 12px', borderRadius: 8,
-                  background: 'var(--night-mid)', border: '1px solid var(--border-md)',
-                  color: 'var(--text)', fontSize: '0.85rem', outline: 'none', fontFamily: 'inherit',
-                }}
-              />
+              <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Filtrer par nom / email / stage…"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={{
+                    flex: 1, padding: '8px 12px', borderRadius: 8,
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', fontSize: '0.85rem', outline: 'none', fontFamily: 'inherit',
+                  }}
+                />
+                <button
+                  onClick={syncFromGhl}
+                  disabled={syncing || loading}
+                  title="Re-pull les prospects depuis GHL (utile si un prospect créé à l'instant n'apparaît pas)"
+                  style={{
+                    padding: '8px 12px', borderRadius: 8,
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                    color: 'var(--text-mid)', cursor: syncing ? 'wait' : 'pointer',
+                    fontSize: '0.78rem', fontWeight: 600, fontFamily: 'inherit',
+                    opacity: syncing ? 0.5 : 1, whiteSpace: 'nowrap',
+                  }}
+                >{syncing ? '⏳' : '🔄 Sync GHL'}</button>
+              </div>
               <div style={{
                 flex: 1, minHeight: 200, maxHeight: 320, overflowY: 'auto',
                 display: 'flex', flexDirection: 'column', gap: 4,

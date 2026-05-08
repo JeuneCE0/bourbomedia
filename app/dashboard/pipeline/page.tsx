@@ -8,12 +8,6 @@ import { ClientsListView } from '@/app/dashboard/clients/page';
 
 type Tab = 'commerciale' | 'onboarding' | 'clients';
 
-const TABS: { key: Tab; emoji: string; label: string; subtitle: string }[] = [
-  { key: 'commerciale', emoji: '🎯', label: 'Prospects',     subtitle: 'Pipeline GHL : Leads → Contracté' },
-  { key: 'onboarding',  emoji: '🚀', label: 'En production', subtitle: 'Onboarding → Publié' },
-  { key: 'clients',     emoji: '👥', label: 'Tous les clients', subtitle: 'Liste complète, filtres avancés' },
-];
-
 function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('bbp_token')}`, 'Content-Type': 'application/json' };
 }
@@ -32,10 +26,15 @@ function fmtEUR(cents: number): string {
 function PipelinePageInner() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const initialTab: Tab = tabParam === 'onboarding' ? 'onboarding'
+  // Tab piloté DIRECTEMENT par l'URL (pas de state local) : depuis la
+  // sidebar les 3 entrées Prospects GHL / Production / Clients changent
+  // l'URL via Next.js client-side nav, donc PipelinePageInner ne se
+  // démonte pas. Si on stockait `tab` dans useState avec initialTab,
+  // l'état resterait figé sur la valeur du premier mount → la sidebar
+  // ne switcherait plus rien après la 1ère navigation.
+  const tab: Tab = tabParam === 'onboarding' ? 'onboarding'
     : tabParam === 'clients' ? 'clients'
     : 'commerciale';
-  const [tab, setTab] = useState<Tab>(initialTab);
   const [kpi, setKpi] = useState<KpiData | null>(null);
 
   const loadKpi = useCallback(async () => {
@@ -83,16 +82,6 @@ function PipelinePageInner() {
 
   useEffect(() => { loadKpi(); }, [loadKpi]);
 
-  function switchTab(t: Tab) {
-    setTab(t);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      if (t === 'commerciale') url.searchParams.delete('tab');
-      else url.searchParams.set('tab', t);
-      window.history.replaceState({}, '', url.toString());
-    }
-  }
-
   return (
     <div>
       {/* Sticky header — toujours visible quand on switche de tab */}
@@ -127,45 +116,9 @@ function PipelinePageInner() {
           )}
         </div>
 
-        {/* Tabs — scrollable on mobile */}
-        <div className="bm-tabs-row" style={{
-          display: 'flex', gap: 4, padding: 4, borderRadius: 10,
-          background: 'var(--night-card)', border: '1px solid var(--border)',
-          width: 'fit-content', maxWidth: '100%',
-        }}>
-          {TABS.map(t => {
-            const active = t.key === tab;
-            return (
-              <button
-                key={t.key}
-                onClick={() => switchTab(t.key)}
-                style={{
-                  padding: '11px 20px', borderRadius: 9,
-                  background: active
-                    ? 'linear-gradient(180deg, rgba(232,105,43,.18), rgba(232,105,43,.08))'
-                    : 'transparent',
-                  color: active ? 'var(--text)' : 'var(--text-muted)',
-                  border: active ? '1px solid rgba(232,105,43,.35)' : '1px solid transparent',
-                  cursor: 'pointer',
-                  fontSize: '0.86rem', fontWeight: active ? 700 : 500,
-                  display: 'flex', alignItems: 'center', gap: 9,
-                  whiteSpace: 'nowrap',
-                  transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
-                  textAlign: 'left',
-                  boxShadow: active ? '0 4px 14px rgba(232,105,43,.15)' : 'none',
-                }}
-              >
-                <span aria-hidden>{t.emoji}</span>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.1 }}>
-                  <span>{t.label}</span>
-                  <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: 2 }}>
-                    {t.subtitle}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        {/* Onglets retirés : la sidebar expose Prospects GHL / Production /
+            Clients comme entrées dédiées. Le tab sélectionné reste piloté
+            par le query param ?tab=... pour conserver les liens existants. */}
       </div>
 
       {/* Tab content */}
