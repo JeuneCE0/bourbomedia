@@ -78,6 +78,25 @@ function deriveStage(c: Client): string {
   return 'onboarding:account';
 }
 
+// Map stage virtuelle → onboarding_step DB. Sert à envoyer le step au PUT
+// /api/clients pour que le rollback automatique côté serveur cascade les
+// effets (clear publication_*, video_*, filming_date, script reset…).
+const STAGE_KEY_TO_STEP: Record<string, number> = {
+  'onboarding:account':  1,
+  'onboarding:contract': 2,
+  'onboarding:payment':  3,
+  'onboarding_call':     4,
+  'script_writing':      5,
+  'script_review':       5,
+  'script_validated':    6,
+  'filming_scheduled':   6,
+  'filming_done':        6,
+  'editing':             7,
+  'video_review':        7,
+  'publication_pending': 7,
+  'published':           8,
+};
+
 // Le patch DB à appliquer quand l'admin drag un client vers une stage cible.
 // Pour les stages virtuelles 'onboarding:*' on touche uniquement les flags
 // (status reste 'onboarding'). Pour les autres on patch le status.
@@ -233,6 +252,38 @@ export default function PipelineOnboarding() {
     const client = clients.find(x => x.id === clientId);
     const stage = STAGES.find(s => s.key === newStageKey);
     const fields = stageKeyToFields(newStageKey);
+
+    // Détection rollback : compare l'index de la stage actuelle vs cible
+    // dans STAGES (chronologique). Si l'admin remet le client en arrière,
+    // on doit reset les flags du stage cible aussi (sinon ex: drag de
+    // publication → "Appel onboarding" garde call_booked=true par défaut
+    // de stageKeyToFields, et le portail affiche "Appel réservé" au lieu
+    // de rouvrir le calendrier).
+    const prevStageKey = client ? deriveStage(client) : null;
+    const prevIdx = prevStageKey ? STAGES.findIndex(s => s.key === prevStageKey) : -1;
+    const newIdx = STAGES.findIndex(s => s.key === newStageKey);
+    const isRollback = prevIdx >= 0 && newIdx >= 0 && newIdx < prevIdx;
+
+    if (isRollback && newStageKey === 'onboarding_call') {
+      // Rollback vers Appel onboarding = re-booking attendu, pas "déjà
+      // réservé". On force status='onboarding' + call_booked=false pour
+      // que le portail rouvre le calendrier GHL.
+      fields.status = 'onboarding';
+      fields.onboarding_call_booked = false;
+      fields.onboarding_call_date = null;
+    }
+
+    // Toujours envoyer onboarding_step pour que le PUT /api/clients
+    // déclenche son rollback automatique (clear publication_*, video_*,
+    // filming_date, script reset…) quand le step diminue. Sans ça, un
+    // client qui était à publication_pending garderait video_validated_at
+    // et publication_date_confirmed même après un drag back, et le
+    // portail tomberait sur la mauvaise pill.
+    const targetStep = STAGE_KEY_TO_STEP[newStageKey];
+    if (targetStep !== undefined) {
+      fields.onboarding_step = targetStep;
+    }
+
     setMovingId(clientId);
     try {
       const r = await fetch('/api/clients', {
