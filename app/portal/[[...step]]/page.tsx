@@ -2982,72 +2982,79 @@ function ScriptVersionPills({ token, currentVersion, currentContent }: {
 /* ── Contextual screen when no script exists yet ─────────────────────── */
 
 function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDelivery | null; token: string | null; onRefresh: () => void }) {
-  // Normalisation : si on a status='onboarding_call' mais
-  // onboarding_call_booked=false (état incohérent qui peut survenir après
-  // un rollback partiel kanban ou une donnée legacy), on traite comme
-  // 'onboarding' pour que le calendrier de booking re-apparaisse au lieu
-  // de rester bloqué sur "Appel onboarding réservé".
-  const rawStatus = clientInfo?.status || 'script_writing';
-  const status = (rawStatus === 'onboarding_call' && !clientInfo?.onboarding_call_booked)
-    ? 'onboarding'
-    : rawStatus;
+  const status = clientInfo?.status || 'script_writing';
   const onboardingCalendarUrl = resolveGhlCalendarUrl(
     process.env.NEXT_PUBLIC_GHL_ONBOARDING_CALENDAR_URL || process.env.NEXT_PUBLIC_GHL_CALENDAR_URL,
     '2fmSZkWpwEulfZsvpPmh',
   );
 
-  // 1. Onboarding — driven par les flags, pas par le status :
-  //    !contract_signed_at  → signature du contrat (iframe inline)
-  //    !paid_at             → paiement (Stripe Embedded Checkout inline)
-  //    !onboarding_call_booked → réservation de l'appel
-  if (status === 'onboarding') {
-    if (!clientInfo?.contract_signed_at && token) {
-      return (
-        <NoScriptShell
-          clientInfo={clientInfo}
-          emoji="✍️"
-          title="Signez votre contrat"
-          subtitle="Lisez, remplissez et signez votre contrat ci-dessous. Cela formalise notre collaboration."
-        >
-          <ContractStep clientInfo={clientInfo} token={token} onSigned={onRefresh} />
-        </NoScriptShell>
-      );
+  // Inférence du milestone early-onboarding à afficher. Trois sources de
+  // vérité, par ordre de priorité :
+  //   1. status='onboarding_call' (admin a posé le client à l'étape Appel)
+  //      → le client est à l'étape Appel quoi qu'il arrive, peu importe les
+  //      flags amont. Affiche calendrier si pas booké, "réservé" si booké.
+  //   2. status='onboarding' + flag set (implication logique) :
+  //      paid_at set ⇒ contract aussi (sinon il aurait pas pu payer).
+  //      Donc on saute l'iframe contrat même si contract_signed_at=null.
+  //   3. status='onboarding' + aucun flag → on commence par le contrat.
+  // Sans cette priorité, un état incohérent (ex: rollback kanban partiel
+  // qui laisse paid_at set + contract null + status='onboarding_call')
+  // affichait l'iframe contrat alors que la timeline disait "Appel".
+  type EarlyMilestone = 'contract' | 'payment' | 'call_book' | 'call_done' | null;
+  const milestone: EarlyMilestone = (() => {
+    if (status === 'onboarding_call') {
+      return clientInfo?.onboarding_call_booked ? 'call_done' : 'call_book';
     }
+    if (status !== 'onboarding') return null;
+    if (clientInfo?.onboarding_call_booked) return 'call_done';
+    if (clientInfo?.paid_at) return 'call_book';
+    if (clientInfo?.contract_signed_at) return 'payment';
+    return 'contract';
+  })();
 
-    if (!clientInfo?.paid_at && token) {
-      return (
-        <NoScriptShell
-          clientInfo={clientInfo}
-          emoji="💳"
-          title="Paiement sécurisé"
-          subtitle="Réglez votre prestation en toute sécurité avec Stripe."
-        >
-          <PaymentStep token={token} onPaid={onRefresh} />
-        </NoScriptShell>
-      );
-    }
-
-    if (!clientInfo?.onboarding_call_booked && token) {
-      return (
-        <NoScriptShell
-          clientInfo={clientInfo}
-          emoji="📞"
-          title="Réservez votre appel onboarding"
-          subtitle="Un appel de cadrage de 30 min avec notre équipe pour bien démarrer votre vidéo."
-        >
-          <OnboardingCallStep token={token} calendarUrl={onboardingCalendarUrl} clientInfo={clientInfo} onBooked={onRefresh} />
-        </NoScriptShell>
-      );
-    }
-  }
-
-  // 2. Onboarding call — appel réservé, on attend le rendez-vous puis l'écriture
-  // du script. (Le branchement status='onboarding' ci-dessus gère la réservation
-  // tant qu'elle n'est pas faite.)
-  if (status === 'onboarding_call') {
+  if (milestone === 'contract' && token) {
     return (
       <NoScriptShell
-          clientInfo={clientInfo}
+        clientInfo={clientInfo}
+        emoji="✍️"
+        title="Signez votre contrat"
+        subtitle="Lisez, remplissez et signez votre contrat ci-dessous. Cela formalise notre collaboration."
+      >
+        <ContractStep clientInfo={clientInfo} token={token} onSigned={onRefresh} />
+      </NoScriptShell>
+    );
+  }
+
+  if (milestone === 'payment' && token) {
+    return (
+      <NoScriptShell
+        clientInfo={clientInfo}
+        emoji="💳"
+        title="Paiement sécurisé"
+        subtitle="Réglez votre prestation en toute sécurité avec Stripe."
+      >
+        <PaymentStep token={token} onPaid={onRefresh} />
+      </NoScriptShell>
+    );
+  }
+
+  if (milestone === 'call_book' && token) {
+    return (
+      <NoScriptShell
+        clientInfo={clientInfo}
+        emoji="📞"
+        title="Réservez votre appel onboarding"
+        subtitle="Un appel de cadrage de 30 min avec notre équipe pour bien démarrer votre vidéo."
+      >
+        <OnboardingCallStep token={token} calendarUrl={onboardingCalendarUrl} clientInfo={clientInfo} onBooked={onRefresh} />
+      </NoScriptShell>
+    );
+  }
+
+  if (milestone === 'call_done') {
+    return (
+      <NoScriptShell
+        clientInfo={clientInfo}
         emoji="📞"
         title="Appel onboarding réservé"
         subtitle="Votre rendez-vous est planifié. Notre équipe attaque l'écriture de votre script juste après l'appel."
