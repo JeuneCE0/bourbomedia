@@ -300,7 +300,6 @@ function IntegrationsPanel() {
         </div>
       </Card>
 
-      <DeepSyncAppointmentsCard />
       <BackfillCard />
     </>
   );
@@ -947,6 +946,7 @@ function DataSyncPanel() {
         endpoint="/api/gh-appointments/resync-notes"
         confirmText="Re-synchroniser les notes des RDV documentés sur GHL ?"
       />
+      <DeepSyncAppointmentsCard />
       <div style={{
         padding: 14, borderRadius: 10, background: 'var(--night-card)', border: '1px solid var(--border)',
         fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.6,
