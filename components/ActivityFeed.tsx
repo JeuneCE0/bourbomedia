@@ -96,8 +96,37 @@ export default function ActivityFeed() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {events.map((e, i) => {
           const meta = EVENT_META[e.event] || { emoji: '🔹', verb: e.event, color: 'var(--text-muted)' };
-          const businessName = e.clients?.business_name || '—';
+          // Identifie l'acteur : si on a une fiche client liée on utilise
+          // son nom commercial. Sinon on tombe sur la source du funnel
+          // event : 'admin' = action admin, 'portal'/'onboarding'/'webhook'
+          // = action client (souvent un visiteur anonyme avant signup).
+          // Évite l'affichage "— a visité l'onboarding" qui ne dit rien.
+          const businessName = e.clients?.business_name
+            || (e.source === 'admin' ? 'Admin' : 'Client');
           const contactName = e.clients?.contact_name || '';
+
+          // Pour les events de booking, on extrait la date depuis le
+          // metadata pour l'afficher en sous-ligne. Couvre call_booked
+          // (appel onboarding), filming_booked (tournage),
+          // publication_booked (date de publi) et video_delivered.
+          const meta_date =
+            (e.metadata?.date as string | undefined)
+            || (e.metadata?.appointment_date as string | undefined)
+            || (e.metadata?.starts_at as string | undefined)
+            || null;
+          let dateLabel = '';
+          if (meta_date) {
+            const d = new Date(meta_date);
+            if (!Number.isNaN(d.getTime())) {
+              const today = new Date();
+              const sameYear = d.getFullYear() === today.getFullYear();
+              dateLabel = d.toLocaleDateString('fr-FR', {
+                weekday: 'short', day: 'numeric', month: 'short',
+                ...(sameYear ? {} : { year: 'numeric' }),
+                hour: '2-digit', minute: '2-digit',
+              });
+            }
+          }
           const inner = (
             <div style={{
               display: 'grid', gridTemplateColumns: '28px 1fr auto', gap: 10, alignItems: 'center',
@@ -116,9 +145,11 @@ export default function ActivityFeed() {
                   <strong>{businessName}</strong>
                   <span style={{ color: 'var(--text-mid)' }}> {meta.verb}</span>
                 </div>
-                {contactName && (
+                {(contactName || dateLabel) && (
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                     {contactName}
+                    {contactName && dateLabel && ' · '}
+                    {dateLabel && <span style={{ color: 'var(--orange)' }}>📅 {dateLabel}</span>}
                   </div>
                 )}
               </div>

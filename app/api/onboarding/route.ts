@@ -301,7 +301,7 @@ export async function POST(req: NextRequest) {
         event: 'call_booked',
         source: 'portal',
         clientId: client.id,
-        metadata: { via: 'verify_call_booked', appointment_id: match.id },
+        metadata: { via: 'verify_call_booked', appointment_id: match.id, date: match.startTime },
       });
       void sendPushToAll({
         title: '📞 Appel onboarding réservé',
@@ -330,7 +330,12 @@ export async function POST(req: NextRequest) {
       }),
     }, true);
     notifyClientStatusChange(client.business_name, 'Étape 4', 'Appel onboarding réservé');
-    void trackFunnelServer({ event: 'call_booked', source: 'portal', clientId: client.id });
+    void trackFunnelServer({
+      event: 'call_booked',
+      source: 'portal',
+      clientId: client.id,
+      metadata: body.date ? { date: body.date } : null,
+    });
     void sendPushToAll({
       title: '📞 Appel onboarding réservé',
       body: `${client.business_name} a réservé son appel onboarding${body.date ? ` (${new Date(body.date).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})` : ''}.`,
