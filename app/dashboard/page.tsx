@@ -9,6 +9,7 @@ import ProspectsToFollowUp from '@/components/ProspectsToFollowUp';
 import TodayAppointments from '@/components/TodayAppointments';
 import ActivityFeed from '@/components/ActivityFeed';
 import ClientFeedbackAlerts from '@/components/ClientFeedbackAlerts';
+import KeyDatesWidget from '@/components/KeyDatesWidget';
 import OrphanPaymentsCard from '@/components/OrphanPaymentsCard';
 
 interface Client {
@@ -271,6 +272,11 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="bm-stagger">
+          {/* Échéances clés sur les 14 prochains jours : tournages,
+              onboarding, livraisons vidéo (ETA filming + 7j), publications.
+              Tout au même endroit pour ne rater aucune date. Collapsible. */}
+          <KeyDatesWidget />
+
           {/* Retours clients en attente sur les vidéos livrées —
               en haut pour qu'on les rate pas (au lieu de juste un badge
               sur la sonnerie). */}
