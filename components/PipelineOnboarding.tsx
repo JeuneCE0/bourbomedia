@@ -52,19 +52,30 @@ const STAGES: { key: string; label: string; color: string }[] = [
   { key: 'published',           label: 'Publié',          color: '#22C55E' },
 ];
 
+// Set des status connus (clés des STAGES post-onboarding). Sert au
+// fallback de deriveStage : un client avec un status hors liste
+// (legacy, null, valeur custom) doit quand même apparaître dans
+// la kanban — sinon il est invisible pour l'admin alors que sa
+// fiche existe en DB.
+const KNOWN_STAGE_STATUSES = new Set(STAGES.map(s => s.key).filter(k => !k.startsWith('onboarding:')));
+
 // Mappe un client vers sa colonne virtuelle dans le pipeline.
 // Pour status='onboarding' : déduit la sous-étape via les flags.
-// Pour les autres status : 1:1 avec la clé.
+// Pour les autres status connus : 1:1 avec la clé.
+// Pour tout status inconnu / null : fallback sur 'onboarding:account'
+// (visible en haut du kanban, l'admin voit qu'il y a un client à gérer).
 function deriveStage(c: Client): string {
   if (c.status === 'onboarding') {
     if (!c.contract_signed_at) return 'onboarding:account';
     if (!c.paid_at) return 'onboarding:contract';
     if (!c.onboarding_call_booked) return 'onboarding:payment';
-    // Tous les flags sont posés mais le status n'a pas avancé — cas edge,
-    // on les laisse dans la dernière colonne onboarding pour visibilité.
     return 'onboarding:payment';
   }
-  return c.status;
+  if (c.status && KNOWN_STAGE_STATUSES.has(c.status)) return c.status;
+  // Fallback : status null, vide ou inconnu (ex: 'leads' legacy, ou
+  // créé manuellement avec valeur custom). On affiche dans la 1ère
+  // colonne pour que la fiche reste cliquable depuis la kanban.
+  return 'onboarding:account';
 }
 
 // Le patch DB à appliquer quand l'admin drag un client vers une stage cible.
@@ -781,13 +792,22 @@ function CreateFromProspectButton() {
     });
   }, [opps, search]);
 
-  // Si l'utilisateur clique sur une opp déjà liée, on ouvre directement
-  // la fiche client en production — pas de re-création (cf. demande
-  // "Si il est déjà lié à un client, automatiquement relier la fiche
-  // et l'afficher dans le production").
-  function selectOpp(opp: OppMini) {
+  // Si l'utilisateur clique sur une opp déjà liée, on désarchive le
+  // client (au cas où il aurait été archivé/perdu de la kanban), on
+  // dispatch bbm-clients-changed pour refresh la kanban en arrière-plan,
+  // puis on ouvre la fiche existante. Garantit que de retour sur la
+  // kanban, le client soit visible — combiné au fallback dans
+  // deriveStage qui affiche les status inconnus dans la 1ère colonne.
+  async function selectOpp(opp: OppMini) {
     if (opp.client_id) {
+      try {
+        await fetch('/api/clients', {
+          method: 'PUT', headers: authHeaders(),
+          body: JSON.stringify({ id: opp.client_id, archived_at: null }),
+        });
+      } catch { /* tolerate */ }
       if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('bbm-clients-changed'));
         window.location.href = `/dashboard/clients/${opp.client_id}`;
       }
       return;
