@@ -3251,11 +3251,13 @@ function OnboardingCallStep({ token, calendarUrl, clientInfo, onBooked }: {
     return () => clearInterval(interval);
   }, [iframeLoaded, clientInfo?.onboarding_call_booked, token, onBooked]);
 
-  // 30s d'attente avant d'afficher le bouton — laisse le temps au client de
-  // finaliser la réservation et au webhook GHL de remonter le rendez-vous.
+  // 15s d'attente avant d'afficher le bouton de fallback. Le webhook GHL
+  // + verify_call_booked attrapent le booking en <10s la plupart du temps,
+  // mais on laisse 15s avant d'exposer le bouton manuel pour ne pas
+  // surcharger l'UI quand l'auto-confirm va de toute façon tomber.
   useEffect(() => {
     if (!showButton) {
-      const delay = iframeLoaded ? 30000 : 35000;
+      const delay = iframeLoaded ? 15000 : 20000;
       const timer = setTimeout(() => setShowButton(true), delay);
       return () => clearTimeout(timer);
     }

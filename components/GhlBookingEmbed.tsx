@@ -150,13 +150,13 @@ export default function GhlBookingEmbed({ url, title, onLoad, prefill }: {
   // Hauteur fail-safe : si form_embed.js ne tombe pas (race au mount, CSP,
   // ou widget GHL qui n'émet pas le postMessage de resize), on garantit
   // assez de place pour le calendrier + le formulaire de contact + le
-  // bouton natif "Book Now". Sans ça, l'utilisateur voit le formulaire
-  // cropped avec aucun moyen de cliquer sur submit.
-  // 1400 couvre la combinaison verticale calendrier (~600) + form (~600)
-  // + bouton submit (~80) avec marge confort. form_embed.js pourra
-  // toujours faire grandir au-delà via postMessage si jamais le contenu
-  // est plus long.
-  const FAILSAFE_MIN_HEIGHT = 1400;
+  // bouton natif "Book Now" sans cropper.
+  // 1100 couvre la combinaison verticale calendrier (~500) + form (~450)
+  // + bouton submit (~60) + padding sans laisser un trou de plusieurs
+  // centaines de pixels en bas (cf retour Rudy : 1400 = trop d'espace
+  // mort sur l'écran). form_embed.js pourra toujours grandir au-delà
+  // via postMessage si le contenu est plus long.
+  const FAILSAFE_MIN_HEIGHT = 1100;
 
   return (
     <div style={{
