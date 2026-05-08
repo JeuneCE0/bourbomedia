@@ -706,9 +706,10 @@ function CreateFromProspectButton() {
   const [opps, setOpps] = useState<OppMini[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [searchingGhl, setSearchingGhl] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
-  const [step, setStep] = useState(5);
+  const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -718,7 +719,9 @@ function CreateFromProspectButton() {
       const r = await fetch('/api/gh-opportunities', { headers: authHeaders() });
       if (!r.ok) throw new Error('fetch failed');
       const d = await r.json();
-      const list: OppMini[] = (d.opportunities || []).filter((o: OppMini) => !o.client_id);
+      // On affiche TOUS les opps (linked + unlinked). Les linked sont
+      // marquées et clic = navigation vers la fiche existante.
+      const list: OppMini[] = (d.opportunities || []);
       list.sort((a, b) => (b.ghl_updated_at || '').localeCompare(a.ghl_updated_at || ''));
       setOpps(list);
     } catch {
@@ -729,8 +732,6 @@ function CreateFromProspectButton() {
   }, []);
 
   // Force un sync GHL → DB (pull fresh + enrichi email/phone) puis recharge.
-  // Sert quand un prospect existe côté GHL mais pas dans le picker car la
-  // mirror locale est en retard ou a contact_email=null.
   const syncFromGhl = useCallback(async () => {
     setSyncing(true);
     setError('');
@@ -746,9 +747,30 @@ function CreateFromProspectButton() {
 
   useEffect(() => {
     if (!open) return;
-    // Sync + load au mount pour garantir qu'on a les derniers prospects GHL
     void syncFromGhl();
   }, [open, syncFromGhl]);
+
+  // Fallback : si la recherche locale ne donne rien et que la query
+  // ressemble à un email / phone / nom, on tape GHL directement via
+  // /api/admin/ghl-find-prospect qui upsert dans gh_opportunities et
+  // recharge ensuite la liste — l'opp apparaîtra alors dans le picker.
+  const searchGhl = useCallback(async (q: string) => {
+    if (!q.trim()) return;
+    setSearchingGhl(true);
+    setError('');
+    try {
+      const r = await fetch(
+        `/api/admin/ghl-find-prospect?q=${encodeURIComponent(q.trim())}`,
+        { headers: authHeaders() },
+      );
+      if (!r.ok) throw new Error('GHL search failed');
+      await loadOpps();
+    } catch {
+      setError('Recherche GHL en échec.');
+    } finally {
+      setSearchingGhl(false);
+    }
+  }, [loadOpps]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -758,6 +780,20 @@ function CreateFromProspectButton() {
       return hay.includes(q);
     });
   }, [opps, search]);
+
+  // Si l'utilisateur clique sur une opp déjà liée, on ouvre directement
+  // la fiche client en production — pas de re-création (cf. demande
+  // "Si il est déjà lié à un client, automatiquement relier la fiche
+  // et l'afficher dans le production").
+  function selectOpp(opp: OppMini) {
+    if (opp.client_id) {
+      if (typeof window !== 'undefined') {
+        window.location.href = `/dashboard/clients/${opp.client_id}`;
+      }
+      return;
+    }
+    setSelectedOppId(opp.id);
+  }
 
   async function submit() {
     if (!selectedOppId) return;
@@ -770,12 +806,20 @@ function CreateFromProspectButton() {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) {
+        // Fallback gracieux : si l'opp s'est fait lier entre-temps
+        // (cron/sync race), on navigue vers la fiche existante au lieu
+        // de bloquer l'admin avec un message d'erreur.
+        if (r.status === 409 && d?.existing_client_id) {
+          if (typeof window !== 'undefined') {
+            window.location.href = `/dashboard/clients/${d.existing_client_id}`;
+          }
+          return;
+        }
         setError(d.error || 'Création impossible.');
         return;
       }
       const businessName = d?.client?.business_name || 'Client';
       toast.success(`${businessName} ajouté en production`, { emoji: '🚀' });
-      // Refresh la kanban via l'event que loadClients écoute
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('bbm-clients-changed'));
       }
@@ -866,26 +910,56 @@ function CreateFromProspectButton() {
                   </div>
                 ) : filtered.length === 0 ? (
                   <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.6 }}>
-                    {search ? 'Aucun prospect ne correspond à la recherche.' : 'Tous les prospects ont déjà une fiche en production.'}
+                    <div style={{ marginBottom: 10 }}>
+                      {search ? 'Aucun prospect local ne correspond.' : 'Aucun prospect en pipeline.'}
+                    </div>
+                    {search && (
+                      <button
+                        onClick={() => searchGhl(search)}
+                        disabled={searchingGhl}
+                        style={{
+                          padding: '7px 12px', borderRadius: 6,
+                          background: searchingGhl ? 'var(--night-card)' : 'var(--orange)',
+                          border: 'none', color: searchingGhl ? 'var(--text-muted)' : '#fff',
+                          cursor: searchingGhl ? 'wait' : 'pointer',
+                          fontSize: '0.74rem', fontWeight: 700, fontFamily: 'inherit',
+                        }}
+                      >
+                        {searchingGhl ? '⏳ Recherche dans GHL…' : `🔍 Chercher « ${search.slice(0, 30)} » dans GHL`}
+                      </button>
+                    )}
                   </div>
                 ) : (
                   filtered.map(o => {
                     const isSelected = selectedOppId === o.id;
+                    const isLinked = !!o.client_id;
                     return (
                       <button
                         key={o.id}
-                        onClick={() => setSelectedOppId(o.id)}
+                        onClick={() => selectOpp(o)}
+                        title={isLinked ? 'Cette opportunité est déjà liée à une fiche en production. Cliquez pour ouvrir la fiche.' : undefined}
                         style={{
                           textAlign: 'left', padding: '8px 10px', borderRadius: 6,
-                          background: isSelected ? 'rgba(232,105,43,.14)' : 'transparent',
-                          border: isSelected ? '1px solid rgba(232,105,43,.50)' : '1px solid transparent',
+                          background: isSelected ? 'rgba(232,105,43,.14)'
+                            : isLinked ? 'rgba(34,197,94,.06)'
+                            : 'transparent',
+                          border: isSelected ? '1px solid rgba(232,105,43,.50)'
+                            : isLinked ? '1px solid rgba(34,197,94,.30)'
+                            : '1px solid transparent',
                           cursor: 'pointer', color: 'var(--text)', fontFamily: 'inherit',
                           display: 'flex', flexDirection: 'column', gap: 2,
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                             {o.name || o.contact_name || 'Sans nom'}
+                            {isLinked && (
+                              <span style={{
+                                fontSize: '0.62rem', padding: '1px 6px', borderRadius: 4,
+                                background: 'rgba(34,197,94,.16)', color: 'var(--green)',
+                                border: '1px solid rgba(34,197,94,.35)', fontWeight: 600,
+                              }}>✓ En production</span>
+                            )}
                           </span>
                           {o.pipeline_stage_name && (
                             <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
@@ -896,6 +970,7 @@ function CreateFromProspectButton() {
                         <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                           {[o.contact_name, o.contact_email].filter(Boolean).join(' · ') || '—'}
                           {o.monetary_value_cents ? ` · ${(o.monetary_value_cents / 100).toLocaleString('fr-FR')} €` : ''}
+                          {isLinked && ' · Cliquer pour ouvrir la fiche'}
                         </div>
                       </button>
                     );
