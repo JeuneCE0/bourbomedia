@@ -281,6 +281,23 @@ function IntegrationsPanel() {
             Sans le trigger <em>Created</em>, les nouveaux optins qui apparaissent direct dans la 1ère étape du pipeline ne sont jamais notifiés.
           </p>
         </div>
+
+        <div style={{
+          marginTop: 14, padding: '10px 12px', borderRadius: 8,
+          background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.30)',
+        }}>
+          <div style={{ fontSize: '0.74rem', color: '#fca5a5', fontWeight: 700, marginBottom: 4 }}>
+            ⚠️ Important — calendriers embed
+          </div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-mid)', lineHeight: 1.55 }}>
+            Sur les 3 calendriers GHL embeddés (closing / onboarding / tournage),
+            <strong> retire toutes les redirections « après confirmation »</strong> côté GHL Dashboard
+            (Calendar settings → <em>Confirmation page</em> → laisser <em>Default</em> sans URL custom).
+            Les redirects vers <code>bourbonmedia.fr/portal</code> chargent le portail dans
+            l&apos;iframe → loop infini ou écran blanc. Bourbomedia gère la confirmation
+            via le webhook + verify polling, pas besoin de redirect.
+          </div>
+        </div>
       </Card>
 
       <BackfillCard />

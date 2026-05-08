@@ -335,6 +335,9 @@ export default function PipelineOnboarding() {
               </button>
             ))}
           </div>
+          {/* Création fiche depuis prospect GHL */}
+          <CreateFromProspectButton />
+
           {/* Settings */}
           <div ref={settingsRef} style={{ position: 'relative' }}>
             <button onClick={() => setShowSettings(!showSettings)} style={{
@@ -667,5 +670,261 @@ function PipelineCard({
         )}
       </div>
     </div>
+  );
+}
+
+/* ── Bouton "+ Depuis prospect" : crée une fiche client en production
+   à partir d'une opportunité GHL existante (pipeline commercial) qui
+   n'a pas encore de client_id lié. Évite la double saisie : l'admin
+   pick le prospect, choisit l'étape de départ, on crée la fiche.    */
+
+interface OppMini {
+  id: string;
+  ghl_opportunity_id: string;
+  client_id: string | null;
+  name: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  pipeline_stage_name: string | null;
+  monetary_value_cents: number | null;
+  ghl_updated_at: string | null;
+}
+
+const PROD_STEP_OPTIONS = [
+  { num: 1, label: 'Compte créé' },
+  { num: 2, label: 'Contrat à signer' },
+  { num: 3, label: 'Paiement à régler' },
+  { num: 4, label: 'Appel onboarding à booker' },
+  { num: 5, label: 'Script en écriture' },
+  { num: 6, label: 'Tournage à booker' },
+  { num: 7, label: 'Publication à planifier' },
+];
+
+function CreateFromProspectButton() {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [opps, setOpps] = useState<OppMini[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [selectedOppId, setSelectedOppId] = useState<string | null>(null);
+  const [step, setStep] = useState(5);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadOpps = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch('/api/gh-opportunities', { headers: authHeaders() });
+      if (!r.ok) throw new Error('fetch failed');
+      const d = await r.json();
+      const list: OppMini[] = (d.opportunities || []).filter((o: OppMini) => !o.client_id);
+      list.sort((a, b) => (b.ghl_updated_at || '').localeCompare(a.ghl_updated_at || ''));
+      setOpps(list);
+    } catch {
+      setError('Impossible de charger les prospects.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (open) loadOpps(); }, [open, loadOpps]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return opps;
+    return opps.filter(o => {
+      const hay = [o.name, o.contact_name, o.contact_email, o.pipeline_stage_name].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }, [opps, search]);
+
+  async function submit() {
+    if (!selectedOppId) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const r = await fetch('/api/clients/from-ghl-opportunity', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ opportunity_id: selectedOppId, onboarding_step: step }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setError(d.error || 'Création impossible.');
+        return;
+      }
+      const businessName = d?.client?.business_name || 'Client';
+      toast.success(`${businessName} ajouté en production`, { emoji: '🚀' });
+      // Refresh la kanban via l'event que loadClients écoute
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('bbm-clients-changed'));
+      }
+      setOpen(false);
+      setSelectedOppId(null);
+      setSearch('');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        style={{
+          padding: '7px 12px', borderRadius: 8,
+          background: 'var(--orange)', border: 'none', color: '#fff',
+          cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700,
+          boxShadow: '0 4px 14px rgba(232,105,43,.30)',
+        }}
+      >+ Depuis prospect</button>
+
+      {open && (
+        <div
+          onClick={() => { if (!submitting) setOpen(false); }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: 'min(540px, 100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column',
+              background: 'var(--night-card)', borderRadius: 14,
+              border: '1px solid var(--border-md)', boxShadow: '0 12px 40px rgba(0,0,0,.5)',
+            }}
+          >
+            <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)' }}>
+              <h2 style={{
+                margin: 0, fontFamily: "'Bricolage Grotesque', sans-serif",
+                fontSize: '1rem', fontWeight: 700, color: 'var(--text)',
+              }}>🚀 Créer une fiche depuis un prospect GHL</h2>
+              <p style={{ margin: '4px 0 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                Reprend les infos GHL et bascule directement à l&apos;étape choisie.
+                Seuls les prospects sans fiche client en production sont listés.
+              </p>
+            </div>
+
+            <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
+              <input
+                type="text"
+                placeholder="🔍 Filtrer par nom / email / stage…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{
+                  padding: '8px 12px', borderRadius: 8,
+                  background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                  color: 'var(--text)', fontSize: '0.85rem', outline: 'none', fontFamily: 'inherit',
+                }}
+              />
+              <div style={{
+                flex: 1, minHeight: 200, maxHeight: 320, overflowY: 'auto',
+                display: 'flex', flexDirection: 'column', gap: 4,
+                background: 'var(--night-mid)', borderRadius: 8,
+                border: '1px solid var(--border)', padding: 6,
+              }}>
+                {loading ? (
+                  <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                    ⏳ Chargement…
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.6 }}>
+                    {search ? 'Aucun prospect ne correspond à la recherche.' : 'Tous les prospects ont déjà une fiche en production.'}
+                  </div>
+                ) : (
+                  filtered.map(o => {
+                    const isSelected = selectedOppId === o.id;
+                    return (
+                      <button
+                        key={o.id}
+                        onClick={() => setSelectedOppId(o.id)}
+                        style={{
+                          textAlign: 'left', padding: '8px 10px', borderRadius: 6,
+                          background: isSelected ? 'rgba(232,105,43,.14)' : 'transparent',
+                          border: isSelected ? '1px solid rgba(232,105,43,.50)' : '1px solid transparent',
+                          cursor: 'pointer', color: 'var(--text)', fontFamily: 'inherit',
+                          display: 'flex', flexDirection: 'column', gap: 2,
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                            {o.name || o.contact_name || 'Sans nom'}
+                          </span>
+                          {o.pipeline_stage_name && (
+                            <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                              {o.pipeline_stage_name}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          {[o.contact_name, o.contact_email].filter(Boolean).join(' · ') || '—'}
+                          {o.monetary_value_cents ? ` · ${(o.monetary_value_cents / 100).toLocaleString('fr-FR')} €` : ''}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              <label style={{ display: 'block' }}>
+                <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>
+                  Étape de départ
+                </span>
+                <select
+                  value={step}
+                  onChange={e => setStep(parseInt(e.target.value, 10))}
+                  style={{
+                    width: '100%', padding: '8px 10px', borderRadius: 6,
+                    background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', fontSize: '0.85rem', outline: 'none', fontFamily: 'inherit',
+                  }}
+                >
+                  {PROD_STEP_OPTIONS.map(o => (
+                    <option key={o.num} value={o.num}>Étape {o.num} — {o.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              {error && (
+                <div style={{
+                  padding: '8px 10px', borderRadius: 6,
+                  background: 'rgba(239,68,68,.08)', borderLeft: '3px solid var(--red)',
+                  fontSize: '0.74rem', color: '#fca5a5',
+                }}>{error}</div>
+              )}
+            </div>
+
+            <div style={{
+              padding: '12px 18px', borderTop: '1px solid var(--border)',
+              display: 'flex', justifyContent: 'flex-end', gap: 8,
+            }}>
+              <button
+                onClick={() => { setOpen(false); setSelectedOppId(null); setError(''); }}
+                disabled={submitting}
+                style={{
+                  padding: '8px 14px', borderRadius: 8,
+                  background: 'transparent', border: '1px solid var(--border-md)',
+                  color: 'var(--text-muted)', cursor: 'pointer',
+                  fontSize: '0.78rem', fontWeight: 600, fontFamily: 'inherit',
+                }}
+              >Annuler</button>
+              <button
+                onClick={submit}
+                disabled={submitting || !selectedOppId}
+                style={{
+                  padding: '8px 16px', borderRadius: 8,
+                  background: 'var(--orange)', border: 'none', color: '#fff',
+                  cursor: !selectedOppId || submitting ? 'not-allowed' : 'pointer',
+                  fontSize: '0.82rem', fontWeight: 700, fontFamily: 'inherit',
+                  opacity: !selectedOppId || submitting ? 0.5 : 1,
+                }}
+              >{submitting ? '⏳ Création…' : '✓ Créer la fiche'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
