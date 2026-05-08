@@ -2982,7 +2982,15 @@ function ScriptVersionPills({ token, currentVersion, currentContent }: {
 /* ── Contextual screen when no script exists yet ─────────────────────── */
 
 function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDelivery | null; token: string | null; onRefresh: () => void }) {
-  const status = clientInfo?.status || 'script_writing';
+  // Normalisation : si on a status='onboarding_call' mais
+  // onboarding_call_booked=false (état incohérent qui peut survenir après
+  // un rollback partiel kanban ou une donnée legacy), on traite comme
+  // 'onboarding' pour que le calendrier de booking re-apparaisse au lieu
+  // de rester bloqué sur "Appel onboarding réservé".
+  const rawStatus = clientInfo?.status || 'script_writing';
+  const status = (rawStatus === 'onboarding_call' && !clientInfo?.onboarding_call_booked)
+    ? 'onboarding'
+    : rawStatus;
   const onboardingCalendarUrl = resolveGhlCalendarUrl(
     process.env.NEXT_PUBLIC_GHL_ONBOARDING_CALENDAR_URL || process.env.NEXT_PUBLIC_GHL_CALENDAR_URL,
     '2fmSZkWpwEulfZsvpPmh',
@@ -2991,7 +2999,7 @@ function NoScriptStage({ clientInfo, token, onRefresh }: { clientInfo: ClientDel
   // 1. Onboarding — driven par les flags, pas par le status :
   //    !contract_signed_at  → signature du contrat (iframe inline)
   //    !paid_at             → paiement (Stripe Embedded Checkout inline)
-  //    !onboarding_call_booked → réservation de l'appel (à venir, prochain commit)
+  //    !onboarding_call_booked → réservation de l'appel
   if (status === 'onboarding') {
     if (!clientInfo?.contract_signed_at && token) {
       return (
@@ -3624,19 +3632,64 @@ function FullProjectTimeline({ clientInfo }: { clientInfo: ClientDelivery }) {
     return `Estimation : ${fmtDate(d)}`;
   };
 
+  // Collapse par défaut pour ne pas bouffer le viewport. Persisté en
+  // localStorage pour ne pas re-collapser à chaque refresh si l'admin /
+  // le client préfère la version dépliée.
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = window.localStorage.getItem('bbm_timeline_expanded');
+      if (saved === '1') setExpanded(true);
+    } catch { /* tolerate */ }
+  }, []);
+  const toggleExpanded = () => {
+    setExpanded(v => {
+      const next = !v;
+      try { window.localStorage.setItem('bbm_timeline_expanded', next ? '1' : '0'); } catch { /* */ }
+      return next;
+    });
+  };
+  const currentStage = PROJECT_STAGES[effectiveIdx] || PROJECT_STAGES[0];
+
   return (
     <div style={{
-      marginBottom: 14, padding: '16px 18px', borderRadius: 12,
+      marginBottom: 14, padding: '14px 16px', borderRadius: 12,
       background: 'var(--night-card)', border: '1px solid var(--border)',
     }}>
-      <h3 style={{
-        fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
-        fontSize: '0.95rem', color: 'var(--text)', margin: '0 0 16px',
-      }}>
-        🗺️ Avancement de votre projet
-      </h3>
-      {/* Progress bar */}
-      <div style={{ marginBottom: 22 }}>
+      {/* Header cliquable pour toggle. Toujours visible : titre + chevron */}
+      <button
+        onClick={toggleExpanded}
+        aria-expanded={expanded}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 10, padding: 0, background: 'transparent', border: 'none',
+          color: 'inherit', cursor: 'pointer', fontFamily: 'inherit',
+          marginBottom: 10,
+        }}
+      >
+        <h3 style={{
+          fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+          fontSize: '0.95rem', color: 'var(--text)', margin: 0, textAlign: 'left',
+        }}>
+          🗺️ Avancement de votre projet
+        </h3>
+        <span style={{
+          fontSize: 12, color: 'var(--text-muted)',
+          display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+        }}>
+          {expanded ? 'Masquer' : 'Voir le détail'}
+          <span aria-hidden style={{
+            display: 'inline-block',
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform .2s ease',
+            fontSize: 10,
+          }}>▼</span>
+        </span>
+      </button>
+
+      {/* Progress bar — toujours visible (résumé compact) */}
+      <div style={{ marginBottom: expanded ? 22 : 8 }}>
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
           marginBottom: 6, fontSize: 12,
@@ -3664,6 +3717,40 @@ function FullProjectTimeline({ clientInfo }: { clientInfo: ClientDelivery }) {
         </div>
       </div>
 
+      {/* Mode collapsed : montre seulement l'étape courante en pill compact.
+          L'utilisateur sait où il en est sans avoir à scroller toute la
+          timeline. Clic sur "Voir le détail" pour la version complète. */}
+      {!expanded && currentStage && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '8px 10px', borderRadius: 8,
+          background: 'rgba(232,105,43,.06)', border: '1px solid rgba(232,105,43,.25)',
+        }}>
+          <span aria-hidden style={{
+            width: 28, height: 28, borderRadius: '50%',
+            background: 'var(--orange)', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, flexShrink: 0,
+            fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif',
+          }}>{currentStage.emoji}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--text)' }}>
+              {currentStage.label}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-mid)', lineHeight: 1.4 }}>
+              {currentStage.description}
+            </div>
+          </div>
+          <span className="bm-pulse-glow" style={{
+            padding: '2px 8px', borderRadius: 999,
+            background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
+            color: '#FFB58A', fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+            whiteSpace: 'nowrap',
+          }}>VOUS ÊTES ICI</span>
+        </div>
+      )}
+
+      {expanded && (
       <ol style={{ listStyle: 'none', padding: 0, margin: 0, textAlign: 'left' }}>
         {PROJECT_STAGES.map((stage, i) => {
           const status: 'done' | 'current' | 'pending' = i < effectiveIdx ? 'done' : i === effectiveIdx ? 'current' : 'pending';
@@ -3732,6 +3819,7 @@ function FullProjectTimeline({ clientInfo }: { clientInfo: ClientDelivery }) {
           );
         })}
       </ol>
+      )}
     </div>
   );
 }
