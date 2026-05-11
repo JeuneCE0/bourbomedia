@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useGhlLocationId, buildGhlAppointmentUrl } from '@/lib/use-ghl-location';
 
 interface Appointment {
   id: string;
@@ -122,6 +123,13 @@ export default function ClosingRoomPage() {
   // AI summary
   const [summarizing, setSummarizing] = useState(false);
 
+  // Tâche rapide (idem TodayAppointments)
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskText, setTaskText] = useState('');
+  const [taskBusy, setTaskBusy] = useState(false);
+
+  const ghlLocationId = useGhlLocationId();
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -175,6 +183,30 @@ export default function ClosingRoomPage() {
       });
       setSavedAt(new Date());
     } finally { setSaving(false); }
+  }
+
+  async function createTask() {
+    if (!apt) return;
+    const text = taskText.trim();
+    if (!text) return;
+    setTaskBusy(true);
+    try {
+      const who = contact?.name || apt.contact_name || apt.opportunity_name || 'Prospect';
+      const r = await fetch('/api/tasks', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          client_id: apt.client_id || null,
+          text: `[${who}] ${text}`,
+          priority: 'medium',
+        }),
+      });
+      if (r.ok) {
+        setTaskText('');
+        setShowTaskForm(false);
+      } else {
+        alert("Erreur création tâche.");
+      }
+    } finally { setTaskBusy(false); }
   }
 
   // ── Audio recording ───────────────────────────────────────────────
@@ -348,14 +380,52 @@ export default function ClosingRoomPage() {
             {email && (
               <a href={`mailto:${email}`} style={btnLg('var(--night-card)', 'var(--text-mid)')}>📧 Email</a>
             )}
+            <a
+              href={buildGhlAppointmentUrl(ghlLocationId, apt.ghl_appointment_id, apt.ghl_contact_id)}
+              target="_blank"
+              rel="noreferrer"
+              style={btnLg('var(--night-card)', 'var(--text-mid)')}
+            >🔄 Replanifier</a>
+            <button
+              onClick={() => setShowTaskForm(v => !v)}
+              style={{ ...btnLg('var(--night-card)', 'var(--text-mid)'), cursor: 'pointer' }}
+            >📌 Tâche</button>
             {apt.client_id && (
               <Link href={`/dashboard/clients/${apt.client_id}`} style={btnLg('var(--night-card)', 'var(--text-mid)')}>→ Fiche</Link>
             )}
           </div>
         </div>
+        {showTaskForm && (
+          <div style={{ marginTop: 10, display: 'flex', gap: 6, alignItems: 'stretch', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              value={taskText}
+              onChange={e => setTaskText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !taskBusy && taskText.trim()) createTask(); }}
+              placeholder={`Tâche pour ${contact?.name || apt.contact_name || apt.opportunity_name || 'ce prospect'}…`}
+              autoFocus
+              style={{
+                flex: 1, minWidth: 220, padding: '9px 12px', borderRadius: 8,
+                background: 'var(--night-raised)', border: '1px solid var(--border-md)',
+                color: 'var(--text)', fontSize: '0.88rem', outline: 'none', fontFamily: 'inherit',
+              }}
+            />
+            <button
+              onClick={createTask}
+              disabled={taskBusy || !taskText.trim()}
+              style={{
+                padding: '9px 16px', borderRadius: 8,
+                background: taskText.trim() ? 'var(--orange)' : 'var(--night-raised)',
+                border: 'none', color: '#fff', fontSize: '0.82rem', fontWeight: 700,
+                cursor: taskBusy || !taskText.trim() ? 'not-allowed' : 'pointer',
+                opacity: taskBusy ? 0.6 : 1,
+              }}
+            >{taskBusy ? '⏳' : 'Ajouter'}</button>
+          </div>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 380px)', gap: 16 }}>
+      <div className="bm-closing-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 380px)', gap: 16 }}>
         {/* MAIN COLUMN — Notes + record */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
           {/* Quick prospect status pills */}
