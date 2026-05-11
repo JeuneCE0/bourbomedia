@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface OrphanCharge {
   charge_id: string;
@@ -98,16 +99,25 @@ export default function ResolveOrphanCharge({
     } finally { setSubmitting(false); }
   }
 
-  return (
+  // Portal vers document.body : position:fixed peut être cassée par un
+  // ancêtre avec transform/filter/perspective (CSS containing-block rule).
+  // Le dashboard utilise plusieurs animations qui peuvent piéger le modal
+  // dans un parent → il apparaît centré sur ce parent au lieu du viewport.
+  // Le portal échappe à tout ça et garantit l'ancrage en haut du viewport.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
+
+  const modalUi = (
     <>
       <div onClick={onClose} style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)',
         backdropFilter: 'blur(3px)', zIndex: 1500,
       }} />
       <div style={{
-        position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+        position: 'fixed', left: '50%', top: 24, transform: 'translateX(-50%)',
         zIndex: 1501, width: 'min(540px, calc(100vw - 32px))',
-        maxHeight: '85vh', overflowY: 'auto',
+        maxHeight: 'calc(100vh - 48px)', overflowY: 'auto',
         background: 'var(--night-card)', borderRadius: 14,
         border: '1px solid var(--border-md)',
         boxShadow: '0 20px 60px rgba(0,0,0,.55)',
@@ -188,6 +198,8 @@ export default function ResolveOrphanCharge({
       </div>
     </>
   );
+
+  return createPortal(modalUi, document.body);
 }
 
 function Field({ label, value, onChange, placeholder, type }: {

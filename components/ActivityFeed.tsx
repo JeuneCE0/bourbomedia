@@ -50,6 +50,24 @@ function authHeaders() {
 export default function ActivityFeed() {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState(true);
+
+  // Persist préférence collapse en localStorage. Default collapsed
+  // pour ne pas bouffer la page au load.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = window.localStorage.getItem('bbm_activity_collapsed');
+      if (saved === '0') setCollapsed(false);
+    } catch { /* */ }
+  }, []);
+  function toggleCollapsed() {
+    setCollapsed(v => {
+      const next = !v;
+      try { window.localStorage.setItem('bbm_activity_collapsed', next ? '1' : '0'); } catch { /* */ }
+      return next;
+    });
+  }
 
   const load = useCallback(async () => {
     try {
@@ -78,21 +96,38 @@ export default function ActivityFeed() {
       border: '1px solid rgba(232,105,43,.20)',
       padding: '14px 16px', marginBottom: 14,
     }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-      }}>
+      <button
+        onClick={toggleCollapsed}
+        aria-expanded={!collapsed}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+          padding: 0, background: 'transparent', border: 'none',
+          color: 'inherit', cursor: 'pointer', fontFamily: 'inherit',
+          marginBottom: collapsed ? 0 : 12,
+        }}
+      >
         <span aria-hidden style={{ fontSize: '1.1rem' }}>⚡</span>
         <h3 style={{
           fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
-          fontSize: '0.95rem', color: 'var(--text)', margin: 0,
+          fontSize: '0.95rem', color: 'var(--text)', margin: 0, textAlign: 'left',
         }}>
           Activité client en direct
         </h3>
-        <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-          rafraîchi auto
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+          ({events.length})
         </span>
-      </div>
+        <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {collapsed ? 'Afficher' : 'Masquer'}
+          <span aria-hidden style={{
+            display: 'inline-block', fontSize: 10,
+            transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+            transition: 'transform .2s ease',
+          }}>▼</span>
+        </span>
+      </button>
 
+      {!collapsed && (
+        <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {events.map((e, i) => {
           const meta = EVENT_META[e.event] || { emoji: '🔹', verb: e.event, color: 'var(--text-muted)' };
@@ -183,6 +218,8 @@ export default function ActivityFeed() {
       >
         Voir le funnel complet →
       </Link>
+        </>
+      )}
     </div>
   );
 }
