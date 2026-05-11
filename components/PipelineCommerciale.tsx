@@ -120,6 +120,38 @@ export default function PipelineCommerciale() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [dragOppId, setDragOppId] = useState<string | null>(null);
+  const [dropStageId, setDropStageId] = useState<string | null>(null);
+
+  // Drag-and-drop : déplace une opp d'une colonne (stage) à une autre.
+  // Update optimiste local + PATCH /api/gh-opportunities (qui push à GHL
+  // via updateOpportunityStage). Si la sync GHL échoue, on alerte
+  // l'admin et on rollback le mouvement.
+  const moveOpp = useCallback(async (oppId: string, newStageId: string) => {
+    const opp = opps.find(o => o.id === oppId);
+    if (!opp || opp.pipeline_stage_id === newStageId) return;
+    const prevStageId = opp.pipeline_stage_id;
+    // Optimistic update
+    setOpps(prev => prev.map(o => o.id === oppId ? { ...o, pipeline_stage_id: newStageId } : o));
+    try {
+      const r = await fetch('/api/gh-opportunities', {
+        method: 'PATCH', headers: authHeaders(),
+        body: JSON.stringify({ id: oppId, pipeline_stage_id: newStageId }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || (d?.ghl_sync && d.ghl_sync.ok === false)) {
+        // Rollback visuel + message
+        setOpps(prev => prev.map(o => o.id === oppId ? { ...o, pipeline_stage_id: prevStageId } : o));
+        const reason = d?.ghl_sync?.reason || d?.error || `HTTP ${r.status}`;
+        alert(reason === 'automations_paused'
+          ? 'Drag annulé : AUTOMATIONS_PAUSED=true côté Vercel bloque le push GHL.'
+          : `Push GHL en échec : ${reason}. Le drag a été annulé.`);
+      }
+    } catch (e: unknown) {
+      setOpps(prev => prev.map(o => o.id === oppId ? { ...o, pipeline_stage_id: prevStageId } : o));
+      alert('Erreur réseau, drag annulé : ' + (e as Error).message);
+    }
+  }, [opps]);
 
   const load = useCallback(() => {
     fetch('/api/gh-opportunities', { headers: authHeaders() })
@@ -320,6 +352,16 @@ export default function PipelineCommerciale() {
               onSelect={setSelectedId}
               selectMode={selectMode}
               bulkSelected={bulkSelected}
+              dragOppId={dragOppId}
+              dropStageId={dropStageId}
+              onDragStart={(id) => setDragOppId(id)}
+              onDragEnd={() => { setDragOppId(null); setDropStageId(null); }}
+              onDragOver={(stageId) => setDropStageId(stageId || null)}
+              onDrop={(stageId) => {
+                if (dragOppId && dragOppId !== '') moveOpp(dragOppId, stageId);
+                setDragOppId(null);
+                setDropStageId(null);
+              }}
               onToggleSelect={(id, opts) => {
                 setBulkSelected(prev => {
                   const next = new Set(prev);
@@ -513,11 +555,17 @@ export default function PipelineCommerciale() {
   );
 }
 
-function Column({ stage, items, onSelect, selectMode, bulkSelected, onToggleSelect }: {
+function Column({ stage, items, onSelect, selectMode, bulkSelected, onToggleSelect, dragOppId, dropStageId, onDragStart, onDragEnd, onDragOver, onDrop }: {
   stage: PipelineStage; items: Opportunity[]; onSelect: (id: string) => void;
   selectMode: boolean;
   bulkSelected: Set<string>;
   onToggleSelect: (id: string, opts?: { shift?: boolean }) => void;
+  dragOppId: string | null;
+  dropStageId: string | null;
+  onDragStart: (oppId: string) => void;
+  onDragEnd: () => void;
+  onDragOver: (stageId: string) => void;
+  onDrop: (stageId: string) => void;
 }) {
   const colorOf = stage.name.toLowerCase();
   const color = colorOf.includes('contract') || colorOf.includes('régulier') ? '#22C55E'
@@ -530,13 +578,25 @@ function Column({ stage, items, onSelect, selectMode, bulkSelected, onToggleSele
     : colorOf.includes('lead') ? '#E8692B'
     : 'var(--text-mid)';
 
+  const isDropTarget = !!dragOppId && dropStageId === stage.id;
+
   return (
-    <div style={{
-      background: 'var(--night-card)', borderRadius: 10,
-      border: `1px solid ${items.length > 0 ? color + '40' : 'var(--border)'}`,
-      padding: 10, display: 'flex', flexDirection: 'column', gap: 6,
-      maxHeight: 'calc(100vh - 220px)', minWidth: 220,
-    }}>
+    <div
+      onDragOver={(e) => { e.preventDefault(); onDragOver(stage.id); }}
+      onDragLeave={(e) => {
+        // Ignore les events qui viennent d'un enfant pour pas faire clignoter
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        if (dropStageId === stage.id) onDragOver(''); // clear seulement si on quitte vraiment cette colonne
+      }}
+      onDrop={(e) => { e.preventDefault(); onDrop(stage.id); }}
+      style={{
+        background: isDropTarget ? color + '15' : 'var(--night-card)', borderRadius: 10,
+        border: `${isDropTarget ? 2 : 1}px solid ${isDropTarget ? color : items.length > 0 ? color + '40' : 'var(--border)'}`,
+        padding: 10, display: 'flex', flexDirection: 'column', gap: 6,
+        maxHeight: 'calc(100vh - 220px)', minWidth: 220,
+        transition: 'background .12s, border-color .12s, transform .12s',
+        transform: isDropTarget ? 'scale(1.01)' : 'scale(1)',
+      }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: 6, paddingBottom: 6, borderBottom: '1px solid var(--border)', flexShrink: 0,
@@ -566,6 +626,9 @@ function Column({ stage, items, onSelect, selectMode, bulkSelected, onToggleSele
               selectMode={selectMode}
               isSelected={bulkSelected.has(o.id)}
               onToggleSelect={onToggleSelect}
+              isDragging={dragOppId === o.id}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
             />
           ))
         )}
@@ -575,16 +638,26 @@ function Column({ stage, items, onSelect, selectMode, bulkSelected, onToggleSele
 }
 
 
-function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect }: {
+function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect, isDragging, onDragStart, onDragEnd }: {
   opp: Opportunity;
   onSelect: (id: string) => void;
   selectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (id: string, opts?: { shift?: boolean }) => void;
+  isDragging?: boolean;
+  onDragStart?: (oppId: string) => void;
+  onDragEnd?: () => void;
 }) {
   return (
     <button
       type="button"
+      draggable={!selectMode}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', opp.id);
+        if (onDragStart) onDragStart(opp.id);
+      }}
+      onDragEnd={() => { if (onDragEnd) onDragEnd(); }}
       onClick={(e) => {
         if (selectMode && onToggleSelect) onToggleSelect(opp.id, { shift: e.shiftKey });
         else onSelect(opp.id);
@@ -594,8 +667,9 @@ function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect }: {
         background: isSelected ? 'rgba(232,105,43,.18)' : 'var(--night-mid)',
         border: `1px solid ${isSelected ? 'var(--orange)' : 'var(--border)'}`,
         display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch',
-        cursor: 'pointer', textAlign: 'left', width: '100%', color: 'var(--text)',
-        transition: 'background .15s, border-color .15s',
+        cursor: selectMode ? 'pointer' : 'grab', textAlign: 'left', width: '100%', color: 'var(--text)',
+        opacity: isDragging ? 0.4 : 1,
+        transition: 'background .15s, border-color .15s, opacity .12s',
       }}
       onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.background = 'var(--night-raised)'; e.currentTarget.style.borderColor = 'var(--border-md)'; } }}
       onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.background = 'var(--night-mid)'; e.currentTarget.style.borderColor = 'var(--border)'; } }}
