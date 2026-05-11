@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
+import { useCollapsiblePref } from '@/lib/use-collapsible';
 
 interface Alert {
   kind: 'global_changes' | 'annotations';
@@ -42,6 +43,7 @@ function fmtTimecode(s: number): string {
 export default function ClientFeedbackAlerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
+  const { collapsed, toggle } = useCollapsiblePref('bbm_feedback_alerts_collapsed', false);
 
   const load = useCallback(async () => {
     try {
@@ -67,12 +69,18 @@ export default function ClientFeedbackAlerts() {
       marginBottom: 14,
       boxShadow: '0 4px 18px rgba(249,115,22,.10)',
     }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
-        flexWrap: 'wrap',
-      }}>
+      <button
+        onClick={toggle}
+        aria-expanded={!collapsed}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          marginBottom: collapsed ? 0 : 12, padding: 0, flexWrap: 'wrap',
+          background: 'transparent', border: 'none', color: 'inherit',
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}
+      >
         <span aria-hidden style={{ fontSize: '1.3rem' }}>✏️</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
           <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#FFB58A', fontFamily: "'Bricolage Grotesque', sans-serif" }}>
             Retours clients à traiter ({alerts.length})
           </div>
@@ -80,8 +88,14 @@ export default function ClientFeedbackAlerts() {
             Modifications demandées sur des vidéos livrées
           </div>
         </div>
-      </div>
+        <span aria-hidden style={{
+          display: 'inline-block', fontSize: 11, color: 'var(--text-muted)',
+          transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+          transition: 'transform .2s ease',
+        }}>▼</span>
+      </button>
 
+      {!collapsed && (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {alerts.map((a, i) => (
           <Link
@@ -157,6 +171,7 @@ export default function ClientFeedbackAlerts() {
           </Link>
         ))}
       </div>
+      )}
     </div>
   );
 }

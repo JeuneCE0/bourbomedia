@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import ResolveOrphanCharge, { OrphanCharge } from './ResolveOrphanCharge';
+import { useCollapsiblePref } from '@/lib/use-collapsible';
 
 function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('bbp_token')}`, 'Content-Type': 'application/json' };
@@ -17,6 +18,7 @@ export default function OrphanPaymentsCard() {
   const [orphans, setOrphans] = useState<OrphanCharge[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState<OrphanCharge | null>(null);
+  const { collapsed, toggle } = useCollapsiblePref('bbm_orphan_payments_collapsed', false);
 
   const load = useCallback(async () => {
     try {
@@ -44,13 +46,19 @@ export default function OrphanPaymentsCard() {
         border: '1px solid rgba(250,204,21,.45)',
         padding: '16px 20px', marginBottom: 14,
       }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: 12, gap: 10,
-        }}>
+        <button
+          onClick={toggle}
+          aria-expanded={!collapsed}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: collapsed ? 0 : 12, gap: 10, padding: 0,
+            background: 'transparent', border: 'none', color: 'inherit',
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span aria-hidden style={{ fontSize: '1.1rem' }}>⚠️</span>
-            <div>
+            <div style={{ textAlign: 'left' }}>
               <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>
                 Paiements Stripe à rattacher
               </div>
@@ -59,15 +67,23 @@ export default function OrphanPaymentsCard() {
               </div>
             </div>
           </div>
-          <span style={{
-            padding: '3px 10px', borderRadius: 999,
-            background: 'rgba(250,204,21,.16)', border: '1px solid rgba(250,204,21,.45)',
-            color: '#FDE68A', fontSize: '0.72rem', fontWeight: 700,
-          }}>
-            {orphans.length} · {totalEur.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
-          </span>
-        </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              padding: '3px 10px', borderRadius: 999,
+              background: 'rgba(250,204,21,.16)', border: '1px solid rgba(250,204,21,.45)',
+              color: '#FDE68A', fontSize: '0.72rem', fontWeight: 700,
+            }}>
+              {orphans.length} · {totalEur.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+            </span>
+            <span aria-hidden style={{
+              display: 'inline-block', fontSize: 11, color: 'var(--text-muted)',
+              transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+              transition: 'transform .2s ease',
+            }}>▼</span>
+          </div>
+        </button>
 
+        {!collapsed && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {orphans.slice(0, 5).map(o => (
             <div key={o.charge_id} style={{
@@ -110,6 +126,7 @@ export default function OrphanPaymentsCard() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {resolving && (

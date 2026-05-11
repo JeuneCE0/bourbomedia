@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
+import { useCollapsiblePref } from '@/lib/use-collapsible';
 
 interface Appointment {
   id: string;
@@ -62,6 +63,7 @@ export default function TodayAppointments() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [notesModal, setNotesModal] = useState<{ apt: Appointment; text: string; status: string } | null>(null);
+  const { collapsed, toggle } = useCollapsiblePref('bbm_today_appts_collapsed', false);
 
   const load = useCallback(async () => {
     try {
@@ -136,13 +138,19 @@ export default function TodayAppointments() {
       border: '1px solid rgba(232,105,43,.30)',
       padding: '16px 20px', marginBottom: 14,
     }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 12, gap: 10, flexWrap: 'wrap',
-      }}>
+      <button
+        onClick={toggle}
+        aria-expanded={!collapsed}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: collapsed ? 0 : 12, gap: 10, flexWrap: 'wrap',
+          padding: 0, background: 'transparent', border: 'none',
+          color: 'inherit', cursor: 'pointer', fontFamily: 'inherit',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span aria-hidden style={{ fontSize: '1.1rem' }}>📞</span>
-          <div>
+          <div style={{ textAlign: 'left' }}>
             <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>
               Aujourd&apos;hui · {now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </div>
@@ -151,13 +159,21 @@ export default function TodayAppointments() {
             </div>
           </div>
         </div>
-        <span style={{
-          padding: '3px 10px', borderRadius: 999,
-          background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
-          color: '#FFB58A', fontSize: '0.72rem', fontWeight: 700,
-        }}>{visibleAppts.length} RDV</span>
-      </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            padding: '3px 10px', borderRadius: 999,
+            background: 'rgba(232,105,43,.16)', border: '1px solid rgba(232,105,43,.45)',
+            color: '#FFB58A', fontSize: '0.72rem', fontWeight: 700,
+          }}>{visibleAppts.length} RDV</span>
+          <span aria-hidden style={{
+            display: 'inline-block', fontSize: 11, color: 'var(--text-muted)',
+            transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+            transition: 'transform .2s ease',
+          }}>▼</span>
+        </div>
+      </button>
 
+      {!collapsed && (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {/* Affichage strictement chronologique (asc, déjà l'ordre renvoyé par
             /api/gh-appointments?today=1). On gardait avant un découpage
@@ -172,6 +188,7 @@ export default function TodayAppointments() {
           />
         ))}
       </div>
+      )}
 
       {/* Notes / status modal — bottom sheet on mobile, centered on desktop */}
       {notesModal && (

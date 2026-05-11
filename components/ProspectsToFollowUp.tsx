@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useCollapsiblePref } from '@/lib/use-collapsible';
 
 interface Appointment {
   id: string;
@@ -52,6 +53,7 @@ export default function ProspectsToFollowUp() {
   const [items, setItems] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const { collapsed, toggle } = useCollapsiblePref('bbm_prospects_followup_collapsed', false);
 
   const load = useCallback(() => {
     fetch('/api/gh-appointments?follow_up=1', { headers: authHeaders() })
@@ -98,26 +100,40 @@ export default function ProspectsToFollowUp() {
       border: '1px solid rgba(59,130,246,.30)',
       padding: '16px 20px', marginBottom: 14,
     }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 12, gap: 10,
-      }}>
+      <button
+        onClick={toggle}
+        aria-expanded={!collapsed}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: collapsed ? 0 : 12, gap: 10, padding: 0,
+          background: 'transparent', border: 'none', color: 'inherit',
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span aria-hidden style={{ fontSize: '1.1rem' }}>📋</span>
-          <div>
+          <div style={{ textAlign: 'left' }}>
             <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>Prospects à relancer</div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
               Échéance dépassée — appel à passer ou message à envoyer
             </div>
           </div>
         </div>
-        <span style={{
-          padding: '3px 10px', borderRadius: 999,
-          background: 'rgba(59,130,246,.16)', border: '1px solid rgba(59,130,246,.45)',
-          color: '#93C5FD', fontSize: '0.72rem', fontWeight: 700,
-        }}>{items.length}</span>
-      </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            padding: '3px 10px', borderRadius: 999,
+            background: 'rgba(59,130,246,.16)', border: '1px solid rgba(59,130,246,.45)',
+            color: '#93C5FD', fontSize: '0.72rem', fontWeight: 700,
+          }}>{items.length}</span>
+          <span aria-hidden style={{
+            display: 'inline-block', fontSize: 11, color: 'var(--text-muted)',
+            transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+            transition: 'transform .2s ease',
+          }}>▼</span>
+        </div>
+      </button>
 
+      {!collapsed && (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {items.slice(0, 8).map(a => {
           const status = a.prospect_status || '';
@@ -174,6 +190,7 @@ export default function ProspectsToFollowUp() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }

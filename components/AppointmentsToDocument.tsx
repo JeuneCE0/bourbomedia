@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useCollapsiblePref } from '@/lib/use-collapsible';
 
 interface Appointment {
   id: string;
@@ -56,6 +57,7 @@ export default function AppointmentsToDocument() {
   const [items, setItems] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
+  const { collapsed, toggle } = useCollapsiblePref('bbm_appts_to_document_collapsed', false);
 
   const load = useCallback(() => {
     fetch('/api/gh-appointments?pending=1', { headers: authHeaders() })
@@ -86,29 +88,42 @@ export default function AppointmentsToDocument() {
       padding: '16px 20px', marginBottom: 14,
       opacity: isEmpty ? 0.7 : 1,
     }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: isEmpty ? 4 : 12, gap: 10,
-      }}>
+      <button
+        onClick={toggle}
+        aria-expanded={!collapsed}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: collapsed ? 0 : (isEmpty ? 4 : 12), gap: 10, padding: 0,
+          background: 'transparent', border: 'none', color: 'inherit',
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span aria-hidden style={{ fontSize: '1.1rem' }}>📞</span>
-          <div>
+          <div style={{ textAlign: 'left' }}>
             <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)' }}>Appels à documenter</div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
               Appels passés — saisis statut + notes (No Show à marquer dans GHL)
             </div>
           </div>
         </div>
-        {!isEmpty && (
-          <span style={{
-            padding: '3px 10px', borderRadius: 999,
-            background: 'rgba(168,85,247,.16)', border: '1px solid rgba(168,85,247,.45)',
-            color: '#D8B4FE', fontSize: '0.72rem', fontWeight: 700,
-          }}>{items.length}</span>
-        )}
-      </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!isEmpty && (
+            <span style={{
+              padding: '3px 10px', borderRadius: 999,
+              background: 'rgba(168,85,247,.16)', border: '1px solid rgba(168,85,247,.45)',
+              color: '#D8B4FE', fontSize: '0.72rem', fontWeight: 700,
+            }}>{items.length}</span>
+          )}
+          <span aria-hidden style={{
+            display: 'inline-block', fontSize: 11, color: 'var(--text-muted)',
+            transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+            transition: 'transform .2s ease',
+          }}>▼</span>
+        </div>
+      </button>
 
-      {isEmpty ? (
+      {!collapsed && (isEmpty ? (
         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', paddingLeft: 30 }}>
           Tous les appels sont à jour. ✨
         </div>
@@ -124,7 +139,7 @@ export default function AppointmentsToDocument() {
             />
           ))}
         </div>
-      )}
+      ))}
     </div>
   );
 }
