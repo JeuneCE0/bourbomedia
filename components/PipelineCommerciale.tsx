@@ -340,9 +340,17 @@ export default function PipelineCommerciale() {
       ) : (
         <div style={{
           display: 'grid', gap: 12,
-          gridTemplateColumns: `repeat(${stages.length}, minmax(220px, 1fr))`,
+          // Min 260px par colonne → noms / emails moins agressivement
+          // tronqués sur iPad et desktop. Pas de fr → les colonnes ont
+          // une taille fixe et scrollent horizontalement (sinon sur iPad
+          // 6 colonnes × 1fr → chacune ~160px et tout est cropé).
+          gridTemplateColumns: `repeat(${stages.length}, 260px)`,
           alignItems: 'start',
           overflowX: 'auto', paddingBottom: 8,
+          // Snap aux colonnes pendant le swipe touch → UX iPad/iPhone
+          // beaucoup plus prévisible.
+          scrollSnapType: 'x mandatory',
+          WebkitOverflowScrolling: 'touch',
         }}>
           {stages.map(stage => (
             <Column
@@ -593,9 +601,10 @@ function Column({ stage, items, onSelect, selectMode, bulkSelected, onToggleSele
         background: isDropTarget ? color + '15' : 'var(--night-card)', borderRadius: 10,
         border: `${isDropTarget ? 2 : 1}px solid ${isDropTarget ? color : items.length > 0 ? color + '40' : 'var(--border)'}`,
         padding: 10, display: 'flex', flexDirection: 'column', gap: 6,
-        maxHeight: 'calc(100vh - 220px)', minWidth: 220,
+        maxHeight: 'calc(100vh - 220px)', minWidth: 0, width: '100%',
         transition: 'background .12s, border-color .12s, transform .12s',
         transform: isDropTarget ? 'scale(1.01)' : 'scale(1)',
+        scrollSnapAlign: 'start',
       }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',

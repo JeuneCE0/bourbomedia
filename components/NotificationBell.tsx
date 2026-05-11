@@ -195,7 +195,10 @@ export default function NotificationBell() {
 
   return (
     <div ref={wrapRef} style={{
-      position: 'fixed', top: 14, right: 16, zIndex: 90,
+      position: 'fixed',
+      top: 'max(14px, calc(env(safe-area-inset-top, 0px) + 8px))',
+      right: 'max(16px, env(safe-area-inset-right))',
+      zIndex: 90,
     }}>
       <button
         onClick={() => { setOpen(o => !o); if (!open) load(); }}

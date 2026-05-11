@@ -94,7 +94,9 @@ function Banner({ children, emoji, color, bg, border }: {
 }) {
   return (
     <div style={{
-      position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)',
+      position: 'fixed',
+      top: 'max(14px, calc(env(safe-area-inset-top, 0px) + 8px))',
+      left: '50%', transform: 'translateX(-50%)',
       zIndex: 600, padding: '8px 16px', borderRadius: 999,
       background: bg, border: `1px solid ${border}`, color,
       fontSize: '0.78rem', fontWeight: 500, lineHeight: 1.4,

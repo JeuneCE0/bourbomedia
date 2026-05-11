@@ -365,6 +365,41 @@ body {
 /* Safe areas iOS pour les éléments fixed (toasts, modals…) */
 .bm-safe-right { padding-right: max(16px, env(safe-area-inset-right)); }
 .bm-safe-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.bm-safe-top { padding-top: max(16px, env(safe-area-inset-top)); }
+.bm-safe-left { padding-left: max(16px, env(safe-area-inset-left)); }
+
+/* Closing page : grille principale main+aside qui s'effondre sous tablette
+   portrait (notes pleine largeur, sidebar Qualification dessous). 380px
+   d'aside au-dessus de 1024 → 1 colonne en dessous. */
+.bm-closing-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
+}
+@media (max-width: 1024px) {
+  .bm-closing-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* iOS PWA standalone : html/body en 100dvh pour suivre l'évolution de la
+   barre d'URL Safari (sinon scroll caché derrière la chrome). */
+@supports (height: 100dvh) {
+  html, body { min-height: 100dvh; }
+}
+
+/* En PWA installée (mode "standalone"), désactive la sélection accidentelle
+   du texte (sauf zones de saisie / contenu utilisateur) pour un feel app. */
+@media (display-mode: standalone) {
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+  input, textarea, [contenteditable], .tiptap, .bm-selectable {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
 
 /* Focus rings — warmer, on-brand */
 *:focus-visible {

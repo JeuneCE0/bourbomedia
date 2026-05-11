@@ -19,6 +19,7 @@ const WelcomeWizard = dynamic(() => import('@/components/WelcomeWizard'), { ssr:
 const CommandPalette = dynamic(() => import('@/components/CommandPalette'), { ssr: false });
 const ShortcutsCheatsheet = dynamic(() => import('@/components/ShortcutsCheatsheet'), { ssr: false });
 const OfflineIndicator = dynamic(() => import('@/components/OfflineIndicator'), { ssr: false });
+const InstallPWAPrompt = dynamic(() => import('@/components/InstallPWAPrompt'), { ssr: false });
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string; icon: string }[] }[] = [
   {
@@ -145,13 +146,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => { document.removeEventListener('mousedown', handleClickOutside); document.removeEventListener('keydown', handleKeyDown); };
   }, []);
 
-  // Responsive breakpoint detection
+  // Responsive breakpoint detection. iPad portrait (768–1024) garde la
+  // sidebar desktop mais on l'auto-collapse pour libérer l'espace utile
+  // sur l'écran (220 → 60px). iPhone et iPad split-view < 768 utilisent
+  // le drawer mobile.
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth >= 768) {
-        setMobileOpen(false);
-      }
+      const w = window.innerWidth;
+      setIsMobile(w < 768);
+      if (w >= 768) setMobileOpen(false);
+      if (w >= 768 && w < 1024) setCollapsed(true);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -461,14 +465,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <ToastProvider>
     <DensityProvider>
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--night)' }}>
-      {/* Mobile top header bar */}
+      {/* Mobile top header bar — paddingTop safe-area pour le notch iPhone
+          en mode PWA standalone (sinon le bouton menu disparaît sous la
+          status bar). max() garantit qu'on garde le padding visuel sur
+          les appareils sans notch. */}
       {isMobile && (
         <header style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 16px',
-          height: 56,
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingLeft: 'max(16px, env(safe-area-inset-left))',
+          paddingRight: 'max(16px, env(safe-area-inset-right))',
+          height: 'calc(56px + env(safe-area-inset-top, 0px))',
           background: 'var(--night-mid)',
           borderBottom: '1px solid var(--border)',
           position: 'sticky',
@@ -548,7 +558,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 transition: 'opacity .25s ease',
               }}
             />
-            {/* Sidebar drawer */}
+            {/* Sidebar drawer — paddingTop/Bottom safe-area pour ne pas
+                passer sous le notch ni l'indicateur home en mode PWA. */}
             <aside style={{
               position: 'fixed',
               top: 0,
@@ -564,6 +575,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
               transition: 'transform .25s ease',
               overflowY: 'auto',
+              paddingTop: 'env(safe-area-inset-top, 0px)',
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
               boxShadow: mobileOpen ? '4px 0 24px rgba(0,0,0,.4)' : 'none',
             }}>
               {sidebarContent}
@@ -571,12 +584,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </>
         )}
 
-        {/* Main content */}
+        {/* Main content — paddingBottom safe-area pour que l'indicateur
+            home iOS n'écrase pas le contenu en bas en PWA standalone. */}
         <main style={{
           flex: 1,
           overflow: 'auto',
           minWidth: 0,
           position: 'relative',
+          paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : undefined,
         }}>
           {/* Mobile search bar */}
           {isMobile && (
@@ -634,6 +649,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <ErrorBoundary scope="bell" fallback={() => null}><NotificationBell /></ErrorBoundary>
       <ErrorBoundary scope="copilot" fallback={() => null}><AiCopilot /></ErrorBoundary>
       <ErrorBoundary scope="offline" fallback={() => null}><OfflineIndicator /></ErrorBoundary>
+      <ErrorBoundary scope="install-pwa" fallback={() => null}><InstallPWAPrompt /></ErrorBoundary>
       <ErrorBoundary scope="palette" fallback={() => null}><CommandPalette /></ErrorBoundary>
       <ErrorBoundary scope="cheatsheet" fallback={() => null}><ShortcutsCheatsheet /></ErrorBoundary>
       <ErrorBoundary scope="welcome" fallback={() => null}><WelcomeWizard /></ErrorBoundary>

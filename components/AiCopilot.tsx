@@ -324,7 +324,7 @@ export default function AiCopilot() {
         style={{
           position: 'fixed',
           bottom: 'max(20px, env(safe-area-inset-bottom, 20px))',
-          right: 16,
+          right: 'max(16px, env(safe-area-inset-right))',
           zIndex: 500,
           width: 60, height: 60, borderRadius: '50%',
           background: 'linear-gradient(135deg, var(--orange) 0%, #C45520 100%)',
