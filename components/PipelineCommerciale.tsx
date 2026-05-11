@@ -676,7 +676,15 @@ function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect, isDraggin
         background: isSelected ? 'rgba(232,105,43,.18)' : 'var(--night-mid)',
         border: `1px solid ${isSelected ? 'var(--orange)' : 'var(--border)'}`,
         display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch',
-        cursor: selectMode ? 'pointer' : 'grab', textAlign: 'left', width: '100%', color: 'var(--text)',
+        cursor: selectMode ? 'pointer' : 'grab', textAlign: 'left', width: '100%',
+        color: 'var(--text)',
+        // iOS Safari ajoutait une apparence native button qui forçait un
+        // padding / un radius par-dessus le nôtre → carte rendue trop courte
+        // et son contenu rogné, ne laissant visible que la dernière ligne.
+        // Le reset global de globals.css gère le text-fill-color, on neutralise
+        // ici l'apparence pour garder notre layout intact sur iPad.
+        WebkitAppearance: 'none',
+        appearance: 'none',
         opacity: isDragging ? 0.4 : 1,
         transition: 'background .15s, border-color .15s, opacity .12s',
       }}
