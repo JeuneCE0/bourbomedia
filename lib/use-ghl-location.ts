@@ -53,12 +53,22 @@ export function useGhlLocationId(): string | null {
   return locationId;
 }
 
-// Helper : construit une URL GHL "Replanifier" appointement, ou fallback
-// sur la racine GHL si pas de location_id disponible.
-export function buildGhlAppointmentUrl(locationId: string | null, appointmentId: string | null): string {
+// Helper : URL GHL pour replanifier un RDV. GHL n'a pas de route
+// directe `/calendars/appointments/<id>` accessible (page blanche),
+// donc on ouvre la fiche contact où l'admin voit tous les RDV du
+// contact + bouton Reschedule natif sur chacun. Fallback sur la
+// vue calendrier globale si pas de contact_id.
+export function buildGhlAppointmentUrl(
+  locationId: string | null,
+  appointmentId: string | null,
+  contactId?: string | null,
+): string {
   if (!locationId) return 'https://app.gohighlevel.com/';
-  if (!appointmentId) return `https://app.gohighlevel.com/v2/location/${locationId}/calendars/appointments`;
-  return `https://app.gohighlevel.com/v2/location/${locationId}/calendars/appointments/${appointmentId}`;
+  if (contactId) {
+    return `https://app.gohighlevel.com/v2/location/${locationId}/contacts/detail/${contactId}`;
+  }
+  // Pas de contact → vue calendrier mensuelle, l'admin navigue
+  return `https://app.gohighlevel.com/v2/location/${locationId}/calendars/calendar-view`;
 }
 
 export function buildGhlContactUrl(locationId: string | null, contactId: string | null): string {

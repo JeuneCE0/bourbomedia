@@ -1130,7 +1130,7 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
                             >👻 No show</button>
                           )}
                           <a
-                            href={buildGhlAppointmentUrl(ghlLocationId, a.ghl_appointment_id)}
+                            href={buildGhlAppointmentUrl(ghlLocationId, a.ghl_appointment_id, opp.ghl_contact_id)}
                             target="_blank" rel="noreferrer"
                             style={{
                               padding: '4px 9px', borderRadius: 5, fontSize: '0.66rem', fontWeight: 600,

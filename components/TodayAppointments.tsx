@@ -331,7 +331,7 @@ function ApptCard({
   // var NEXT_PUBLIC inexistant → évite l'URL ".../location//appointments"
   // double-slash qui rendait une page blanche.
   const ghlLocationId = useGhlLocationId();
-  const rescheduleUrl = buildGhlAppointmentUrl(ghlLocationId, apt.ghl_appointment_id);
+  const rescheduleUrl = buildGhlAppointmentUrl(ghlLocationId, apt.ghl_appointment_id, apt.ghl_contact_id);
 
   return (
     <div style={{
