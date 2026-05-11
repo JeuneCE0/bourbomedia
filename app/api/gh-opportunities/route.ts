@@ -207,9 +207,13 @@ export async function PATCH(req: NextRequest) {
     body: JSON.stringify(dbPatch),
   }, true);
 
-  // Push to GHL
+  // Push to GHL — on remonte le résultat dans la réponse pour que
+  // l'UI puisse surfacer un échec (typiquement AUTOMATIONS_PAUSED ou
+  // erreur API GHL).
+  let ghlSync: { ok: boolean; reason?: string } = { ok: true };
   if (newStageId !== undefined) {
-    await updateOpportunityStage(opp.ghl_opportunity_id, opp.pipeline_id, newStageId).catch(() => null);
+    ghlSync = await updateOpportunityStage(opp.ghl_opportunity_id, opp.pipeline_id, newStageId)
+      .catch((e: unknown) => ({ ok: false, reason: (e as Error).message || 'exception' }));
   }
   if (newValueCents !== undefined || newName !== undefined) {
     const fields: { monetaryValue?: number; name?: string } = {};
@@ -235,7 +239,12 @@ export async function PATCH(req: NextRequest) {
     ).catch(() => null);
   }
 
-  return NextResponse.json({ ok: true, prospect_status, stage_name: stage?.name || null });
+  return NextResponse.json({
+    ok: true,
+    prospect_status,
+    stage_name: stage?.name || null,
+    ghl_sync: ghlSync,
+  });
 }
 
 // DELETE /api/gh-opportunities  body: { id }

@@ -195,8 +195,8 @@ export async function PATCH(req: NextRequest) {
       const { mapping } = await resolveMapping();
       const target = prospectStatusToStageId(mapping, body.prospect_status);
       if (target.pipelineId && target.stageId) {
-        const ok = await updateOpportunityStage(row.opportunity_id, target.pipelineId, target.stageId);
-        if (ok) synced = true;
+        const res = await updateOpportunityStage(row.opportunity_id, target.pipelineId, target.stageId);
+        if (res.ok) synced = true;
       }
     } catch { /* tolerate */ }
   }

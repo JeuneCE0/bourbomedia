@@ -123,17 +123,23 @@ export async function listOpportunitiesByPipeline(pipelineId: string): Promise<G
   return all;
 }
 
-export async function updateOpportunityStage(opportunityId: string, pipelineId: string, pipelineStageId: string): Promise<boolean> {
-  if (process.env.AUTOMATIONS_PAUSED === 'true') return false;
-  if (!opportunityId || !pipelineId || !pipelineStageId) return false;
+export async function updateOpportunityStage(opportunityId: string, pipelineId: string, pipelineStageId: string): Promise<{ ok: boolean; reason?: string }> {
+  if (process.env.AUTOMATIONS_PAUSED === 'true') return { ok: false, reason: 'automations_paused' };
+  if (!opportunityId || !pipelineStageId) return { ok: false, reason: 'missing_ids' };
   try {
-    await ghlRequest('PUT', `/opportunities/${opportunityId}`, {
-      pipelineId,
-      pipelineStageId,
-    });
-    return true;
-  } catch {
-    return false;
+    // GHL v2 API : PUT /opportunities/{id} accepte pipelineStageId.
+    // pipelineId est optionnel (l'opp est déjà bound à un pipeline), mais
+    // certaines configs GHL le réclament — on l'envoie si dispo, ignore
+    // sinon. status='open' évite que GHL le marque comme abandonné lors
+    // d'un changement de stage (bug observé sur certaines instances).
+    const body: Record<string, unknown> = { pipelineStageId };
+    if (pipelineId) body.pipelineId = pipelineId;
+    await ghlRequest('PUT', `/opportunities/${opportunityId}`, body);
+    return { ok: true };
+  } catch (e: unknown) {
+    const msg = (e as Error).message || 'unknown';
+    console.error('[ghl] updateOpportunityStage failed', { opportunityId, pipelineStageId, error: msg });
+    return { ok: false, reason: msg };
   }
 }
 

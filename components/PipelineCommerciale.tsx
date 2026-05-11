@@ -792,16 +792,27 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
           : prev,
         );
       }
-      // 2. Update the opportunity (stage + monetary value) → push to GHL
+      // 2. Update the opportunity (stage + monetary value) → push to GHL.
+      // L'API renvoie ghl_sync = { ok, reason } pour qu'on sache si le
+      // push GHL a effectivement marché. Si non, on alerte l'admin pour
+      // qu'il sache que la kanban locale et GHL sont désynchronisées.
       const newValueCents = valueEUR.trim() === '' ? null : Math.round(parseFloat(valueEUR) * 100);
       const oppPatch: Record<string, unknown> = { id: opp.id };
       if (stageId !== opp.pipeline_stage_id) oppPatch.pipeline_stage_id = stageId;
       if (newValueCents !== opp.monetary_value_cents) oppPatch.monetary_value_cents = newValueCents;
       if (Object.keys(oppPatch).length > 1) {
-        await fetch('/api/gh-opportunities', {
+        const r = await fetch('/api/gh-opportunities', {
           method: 'PATCH', headers: authHeaders(),
           body: JSON.stringify(oppPatch),
         });
+        const d = await r.json().catch(() => ({}));
+        if (d?.ghl_sync && d.ghl_sync.ok === false) {
+          const reason = d.ghl_sync.reason || 'inconnu';
+          const msg = reason === 'automations_paused'
+            ? 'Stage modifié localement mais PAS synchronisé avec GHL (AUTOMATIONS_PAUSED=true côté Vercel).'
+            : `Stage modifié localement mais le push GHL a échoué : ${reason}`;
+          alert(msg);
+        }
       }
       onSaved();
     } finally { setSaving(false); }
