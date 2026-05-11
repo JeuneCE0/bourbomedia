@@ -425,16 +425,34 @@ function ApptCard({
               </button>
               {!documented && past && (
                 <>
-                  <button onClick={() => onPatch({ status: 'no_show' })} disabled={saving} style={{
-                    padding: '7px 12px', borderRadius: 7, background: 'var(--night-raised)',
-                    border: '1px solid var(--border-md)', color: 'var(--text-mid)',
-                    fontSize: '0.76rem', cursor: saving ? 'wait' : 'pointer',
-                  }}>No-show</button>
-                  <button onClick={() => onPatch({ status: 'cancelled' })} disabled={saving} style={{
-                    padding: '7px 12px', borderRadius: 7, background: 'var(--night-raised)',
-                    border: '1px solid var(--border-md)', color: 'var(--text-mid)',
-                    fontSize: '0.76rem', cursor: saving ? 'wait' : 'pointer',
-                  }}>Annulé</button>
+                  <button
+                    onClick={() => {
+                      const who = apt.contact_name || apt.opportunity_name || 'ce RDV';
+                      if (window.confirm(`Marquer "${who}" en No-show ? Action irréversible (synchro GHL).`)) {
+                        onPatch({ status: 'no_show' });
+                      }
+                    }}
+                    disabled={saving}
+                    style={{
+                      padding: '7px 12px', borderRadius: 7, background: 'var(--night-raised)',
+                      border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+                      fontSize: '0.76rem', cursor: saving ? 'wait' : 'pointer',
+                    }}
+                  >No-show</button>
+                  <button
+                    onClick={() => {
+                      const who = apt.contact_name || apt.opportunity_name || 'ce RDV';
+                      if (window.confirm(`Marquer "${who}" en Annulé ? Action irréversible (synchro GHL).`)) {
+                        onPatch({ status: 'cancelled' });
+                      }
+                    }}
+                    disabled={saving}
+                    style={{
+                      padding: '7px 12px', borderRadius: 7, background: 'var(--night-raised)',
+                      border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+                      fontSize: '0.76rem', cursor: saving ? 'wait' : 'pointer',
+                    }}
+                  >Annulé</button>
                 </>
               )}
               <button

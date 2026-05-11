@@ -1115,6 +1115,7 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
                           {!isFuture && (
                             <button
                               onClick={async () => {
+                                if (!confirm('Marquer ce RDV en No-show ? Action synchronisée avec GHL.')) return;
                                 await fetch('/api/gh-appointments', {
                                   method: 'PATCH', headers: authHeaders(),
                                   body: JSON.stringify({ id: a.id, status: 'no_show' }),
