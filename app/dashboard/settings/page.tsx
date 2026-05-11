@@ -946,6 +946,13 @@ function DataSyncPanel() {
         endpoint="/api/gh-appointments/resync-notes"
         confirmText="Re-synchroniser les notes des RDV documentés sur GHL ?"
       />
+      <SyncCard
+        emoji="📤"
+        title="Re-push notes locales → GHL"
+        description="Re-pousse vers les fiches prospects GHL toutes les notes documentées localement aujourd'hui (rattrapage après le fix pushNotesToGhl). Crée une nouvelle note datée côté GHL — ré-exécution = doublons, à doser."
+        endpoint="/api/gh-appointments/push-notes-to-ghl"
+        confirmText="Re-pousser toutes les notes documentées aujourd'hui vers GHL ? Chaque RDV documenté créera une nouvelle note datée sur sa fiche prospect."
+      />
       <DeepSyncAppointmentsCard />
       <div style={{
         padding: 14, borderRadius: 10, background: 'var(--night-card)', border: '1px solid var(--border)',
