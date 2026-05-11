@@ -76,6 +76,39 @@ function fmtEUR(cents: number | null): string {
   return `${(cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`;
 }
 
+// Nombre de jours depuis le dernier update GHL de l'opp. GHL bump
+// l'updated_at à chaque changement de stage (et plus largement à chaque
+// modif), donc c'est une bonne approximation de "depuis quand l'opp est
+// dans la stage courante". Fallback ghl_created_at si pas d'update.
+function daysInStage(o: Opportunity): number {
+  const iso = o.ghl_updated_at || o.ghl_created_at;
+  if (!iso) return 0;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+}
+
+// Seuils par type de stage. Renvoie null si la stage est "fermée"
+// (contracté / perdu / pas intéressé / non-qualif) → pas d'alerte.
+// Match par nom (case-insensitive, accents normalisés) pour rester
+// résistant aux renommages mineurs côté GHL.
+function stageThreshold(stageName: string | null): { warn: number; danger: number } | null {
+  const n = (stageName || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (!n) return { warn: 7, danger: 14 };
+  if (n.includes('contracte') || n.includes('gagne') || n.includes('perdu') || n.includes('pas interesse') || n.includes('non-qualif') || n.includes('non qualif')) return null;
+  if (n.includes('signature')) return { warn: 3, danger: 5 };
+  if (n.includes('appel') || n.includes('rdv') || n.includes('reserv')) return { warn: 1, danger: 3 };
+  if (n.includes('reflexion') || n.includes('follow')) return { warn: 5, danger: 10 };
+  if (n.includes('ghosting')) return { warn: 7, danger: 14 };
+  if (n.includes('lead')) return { warn: 3, danger: 7 };
+  return { warn: 7, danger: 14 };
+}
+
+function ageBadgeColor(days: number, thr: { warn: number; danger: number } | null): string | null {
+  if (!thr) return null;
+  if (days >= thr.danger) return 'var(--red)';
+  if (days >= thr.warn) return 'var(--orange)';
+  return null;
+}
+
 export default function PipelineCommerciale() {
   const [opps, setOpps] = useState<Opportunity[]>([]);
   const [stages, setStages] = useState<PipelineStage[]>([]);
@@ -742,20 +775,45 @@ function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect, isDraggin
         </div>
       )}
 
-      {/* 5. Date de création + valeur si présente */}
-      <div style={{
-        fontSize: '0.65rem', color: 'var(--text-muted)',
-        display: 'flex', justifyContent: 'space-between', gap: 6,
-        alignItems: 'center', marginTop: 2, paddingTop: 4,
-        borderTop: '1px solid var(--border)',
-      }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-          <span aria-hidden>📅</span> {relativeDate(opp.ghl_created_at)}
-        </span>
-        {opp.monetary_value_cents && (
-          <span style={{ color: 'var(--green)', fontWeight: 700 }}>{fmtEUR(opp.monetary_value_cents)}</span>
-        )}
-      </div>
+      {/* 5. Date de création + âge dans la stage + valeur si présente */}
+      {(() => {
+        const days = daysInStage(opp);
+        const thr = stageThreshold(opp.pipeline_stage_name);
+        const alert = ageBadgeColor(days, thr);
+        return (
+          <div style={{
+            fontSize: '0.65rem', color: 'var(--text-muted)',
+            display: 'flex', justifyContent: 'space-between', gap: 6,
+            alignItems: 'center', marginTop: 2, paddingTop: 4,
+            borderTop: '1px solid var(--border)',
+          }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <span aria-hidden>📅</span> {relativeDate(opp.ghl_created_at)}
+            </span>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {thr && (
+                <span
+                  title={`${days} jour${days > 1 ? 's' : ''} dans « ${opp.pipeline_stage_name || 'cette étape'} »${alert === 'var(--red)' ? ' — à relancer' : ''}`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 2,
+                    padding: alert ? '1px 6px' : 0,
+                    borderRadius: 999,
+                    background: alert ? `${alert}1A` : 'transparent',
+                    border: alert ? `1px solid ${alert}66` : 'none',
+                    color: alert || 'var(--text-muted)',
+                    fontWeight: alert ? 700 : 500,
+                  }}
+                >
+                  {alert === 'var(--red)' ? '🔴 ' : ''}{days === 0 ? "Auj." : `${days} j`}
+                </span>
+              )}
+              {opp.monetary_value_cents && (
+                <span style={{ color: 'var(--green)', fontWeight: 700 }}>{fmtEUR(opp.monetary_value_cents)}</span>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </button>
   );
 }
