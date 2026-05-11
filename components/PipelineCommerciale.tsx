@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { downloadCsv } from '@/lib/csv-export';
 import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
+import { useGhlLocationId, buildGhlAppointmentUrl } from '@/lib/use-ghl-location';
 import ThreadPanel from '@/components/ThreadPanel';
 import PresenceIndicator from '@/components/PresenceIndicator';
 
@@ -716,6 +717,7 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
   const [allAppts, setAllAppts] = useState<Appointment[]>([]);
   const [loadingAppt, setLoadingAppt] = useState(true);
   const [ghlContact, setGhlContact] = useState<GhlContact | null>(null);
+  const ghlLocationId = useGhlLocationId();
   const [loadingContact, setLoadingContact] = useState(true);
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<string>(opp.prospect_status || '');
@@ -875,12 +877,18 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
                 }}>💬 WhatsApp</a>
               )}
               {opp.ghl_opportunity_id && (
-                <a href={`https://app.gohighlevel.com/v2/location/${opp.pipeline_id ? '' : ''}opportunities/${opp.ghl_opportunity_id}`} target="_blank" rel="noreferrer" style={{
-                  flex: 1, minWidth: 100, padding: '9px 12px', borderRadius: 8,
-                  background: 'rgba(232,105,43,.10)', border: '1px solid rgba(232,105,43,.40)',
-                  color: 'var(--orange)', textDecoration: 'none', textAlign: 'center',
-                  fontSize: '0.78rem', fontWeight: 600,
-                }}>↗ Ouvrir dans GHL</a>
+                <a
+                  href={ghlLocationId
+                    ? `https://app.gohighlevel.com/v2/location/${ghlLocationId}/opportunities/${opp.ghl_opportunity_id}`
+                    : 'https://app.gohighlevel.com/'}
+                  target="_blank" rel="noreferrer"
+                  style={{
+                    flex: 1, minWidth: 100, padding: '9px 12px', borderRadius: 8,
+                    background: 'rgba(232,105,43,.10)', border: '1px solid rgba(232,105,43,.40)',
+                    color: 'var(--orange)', textDecoration: 'none', textAlign: 'center',
+                    fontSize: '0.78rem', fontWeight: 600,
+                  }}
+                >↗ Ouvrir dans GHL</a>
               )}
             </div>
           )}
@@ -1121,7 +1129,7 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
                             >👻 No show</button>
                           )}
                           <a
-                            href={`https://app.gohighlevel.com/v2/location/${(opp as { location_id?: string }).location_id || ''}/appointments`}
+                            href={buildGhlAppointmentUrl(ghlLocationId, a.ghl_appointment_id)}
                             target="_blank" rel="noreferrer"
                             style={{
                               padding: '4px 9px', borderRadius: 5, fontSize: '0.66rem', fontWeight: 600,

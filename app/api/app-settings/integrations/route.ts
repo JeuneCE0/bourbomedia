@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ghl: has('GHL_API_KEY') && has('GHL_LOCATION_ID'),
+    ghl_location_id: process.env.GHL_LOCATION_ID || null,
     ghl_calendars: {
       closing: has('GHL_CLOSING_CALENDAR_ID'),
       onboarding: has('GHL_ONBOARDING_CALENDAR_ID'),

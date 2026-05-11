@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
 import { useCollapsiblePref } from '@/lib/use-collapsible';
+import { useGhlLocationId, buildGhlAppointmentUrl } from '@/lib/use-ghl-location';
 
 interface Appointment {
   id: string;
@@ -298,6 +299,39 @@ function ApptCard({
   const past = new Date(apt.starts_at).getTime() < Date.now();
   const documented = !!apt.notes_completed_at;
   const cancelled = apt.status === 'cancelled' || apt.status === 'no_show';
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskText, setTaskText] = useState('');
+  const [taskBusy, setTaskBusy] = useState(false);
+
+  async function createTask() {
+    const text = taskText.trim();
+    if (!text) return;
+    setTaskBusy(true);
+    try {
+      const r = await fetch('/api/tasks', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          client_id: apt.client_id || null,
+          text: `[${apt.contact_name || apt.opportunity_name || 'Prospect'}] ${text}`,
+          priority: 'medium',
+        }),
+      });
+      if (r.ok) {
+        setTaskText('');
+        setShowTaskForm(false);
+      } else {
+        alert("Erreur création tâche.");
+      }
+    } finally { setTaskBusy(false); }
+  }
+
+  // Deep-link vers la fiche RDV GHL (admin replanifie directement dans GHL
+  // où l'UI calendrier est conçue pour ça). Le location_id vient de l'API
+  // /api/app-settings/integrations (lib/use-ghl-location), pas d'un env
+  // var NEXT_PUBLIC inexistant → évite l'URL ".../location//appointments"
+  // double-slash qui rendait une page blanche.
+  const ghlLocationId = useGhlLocationId();
+  const rescheduleUrl = buildGhlAppointmentUrl(ghlLocationId, apt.ghl_appointment_id);
 
   return (
     <div style={{
@@ -403,6 +437,26 @@ function ApptCard({
                   }}>Annulé</button>
                 </>
               )}
+              <button
+                onClick={() => setShowTaskForm(v => !v)}
+                disabled={saving}
+                style={{
+                  padding: '7px 12px', borderRadius: 7, background: 'var(--night-raised)',
+                  border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+                  fontSize: '0.76rem', cursor: saving ? 'wait' : 'pointer',
+                }}
+              >📌 Tâche</button>
+              <a
+                href={rescheduleUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  padding: '7px 12px', borderRadius: 7, background: 'var(--night-raised)',
+                  border: '1px solid var(--border-md)', color: 'var(--text-mid)',
+                  fontSize: '0.76rem', textDecoration: 'none',
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                }}
+              >🔄 Replanifier</a>
               {apt.client_id && (
                 <Link href={`/dashboard/clients/${apt.client_id}`} style={{
                   padding: '7px 12px', borderRadius: 7, background: 'transparent',
@@ -411,6 +465,37 @@ function ApptCard({
                   display: 'inline-flex', alignItems: 'center',
                 }}>→ Fiche</Link>
               )}
+            </div>
+          )}
+          {showTaskForm && !cancelled && (
+            <div style={{
+              marginTop: 8, display: 'flex', gap: 6, alignItems: 'stretch',
+            }}>
+              <input
+                type="text"
+                value={taskText}
+                onChange={e => setTaskText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !taskBusy && taskText.trim()) createTask(); }}
+                placeholder={`Tâche pour ${apt.contact_name || apt.opportunity_name || 'ce prospect'}…`}
+                autoFocus
+                style={{
+                  flex: 1, padding: '7px 11px', borderRadius: 7,
+                  background: 'var(--night-raised)', border: '1px solid var(--border-md)',
+                  color: 'var(--text)', fontSize: '0.8rem', outline: 'none', fontFamily: 'inherit',
+                }}
+              />
+              <button
+                onClick={createTask}
+                disabled={taskBusy || !taskText.trim()}
+                style={{
+                  padding: '7px 14px', borderRadius: 7,
+                  background: taskText.trim() ? 'var(--orange)' : 'var(--night-raised)',
+                  border: 'none', color: '#fff',
+                  fontSize: '0.76rem', fontWeight: 700,
+                  cursor: taskBusy || !taskText.trim() ? 'not-allowed' : 'pointer',
+                  opacity: taskBusy ? 0.6 : 1,
+                }}
+              >{taskBusy ? '⏳' : 'Ajouter'}</button>
             </div>
           )}
         </div>
