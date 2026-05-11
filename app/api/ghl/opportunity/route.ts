@@ -18,17 +18,20 @@ let _cachedAt = 0;
 async function getCustomFields(): Promise<CustomField[]> {
   if (_cachedFields && Date.now() - _cachedAt < 10 * 60 * 1000) return _cachedFields;
   if (!LOCATION_ID) return [];
-  try {
-    const data = await ghlRequest('GET', `/locations/${LOCATION_ID}/customFields`);
-    const fields: CustomField[] = (data?.customFields || []).map((f: { id: string; name: string; fieldKey?: string; dataType?: string; model?: string }) => ({
-      id: f.id, name: f.name, fieldKey: f.fieldKey, dataType: f.dataType, model: f.model,
-    }));
-    _cachedFields = fields;
-    _cachedAt = Date.now();
-    return fields;
-  } catch {
-    return [];
+  // Fetch les deux scopes (contact + opportunity) — sinon les labels des
+  // CF opportunité ne sont pas résolus et apparaissent comme des IDs.
+  const merged = new Map<string, CustomField>();
+  for (const model of ['contact', 'opportunity'] as const) {
+    try {
+      const data = await ghlRequest('GET', `/locations/${LOCATION_ID}/customFields?model=${model}`);
+      for (const f of (data?.customFields || []) as { id: string; name: string; fieldKey?: string; dataType?: string; model?: string }[]) {
+        if (!merged.has(f.id)) merged.set(f.id, { id: f.id, name: f.name, fieldKey: f.fieldKey, dataType: f.dataType, model: f.model || model });
+      }
+    } catch { /* tolère un scope qui échoue */ }
   }
+  _cachedFields = Array.from(merged.values());
+  _cachedAt = Date.now();
+  return _cachedFields;
 }
 
 // GET /api/ghl/opportunity?id=<ghl_opportunity_id>

@@ -19,20 +19,21 @@ async function getCustomFields(): Promise<CustomField[]> {
   // Cache the field metadata for 10 min — labels rarely change
   if (_cachedFields && Date.now() - _cachedAt < 10 * 60 * 1000) return _cachedFields;
   if (!LOCATION_ID) return [];
-  try {
-    const data = await ghlRequest('GET', `/locations/${LOCATION_ID}/customFields`);
-    const fields: CustomField[] = (data?.customFields || []).map((f: { id: string; name: string; fieldKey?: string; dataType?: string }) => ({
-      id: f.id,
-      name: f.name,
-      fieldKey: f.fieldKey,
-      dataType: f.dataType,
-    }));
-    _cachedFields = fields;
-    _cachedAt = Date.now();
-    return fields;
-  } catch {
-    return [];
+  // GHL renvoie les CF par scope (model=contact par défaut). Les champs de
+  // qualification commerciale sont au niveau opportunité → on fetch les
+  // deux scopes et on merge pour pouvoir résoudre les labels des deux.
+  const merged = new Map<string, CustomField>();
+  for (const model of ['contact', 'opportunity'] as const) {
+    try {
+      const data = await ghlRequest('GET', `/locations/${LOCATION_ID}/customFields?model=${model}`);
+      for (const f of (data?.customFields || []) as { id: string; name: string; fieldKey?: string; dataType?: string }[]) {
+        if (!merged.has(f.id)) merged.set(f.id, { id: f.id, name: f.name, fieldKey: f.fieldKey, dataType: f.dataType });
+      }
+    } catch { /* tolère un scope qui échoue */ }
   }
+  _cachedFields = Array.from(merged.values());
+  _cachedAt = Date.now();
+  return _cachedFields;
 }
 
 // GET /api/ghl/contact?id=<ghl_contact_id>&merge_opps=1
