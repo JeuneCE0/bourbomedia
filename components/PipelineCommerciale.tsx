@@ -690,9 +690,24 @@ function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect, isDraggin
   onDragStart?: (oppId: string) => void;
   onDragEnd?: () => void;
 }) {
+  // iOS Safari applique sur <button> des règles UA tordues — display
+  // inline-block forcé, text-align center, appearance native, flex
+  // direction qui s'effondre — qui écrasent nos styles inline malgré
+  // appearance:none. Sur iPad, ça rendait les cartes Pipeline avec le
+  // nom/email/téléphone invisibles ou superposés.
+  // Solution : <div role="button"> qui garde la sémantique a11y sans
+  // le baggage UA. tabIndex=0 + onKeyDown gèrent l'activation clavier.
+  function activateFromKeyboard(e: React.KeyboardEvent) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    if (selectMode && onToggleSelect) onToggleSelect(opp.id, { shift: e.shiftKey });
+    else onSelect(opp.id);
+  }
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={isSelected}
       draggable={!selectMode}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'move';
@@ -704,6 +719,7 @@ function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect, isDraggin
         if (selectMode && onToggleSelect) onToggleSelect(opp.id, { shift: e.shiftKey });
         else onSelect(opp.id);
       }}
+      onKeyDown={activateFromKeyboard}
       style={{
         padding: '8px 10px', borderRadius: 6,
         background: isSelected ? 'rgba(232,105,43,.18)' : 'var(--night-mid)',
@@ -711,13 +727,6 @@ function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect, isDraggin
         display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch',
         cursor: selectMode ? 'pointer' : 'grab', textAlign: 'left', width: '100%',
         color: 'var(--text)',
-        // iOS Safari ajoutait une apparence native button qui forçait un
-        // padding / un radius par-dessus le nôtre → carte rendue trop courte
-        // et son contenu rogné, ne laissant visible que la dernière ligne.
-        // Le reset global de globals.css gère le text-fill-color, on neutralise
-        // ici l'apparence pour garder notre layout intact sur iPad.
-        WebkitAppearance: 'none',
-        appearance: 'none',
         opacity: isDragging ? 0.4 : 1,
         transition: 'background .15s, border-color .15s, opacity .12s',
       }}
@@ -814,7 +823,7 @@ function Card({ opp, onSelect, selectMode, isSelected, onToggleSelect, isDraggin
           </div>
         );
       })()}
-    </button>
+    </div>
   );
 }
 

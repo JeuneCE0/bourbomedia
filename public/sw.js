@@ -1,11 +1,12 @@
 // Service worker for Bourbomedia PWA — push notifications + offline cache.
 // Registered from app/dashboard/layout.tsx.
 
-// v2 (2026-04-30) : bump pour forcer la purge des anciens caches qui
-// pouvaient retenir d'anciennes réponses (incl. d'anciens 308 cassés). Le
-// handler `activate` purge toutes les keys != CACHE_NAME, donc bumper la
-// version = clean slate au prochain chargement.
-const CACHE_NAME = 'bbm-runtime-v2';
+// v3 (2026-05-12) : bump pour forcer la purge sur iPad PWA qui restait
+// bloqué sur l'ancien rendu cartes Pipeline (texte invisible cf fix
+// -webkit-text-fill-color dans globals.css). Le handler `activate`
+// purge toutes les keys != CACHE_NAME, donc bumper la version = clean
+// slate au prochain chargement.
+const CACHE_NAME = 'bbm-runtime-v3';
 // API GETs cachés en stale-while-revalidate pour permettre l'usage offline.
 // Les mutations (POST/PATCH/DELETE) sont gérées côté client par offline-queue.ts.
 const CACHEABLE_API_PATTERNS = [

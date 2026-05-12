@@ -45,14 +45,16 @@ body {
 }
 
 /* iOS Safari : <button>, <input>, <textarea> n'héritent ni du
-   font-family ni du -webkit-text-fill-color du body. Sans ces resets,
-   sur iPad/iPhone le texte INSIDE un <button> peut rendre noir/system
-   par-dessus notre color → invisible sur fond sombre. Fix global pour
-   tous les composants qui utilisent un <button> comme container
-   (cartes kanban Pipeline, cartes Tasks, cartes RDV…). */
+   font-family ni du -webkit-text-fill-color du body. Pire, leur
+   `color` UA peut être `ButtonText` (sombre système) → currentColor
+   résout vers du sombre sur fond sombre. On force donc `color: inherit`
+   pour récupérer var(--text) du body, et on aligne text-fill-color
+   sur cette même couleur. Sans ça, sur iPad/iPhone le texte INSIDE
+   un <button> est invisible — confirmé sur la kanban Pipeline. */
 button, input, textarea, select {
   font-family: inherit;
-  -webkit-text-fill-color: currentColor;
+  color: inherit;
+  -webkit-text-fill-color: inherit;
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
