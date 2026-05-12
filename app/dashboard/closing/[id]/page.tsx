@@ -153,7 +153,11 @@ export default function ClosingRoomPage() {
         }
       }
       if (contactIdToFetch) {
-        const cR = await fetch(`/api/ghl/contact?id=${encodeURIComponent(contactIdToFetch)}&merge_opps=1`, { headers: authHeaders() });
+        // Passe opp_id si on l'a — l'API server-side force le merge de cette
+        // opp même si la recherche par contact ne la renvoie pas (pipelines
+        // non indexés, opps archivées…).
+        const oppQuery = a.opportunity_id ? `&opp_id=${encodeURIComponent(a.opportunity_id)}` : '';
+        const cR = await fetch(`/api/ghl/contact?id=${encodeURIComponent(contactIdToFetch)}&merge_opps=1${oppQuery}`, { headers: authHeaders() });
         if (cR.ok) {
           const cd = await cR.json();
           setContact(cd?.contact || null);
@@ -382,7 +386,7 @@ export default function ClosingRoomPage() {
             )}
             <a
               href={buildGhlAppointmentUrl(ghlLocationId, apt.ghl_appointment_id, apt.ghl_contact_id)}
-              target="_blank"
+              target="ghl_admin"
               rel="noreferrer"
               style={btnLg('var(--night-card)', 'var(--text-mid)')}
             >🔄 Replanifier</a>

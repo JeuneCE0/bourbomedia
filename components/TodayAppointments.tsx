@@ -466,7 +466,7 @@ function ApptCard({
               >📌 Tâche</button>
               <a
                 href={rescheduleUrl}
-                target="_blank"
+                target="ghl_admin"
                 rel="noreferrer"
                 style={{
                   padding: '7px 12px', borderRadius: 7, background: 'var(--night-raised)',

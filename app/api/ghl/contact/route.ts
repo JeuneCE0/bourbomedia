@@ -48,6 +48,12 @@ export async function GET(req: NextRequest) {
   if (!requireAuth(req)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   const id = req.nextUrl.searchParams.get('id');
   const mergeOpps = req.nextUrl.searchParams.get('merge_opps') === '1';
+  // opp_id explicite : si le client connaît l'opp liée à ce contact (ex.
+  // une page RDV qui a déjà l'opportunity_id en DB), on l'ajoute toujours
+  // au merge même si listOpportunitiesByContact ne la renvoie pas (cas
+  // observé : opps en pipeline non indexé, ou archivées côté GHL → la
+  // recherche par contact renvoie 0 et le panel Qualification reste vide).
+  const explicitOppId = req.nextUrl.searchParams.get('opp_id');
   if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 });
 
   type CF = { id: string; label: string; dataType: string; value: unknown };
@@ -89,7 +95,13 @@ export async function GET(req: NextRequest) {
     if (mergeOpps) {
       try {
         const opps = await listOpportunitiesByContact(id);
-        const oppIds = opps.slice(0, 5).map(o => o.id); // limite 5 pour ne pas spammer
+        const searchOppIds = opps.slice(0, 5).map(o => o.id); // limite 5 pour ne pas spammer
+        // On force l'opp explicite EN TÊTE de la liste (priorité au merge)
+        // ET on la dédupe pour ne pas la re-fetch deux fois si la recherche
+        // l'a déjà renvoyée.
+        const oppIds = explicitOppId
+          ? [explicitOppId, ...searchOppIds.filter(o => o !== explicitOppId)]
+          : searchOppIds;
         const oppCustomFields: CF[] = [];
         for (const oid of oppIds) {
           try {
