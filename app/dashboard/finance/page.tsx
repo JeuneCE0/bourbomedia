@@ -228,6 +228,8 @@ interface ClosingStatsRange {
   new_prospects: number;
   pipeline_open_count: number;
   pipeline_value_cents: number;
+  pipeline_awaiting_signature_count: number;
+  pipeline_awaiting_signature_cents: number;
   revenue_paid_cents: number;
   revenue_won_ht_cents: number;
   ads_budget_cents: number;
@@ -519,8 +521,17 @@ export default function FinancePage() {
               <Card title={`💰 CA & rentabilité · ${RANGE_LABEL[range]}`}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
                   <Kpi emoji="💸" label="CA encaissé" value={fmtEUR(closingStats.revenue_paid_cents)} color="var(--green)" />
+                  <Kpi
+                    emoji="✍️"
+                    label="CA en attente signature"
+                    value={fmtEUR(closingStats.pipeline_awaiting_signature_cents)}
+                    color="#3B82F6"
+                    extra={closingStats.pipeline_awaiting_signature_count > 0
+                      ? `${closingStats.pipeline_awaiting_signature_count} prospect${closingStats.pipeline_awaiting_signature_count > 1 ? 's' : ''} verbalement engagé${closingStats.pipeline_awaiting_signature_count > 1 ? 's' : ''}`
+                      : 'Aucun en attente signature'}
+                  />
                   <Kpi emoji="📊" label="CA généré (HT)" value={fmtEUR(closingStats.revenue_won_ht_cents)} color="var(--orange)" extra={`${closingStats.calls_won} contrat${closingStats.calls_won > 1 ? 's' : ''} signé${closingStats.calls_won > 1 ? 's' : ''}`} />
-                  <Kpi emoji="🚀" label="CA à signer" value={fmtEUR(closingStats.pipeline_value_cents)} color="#3B82F6" extra={`${closingStats.pipeline_open_count} prospects actifs`} />
+                  <Kpi emoji="🚀" label="CA pipeline total" value={fmtEUR(closingStats.pipeline_value_cents)} color="var(--text-mid)" extra={`${closingStats.pipeline_open_count} prospects actifs`} />
                   <Kpi emoji="💰" label="Budget Ads" value={fmtEUR(closingStats.ads_budget_cents)} color="var(--text-mid)" extra="pro-rata" />
                   <Kpi emoji="🛠️" label="Frais presta" value={fmtEUR(closingStats.provider_fees_cents)} color="var(--text-mid)" />
                   <Kpi emoji="📈" label="Bénéfice brut" value={fmtEUR(closingStats.gross_profit_cents)} color={closingStats.gross_profit_cents >= 0 ? 'var(--green)' : 'var(--red)'} extra="Encaissé − Ads − Presta" />

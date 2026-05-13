@@ -192,6 +192,17 @@ export async function GET(req: NextRequest) {
     0,
   );
 
+  // Sous-bucket le plus actionnable : opps en "Attente signature" — l'admin
+  // veut voir d'un coup d'œil combien de CA est ALREADY engagé verbalement
+  // mais pas encore encaissé (vs. "en réflexion" qui peut tomber n'importe
+  // quand). Ce KPI bouge dès qu'on change le prospect_status côté kanban.
+  const awaiting = pipelineSnapshot.filter(o => o.prospect_status === 'awaiting_signature');
+  const pipeline_awaiting_signature_count = awaiting.length;
+  const pipeline_awaiting_signature_cents = awaiting.reduce(
+    (s, o) => s + (o.monetary_value_cents || STANDARD_VIDEO_PRICE_HT_CENTS),
+    0,
+  );
+
   return NextResponse.json({
     range: { from: fromIso, to: toIso },
     // Funnel
@@ -208,6 +219,8 @@ export async function GET(req: NextRequest) {
     // Pipeline (snapshot, pas borné par la période)
     pipeline_open_count,
     pipeline_value_cents,
+    pipeline_awaiting_signature_count,
+    pipeline_awaiting_signature_cents,
     // CA
     revenue_paid_cents,
     revenue_won_ht_cents,

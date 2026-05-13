@@ -482,6 +482,8 @@ interface ClosingStats {
   new_prospects: number;
   pipeline_open_count: number;
   pipeline_value_cents: number;
+  pipeline_awaiting_signature_count: number;
+  pipeline_awaiting_signature_cents: number;
   revenue_paid_cents: number;
   revenue_won_ht_cents: number;
   ads_budget_cents: number;
@@ -568,6 +570,15 @@ function DailyMetricsCard({ clients: _clients }: { clients: Client[] }) {
           <DailyStat emoji="✅" label="Appels réalisés" value={stats.calls_done.toString()} color="#A855F7" hint={stats.attendance_rate !== null ? `${stats.attendance_rate}% présence` : undefined} />
           <DailyStat emoji="🏆" label="Closings gagnés" value={stats.calls_won.toString()} color="var(--green)" hint={stats.closing_rate !== null ? `${stats.closing_rate}% taux closing` : undefined} />
           <DailyStat emoji="💸" label="Encaissé" value={`${(stats.revenue_paid_cents / 100).toLocaleString('fr-FR')} €`} color="var(--green)" />
+          <DailyStat
+            emoji="✍️"
+            label="CA en attente"
+            value={`${(stats.pipeline_awaiting_signature_cents / 100).toLocaleString('fr-FR')} €`}
+            color="#3B82F6"
+            hint={stats.pipeline_awaiting_signature_count > 0
+              ? `${stats.pipeline_awaiting_signature_count} prospect${stats.pipeline_awaiting_signature_count > 1 ? 's' : ''} en attente signature`
+              : 'Aucun prospect en attente signature'}
+          />
           <DailyStat emoji="🚀" label="Prospects en cours" value={stats.pipeline_open_count.toString()} color="#3B82F6" hint={stats.pipeline_open_count > 0 ? `≈ ${(stats.pipeline_value_cents / 100).toLocaleString('fr-FR')} € à signer` : 'Pipeline vide'} />
           <DailyStat emoji="💰" label="Budget Ads" value={`${(stats.ads_budget_cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`} color="var(--text-mid)" hint="pro-rata jour" />
           <DailyStat emoji="📈" label="Bénéfice brut" value={`${(stats.gross_profit_cents / 100).toLocaleString('fr-FR')} €`} color={stats.gross_profit_cents >= 0 ? 'var(--green)' : 'var(--red)'} hint="Encaissé − Ads − Presta" />
