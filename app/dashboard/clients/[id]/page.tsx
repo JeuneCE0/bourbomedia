@@ -937,6 +937,14 @@ export default function ClientDetailPage() {
       notify('error', 'Sélectionne un fichier vidéo (mp4, mov, webm…)');
       return;
     }
+    // Pré-check côté client : 5 Go = limite du bucket Supabase « videos ».
+    // Sans ce check, l'admin se mange un 413 obscur après avoir attendu
+    // l'upload complet d'un fichier énorme.
+    const MAX_VIDEO_BYTES = 5 * 1024 * 1024 * 1024;
+    if (file.size > MAX_VIDEO_BYTES) {
+      notify('error', `Vidéo trop volumineuse (${(file.size / 1024 / 1024 / 1024).toFixed(2)} Go). Max 5 Go.`);
+      return;
+    }
     setVideoUpload({ name: file.name, pct: 0 });
     try {
       const r = await fetch('/api/videos/upload-url', {
@@ -954,6 +962,12 @@ export default function ClientDetailPage() {
         };
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else if (xhr.status === 413) {
+            // Bucket Supabase mal configuré (file_size_limit < taille du fichier)
+            // OU plafond global du projet (Settings → Storage) trop bas. On donne
+            // un message actionable plutôt que le JSON brut de Supabase.
+            reject(new Error(`Vidéo refusée par Supabase (413) — le bucket « videos » ou le plafond global du projet limite la taille. Vérifier Supabase Dashboard → Storage → bucket videos → file_size_limit.`));
+          }
           else reject(new Error(`Upload échoué (${xhr.status}) ${xhr.responseText || ''}`.trim()));
         };
         xhr.onerror = () => reject(new Error("Erreur réseau pendant l'upload"));

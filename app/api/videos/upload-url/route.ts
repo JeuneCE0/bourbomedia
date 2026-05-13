@@ -13,7 +13,14 @@ const FILE_SIZE_LIMIT = 5 * 1024 * 1024 * 1024;
 // On crée à la première utilisation, puis on PATCH pour s'assurer que la limite
 // reste à jour si on change FILE_SIZE_LIMIT plus tard (Supabase ne permet pas
 // d'override par fichier, c'est la limite du bucket qui s'applique).
-async function ensureBucket() {
+//
+// Historique du bug : la version précédente faisait `.catch(() => null)` sur
+// le PUT/POST → si Supabase répondait 4xx (mauvaise clé, RLS, etc.), le
+// bucket n'était jamais réellement créé. Le signed upload était quand même
+// émis mais retombait sur le plafond par défaut (50 Mo) → 413 dès que
+// l'admin uploadait une vidéo client (>50 Mo systématique). On log
+// maintenant le détail dans la console Vercel pour ne plus rater ça.
+async function ensureBucket(): Promise<void> {
   const headers = {
     apikey: SUPABASE_SERVICE_KEY,
     Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
@@ -21,20 +28,24 @@ async function ensureBucket() {
   };
   const head = await fetch(`${SUPABASE_URL}/storage/v1/bucket/${BUCKET}`, { headers });
   if (head.ok) {
-    // Bucket déjà là — on s'assure que la limite est correcte (sinon les vieux
-    // buckets restent bloqués au défaut Supabase, souvent 50 Mo).
-    await fetch(`${SUPABASE_URL}/storage/v1/bucket/${BUCKET}`, {
+    const upd = await fetch(`${SUPABASE_URL}/storage/v1/bucket/${BUCKET}`, {
       method: 'PUT',
       headers,
       body: JSON.stringify({ public: true, file_size_limit: FILE_SIZE_LIMIT }),
-    }).catch(() => null);
+    });
+    if (!upd.ok) {
+      console.error(`[videos/upload-url] Update bucket failed ${upd.status}: ${await upd.text()}`);
+    }
     return;
   }
-  await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+  const create = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ id: BUCKET, name: BUCKET, public: true, file_size_limit: FILE_SIZE_LIMIT }),
   });
+  if (!create.ok) {
+    console.error(`[videos/upload-url] Create bucket failed ${create.status}: ${await create.text()}`);
+  }
 }
 
 export async function POST(req: NextRequest) {
