@@ -11,7 +11,17 @@ interface FeedEvent {
   created_at: string;
   client_id: string | null;
   client_token_prefix: string | null;
-  clients: { business_name?: string; contact_name?: string } | null;
+  clients: {
+    business_name?: string;
+    contact_name?: string;
+    // Source de vérité pour les vraies dates de RDV — on les préfère à
+    // metadata.date qui peut contenir l'instant du clic sur le bouton
+    // de fallback portail (incident Théo de Glaces Pépé 2026-05-18).
+    onboarding_call_date?: string | null;
+    filming_date?: string | null;
+    publication_date?: string | null;
+    payment_amount?: number | null;
+  } | null;
 }
 
 const EVENT_META: Record<string, { emoji: string; verb: string; color: string }> = {
@@ -140,26 +150,46 @@ export default function ActivityFeed() {
             || (e.source === 'admin' ? 'Admin' : 'Client');
           const contactName = e.clients?.contact_name || '';
 
-          // Pour les events de booking, on extrait la date depuis le
-          // metadata pour l'afficher en sous-ligne. Couvre call_booked
-          // (appel onboarding), filming_booked (tournage),
-          // publication_booked (date de publi) et video_delivered.
-          const meta_date =
-            (e.metadata?.date as string | undefined)
+          // Détermine la VRAIE date du RDV selon l'event — on privilégie
+          // toujours la donnée à jour côté fiche client (clients.*) sur le
+          // metadata stocké au moment du tracking (qui peut être faux,
+          // ex. portail manuel avec date=instant du clic).
+          let canonicalDate: string | null = null;
+          if (e.event === 'call_booked') canonicalDate = e.clients?.onboarding_call_date || (e.metadata?.date as string | undefined) || null;
+          else if (e.event === 'filming_booked') canonicalDate = e.clients?.filming_date || (e.metadata?.date as string | undefined) || null;
+          else if (e.event === 'publication_booked') canonicalDate = e.clients?.publication_date || (e.metadata?.date as string | undefined) || null;
+          else canonicalDate = (e.metadata?.date as string | undefined)
             || (e.metadata?.appointment_date as string | undefined)
             || (e.metadata?.starts_at as string | undefined)
             || null;
           let dateLabel = '';
-          if (meta_date) {
-            const d = new Date(meta_date);
+          if (canonicalDate) {
+            const d = new Date(canonicalDate);
             if (!Number.isNaN(d.getTime())) {
               const today = new Date();
               const sameYear = d.getFullYear() === today.getFullYear();
+              // Pour les events booking, l'heure est l'info la plus actionnable.
+              // Pour publication_booked, c'est plutôt la date seule (pas d'heure).
+              const showTime = e.event !== 'publication_booked';
               dateLabel = d.toLocaleDateString('fr-FR', {
                 weekday: 'short', day: 'numeric', month: 'short',
                 ...(sameYear ? {} : { year: 'numeric' }),
-                hour: '2-digit', minute: '2-digit',
+                ...(showTime ? { hour: '2-digit', minute: '2-digit' } : {}),
               });
+            }
+          }
+
+          // Montant pour les events liés au paiement. amount_cents est
+          // stocké en metadata par le webhook Stripe + portail verify_payment ;
+          // payment_amount sur la fiche client sert de fallback pour les
+          // legacy events où metadata était null.
+          let amountLabel = '';
+          if (e.event === 'payment_completed') {
+            const cents = (e.metadata?.amount_cents as number | undefined)
+              ?? e.clients?.payment_amount
+              ?? null;
+            if (typeof cents === 'number' && cents > 0) {
+              amountLabel = `${(cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`;
             }
           }
           const inner = (
@@ -180,11 +210,13 @@ export default function ActivityFeed() {
                   <strong>{businessName}</strong>
                   <span style={{ color: 'var(--text-mid)' }}> {meta.verb}</span>
                 </div>
-                {(contactName || dateLabel) && (
+                {(contactName || dateLabel || amountLabel) && (
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                     {contactName}
-                    {contactName && dateLabel && ' · '}
+                    {contactName && (dateLabel || amountLabel) && ' · '}
                     {dateLabel && <span style={{ color: 'var(--orange)' }}>📅 {dateLabel}</span>}
+                    {dateLabel && amountLabel && ' · '}
+                    {amountLabel && <span style={{ color: 'var(--green)', fontWeight: 700 }}>💶 {amountLabel}</span>}
                   </div>
                 )}
               </div>

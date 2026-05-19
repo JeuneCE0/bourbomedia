@@ -13,8 +13,14 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(50, Number(req.nextUrl.searchParams.get('limit') || '20'));
     // Récupère les events récents avec un JOIN inline sur clients pour
     // avoir business_name + contact_name dispo côté frontend sans 2e fetch.
+    // Joint les champs date/montant les plus à jour côté clients (la source
+    // de vérité pour les rendez-vous est la fiche client, pas
+    // funnel_events.metadata qui peut contenir une mauvaise date — ex. instant
+    // du clic sur le bouton de fallback portail). Permet à ActivityFeed
+    // d'afficher la VRAIE date du RDV onboarding/tournage/publi + le montant
+    // payé sans re-fetcher.
     const r = await supaFetch(
-      `funnel_events?select=event,source,metadata,created_at,client_id,client_token_prefix,clients(business_name,contact_name)&order=created_at.desc&limit=${limit}`,
+      `funnel_events?select=event,source,metadata,created_at,client_id,client_token_prefix,clients(business_name,contact_name,onboarding_call_date,filming_date,publication_date,payment_amount)&order=created_at.desc&limit=${limit}`,
       {}, true,
     );
     if (!r.ok) return NextResponse.json({ error: await r.text() }, { status: r.status });
