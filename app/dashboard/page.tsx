@@ -7,6 +7,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import AppointmentsToDocument from '@/components/AppointmentsToDocument';
 import ProspectsToFollowUp from '@/components/ProspectsToFollowUp';
 import TodayAppointments from '@/components/TodayAppointments';
+import UpcomingAppointments from '@/components/UpcomingAppointments';
 import ActivityFeed from '@/components/ActivityFeed';
 import ClientFeedbackAlerts from '@/components/ClientFeedbackAlerts';
 import OrphanPaymentsCard from '@/components/OrphanPaymentsCard';
@@ -287,6 +288,10 @@ export default function DashboardPage() {
 
           {/* Appels du jour (closing/onboarding/tournage) — visibilité rapide */}
           <TodayAppointments />
+
+          {/* Prochains RDV (J+1 à J+14) — repère les bookings pris pour les
+              jours suivants, qu'on ne verrait pas dans TodayAppointments. */}
+          <UpcomingAppointments />
 
           {/* Appels à documenter (notes post-call → bidirectionnel GHL) */}
           <AppointmentsToDocument />

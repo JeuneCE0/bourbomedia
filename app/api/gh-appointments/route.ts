@@ -10,6 +10,7 @@ import { stripHtml } from '@/lib/html-strip';
 // GET /api/gh-appointments?recent=1             → last ~500 appointments (calendar / pipeline)
 // GET /api/gh-appointments?from=YYYY-MM-DD&to=  → date range on starts_at (for calendar month)
 // GET /api/gh-appointments?today=1              → today's appointments only
+// GET /api/gh-appointments?upcoming=1&days=14   → RDV à venir au-delà d'aujourd'hui
 // GET /api/gh-appointments?id=<uuid>            → single appointment
 export async function GET(req: NextRequest) {
   const url = req.nextUrl;
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
   const from = url.searchParams.get('from');
   const to = url.searchParams.get('to');
   const today = url.searchParams.get('today');
+  const upcoming = url.searchParams.get('upcoming');
 
   let path: string;
   if (id) {
@@ -42,6 +44,22 @@ export async function GET(req: NextRequest) {
     path = `gh_appointments?starts_at=gte.${encodeURIComponent(fromIso)}`
       + `&starts_at=lte.${encodeURIComponent(toIso)}`
       + `&select=*&order=starts_at.asc&limit=2000`;
+  } else if (upcoming) {
+    // Prochains RDV au-delà d'aujourd'hui — widget dashboard "Prochains RDV".
+    // Borné par ?days=N (default 14). On part de "demain 00:00 local" — pour
+    // ne pas redonder avec TodayAppointments qui montre déjà la journée
+    // courante. Comme Vercel = UTC et l'admin = Réunion GMT+4, on prend une
+    // borne basse de "now+1h" pour rester safe sur les timezones, le client
+    // refiltre côté JS si besoin.
+    const days = Math.min(60, Math.max(1, parseInt(url.searchParams.get('days') || '14', 10)));
+    const startMs = Date.now() + 60 * 60 * 1000; // +1h pour exclure le RDV en cours
+    const endMs = Date.now() + days * 86400 * 1000;
+    const fromIso = new Date(startMs).toISOString();
+    const toIso = new Date(endMs).toISOString();
+    path = `gh_appointments?starts_at=gte.${encodeURIComponent(fromIso)}`
+      + `&starts_at=lte.${encodeURIComponent(toIso)}`
+      + `&status=in.(scheduled,completed)`
+      + `&select=*&order=starts_at.asc&limit=50`;
   } else if (pending) {
     // GHL flow: appointments are auto-confirmed on booking and stay 'scheduled' by
     // default. Only "No Show" or "Cancelled" are explicit negative signals — anything
