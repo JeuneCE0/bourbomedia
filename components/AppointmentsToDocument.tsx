@@ -53,10 +53,21 @@ function formatWhen(iso: string): string {
   return d.toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+function matchesQuery(a: Appointment, q: string): boolean {
+  if (!q) return true;
+  const hay = [
+    a.opportunity_name, a.contact_name, a.contact_email, a.contact_phone,
+    KIND_META[a.calendar_kind]?.label,
+  ].filter(Boolean).join(' ').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const needle = q.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  return hay.includes(needle);
+}
+
 export default function AppointmentsToDocument() {
   const [items, setItems] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   const { collapsed, toggle } = useCollapsiblePref('bbm_appts_to_document_collapsed', false);
 
   const load = useCallback(() => {
@@ -67,6 +78,13 @@ export default function AppointmentsToDocument() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Quand une recherche est active : on filtre TOUTE la liste et on affiche
+  // tous les résultats (sinon le prospect cherché pourrait être au-delà des
+  // 8 premiers et rester invisible). Sans recherche : on garde le slice(0,8)
+  // pour ne pas noyer le dashboard sous 50 lignes.
+  const filtered = query.trim() ? items.filter(a => matchesQuery(a, query)) : items;
+  const visible = query.trim() ? filtered : filtered.slice(0, 8);
 
   if (loading) {
     return (
@@ -128,17 +146,61 @@ export default function AppointmentsToDocument() {
           Tous les appels sont à jour. ✨
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {items.slice(0, 8).map(a => (
-            <AppointmentRow
-              key={a.id}
-              appt={a}
-              open={openId === a.id}
-              onToggle={() => setOpenId(openId === a.id ? null : a.id)}
-              onSaved={() => { setOpenId(null); load(); }}
+        <>
+          {/* Recherche — utile car la liste peut compter des dizaines
+              d'appels en attente et seuls les 8 premiers sont affichés
+              par défaut. */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 12px', borderRadius: 10, marginBottom: 10,
+            background: 'var(--night-mid)', border: '1px solid var(--border-md)',
+          }}>
+            <span aria-hidden style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1 }}>🔍</span>
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Rechercher un prospect, email, téléphone…"
+              style={{
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                color: 'var(--text)', fontSize: '0.82rem', padding: 0, fontFamily: 'inherit',
+              }}
             />
-          ))}
-        </div>
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                aria-label="Effacer la recherche"
+                style={{
+                  background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                  cursor: 'pointer', fontSize: '0.95rem', lineHeight: 1, padding: 2,
+                }}
+              >✕</button>
+            )}
+          </div>
+
+          {visible.length === 0 ? (
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', padding: '8px 4px', fontStyle: 'italic' }}>
+              Aucun appel ne correspond à « {query} ».
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {visible.map(a => (
+                <AppointmentRow
+                  key={a.id}
+                  appt={a}
+                  open={openId === a.id}
+                  onToggle={() => setOpenId(openId === a.id ? null : a.id)}
+                  onSaved={() => { setOpenId(null); load(); }}
+                />
+              ))}
+            </div>
+          )}
+          {!query && filtered.length > 8 && (
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
+              {filtered.length - 8} autre{filtered.length - 8 > 1 ? 's' : ''} appel{filtered.length - 8 > 1 ? 's' : ''} — utilise la recherche pour les retrouver.
+            </div>
+          )}
+        </>
       ))}
     </div>
   );
