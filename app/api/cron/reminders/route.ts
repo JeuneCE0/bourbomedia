@@ -23,6 +23,15 @@ interface CronClient {
   portal_token?: string;
   nps_requested_at?: string;
   last_script_reminder_at?: string;
+  // Étapes "tièdes" qu'on monitore pour relancer automatiquement le client
+  // via workflow GHL (tag → WhatsApp/SMS). Dédup par colonne *_reminder_at,
+  // une seule relance par semaine max (cf migration 030).
+  contract_signed_at?: string;
+  paid_at?: string;
+  last_payment_reminder_at?: string;
+  video_validated_at?: string;
+  video_changes_requested?: boolean;
+  last_video_review_reminder_at?: string;
 }
 
 export async function GET(req: NextRequest) {
@@ -36,11 +45,18 @@ export async function GET(req: NextRequest) {
     alerts: [] as string[],
     nps_sent: 0,
     script_reminders_sent: 0,
+    payment_reminders_sent: 0,
+    script_validation_reminders_sent: 0,
+    video_review_reminders_sent: 0,
   };
 
   try {
     const r = await supaFetch(
-      'clients?status=neq.published&select=id,business_name,contact_name,status,updated_at,created_at,filming_date,delivered_at,ghl_contact_id,portal_token,nps_requested_at,last_script_reminder_at',
+      'clients?status=neq.published&archived_at=is.null'
+      + '&select=id,business_name,contact_name,status,updated_at,created_at,filming_date,delivered_at,ghl_contact_id,portal_token,'
+      + 'nps_requested_at,last_script_reminder_at,'
+      + 'contract_signed_at,paid_at,last_payment_reminder_at,'
+      + 'video_validated_at,video_changes_requested,last_video_review_reminder_at',
       {}, true,
     );
     if (!r.ok) return NextResponse.json({ error: 'Failed to fetch clients' }, { status: 500 });
@@ -77,6 +93,77 @@ export async function GET(req: NextRequest) {
       } else if (daysIdle > 14) {
         summary.alerts.push(`🔴 ${c.business_name} — aucune activité depuis ${daysIdle} j`);
         notifyClientStatusChange(c.business_name, c.status, `Aucune activité depuis ${daysIdle} jours`);
+      }
+
+      // ── Relance paiement : contrat signé MAIS paiement non reçu depuis 24h ──
+      // Workflow GHL bbm_payment_pending_24h envoie un WhatsApp/SMS "Il manque
+      // votre paiement pour démarrer". Re-fire 1× par semaine max (dédup
+      // last_payment_reminder_at). On stoppe automatiquement dès que paid_at
+      // est posé (la condition AND !c.paid_at suffit).
+      if (c.contract_signed_at && !c.paid_at) {
+        const hoursSinceSign = (now - new Date(c.contract_signed_at).getTime()) / 3_600_000;
+        const lastReminderMs = c.last_payment_reminder_at ? new Date(c.last_payment_reminder_at).getTime() : 0;
+        const daysSinceLastReminder = lastReminderMs ? Math.floor((now - lastReminderMs) / 86400000) : 999;
+        if (hoursSinceSign >= 24 && daysSinceLastReminder >= 7) {
+          await triggerWorkflow(c.ghl_contact_id || null, 'payment_pending_24h').catch(() => null);
+          try {
+            await supaFetch(`clients?id=eq.${c.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ last_payment_reminder_at: todayIso }),
+            }, true);
+          } catch { /* migration 030 not applied yet */ }
+          summary.payment_reminders_sent++;
+          summary.alerts.push(`💳 ${c.business_name} — paiement en attente depuis ${Math.floor(hoursSinceSign / 24)} j → relance auto`);
+        }
+      }
+
+      // ── Relance validation script : status=script_review depuis 24h+
+      // sans avoir validé ni annoté. Diffère du bloc "script_review J+3"
+      // plus haut : ici on tape plus tôt (24h) avec un ton plus doux
+      // ("as-tu eu le temps de relire ?") via le tag dédié, AVANT de
+      // basculer sur la relance modifs J+4 du bloc précédent.
+      // Proxy "stuck since" : updated_at (le PATCH qui pose status=
+      // script_review bump updated_at). Dédup via last_script_reminder_at
+      // partagé — on évite de doubler les pings en moins d'une semaine.
+      if (c.status === 'script_review') {
+        const hoursIdle = (now - lastMs) / 3_600_000;
+        const lastReminderMs = c.last_script_reminder_at ? new Date(c.last_script_reminder_at).getTime() : 0;
+        const daysSinceLastReminder = lastReminderMs ? Math.floor((now - lastReminderMs) / 86400000) : 999;
+        if (hoursIdle >= 24 && hoursIdle < 96 && daysSinceLastReminder >= 7) {
+          // 24h ≤ X < 96h : on évite de chevaucher avec le bloc ≥4j
+          // script_changes_requested déjà géré plus haut.
+          await triggerWorkflow(c.ghl_contact_id || null, 'script_validation_pending_24h').catch(() => null);
+          try {
+            await supaFetch(`clients?id=eq.${c.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ last_script_reminder_at: todayIso }),
+            }, true);
+          } catch { /* migration not applied yet */ }
+          summary.script_validation_reminders_sent++;
+          summary.alerts.push(`📜 ${c.business_name} — script à relire depuis ${Math.floor(hoursIdle)}h → relance auto`);
+        }
+      }
+
+      // ── Relance review vidéo : livrée depuis 48h sans validation ni
+      // demande de modifs. On tag bbm_video_review_pending_48h pour
+      // déclencher un WhatsApp "on attend votre retour sur la vidéo".
+      // Stop dès que video_validated_at est posé ou video_changes_requested
+      // = true (le client a réagi, dans un sens ou l'autre).
+      if (c.delivered_at && !c.video_validated_at && !c.video_changes_requested) {
+        const hoursSinceDelivery = (now - new Date(c.delivered_at).getTime()) / 3_600_000;
+        const lastReminderMs = c.last_video_review_reminder_at ? new Date(c.last_video_review_reminder_at).getTime() : 0;
+        const daysSinceLastReminder = lastReminderMs ? Math.floor((now - lastReminderMs) / 86400000) : 999;
+        if (hoursSinceDelivery >= 48 && daysSinceLastReminder >= 7) {
+          await triggerWorkflow(c.ghl_contact_id || null, 'video_review_pending_48h').catch(() => null);
+          try {
+            await supaFetch(`clients?id=eq.${c.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ last_video_review_reminder_at: todayIso }),
+            }, true);
+          } catch { /* migration 030 not applied yet */ }
+          summary.video_review_reminders_sent++;
+          summary.alerts.push(`🎥 ${c.business_name} — vidéo livrée sans retour depuis ${Math.floor(hoursSinceDelivery / 24)} j → relance auto`);
+        }
       }
 
       if (c.filming_date) {
@@ -134,7 +221,10 @@ export async function GET(req: NextRequest) {
           { type: 'mrkdwn', text: `*Clients vérifiés:*\n${summary.checked}` },
           { type: 'mrkdwn', text: `*Alertes:*\n${summary.alerts.length}` },
           { type: 'mrkdwn', text: `*NPS envoyés:*\n${summary.nps_sent}` },
-          { type: 'mrkdwn', text: `*Relances scripts:*\n${summary.script_reminders_sent}` },
+          { type: 'mrkdwn', text: `*Relances scripts (modifs):*\n${summary.script_reminders_sent}` },
+          { type: 'mrkdwn', text: `*Relances paiement:*\n${summary.payment_reminders_sent}` },
+          { type: 'mrkdwn', text: `*Relances script (à valider):*\n${summary.script_validation_reminders_sent}` },
+          { type: 'mrkdwn', text: `*Relances review vidéo:*\n${summary.video_review_reminders_sent}` },
         ]},
         { type: 'section', text: { type: 'mrkdwn', text: summary.alerts.slice(0, 12).map(a => `• ${a}`).join('\n') } },
       ];

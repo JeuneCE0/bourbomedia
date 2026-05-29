@@ -19,14 +19,17 @@ export type WorkflowEvent =
   | 'onboarding_started'
   | 'contract_signed'
   | 'payment_received'
+  | 'payment_pending_24h'  // contrat signé MAIS paiement non reçu depuis 24h+
   | 'call_booked'
   | 'prospect_awaiting_signature'  // closing terminé → envoyer le lien d'onboarding
   | 'script_ready'         // script sent to client for review
   | 'script_changes_requested'
+  | 'script_validation_pending_24h'  // script en attente de validation client depuis 24h+
   | 'script_validated'
   | 'filming_scheduled'
   | 'filming_reminder'     // J-1 before filming
   | 'video_delivered'
+  | 'video_review_pending_48h'  // vidéo livrée non validée par le client depuis 48h+
   | 'feedback_requested'   // a few days after delivery
   | 'project_published';
 
@@ -59,6 +62,11 @@ export const WORKFLOWS: Record<WorkflowEvent, WorkflowDef> = {
     channels: ['email'], trigger: 'Stripe webhook confirme le paiement',
     copyHint: 'Votre paiement a bien été reçu. Voici votre facture.',
   },
+  payment_pending_24h: {
+    tag: 'bbm_payment_pending_24h', label: 'Paiement en attente J+1',
+    channels: ['whatsapp', 'sms'], trigger: 'Le client a signé le contrat mais n\'a pas payé depuis 24h (cron Bourbomedia)',
+    copyHint: 'Petit rappel : il manque encore votre paiement pour démarrer. Lien : {portal_url}',
+  },
   call_booked: {
     tag: 'bbm_call_booked', label: 'Appel onboarding réservé',
     channels: ['whatsapp', 'email'], trigger: 'Le client choisit un créneau d\'appel',
@@ -79,6 +87,11 @@ export const WORKFLOWS: Record<WorkflowEvent, WorkflowDef> = {
     channels: ['whatsapp'], trigger: 'Le client envoie des annotations',
     copyHint: 'Bien reçu, on retravaille le script et on revient vite vers vous.',
   },
+  script_validation_pending_24h: {
+    tag: 'bbm_script_validation_pending_24h', label: 'Script à valider J+1',
+    channels: ['whatsapp', 'sms'], trigger: 'Script envoyé au client mais pas de validation/annotation depuis 24h (cron Bourbomedia)',
+    copyHint: 'Avez-vous eu le temps de relire votre script ? Lien direct : {portal_url}',
+  },
   script_validated: {
     tag: 'bbm_script_validated', label: 'Script validé',
     channels: ['whatsapp', 'email'], trigger: 'Le client valide son script',
@@ -98,6 +111,11 @@ export const WORKFLOWS: Record<WorkflowEvent, WorkflowDef> = {
     tag: 'bbm_video_delivered', label: 'Vidéo livrée',
     channels: ['whatsapp', 'email'], trigger: 'L\'équipe livre la vidéo finale',
     copyHint: '🎬 Votre vidéo est prête ! Découvrez-la : {portal_url}',
+  },
+  video_review_pending_48h: {
+    tag: 'bbm_video_review_pending_48h', label: 'Vidéo à valider J+2',
+    channels: ['whatsapp', 'sms'], trigger: 'Vidéo livrée mais ni validée ni rejetée par le client depuis 48h (cron Bourbomedia)',
+    copyHint: 'Petit rappel : on attend votre retour sur la vidéo livrée. Lien : {portal_url}',
   },
   feedback_requested: {
     tag: 'bbm_feedback_requested', label: 'Demande d\'avis',
