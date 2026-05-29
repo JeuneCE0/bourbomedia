@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { supaFetch } from '@/lib/supabase';
-import { sendWhatsAppMessage, sendEmailMessage } from '@/lib/ghl';
+import { sendEmailMessage } from '@/lib/ghl';
 import { triggerWorkflow } from '@/lib/ghl-workflows';
 import { notifyMontageReviewRequested } from '@/lib/slack';
 import { trackFunnelServer } from '@/lib/funnel';
@@ -288,11 +288,12 @@ export async function PUT(req: NextRequest) {
         pushNotification(id, 'script_ready', 'Votre script est prêt à relire ✍', 'Connectez-vous pour le consulter et le valider.');
         // GHL workflow trigger (tag-based) — runs whether or not direct sends are enabled
         triggerWorkflow(updated.ghl_contact_id, 'script_ready').catch(() => {});
+        // WhatsApp désactivé côté SaaS — c'est le workflow GHL câblé sur
+        // le tag bbm_script_ready qui envoie le message au client.
+        // L'email natif est conservé en attendant un workflow GHL email
+        // dédié si l'admin souhaite migrer cet aspect aussi.
         if (notifyEnabled && updated.ghl_contact_id) {
           const portalUrl = updated.portal_token ? `https://bourbonmedia.fr/portal?token=${updated.portal_token}` : '';
-          await sendWhatsAppMessage(updated.ghl_contact_id,
-            `Bonjour ${updated.contact_name} ! Votre script vidéo est prêt pour relecture. Consultez-le et donnez-nous votre feedback : ${portalUrl}`
-          );
           await sendEmailMessage(updated.ghl_contact_id,
             'Votre script est prêt — BourbonMédia',
             `<p>Bonjour ${updated.contact_name},</p>
@@ -317,11 +318,10 @@ export async function PUT(req: NextRequest) {
           }, true);
         }
         triggerWorkflow(updated.ghl_contact_id, 'video_delivered').catch(() => {});
+        // WhatsApp désactivé côté SaaS — c'est le workflow GHL câblé sur
+        // le tag bbm_video_delivered qui envoie le message au client.
         if (notifyEnabled && updated.ghl_contact_id) {
           const portalUrl = updated.portal_token ? `https://bourbonmedia.fr/portal?token=${updated.portal_token}` : '';
-          await sendWhatsAppMessage(updated.ghl_contact_id,
-            `🎉 ${updated.contact_name}, votre vidéo est prête ! Découvrez-la sur votre espace : ${portalUrl}`
-          );
           await sendEmailMessage(updated.ghl_contact_id,
             '🎬 Votre vidéo est prête — BourbonMédia',
             `<p>Bonjour ${updated.contact_name},</p>
