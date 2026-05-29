@@ -60,6 +60,29 @@ interface TrackServerOptions {
   metadata?: Record<string, unknown> | null;
 }
 
+// Events qui représentent un jalon unique dans le cycle de vie du client
+// (le client paie une fois, signe une fois, réserve son onboarding une fois).
+// Pour ceux-là, on dédup sur une fenêtre 60min : si le même event a déjà
+// été inséré pour ce client dans l'heure, on skip. Cas concret : Stripe
+// webhook + verify_payment portail + patch admin manuel peuvent tous
+// fire pour le même paiement → sans dédup, 3 lignes "a payé son acompte"
+// apparaissent dans l'ActivityFeed pour le même paiement.
+//
+// Les events NON inclus ici peuvent légitimement se répéter (script_proposed
+// v1/v2/v3, filming_booked en cas de replanif, video_changes_requested,
+// onboarding_landed à chaque visite…).
+const MILESTONE_EVENTS: Set<FunnelEvent> = new Set([
+  'signup_completed',
+  'contract_signed',
+  'payment_completed',
+  'call_booked',
+  'script_validated',
+  'video_validated',
+  'publication_booked',
+  'project_published',
+]);
+const DEDUP_WINDOW_MS = 60 * 60 * 1000; // 60min
+
 // Côté server (route handlers / webhooks) : insert direct dans
 // funnel_events via supaFetch + service key. Pas de re-validation du
 // vocabulaire ici : c'est censé être appelé avec les types FunnelEvent
@@ -67,6 +90,24 @@ interface TrackServerOptions {
 export async function trackFunnelServer({ event, source = 'admin', clientId, metadata }: TrackServerOptions): Promise<void> {
   try {
     const { supaFetch } = await import('@/lib/supabase');
+
+    // Dédup pour les events "jalon" — évite les doublons quand plusieurs
+    // chemins serveur tracent le même milestone (cf doc MILESTONE_EVENTS).
+    if (clientId && MILESTONE_EVENTS.has(event)) {
+      const cutoffIso = new Date(Date.now() - DEDUP_WINDOW_MS).toISOString();
+      const check = await supaFetch(
+        `funnel_events?event=eq.${encodeURIComponent(event)}`
+        + `&client_id=eq.${encodeURIComponent(clientId)}`
+        + `&created_at=gte.${encodeURIComponent(cutoffIso)}`
+        + `&select=id&limit=1`,
+        {}, true,
+      );
+      if (check.ok) {
+        const existing = await check.json();
+        if (Array.isArray(existing) && existing.length > 0) return;
+      }
+    }
+
     await supaFetch('funnel_events', {
       method: 'POST',
       headers: { 'Prefer': 'return=minimal' },

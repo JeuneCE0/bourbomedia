@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
 
@@ -93,7 +93,31 @@ export default function ActivityFeed() {
   useEffect(() => { load(); }, [load]);
   useVisibilityAwarePolling(load, 30_000);
 
-  if (loading || events.length === 0) {
+  // Dédup défensive : si plusieurs lignes (event, client_id) tombent dans
+  // une même fenêtre 60min (cf incident "Les délices de la ravine —
+  // 3× a payé son acompte" causé par webhook Stripe + verify_payment
+  // portail + patch admin qui tracent tous les 3 le même paiement),
+  // on garde la plus récente. Le fix racine est côté lib/funnel.ts
+  // (server-side dedup pour les events milestone) mais on filtre aussi
+  // à l'affichage pour masquer les doublons historiques déjà en base.
+  const dedupedEvents = useMemo(() => {
+    const DEDUP_MS = 60 * 60 * 1000;
+    const kept: FeedEvent[] = [];
+    const lastSeen = new Map<string, number>(); // (event::client_id) → ts ms
+    // events sont triés DESC par created_at → on garde le 1er rencontré
+    // pour chaque clé tant que le suivant tombe dans la fenêtre.
+    for (const e of events) {
+      const key = `${e.event}::${e.client_id || ''}`;
+      const ts = new Date(e.created_at).getTime();
+      const prev = lastSeen.get(key);
+      if (prev !== undefined && Math.abs(prev - ts) < DEDUP_MS) continue;
+      lastSeen.set(key, ts);
+      kept.push(e);
+    }
+    return kept;
+  }, [events]);
+
+  if (loading || dedupedEvents.length === 0) {
     // Pas de skeleton agressif — feed est secondaire, on cache si vide
     // pour ne pas polluer le dashboard avec un état "Aucune activité"
     // qui n'apporte aucune info actionable.
@@ -124,7 +148,7 @@ export default function ActivityFeed() {
           Activité client en direct
         </h3>
         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-          ({events.length})
+          ({dedupedEvents.length})
         </span>
         <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           {collapsed ? 'Afficher' : 'Masquer'}
@@ -139,7 +163,7 @@ export default function ActivityFeed() {
       {!collapsed && (
         <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {events.map((e, i) => {
+        {dedupedEvents.map((e, i) => {
           const meta = EVENT_META[e.event] || { emoji: '🔹', verb: e.event, color: 'var(--text-muted)' };
           // Identifie l'acteur : si on a une fiche client liée on utilise
           // son nom commercial. Sinon on tombe sur la source du funnel
