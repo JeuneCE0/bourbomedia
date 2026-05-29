@@ -1,13 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { notifyClientStatusChange, notifyTaskDeadline, sendSlackNotification } from '@/lib/slack';
-import { triggerWorkflow } from '@/lib/ghl-workflows';
+import { triggerWorkflow, buildDirectWhatsappMessage, type WorkflowEvent } from '@/lib/ghl-workflows';
+import { sendWhatsAppMessage } from '@/lib/ghl';
 
 interface TodoItem {
   id: string;
   text: string;
   done: boolean;
   due_date?: string;
+}
+
+// Helper unifié pour fire un workflow GHL ET envoyer le WhatsApp direct
+// en parallèle (le tag GHL reste posé même si le WhatsApp échoue, et
+// inversement). Retourne true si au moins un canal a réussi.
+//
+// La désactivation se fait via les env vars existantes :
+//  - AUTOMATIONS_PAUSED=true coupe TOUT (tag + WhatsApp) côté triggerWorkflow
+//    et sendWhatsAppMessage qui le checkent chacun.
+//  - WHATSAPP_DIRECT_DISABLED=true coupe UNIQUEMENT l'envoi direct (le tag
+//    GHL reste posé → permet de basculer "100% workflow GHL" quand l'admin
+//    aura câblé ses workflows et veut garder un canal unique).
+async function fireReminder(
+  ghlContactId: string | null | undefined,
+  event: WorkflowEvent,
+  ctx: { firstName: string; businessName: string; portalUrl: string },
+): Promise<void> {
+  await triggerWorkflow(ghlContactId || null, event).catch(() => null);
+  if (process.env.WHATSAPP_DIRECT_DISABLED === 'true') return;
+  const message = buildDirectWhatsappMessage(event, ctx);
+  if (!message || !ghlContactId) return;
+  await sendWhatsAppMessage(ghlContactId, message).catch(() => null);
 }
 
 interface CronClient {
@@ -95,17 +118,23 @@ export async function GET(req: NextRequest) {
         notifyClientStatusChange(c.business_name, c.status, `Aucune activité depuis ${daysIdle} jours`);
       }
 
+      // Contexte template partagé pour les WhatsApp directs ci-dessous.
+      const firstName = (c.contact_name || '').trim().split(' ')[0] || c.business_name;
+      const portalUrl = c.portal_token ? `https://bourbonmedia.fr/portal?token=${c.portal_token}` : 'https://bourbonmedia.fr';
+      const ctx = { firstName, businessName: c.business_name, portalUrl };
+
       // ── Relance paiement : contrat signé MAIS paiement non reçu depuis 24h ──
-      // Workflow GHL bbm_payment_pending_24h envoie un WhatsApp/SMS "Il manque
-      // votre paiement pour démarrer". Re-fire 1× par semaine max (dédup
-      // last_payment_reminder_at). On stoppe automatiquement dès que paid_at
-      // est posé (la condition AND !c.paid_at suffit).
+      // fireReminder pose le tag GHL bbm_payment_pending_24h ET envoie en
+      // direct un WhatsApp via la Conversations API (GHL n'expose pas d'API
+      // pour créer les workflows, donc le direct send garantit l'envoi sans
+      // setup manuel côté GHL). Re-fire 1× par semaine max via
+      // last_payment_reminder_at. Stop dès que paid_at est posé.
       if (c.contract_signed_at && !c.paid_at) {
         const hoursSinceSign = (now - new Date(c.contract_signed_at).getTime()) / 3_600_000;
         const lastReminderMs = c.last_payment_reminder_at ? new Date(c.last_payment_reminder_at).getTime() : 0;
         const daysSinceLastReminder = lastReminderMs ? Math.floor((now - lastReminderMs) / 86400000) : 999;
         if (hoursSinceSign >= 24 && daysSinceLastReminder >= 7) {
-          await triggerWorkflow(c.ghl_contact_id || null, 'payment_pending_24h').catch(() => null);
+          await fireReminder(c.ghl_contact_id, 'payment_pending_24h', ctx);
           try {
             await supaFetch(`clients?id=eq.${c.id}`, {
               method: 'PATCH',
@@ -132,7 +161,7 @@ export async function GET(req: NextRequest) {
         if (hoursIdle >= 24 && hoursIdle < 96 && daysSinceLastReminder >= 7) {
           // 24h ≤ X < 96h : on évite de chevaucher avec le bloc ≥4j
           // script_changes_requested déjà géré plus haut.
-          await triggerWorkflow(c.ghl_contact_id || null, 'script_validation_pending_24h').catch(() => null);
+          await fireReminder(c.ghl_contact_id, 'script_validation_pending_24h', ctx);
           try {
             await supaFetch(`clients?id=eq.${c.id}`, {
               method: 'PATCH',
@@ -154,7 +183,7 @@ export async function GET(req: NextRequest) {
         const lastReminderMs = c.last_video_review_reminder_at ? new Date(c.last_video_review_reminder_at).getTime() : 0;
         const daysSinceLastReminder = lastReminderMs ? Math.floor((now - lastReminderMs) / 86400000) : 999;
         if (hoursSinceDelivery >= 48 && daysSinceLastReminder >= 7) {
-          await triggerWorkflow(c.ghl_contact_id || null, 'video_review_pending_48h').catch(() => null);
+          await fireReminder(c.ghl_contact_id, 'video_review_pending_48h', ctx);
           try {
             await supaFetch(`clients?id=eq.${c.id}`, {
               method: 'PATCH',
