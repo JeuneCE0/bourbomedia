@@ -182,45 +182,6 @@ export async function triggerWorkflow(contactId: string | null | undefined, even
   return { tagged, workflowAdded };
 }
 
-/**
- * Templates WhatsApp envoyés DIRECTEMENT depuis le SaaS via la Conversations
- * API GHL, en parallèle du tag posé via triggerWorkflow.
- *
- * Pourquoi double envoi ? GHL n'expose pas d'API pour créer des workflows
- * (UI-only) → setup manuel pénible. Le direct send garantit que le client
- * reçoit son rappel même si aucun workflow GHL n'a été câblé sur le tag.
- * Si un workflow GHL existe en plus, c'est l'admin qui décide d'envoyer
- * via les 2 canaux ou de couper l'un des deux.
- *
- * Seuls les events "relance" temporels sont inclus ici — pour les events
- * en réaction immédiate (script_ready, video_delivered), l'envoi WhatsApp
- * natif est déjà fait directement dans /api/clients PUT (cf code historique
- * lignes 294, 323).
- *
- * Variables disponibles dans le template :
- *   - {firstName}    prénom contact (split sur le 1er espace de contact_name)
- *   - {businessName} business_name du client
- *   - {portalUrl}    URL portail client avec token
- *
- * Kill switch global AUTOMATIONS_PAUSED=true coupe tout (gère par
- * sendWhatsAppMessage dans lib/ghl.ts).
- */
-type TemplateContext = { firstName: string; businessName: string; portalUrl: string };
-
-const DIRECT_WHATSAPP_TEMPLATES: Partial<Record<WorkflowEvent, (ctx: TemplateContext) => string>> = {
-  payment_pending_24h: ({ firstName, portalUrl }) =>
-    `Hello ${firstName} 👋\n\nPetit rappel : il manque encore votre paiement pour qu'on lance la production de votre vidéo.\n\nLien sécurisé (Stripe) : ${portalUrl}\n\nDispo si la moindre question !\n\n— L'équipe Bourbon Média`,
-  script_validation_pending_24h: ({ firstName, portalUrl }) =>
-    `Hello ${firstName} ✍️\n\nAvez-vous eu le temps de relire votre script ?\nUne validation rapide nous permet d'enchaîner sur le tournage.\n\nVotre espace : ${portalUrl}\n\n— L'équipe Bourbon Média`,
-  video_review_pending_48h: ({ firstName, portalUrl }) =>
-    `Hello ${firstName} 🎬\n\nVotre vidéo vous attend ! Validation ou demande de modifications, on a besoin de votre retour pour avancer.\n\nVotre espace : ${portalUrl}\n\n— L'équipe Bourbon Média`,
-};
-
-export function buildDirectWhatsappMessage(event: WorkflowEvent, ctx: TemplateContext): string | null {
-  const fn = DIRECT_WHATSAPP_TEMPLATES[event];
-  return fn ? fn(ctx) : null;
-}
-
 /** List the workflows on the connected GHL location (admin diagnostic page). */
 export async function listGhlWorkflows(): Promise<Array<{ id: string; name: string; status?: string }>> {
   if (!GHL_API_KEY || !GHL_LOCATION_ID) return [];
