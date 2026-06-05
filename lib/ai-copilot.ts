@@ -161,6 +161,120 @@ export interface CopilotResult {
   };
 }
 
+// Vocabulaire prospect_status — doit rester aligné avec la migration 015 et
+// les options du widget AppointmentsToDocument.
+export const PROSPECT_STATUSES = [
+  'reflection',          // En réflexion
+  'ghosting',            // Ghosting (pas venu / silence radio)
+  'follow_up',           // Follow-up à recontacter
+  'awaiting_signature',  // Convaincu, attend signature + paiement
+  'contracted',          // A signé / payé
+  'regular',             // Client régulier
+  'not_interested',      // Pas intéressé
+  'closed_lost',         // Perdu
+] as const;
+export type ProspectStatus = (typeof PROSPECT_STATUSES)[number];
+
+export interface CallDocDraft {
+  notes: string;                       // markdown 4 sections, prêt à coller dans le champ notes
+  suggested_status: ProspectStatus | null;
+  status_reason: string;               // 1 phrase : pourquoi ce statut
+  usage: CopilotResult['usage'];
+}
+
+const STATUS_GUIDE = `- reflection : intéressé mais veut réfléchir / en parler à un associé.
+- ghosting : ne s'est pas présenté, ou silence après plusieurs relances.
+- follow_up : échange positif mais une étape reste (devis, dispo, budget à caler) → à recontacter.
+- awaiting_signature : convaincu, prêt à avancer, attend le contrat / le paiement.
+- contracted : a signé ou payé pendant/juste après l'appel.
+- regular : client déjà existant qui recommande une prestation.
+- not_interested : a dit clairement non (besoin/budget/fit absent).
+- closed_lost : opportunité morte (a choisi un concurrent, projet annulé).`;
+
+// Auto-rédige la documentation d'un appel à partir d'un transcript brut (Plaud,
+// collage, whisper…). Sortie STRUCTURÉE via tool-use forcé : on récupère des
+// notes markdown + un prospect_status suggéré, jamais du texte libre à parser.
+export async function draftCallDocFromTranscript(input: {
+  transcript: string;
+  contact_name?: string | null;
+  business_name?: string | null;
+  appointment_kind?: string | null;
+}): Promise<CallDocDraft> {
+  if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not configured');
+  const transcript = (input.transcript || '').trim();
+  if (!transcript) throw new Error('transcript vide');
+
+  const head: string[] = [];
+  if (input.contact_name) head.push(`Contact : ${input.contact_name}`);
+  if (input.business_name) head.push(`Commerce : ${input.business_name}`);
+  if (input.appointment_kind) head.push(`Type d'appel : ${input.appointment_kind}`);
+
+  const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1200,
+    system: [{ type: 'text', text: SYSTEM_BASE, cache_control: { type: 'ephemeral' } }],
+    tool_choice: { type: 'tool', name: 'documenter_appel' },
+    tools: [{
+      name: 'documenter_appel',
+      description: 'Restitue la documentation structurée de l\'appel commercial.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          notes: {
+            type: 'string',
+            description: `Compte-rendu en 4 sections markdown courtes, exactement ce format :
+**📌 Synthèse** (1-2 phrases : ce qui s'est dit en gros)
+**💡 Points clés** (3-5 bullets : budget, besoin, contexte, deadline)
+**⚠️ Objections / freins** (bullets ou "Aucune")
+**▶️ Prochaine action** (1 phrase actionnable + délai conseillé)`,
+          },
+          suggested_status: {
+            type: 'string',
+            enum: [...PROSPECT_STATUSES],
+            description: `Statut prospect le plus probable d'après l'appel.\n${STATUS_GUIDE}`,
+          },
+          status_reason: {
+            type: 'string',
+            description: '1 phrase justifiant le statut choisi (ce qui dans l\'appel le motive).',
+          },
+        },
+        required: ['notes', 'suggested_status', 'status_reason'],
+      },
+    }],
+    messages: [{
+      role: 'user',
+      content: `Voici le transcript brut d'un appel commercial (peut contenir des labels de locuteurs et des horodatages). Documente-le via l'outil.
+
+${head.join('\n')}
+
+Transcript :
+${transcript}`,
+    }],
+  });
+
+  const toolUse = response.content.find(
+    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'documenter_appel',
+  );
+  if (!toolUse) throw new Error('Claude n\'a pas renvoyé de documentation structurée');
+  const out = toolUse.input as { notes?: string; suggested_status?: string; status_reason?: string };
+  const status = PROSPECT_STATUSES.includes(out.suggested_status as ProspectStatus)
+    ? (out.suggested_status as ProspectStatus)
+    : null;
+
+  return {
+    notes: (out.notes || '').trim(),
+    suggested_status: status,
+    status_reason: (out.status_reason || '').trim(),
+    usage: {
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+      cache_creation_input_tokens: response.usage.cache_creation_input_tokens || 0,
+      cache_read_input_tokens: response.usage.cache_read_input_tokens || 0,
+    },
+  };
+}
+
 export async function runCopilot(action: CopilotAction, payload: unknown): Promise<CopilotResult> {
   if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not configured');
   const promptBuilder = PROMPTS[action];

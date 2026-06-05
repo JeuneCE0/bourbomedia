@@ -20,6 +20,11 @@ interface Appointment {
   ghl_synced_at: string | null;
   opportunity_name?: string | null;
   pipeline_stage_name?: string | null;
+  transcript?: string | null;
+  transcript_source?: string | null;
+  ai_draft?: string | null;
+  ai_suggested_status?: string | null;
+  ai_drafted_at?: string | null;
 }
 
 const KIND_META: Record<Appointment['calendar_kind'], { emoji: string; label: string; color: string }> = {
@@ -217,6 +222,43 @@ function AppointmentRow({ appt, open, onToggle, onSaved }: {
   const [saving, setSaving] = useState(false);
   const meta = KIND_META[appt.calendar_kind];
 
+  // Brouillon IA : provient des props (ingestion webhook/Plaud) ou du collage
+  // manuel ci-dessous. On le garde en state local pour l'afficher sans recharger.
+  const [draft, setDraft] = useState<{ notes: string; status: string | null } | null>(
+    appt.ai_draft ? { notes: appt.ai_draft, status: appt.ai_suggested_status || null } : null,
+  );
+  const [hasTranscript, setHasTranscript] = useState(!!appt.transcript);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [generating, setGenerating] = useState(false);
+
+  // Applique le brouillon IA dans les champs éditables (notes + statut). Siméon
+  // relit et ajuste avant d'enregistrer — le brouillon n'est jamais sauvé tel quel.
+  function applyDraft() {
+    if (!draft) return;
+    setNotes(prev => (prev.trim() ? `${prev.trim()}\n\n${draft.notes}` : draft.notes));
+    if (draft.status) setStatus(draft.status);
+  }
+
+  async function generateDraft() {
+    const text = pasteText.trim();
+    if (!text) return;
+    setGenerating(true);
+    try {
+      const r = await fetch('/api/appointments/transcript', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ appointment_id: appt.id, transcript: text, source: 'paste' }),
+      });
+      if (!r.ok) { alert('Erreur lors de la génération du brouillon.'); return; }
+      const d = await r.json();
+      setHasTranscript(true);
+      setPasteOpen(false);
+      setPasteText('');
+      if (d.draft_notes) setDraft({ notes: d.draft_notes, status: d.suggested_status || null });
+      else alert('Transcript enregistré, mais le brouillon IA n\'a pas pu être généré.');
+    } finally { setGenerating(false); }
+  }
+
   async function save() {
     if (!notes.trim()) {
       alert('Ajoute au moins quelques notes avant d\'enregistrer.');
@@ -259,18 +301,98 @@ function AppointmentRow({ appt, open, onToggle, onSaved }: {
             </div>
           </div>
         </div>
-        <span style={{
-          fontSize: '0.7rem', padding: '4px 10px', borderRadius: 999,
-          background: 'rgba(168,85,247,.16)', border: '1px solid rgba(168,85,247,.45)',
-          color: '#D8B4FE', fontWeight: 700, whiteSpace: 'nowrap',
-        }}>
-          {open ? 'Fermer' : '✏️ Renseigner'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {!open && draft && (
+            <span title="Brouillon IA prêt à relire" style={{
+              fontSize: '0.68rem', padding: '4px 9px', borderRadius: 999,
+              background: 'rgba(34,197,94,.14)', border: '1px solid rgba(34,197,94,.40)',
+              color: '#86EFAC', fontWeight: 700, whiteSpace: 'nowrap',
+            }}>✨ Brouillon</span>
+          )}
+          {!open && !draft && hasTranscript && (
+            <span title="Transcript reçu" aria-hidden style={{ fontSize: '0.8rem' }}>🎙️</span>
+          )}
+          <span style={{
+            fontSize: '0.7rem', padding: '4px 10px', borderRadius: 999,
+            background: 'rgba(168,85,247,.16)', border: '1px solid rgba(168,85,247,.45)',
+            color: '#D8B4FE', fontWeight: 700, whiteSpace: 'nowrap',
+          }}>
+            {open ? 'Fermer' : '✏️ Renseigner'}
+          </span>
+        </div>
       </button>
 
       {open && (
         <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--border)' }}>
-          <div style={{ marginTop: 10 }}>
+          {draft && (
+            <div style={{
+              marginTop: 10, padding: '10px 12px', borderRadius: 10,
+              background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.30)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#86EFAC' }}>✨ Brouillon IA</span>
+                <button type="button" onClick={applyDraft} style={{
+                  fontSize: '0.72rem', fontWeight: 700, padding: '5px 11px', borderRadius: 8,
+                  background: 'rgba(34,197,94,.18)', border: '1px solid rgba(34,197,94,.45)',
+                  color: '#86EFAC', cursor: 'pointer', whiteSpace: 'nowrap',
+                }}>↧ Utiliser ce brouillon</button>
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-mid)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                {draft.notes}
+              </div>
+              {draft.status && STATUS_BY_VALUE[draft.status] && (
+                <div style={{ marginTop: 8, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Statut suggéré : {STATUS_BY_VALUE[draft.status].emoji} {STATUS_BY_VALUE[draft.status].label}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!draft && (
+            pasteOpen ? (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Colle le transcript de l&apos;appel (Plaud, Whisper…) — l&apos;IA en tire les notes
+                </label>
+                <textarea
+                  value={pasteText}
+                  onChange={e => setPasteText(e.target.value)}
+                  placeholder="Colle ici le transcript brut de l'appel…"
+                  rows={4}
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 8,
+                    background: 'var(--night-raised)', border: '1px solid var(--border-md)',
+                    color: 'var(--text)', fontSize: '0.82rem', resize: 'vertical', outline: 'none',
+                    fontFamily: 'inherit',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => { setPasteOpen(false); setPasteText(''); }} style={{
+                    fontSize: '0.76rem', padding: '7px 12px', borderRadius: 8,
+                    background: 'transparent', border: '1px solid var(--border-md)',
+                    color: 'var(--text-muted)', cursor: 'pointer',
+                  }}>Annuler</button>
+                  <button type="button" onClick={generateDraft} disabled={generating || !pasteText.trim()} style={{
+                    fontSize: '0.76rem', fontWeight: 700, padding: '7px 14px', borderRadius: 8,
+                    background: 'rgba(34,197,94,.18)', border: '1px solid rgba(34,197,94,.45)',
+                    color: '#86EFAC', cursor: generating ? 'default' : 'pointer',
+                    opacity: generating || !pasteText.trim() ? 0.5 : 1,
+                  }}>{generating ? '⏳ Génération…' : '✨ Générer le brouillon'}</button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setPasteOpen(true)} style={{
+                marginTop: 10, alignSelf: 'flex-start',
+                fontSize: '0.74rem', fontWeight: 600, padding: '7px 12px', borderRadius: 8,
+                background: 'var(--night-raised)', border: '1px dashed var(--border-md)',
+                color: 'var(--text-mid)', cursor: 'pointer',
+              }}>
+                {hasTranscript ? '🎙️ Transcript reçu — re-générer un brouillon' : '🎙️ Coller un transcript (Plaud…)'}
+              </button>
+            )
+          )}
+
+          <div style={{ marginTop: draft || pasteOpen ? 0 : 10 }}>
             <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>
               Statut prospect
             </label>
