@@ -410,7 +410,9 @@ export async function PUT(req: NextRequest) {
         const arr = cR.ok ? await cR.json() : [];
         const cl = arr[0] || {};
         logEvent('publication_scheduled', dateStr ? { date: dateStr } : {});
-        triggerWorkflow(cl.ghl_contact_id || null, 'project_published').catch(() => {});
+        // Le client CHOISIT sa date (futur) → tag dédié. Le tag project_published
+        // est réservé à la vraie mise en ligne (statut → published).
+        triggerWorkflow(cl.ghl_contact_id || null, 'publication_scheduled').catch(() => {});
         void trackFunnelServer({ event: 'publication_booked', source: 'portal', clientId: cid, metadata: dateStr ? { date: dateStr } : null });
         void sendPushToAll({
           title: '🗓️ Date de publication choisie',

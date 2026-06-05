@@ -6,6 +6,7 @@ import { sendPushToAll } from '@/lib/push';
 import { findOrCreateClientByEmail } from '@/lib/client-resolver';
 import { markProspectContracted } from '@/lib/mark-contracted';
 import { trackFunnelServer } from '@/lib/funnel';
+import { triggerWorkflow } from '@/lib/ghl-workflows';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -36,6 +37,13 @@ export async function POST(req: NextRequest) {
 
     const clientId = session.metadata?.client_id;
     if (!clientId) return NextResponse.json({ error: 'No client_id' }, { status: 400 });
+
+    // Lecture de l'état AVANT le PATCH : le tag GHL payment_received ne doit
+    // partir qu'à la première transition (sinon retry webhook Stripe +
+    // fallback verify_payment = double notif côté workflow GHL).
+    const beforeR = await supaFetch(`clients?id=eq.${clientId}&select=business_name,email,paid_at,ghl_contact_id`, {}, true);
+    const before = beforeR.ok ? (await beforeR.json())[0] : null;
+    const wasUnpaid = !before?.paid_at;
 
     await supaFetch(`clients?id=eq.${clientId}`, {
       method: 'PATCH',
@@ -80,20 +88,20 @@ export async function POST(req: NextRequest) {
       }, true);
     } catch { /* */ }
 
-    const cr = await supaFetch(`clients?id=eq.${clientId}&select=business_name,email`, {}, true);
     let clientEmail: string | null = null;
-    if (cr.ok) {
-      const clients = await cr.json();
-      if (clients.length) {
-        notifyClientStatusChange(clients[0].business_name, 'Étape 3', 'Paiement reçu');
-        sendPushToAll({
-          title: '💸 Paiement reçu',
-          body: `${clients[0].business_name} — ${((session.amount_total || 0) / 100).toLocaleString('fr-FR')} €`,
-          url: `/dashboard/clients/${clientId}?tab=payments`,
-          tag: `payment-${session.id}`,
-        }).catch(() => null);
-        clientEmail = clients[0].email || null;
-      }
+    if (before) {
+      notifyClientStatusChange(before.business_name, 'Étape 3', 'Paiement reçu');
+      sendPushToAll({
+        title: '💸 Paiement reçu',
+        body: `${before.business_name} — ${((session.amount_total || 0) / 100).toLocaleString('fr-FR')} €`,
+        url: `/dashboard/clients/${clientId}?tab=payments`,
+        tag: `payment-${session.id}`,
+      }).catch(() => null);
+      clientEmail = before.email || null;
+    }
+
+    if (wasUnpaid) {
+      void triggerWorkflow(before?.ghl_contact_id || null, 'payment_received').catch(() => {});
     }
 
     // Bascule l'opportunité + les appointments liés en "Contracté"

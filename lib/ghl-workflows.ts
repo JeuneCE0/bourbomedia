@@ -31,6 +31,7 @@ export type WorkflowEvent =
   | 'video_delivered'
   | 'video_review_pending_48h'  // vidéo livrée non validée par le client depuis 48h+
   | 'feedback_requested'   // a few days after delivery
+  | 'publication_scheduled'  // le client a confirmé sa date de publication (futur)
   | 'project_published';
 
 interface WorkflowDef {
@@ -122,10 +123,15 @@ export const WORKFLOWS: Record<WorkflowEvent, WorkflowDef> = {
     channels: ['whatsapp', 'email'], trigger: '3 jours après livraison vidéo',
     copyHint: 'Comment se passe la suite ? Votre retour compte beaucoup.',
   },
+  publication_scheduled: {
+    tag: 'bbm_publication_scheduled', label: 'Date de publication choisie',
+    channels: ['whatsapp', 'email'], trigger: 'Le client confirme sa date de publication (mardi/jeudi)',
+    copyHint: 'C\'est noté : votre vidéo sera publiée le {publication_date}. On a hâte !',
+  },
   project_published: {
-    tag: 'bbm_project_published', label: 'Projet publié',
-    channels: ['email'], trigger: 'Le client confirme la publication',
-    copyHint: 'Félicitations pour la sortie ! Voilà comment maximiser sa portée.',
+    tag: 'bbm_project_published', label: 'Vidéo publiée',
+    channels: ['whatsapp', 'email'], trigger: 'L\'équipe marque le projet comme publié (statut → Publié)',
+    copyHint: '🎉 Votre vidéo est en ligne ! Voilà comment maximiser sa portée.',
   },
 };
 

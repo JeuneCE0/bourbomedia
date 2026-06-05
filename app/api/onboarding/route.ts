@@ -7,6 +7,7 @@ import { listCalendarEvents } from '@/lib/ghl-opportunities';
 import { findGhlContactByEmailOrPhone } from '@/lib/ghl';
 import { notifyClientStatusChange } from '@/lib/slack';
 import { trackFunnelServer } from '@/lib/funnel';
+import { triggerWorkflow } from '@/lib/ghl-workflows';
 import { sendPushToAll } from '@/lib/push';
 import crypto from 'crypto';
 
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
         url: data?.[0]?.id ? `/dashboard/clients/${data[0].id}?tab=journey` : '/dashboard',
         tag: data?.[0]?.id ? `signup-${data[0].id}` : 'signup',
       });
+      void triggerWorkflow(ghlContactId, 'onboarding_started').catch(() => {});
 
       return NextResponse.json({ token: onboardingToken, portalToken, client: data[0] }, { status: 201 });
     } catch (e: unknown) {
@@ -143,6 +145,7 @@ export async function POST(req: NextRequest) {
       }, true);
       notifyClientStatusChange(client.business_name, 'Étape 2', 'Contrat signé');
       void trackFunnelServer({ event: 'contract_signed', source: 'portal', clientId: client.id });
+      void triggerWorkflow(client.ghl_contact_id || null, 'contract_signed').catch(() => {});
       void sendPushToAll({
         title: '✍️ Contrat signé',
         body: `${client.business_name} vient de signer le contrat.`,
@@ -256,6 +259,7 @@ export async function POST(req: NextRequest) {
         clientId: client.id,
         metadata: { amount_cents: session.amountTotal, via: 'verify_payment' },
       });
+      void triggerWorkflow(client.ghl_contact_id || null, 'payment_received').catch(() => {});
       void markProspectContracted(client.id, client.email || null);
       return NextResponse.json({ paid: true, source: 'verified' });
     } catch (e: unknown) {
@@ -303,6 +307,7 @@ export async function POST(req: NextRequest) {
         clientId: client.id,
         metadata: { via: 'verify_call_booked', appointment_id: match.id, date: match.startTime },
       });
+      void triggerWorkflow(client.ghl_contact_id || null, 'call_booked').catch(() => {});
       void sendPushToAll({
         title: '📞 Appel onboarding réservé',
         body: `${client.business_name} a réservé son appel onboarding (vérif portail).`,
@@ -317,6 +322,10 @@ export async function POST(req: NextRequest) {
 
   // Step 4: Mark onboarding call as booked
   if (action === 'call_booked') {
+    // Le tag GHL ne doit partir qu'à la vraie transition : si le fallback
+    // verify_call_booked (ou un double-clic) a déjà flagué le créneau, on ne
+    // re-déclenche pas le workflow (sinon double notif côté GHL).
+    const alreadyBooked = !!client.onboarding_call_booked;
     await supaFetch(`clients?id=eq.${client.id}`, {
       method: 'PATCH',
       body: JSON.stringify({
@@ -342,6 +351,9 @@ export async function POST(req: NextRequest) {
       url: `/dashboard/clients/${client.id}?tab=journey`,
       tag: `call-${client.id}`,
     });
+    if (!alreadyBooked) {
+      void triggerWorkflow(client.ghl_contact_id || null, 'call_booked').catch(() => {});
+    }
     return NextResponse.json({ success: true });
   }
 
