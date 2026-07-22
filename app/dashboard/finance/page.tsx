@@ -428,7 +428,7 @@ export default function FinancePage() {
   const topClients = Object.entries(clientCA).sort((a, b) => b[1].cents - a[1].cents).slice(0, 10);
 
   // Forecast: clients in pipeline who haven't paid yet — use the standard
-  // 500€ HT + 8.5% TVA pricing as fallback when avgTicket is unknown.
+  // TTC price as fallback when avgTicket is unknown.
   const pipelinePotential = unpaidClients.length * (avgTicket || STANDARD_VIDEO_PRICE_TTC_CENTS);
 
   return (

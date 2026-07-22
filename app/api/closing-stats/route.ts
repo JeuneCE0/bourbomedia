@@ -14,7 +14,7 @@ import { STANDARD_VIDEO_PRICE_HT_CENTS } from '@/lib/pricing';
 //   - closing_rate   : calls_won / calls_done (0 if no calls done)
 //   - new_prospects  : unique contacts (by email) booking their first call in [from, to]
 //   - revenue_paid   : sum of clients.payment_amount where paid_at in [from, to]
-//   - revenue_won_ht : calls_won × 500€ HT (forecast based on standard price)
+//   - revenue_won_ht : calls_won × prix HT standard (forecast based on standard price)
 //   - ads_budget     : pro-rata of monthly ads budget for the range
 //   - provider_fees  : sum of clients.provider_fees with created_at in [from, to]
 //   - gross_profit   : revenue_paid − ads_budget − provider_fees
@@ -185,7 +185,7 @@ export async function GET(req: NextRequest) {
   const attendance_rate = calls_booked > 0 ? Math.round((calls_done / calls_booked) * 100) : null;
 
   // Pipeline value : somme des monetary_value des opportunités encore actives
-  // (réflexion / follow_up / awaiting_signature). Fallback : 500€ HT × count.
+  // (réflexion / follow_up / awaiting_signature). Fallback : prix HT standard × count.
   const pipeline_open_count = pipelineSnapshot.length;
   const pipeline_value_cents = pipelineSnapshot.reduce(
     (s, o) => s + (o.monetary_value_cents || STANDARD_VIDEO_PRICE_HT_CENTS),

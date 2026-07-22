@@ -9,6 +9,7 @@ import { SkeletonCard } from '@/components/ui/Skeleton';
 import ThreadPanel from '@/components/ThreadPanel';
 import PresenceIndicator from '@/components/PresenceIndicator';
 import LinkGhlButton from '@/components/LinkGhlButton';
+import { STANDARD_VIDEO_PRICE_HT_CENTS } from '@/lib/pricing';
 
 const ScriptEditor = dynamic(() => import('@/components/ScriptEditor'), { ssr: false });
 const ScriptAnnotator = dynamic(() => import('@/components/ScriptAnnotator'), { ssr: false });
@@ -297,8 +298,8 @@ export default function ClientDetailPage() {
   const [ghlData, setGhlData] = useState<{ opportunities: GhlOpportunityRow[]; appointments: GhlAppointmentRow[] }>({ opportunities: [], appointments: [] });
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
-  // Default payment = vidéo unique 500€ HT + 8.5% TVA = 542,50€ TTC
-  const [paymentForm, setPaymentForm] = useState({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)', method: 'virement' as 'virement' | 'especes' | 'cheque' | 'autre' });
+  // Default payment = vidéo unique standard : 900€ net (TVA non applicable)
+  const [paymentForm, setPaymentForm] = useState({ amount: '900.00', description: 'Vidéo unique (900€ net)', method: 'virement' as 'virement' | 'especes' | 'cheque' | 'autre' });
   const [addingPayment, setAddingPayment] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [newTodo, setNewTodo] = useState('');
@@ -1082,7 +1083,7 @@ export default function ClientDetailPage() {
         }).catch(() => null);
       }
       notify('success', `${methodLabel} ajouté · ${amountNum} €`);
-      setPaymentForm({ amount: '542.50', description: 'Vidéo unique (500€ HT + 8,5% TVA)', method: 'virement' });
+      setPaymentForm({ amount: '900.00', description: 'Vidéo unique (900€ net)', method: 'virement' });
       loadPayments();
       loadClient();
     } catch (err: unknown) {
@@ -2799,7 +2800,7 @@ function fmtDateTime(iso: string): string {
 }
 
 function GhlClientTab({ opportunities, appointments }: { opportunities: GhlOpportunityRow[]; appointments: GhlAppointmentRow[] }) {
-  const totalValue = opportunities.reduce((s, o) => s + (o.monetary_value_cents || 50000), 0);
+  const totalValue = opportunities.reduce((s, o) => s + (o.monetary_value_cents || STANDARD_VIDEO_PRICE_HT_CENTS), 0);
 
   if (opportunities.length === 0 && appointments.length === 0) {
     return (

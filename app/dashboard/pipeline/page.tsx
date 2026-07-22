@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import PipelineCommerciale from '@/components/PipelineCommerciale';
 import PipelineOnboarding from '@/components/PipelineOnboarding';
 import { ClientsListView } from '@/app/dashboard/clients/page';
+import { STANDARD_VIDEO_PRICE_HT_CENTS } from '@/lib/pricing';
 
 type Tab = 'commerciale' | 'onboarding' | 'clients';
 
@@ -56,7 +57,7 @@ function PipelinePageInner() {
       //  - Gagnés = opps avec prospect_status contracted ou regular
       //  - Clients en production = clients dont la vidéo n'est pas encore publiée
       //  - CA à signer = somme monetary_value des opps "à signer" (réflexion + follow-up
-      //    + attente signature). Fallback 500€ HT si valeur null.
+      //    + attente signature). Fallback prix HT standard si valeur null.
       const isActiveLead = (o: Opp) => {
         const s = (o.prospect_status || '').toLowerCase();
         const stageName = (o.pipeline_stage_name || '').toLowerCase();
@@ -74,7 +75,7 @@ function PipelinePageInner() {
         : null;
       const ca_to_sign_cents = opps
         .filter(o => o.prospect_status && ['reflection', 'follow_up', 'awaiting_signature'].includes(o.prospect_status))
-        .reduce((s, o) => s + (o.monetary_value_cents || 50000), 0);
+        .reduce((s, o) => s + (o.monetary_value_cents || STANDARD_VIDEO_PRICE_HT_CENTS), 0);
 
       setKpi({ leads_active, clients_active, conversion_rate, ca_to_sign_cents });
     } catch { /* tolerate */ }

@@ -2644,7 +2644,7 @@ const UPSELL_OFFERS: UpsellOffer[] = [
   {
     emoji: '🎬',
     title: 'Vidéo unique',
-    price: '500 € HT',
+    price: '900 € net',
     description: 'Une nouvelle vidéo sur mesure, du brief à la diffusion.',
     bullets: [
       'Script écrit par notre équipe',

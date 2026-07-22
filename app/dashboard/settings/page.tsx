@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AutomationsView } from '@/app/dashboard/automations/page';
 import { DensityToggle } from '@/components/DensityProvider';
+import { STANDARD_VIDEO_PRICE_TTC_CENTS, fmtEUR } from '@/lib/pricing';
 
 type TabKey = 'team' | 'ads' | 'pricing' | 'integrations' | 'notifications' | 'automations' | 'data' | 'appearance';
 
@@ -183,13 +184,12 @@ function PricingPanel() {
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12,
       }}>
-        <Mini label="Prix HT" value="500 €" sub="Vidéo unique" />
-        <Mini label="TVA Réunion" value="8,5%" sub="Soit 42,50 €" />
-        <Mini label="Prix TTC" value="542,50 €" sub="Facturé au client" highlight />
+        <Mini label="Prix net" value={fmtEUR(STANDARD_VIDEO_PRICE_TTC_CENTS)} sub="Facturé au client" highlight />
+        <Mini label="TVA" value="Non applicable" sub="Franchise en base (293 B)" />
       </div>
       <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 14, marginBottom: 0 }}>
         💡 Pour modifier ces tarifs, édite <code style={{ background: 'var(--night-mid)', padding: '1px 6px', borderRadius: 4 }}>lib/pricing.ts</code> dans le code.
-        Les calculs de revenu prévisionnel (closings won × 500€) se mettent à jour automatiquement.
+        Les calculs de revenu prévisionnel (closings won × prix HT) se mettent à jour automatiquement.
       </p>
     </Card>
   );

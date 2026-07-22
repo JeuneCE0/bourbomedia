@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supaFetch } from '@/lib/supabase';
 import { requireAuth, hashPassword, verifyPassword } from '@/lib/auth';
 import { createEmbeddedCheckoutSession, findPaidSessionForClient, getPaymentReceipt } from '@/lib/stripe';
+import { STANDARD_VIDEO_PRICE_TTC_CENTS } from '@/lib/pricing';
 import { markProspectContracted } from '@/lib/mark-contracted';
 import { listCalendarEvents } from '@/lib/ghl-opportunities';
 import { findGhlContactByEmailOrPhone } from '@/lib/ghl';
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
   // Step 3: Create embedded Stripe checkout
   if (action === 'create_payment') {
     try {
-      const amount = body.amount || 50000; // 500€ HT in cents
+      const amount = body.amount || STANDARD_VIDEO_PRICE_TTC_CENTS; // fallback si STRIPE_PRODUCT_ID absent
       const baseUrl = req.nextUrl.origin;
       // Le caller indique où revenir après paiement (/onboarding pour le funnel
       // historique, /portal depuis la migration). Liste blanche pour éviter
@@ -175,7 +176,11 @@ export async function POST(req: NextRequest) {
         amount,
         description: 'Production vidéo BourbonMédia',
         returnUrl: `${baseUrl}${returnPath}?token=${token}&payment=success`,
-        productId: process.env.STRIPE_PRODUCT_ID || undefined,
+        // Produit Stripe « Vidéo unique » 900€ net. Le prix fait foi côté Dashboard
+        // (default_price du produit). Fixé en dur volontairement : une ancienne
+        // valeur de STRIPE_PRODUCT_ID dans Vercel ne doit pas pouvoir re-facturer
+        // l'ancien tarif (500€). Pour changer d'offre, éditer cette constante.
+        productId: 'prod_UsWhq0Rp7BHOle',
       });
       if (!clientSecret) return NextResponse.json({ error: 'Erreur Stripe' }, { status: 500 });
       return NextResponse.json({ clientSecret });

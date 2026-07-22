@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { downloadCsv } from '@/lib/csv-export';
+import { STANDARD_VIDEO_PRICE_HT_CENTS } from '@/lib/pricing';
 import { useVisibilityAwarePolling } from '@/lib/use-visibility-polling';
 import { useGhlLocationId, buildGhlAppointmentUrl } from '@/lib/use-ghl-location';
 import ThreadPanel from '@/components/ThreadPanel';
@@ -280,7 +281,7 @@ export default function PipelineCommerciale() {
   const totalOpps = opps.length;
   const wonStages = stages.filter(s => /contracté|client régulier/i.test(s.name));
   const wonCount = wonStages.reduce((s, st) => s + (grouped[st.id]?.length || 0), 0);
-  const totalValue = opps.reduce((s, o) => s + (o.monetary_value_cents || 50000), 0);
+  const totalValue = opps.reduce((s, o) => s + (o.monetary_value_cents || STANDARD_VIDEO_PRICE_HT_CENTS), 0);
 
   return (
     <div style={{ padding: 'clamp(16px, 2.5vw, 28px)', maxWidth: '100%', margin: '0 auto' }}>
@@ -1335,7 +1336,7 @@ function ProspectModal({ opp, stages, onClose, onSaved }: { opp: Opportunity; st
               <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem', padding: '0 4px' }}>€ HT</span>
             </div>
             <p style={{ fontSize: '0.66rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-              Vide = utilise le tarif standard (500 € HT) dans les calculs de pipeline
+              Vide = utilise le tarif standard dans les calculs de pipeline
             </p>
           </div>
 
