@@ -71,7 +71,7 @@ function OnboardingContent() {
     return () => clearTimeout(timer);
   }, [form]);
 
-  const fetchClient = useCallback(async (t: string) => {
+  const fetchClient = useCallback(async (t: string, fromUrl: boolean) => {
     try {
       const r = await fetch(`/api/onboarding?token=${t}`);
       if (!r.ok) throw new Error('Token invalide');
@@ -94,6 +94,14 @@ function OnboardingContent() {
       setError("Votre espace client n'est pas encore activé. Contactez l'équipe BourbonMédia.");
       return data;
     } catch {
+      // Token issu du localStorage (visite de retour) : un jeton périmé ne doit
+      // pas afficher un message anxiogène sur un formulaire d'inscription vierge.
+      // On nettoie silencieusement et on laisse le visiteur s'inscrire / se reconnecter.
+      if (!fromUrl) {
+        try { localStorage.removeItem('ob_token'); } catch { /* ignore */ }
+        return null;
+      }
+      // Token issu de l'URL (lien partagé par le commercial) : message explicite.
       setError('Lien invalide ou expiré');
       return null;
     }
@@ -103,12 +111,12 @@ function OnboardingContent() {
     if (tokenParam) {
       setToken(tokenParam);
       localStorage.setItem('ob_token', tokenParam);
-      fetchClient(tokenParam);
+      fetchClient(tokenParam, true);
     } else {
       const saved = localStorage.getItem('ob_token');
       if (saved) {
         setToken(saved);
-        fetchClient(saved);
+        fetchClient(saved, false);
       } else {
         // Visiteur new : pas de token URL ni localStorage = haut de funnel.
         // Track une fois par session pour mesurer le top de l'entonnoir.
@@ -167,11 +175,15 @@ function OnboardingContent() {
       setError("Votre espace client n'est pas encore activé. L'équipe BourbonMédia vous recontacte sous peu.");
     } catch (e: unknown) {
       const msg = (e as Error).message || '';
-      if (msg.toLowerCase().includes('email') && msg.toLowerCase().includes('exist')) {
+      const low = msg.toLowerCase();
+      // Doublon email : contrainte unique Postgres (clients_email_key) ou message explicite.
+      if (low.includes('duplicate') || low.includes('unique') || low.includes('email_key') || low.includes('déjà') || low.includes('already')) {
         setError('Cet email est déjà utilisé. Cliquez sur « Reprendre mon onboarding » ci-dessous.');
-      } else if (msg.toLowerCase().includes('email')) {
-        setError("L'adresse email semble invalide. Vérifiez-la et réessayez.");
       } else {
+        // On remonte le message serveur tel quel — il est déjà actionnable (ex :
+        // « Aucun prospect trouvé avec cet email ou téléphone »). Ne PAS le
+        // maquiller en « email invalide » : ça trompait le client sur la vraie
+        // cause (email pourtant valide, mais absent du CRM / gate prospect).
         setError(msg || "Impossible de créer votre compte. Réessayez ou contactez-nous.");
       }
     } finally {
@@ -290,8 +302,9 @@ function OnboardingContent() {
       localStorage.setItem('ob_token', data.token);
       setToken(data.token);
       // fetchClient redirige automatiquement vers /portal s'il y a un
-      // portal_token (cas standard pour les comptes existants).
-      await fetchClient(data.token);
+      // portal_token (cas standard pour les comptes existants). Login explicite
+      // → on remonte l'erreur éventuelle plutôt que de nettoyer en silence.
+      await fetchClient(data.token, true);
     } catch (e: unknown) {
       setError((e as Error).message);
     } finally {

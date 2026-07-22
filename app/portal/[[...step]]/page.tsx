@@ -183,8 +183,8 @@ const STATUS_LABELS_PORTAL: Record<string, string> = {
 // (contrat / paiement) qui ne se reflètent pas dans `clients.status`.
 const PROJECT_STAGES = [
   { key: 'onboarding',          label: 'Inscription',           emoji: '👋',  description: 'Vous êtes inscrit·e — bienvenue !' },
-  { key: '__contract',          label: 'Contrat signé',         emoji: '✍️',  description: 'Votre contrat de prestation est signé.' },
-  { key: '__payment',           label: 'Paiement',              emoji: '💳',  description: 'Votre paiement est confirmé.' },
+  { key: '__contract',          label: 'Contrat',               emoji: '✍️',  description: 'Lisez et signez votre contrat de prestation ci-dessous.' },
+  { key: '__payment',           label: 'Paiement',              emoji: '💳',  description: 'Réglez votre prestation en toute sécurité pour lancer le projet.' },
   { key: 'onboarding_call',     label: 'Appel onboarding',      emoji: '📞',  description: 'Réservez votre appel de cadrage avec notre équipe.' },
   { key: 'script_writing',      label: 'Écriture du script',     emoji: '✍️',  description: 'Notre équipe écrit votre script sur mesure.' },
   { key: 'script_review',       label: 'Relecture du script',    emoji: '📝',  description: 'Le script vous est proposé pour relecture.' },
