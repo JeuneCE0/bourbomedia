@@ -3438,7 +3438,11 @@ function PaymentStep({ token, onPaid }: { token: string; onPaid: () => void }) {
   }
 
   return (
-    <div style={{ borderRadius: 12, overflow: 'hidden' }}>
+    // maxWidth + centrage : sur iPad/desktop l'embed Stripe s'étirait pleine
+    // largeur (720px) → colonne unique trop large. 480px = rendu compact et
+    // centré. Le fond coloré vient de la couleur de marque Stripe (Dashboard
+    // → Branding), pas d'ici — overflow:hidden arrondit juste ses coins.
+    <div style={{ maxWidth: 480, margin: '0 auto', borderRadius: 12, overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,.28)' }}>
       <EmbeddedCheckoutProvider stripe={stripePromiseLazy} options={{ clientSecret }}>
         <EmbeddedCheckout />
       </EmbeddedCheckoutProvider>
